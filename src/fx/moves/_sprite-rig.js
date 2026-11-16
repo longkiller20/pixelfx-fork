@@ -38,13 +38,25 @@ export class Rig {
         const k = parts.findIndex((p) => inside(p.poly, x + 0.5, y + 0.5));
         this.owner[y * sprite.w + x] = k;
       }
+    // what shows where a part was when it turns away: the nearest bit of body beside it on the same row
+    this.under = new Uint32Array(sprite.w * sprite.h);
+    for (let y = 0; y < sprite.h; y++)
+      for (let x = 0; x < sprite.w; x++) {
+        const i = y * sprite.w + x;
+        if (this.owner[i] < 0) continue;
+        // only inside the body: there's body on both sides of it
+        let L = 0, Rt = 0, dl = 99, dr = 99;
+        for (let d = 1; d < 10 && x - d >= 0; d++) if (this.owner[i - d] === -1 && sprite.px[i - d]) { L = sprite.px[i - d]; dl = d; break; }
+        for (let d = 1; d < 10 && x + d < sprite.w; d++) if (this.owner[i + d] === -1 && sprite.px[i + d]) { Rt = sprite.px[i + d]; dr = d; break; }
+        if (L && Rt) this.under[i] = dl <= dr ? L : Rt;
+      }
   }
   /**
    * Paint it with its feet at (x, y). pose: { [part]: angle (radians, + turns clockwise on screen) }, dx, dy for the whole body.
    * warp(sx, sy) -> [wx, wy] bends the body (not the parts); color(c, sx, sy, lx, ly) recolors or hides (0) a pixel, given its
-   * place in the sprite and where it lands in local space.
+   * place in the sprite and where it lands in local space. fill: where a turned part was, show the body beside it.
    */
-  draw(p, x, y, pose = {}, { warp, color } = {}) {
+  draw(p, x, y, pose = {}, { warp, color, fill = false } = {}) {
     const S = this.s, X = x - S.ox + (pose.dx ?? 0), Y = y - S.oy + (pose.dy ?? 0);
     const put = (c, sx, sy, dx, dy) => {
       const lx = X + dx, ly = Y + dy, v = color ? color(c, sx, sy, lx, ly) : c;
@@ -63,6 +75,8 @@ export class Rig {
         if (sx < 0 || sy < 0 || sx >= S.w || sy >= S.h) continue;
         const i = sy * S.w + sx;
         if (this.owner[i] === -1 && S.px[i]) put(S.px[i], sx, sy, dx, dy);
+        // a turned part leaves the body behind it, not a hole (backfill: only inside the body's outline)
+        else if (fill && this.owner[i] >= 0 && this.under[i] && pose[this.parts[this.owner[i]].name]) put(this.under[i], sx, sy, dx, dy);
       }
     // the parts, each turned about its pivot
     this.parts.forEach((part, k) => {

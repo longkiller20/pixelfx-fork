@@ -14,6 +14,7 @@ import * as moves_meteor_call from "./moves/meteor-call.js";
 import * as moves_pistol_shots from "./moves/pistol-shots.js";
 import * as moves_rocket_launcher from "./moves/rocket-launcher.js";
 import * as moves_sword_combo from "./moves/sword-combo.js";
+import * as moves_time_king_henshin from "./moves/time-king-henshin.js";
 import * as fire_brazier from "./fire/brazier.js";
 import * as fire_campfire from "./fire/campfire.js";
 import * as fire_candle from "./fire/candle.js";
@@ -264,6 +265,7 @@ export const effects = {
   "moves/pistol-shots": moves_pistol_shots,
   "moves/rocket-launcher": moves_rocket_launcher,
   "moves/sword-combo": moves_sword_combo,
+  "moves/time-king-henshin": moves_time_king_henshin,
   "fire/brazier": fire_brazier,
   "fire/campfire": fire_campfire,
   "fire/candle": fire_candle,
