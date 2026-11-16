@@ -13,7 +13,7 @@ const cache = new Map();
  */
 export function mapInfo(id) {
   if (cache.has(id)) return cache.get(id);
-  const def = MAPS[id], T = def.tile * def.scale, grid = def.grid, rows = grid.length, cols = grid[0].length;
+  const def = MAPS[id], T = def.cell ?? def.tile * def.scale, grid = def.grid, rows = grid.length, cols = grid[0].length;
   const cell = (cx, cy) => (cx < 0 || cx >= cols ? "#" : cy < 0 ? "." : cy >= rows ? "#" : grid[cy][cx]);
   const s = def.spring;
   const portals = def.portals.map((p) => ({ ...p, x: p.x * T, y: p.row * T, r: p.r * T }));
