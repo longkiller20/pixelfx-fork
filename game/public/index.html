@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0912">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Đa Vũ Trụ Tu Tiên</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <section id="auth" class="screen hidden">
+    <div class="box">
+      <h1>Đa Vũ Trụ<br><span>Tu Tiên</span></h1>
+      <p class="sub">Vạn giới hội tụ: tu sĩ, long kỵ, thời không chúa tể cùng tỷ thí.</p>
+      <div class="tabs"><button type="button" data-tab="login" class="on">Đăng nhập</button><button type="button" data-tab="register">Đăng ký</button></div>
+      <form id="authForm" autocomplete="on">
+        <input id="user" name="username" placeholder="Tên đăng nhập" autocomplete="username" required minlength="3" maxlength="16" pattern="[A-Za-z0-9_]+" autocapitalize="off" spellcheck="false">
+        <input id="pass" name="password" type="password" placeholder="Mật khẩu" autocomplete="current-password" required minlength="6" maxlength="72">
+        <button id="authBtn" class="primary" type="submit">Đăng nhập</button>
+        <p id="authErr" class="err" role="alert"></p>
+      </form>
+      <p class="hint">Trên điện thoại, game sẽ tự xoay ngang và phóng toàn màn hình khi đăng nhập.</p>
+    </div>
+  </section>
+
+  <section id="create" class="screen hidden">
+    <div class="box wide">
+      <h2>Chọn môn phái</h2>
+      <div id="classes" class="classes"></div>
+      <form id="createForm" class="row">
+        <input id="charName" placeholder="Đạo hiệu (3-16 ký tự)" required minlength="3" maxlength="16">
+        <button class="primary" type="submit">Nhập đạo</button>
+      </form>
+      <p id="createErr" class="err" role="alert"></p>
+    </div>
+  </section>
+
+  <section id="game" class="screen hidden">
+    <canvas id="view"></canvas>
+    <canvas id="labels"></canvas>
+    <div id="hud">
+      <div class="me">
+        <div class="nm"><b id="myName"></b> <span id="realm"></span></div>
+        <div class="bar hp"><i id="hpFill"></i><span id="hpText"></span></div>
+        <div class="bar exp"><i id="expFill"></i><span id="expText"></span></div>
+        <div class="small" id="statLine"></div>
+      </div>
+      <div class="top">
+        <span title="Linh thạch">💎 <b id="stones">0</b></span>
+        <span title="Điểm đấu trường">⚔ <b id="rank">0</b></span>
+        <span title="Hạ / Bại">☠ <b id="kd">0/0</b></span>
+        <span title="Tu luyện còn lại hôm nay">☯ <b id="medLeft">0</b></span>
+        <span id="ping" class="dim"></span>
+      </div>
+      <div class="menu">
+        <button id="dailyBtn" title="Quà mỗi ngày">🎁</button>
+        <button id="shopBtn" title="Đan Các">⚗</button>
+        <button id="rankBtn" title="Bảng Phong Thần">🏆</button>
+        <button id="helpBtn" title="Hướng dẫn">?</button>
+        <button id="fsBtn" title="Toàn màn hình">⛶</button>
+        <button id="logoutBtn" title="Thoát">⏻</button>
+      </div>
+      <div id="zone"></div>
+      <div id="toast"></div>
+      <div class="chat">
+        <div id="log"></div>
+        <input id="chatInput" maxlength="120" placeholder="Enter để trò chuyện..." autocomplete="off">
+      </div>
+      <div id="joyzone"><div id="joybase"><div id="joyknob"></div></div></div>
+      <div class="skills">
+        <button data-item="hoixuan" class="item"><span class="ic">❤</span><span class="qty">0</span></button>
+        <button data-item="tukhi" class="item"><span class="ic">✦</span><span class="qty">0</span></button>
+        <button data-skill="2" class="sk s3"><span class="nm"></span><span class="cdt"></span><kbd>L</kbd></button>
+        <button data-skill="1" class="sk s2"><span class="nm"></span><span class="cdt"></span><kbd>K</kbd></button>
+        <button data-skill="0" class="sk s1"><span class="nm"></span><span class="cdt"></span><kbd>J</kbd></button>
+      </div>
+      <div id="respawn" hidden>Đạo hữu đã tử trận. Hồi sinh sau <b id="respawnT">0</b>s</div>
+    </div>
+    <div id="panel" hidden>
+      <div class="pbox">
+        <header><h3 id="panelTitle"></h3><button id="panelClose" aria-label="Đóng">✕</button></header>
+        <div id="panelBody"></div>
+      </div>
+    </div>
+    <div id="fatal" hidden><div class="pbox"><p id="fatalMsg"></p><button id="fatalBtn" class="primary">Vào lại</button></div></div>
+  </section>
+
+</div>
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>

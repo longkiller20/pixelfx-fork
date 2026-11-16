@@ -1,0 +1,20 @@
+{
+  "name": "da-vu-tru-tu-tien",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Đa vũ trụ tu tiên: game web nhiều người chơi, Express + WebSocket + MariaDB, đồ họa pixelfx.",
+  "type": "module",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "test:race": "node test/race.mjs"
+  },
+  "dependencies": {
+    "express": "^4.22.3",
+    "mariadb": "^3.5.5",
+    "ws": "^8.23.0"
+  }
+}

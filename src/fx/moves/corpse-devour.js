@@ -88,6 +88,8 @@ const puppetCells = (open) => {
 };
 const CLOSED = puppetCells(false), OPEN = puppetCells(true);
 const MOUTH = [3, -30];
+// the puppet as data, for games that want to draw it themselves: rows top to bottom, feet at column ax of the last row
+export const PUPPET = { body: BODY, jaw: JAWROWS, colors: PCOL, ax: PAX, h: PH };
 
 // ---- the straw target's pixels, for flying them into the mouth
 const DUMMY_PX = [];

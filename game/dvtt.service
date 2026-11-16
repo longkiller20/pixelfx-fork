@@ -1,0 +1,22 @@
+# systemd: sudo cp dvtt.service /etc/systemd/system/ && sudo systemctl enable --now dvtt
+# Change User and WorkingDirectory to match your VPS.
+[Unit]
+Description=Da Vu Tru Tu Tien game server
+After=network.target mariadb.service
+Wants=mariadb.service
+
+[Service]
+Type=simple
+User=dvtt
+WorkingDirectory=/opt/pixelfx-fork/game
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+Environment=NODE_ENV=production
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
