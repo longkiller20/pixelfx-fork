@@ -273,10 +273,10 @@ $("dailyBtn").addEventListener("click", async () => {
 $("helpBtn").addEventListener("click", () => {
   const d = document.createElement("div");
   d.className = "help";
-  d.innerHTML = `<p><b>Máy tính:</b> WASD/mũi tên để đi, chuột để ngắm. J/K/L (hoặc 1/2/3, chuột trái/phải) dùng chiêu. 4: Hồi Xuân Đan, 5: Tụ Khí Đan. Enter để trò chuyện.</p>
-  <p><b>Điện thoại:</b> kéo ngón tay bên trái để đi, bấm nút bên phải để ra chiêu: chiêu tự nhắm kẻ địch gần nhất.</p>
-  <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (vòng âm dương giữa thôn) để tăng tu vi, tối đa mỗi ngày có hạn.</p>
-  <p><b>Tân Thủ Thôn:</b> thôn khởi đầu, an toàn, không có yêu thú. Đi theo đường lát đá; mũi tên vàng ở bậc thang phía nam là lối ra khỏi thôn (bản đồ mới sẽ mở sau).</p>
+  d.innerHTML = `<p><b>Máy tính:</b> A/D hoặc ←/→ để đi, W/↑/Space để nhảy, S + nhảy để xuống khỏi ván gỗ. Chuột để ngắm. J/K/L (hoặc 1/2/3, chuột trái/phải) dùng chiêu. 4: Hồi Xuân Đan, 5: Tụ Khí Đan. Enter để trò chuyện.</p>
+  <p><b>Điện thoại:</b> kéo ngón tay trái/phải bên trái màn hình để đi (kéo lên để nhảy, kéo xuống + nhảy để xuống ván), nút Nhảy và các nút chiêu bên phải; chiêu tự nhắm kẻ địch gần nhất.</p>
+  <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (bệ đá dưới đĩa âm dương xoay, trước điện thờ) để tăng tu vi, tối đa mỗi ngày có hạn.</p>
+  <p><b>Tân Thủ Thôn:</b> thôn khởi đầu, an toàn, không có yêu thú. Đi sang phải qua chợ, lên đồi; mũi tên vàng dưới chân bậc thang đá ở cuối thôn phía đông là lối ra (bản đồ mới sẽ mở sau).</p>
   <p><b>Sắp mở:</b> bản đồ luyện cấp đánh yêu thú và đấu trường tỷ thí. Ở đấu trường, chỉ số được cân bằng (cảnh giới cao chỉ hơn tối đa 10%) và không dùng được đan hồi phục.</p>`;
   panel("Hướng dẫn", d);
 });

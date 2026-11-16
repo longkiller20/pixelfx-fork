@@ -3,7 +3,9 @@ import { createFrame, clearFrame, createFx, composite, painterFor, PAL, hex, WHI
 import { effects } from "/pixelfx/fx/index.js";
 import { CLASSES, MONSTERS, ITEMS, expForLevel, realmName, MAX_LEVEL } from "/shared/balance.js";
 import { mapInfo } from "/shared/maps/index.js";
-import { LOOKS, drawCharacter, drawDummy, drawPuppet, dragon, MOUTH, loadMap } from "./art.js";
+import { LOOKS, drawCharacter, drawDummy, drawPuppet, dragon, MOUTH } from "./art.js";
+import { buildScene } from "./scenery.js";
+import { stepBody, PHYS } from "/shared/physics.js";
 
 const CLS = Object.keys(CLASSES), MTYPES = ["dummy", "ghost"];
 const GOLD = ["#2a1604", "#6a3a08", "#b8700e", "#f0a820", "#ffd84a", "#fff2a8", "#ffffff"];
@@ -14,7 +16,7 @@ const $ = (id) => document.getElementById(id);
 export function startGame({ token, character, inventory, api, onFatal, touch }) {
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
-  let map = null, pic = null, win = new Uint32Array(4);
+  let map = null, scene = null, body = null;
 
   // ---------------------------------------------------------------- state from the server
   let myId = 0, me = null, inv = { ...inventory };
@@ -44,10 +46,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
         myId = m.id;
         if (!map || map.id !== m.map) {
           map = mapInfo(m.map);
-          pic = null;
+          scene = null;
           $("loading").hidden = false;
-          loadMap(map.def).then((pc) => {
-            pic = pc;
+          buildScene(map).then((sc) => {
+            scene = sc;
             $("loading").hidden = true;
             zoneBanner(map.name, map.sub);
           }, () => onFatal("Không tải được bản đồ, hãy thử lại.", false));
@@ -178,7 +180,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
 
   // ---------------------------------------------------------------- input
   const keys = new Set();
-  let joy = { dx: 0, dy: 0 }, mouse = null, sentIn = { dx: 9, dy: 9 }, lastSent = 0, lastDir = { x: 1, y: 0 };
+  let joy = { dx: 0, dy: 0 }, mouse = null, sentIn = { dx: 9 }, lastSent = 0, lastDir = { x: 1, y: 0 }, jumpBtn = false;
   const chatInput = $("chatInput");
   addEventListener("keydown", (e) => {
     if (document.activeElement === chatInput) {
@@ -196,6 +198,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     }
     const k = e.key.toLowerCase();
     keys.add(k);
+    if (k === " ") e.preventDefault();
     const sk = { j: 0, "1": 0, k: 1, "2": 1, l: 2, "3": 2 }[k];
     if (sk !== undefined && !e.repeat) cast(sk);
     if (k === "4" && !e.repeat) use("hoixuan");
@@ -213,6 +216,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   });
   view.addEventListener("contextmenu", (e) => e.preventDefault());
   for (const b of document.querySelectorAll("[data-skill]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), cast(+b.dataset.skill)));
+  // the jump button: held while the thumb is on it
+  const jb = $("jumpBtn");
+  jb.addEventListener("pointerdown", (e) => (e.preventDefault(), jb.setPointerCapture(e.pointerId), (jumpBtn = true)));
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) jb.addEventListener(ev, () => (jumpBtn = false));
   for (const b of document.querySelectorAll("[data-item]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), use(b.dataset.item)));
 
   // the joystick: wherever the thumb lands in the left part of the screen
@@ -246,20 +253,20 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   pad.addEventListener("pointerup", joyEnd);
   pad.addEventListener("pointercancel", joyEnd);
 
+  // side view: left and right along the ground, jump, and down (down + jump drops through a plank)
   function inputDir() {
-    let dx = joy.dx, dy = joy.dy;
+    let dx = Math.abs(joy.dx) > 0.25 ? Math.sign(joy.dx) * Math.min(1, Math.abs(joy.dx) * 1.4) : 0;
     if (keys.has("a") || keys.has("arrowleft")) dx -= 1;
     if (keys.has("d") || keys.has("arrowright")) dx += 1;
-    if (keys.has("w") || keys.has("arrowup")) dy -= 1;
-    if (keys.has("s") || keys.has("arrowdown")) dy += 1;
-    const l = Math.hypot(dx, dy);
-    if (l > 1) (dx /= l), (dy /= l);
-    if (l > 0.2) lastDir = { x: dx / Math.max(l, 1e-6), y: dy / Math.max(l, 1e-6) };
-    return { dx: +dx.toFixed(2), dy: +dy.toFixed(2) };
+    dx = Math.max(-1, Math.min(1, dx));
+    const jump = jumpBtn || keys.has("w") || keys.has("arrowup") || keys.has(" ") || joy.dy < -0.6;
+    const down = keys.has("s") || keys.has("arrowdown") || joy.dy > 0.6;
+    if (Math.abs(dx) > 0.2) lastDir = { x: Math.sign(dx), y: 0 };
+    return { dx: +dx.toFixed(2), jump, down };
   }
   function pumpInput(now) {
     const d = inputDir();
-    if (d.dx !== sentIn.dx || d.dy !== sentIn.dy || now - lastSent > 0.5) {
+    if (d.dx !== sentIn.dx || d.jump !== sentIn.jump || d.down !== sentIn.down || now - lastSent > 0.5) {
       send({ t: "in", ...d });
       sentIn = d;
       lastSent = now;
@@ -363,7 +370,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   function resize() {
     const box = $("game"), w = box.clientWidth, h = box.clientHeight;
     // about 560 px of the world top to bottom: the town reads at a glance, characters stay crisp
-    VH = 560;
+    VH = 480;
     VW = Math.max(720, Math.min(1300, Math.round((VH * w) / Math.max(1, h)) & ~1));
     view.width = VW;
     view.height = VH;
@@ -402,63 +409,27 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     lerp("p", a.P, b.P);
     lerp("m", a.M, b.M);
     lerp("s", a.S, b.S);
-    // you: the newest position, nudged along by what you're pressing so moving feels immediate
+    // you: moved here by the same physics as the server, straight from what you press, and pulled back to the server's
+    // word when the two drift apart (a long way: snap; a little, while you stand still: ease)
     const last = snaps[snaps.length - 1].P.get(myId), self = drawn.get(myId);
     if (last && self) {
-      const info = myInfo(), ahead = Math.min(0.1, now - snaps[snaps.length - 1].at), d = inputDir();
-      const spd = info ? CLASSES[info.cls].spd * (last.f & 4 ? 0.5 : 1) * (last.f & 64 ? 0.45 : 1) : 90;
-      const nx = last.x + (last.f & 1 ? 0 : d.dx * spd * ahead), ny = last.y + (last.f & 1 ? 0 : d.dy * spd * ahead);
-      // don't guess past a wall the server won't let you through
-      if (map?.canStand(nx, ny)) (self.x = nx), (self.y = ny);
-      else (self.x = last.x), (self.y = last.y);
+      if (!body || last.f & 1) body = { x: last.x, y: last.y, vx: 0, vy: 0, ground: false, dropUntil: 0 };
+      const err = Math.hypot(body.x - last.x, body.y - last.y);
+      if (err > 72) Object.assign(body, { x: last.x, y: last.y, vy: 0 });
+      else if (!(last.f & 32) && body.ground && !(last.f & 128) && err > 0.5) (body.x += (last.x - body.x) * 0.2), (body.y = last.y);
+      self.x = body.x;
+      self.y = body.y;
+      self.f = (self.f & ~128) | (body.ground ? 0 : 128);
     }
   }
-
-
-  // ---------------------------------------------------------------- the map: the picture at twice its size, its water alive
-  const fhash = (x, y, z) => {
-    let h = (x * 374761393 + y * 668265263 + z * 1274126177) | 0;
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-  };
-  // lighten (k > 0) toward white, or darken (k < 0), one packed color
-  const shade = (c, k) => {
-    let r = c & 255, g = (c >>> 8) & 255, b = (c >>> 16) & 255;
-    if (k > 0) (r += (255 - r) * k), (g += (255 - g) * k), (b += (255 - b) * k);
-    else (r *= 1 + k), (g *= 1 + k), (b *= 1 + k);
-    return (255 << 24) | ((b | 0) << 16) | ((g | 0) << 8) | (r | 0);
-  };
-  function paintBackground(t) {
-    const k = map.def.scale, IW = pic.W, IH = pic.H, PX = pic.px, WA = pic.water;
-    const ix0 = Math.floor(camX / k), iy0 = Math.floor(camY / k), iw = Math.ceil(VW / k) + 2, ih = Math.ceil(VH / k) + 2;
-    if (win.length < iw * ih) win = new Uint32Array(iw * ih);
-    const flow = t * 70, tick = Math.floor(t * 4);
-    for (let j = 0; j < ih; j++) {
-      const iy = Math.min(IH - 1, iy0 + j);
-      for (let i = 0; i < iw; i++) {
-        const ix = Math.min(IW - 1, ix0 + i), idx = iy * IW + ix, w = WA[idx];
-        let c = PX[idx];
-        if (w === 2) {
-          // a waterfall: bright streaks sliding down, broken into lengths, with spray flickering
-          const s = fhash(ix, Math.floor((iy - flow) / 7), 3);
-          if (s > 0.62) c = shade(c, 0.45 * (s - 0.62) / 0.38 + 0.08);
-          else if (s < 0.18) c = shade(c, -0.12);
-          if (fhash(ix, iy, tick) > 0.985) c = shade(c, 0.6);
-        } else if (w === 1) {
-          // still water: slow interfering ripples, and a few glints that come and go
-          const v = Math.sin(ix * 0.21 + iy * 0.09 - t * 2.1) + Math.sin(ix * 0.06 - iy * 0.23 + t * 1.6);
-          if (v > 1.35) c = shade(c, 0.22);
-          else if (v < -1.45) c = shade(c, -0.1);
-          if (fhash(ix, iy, tick) > 0.996) c = shade(c, 0.75);
-        }
-        win[j * iw + i] = c;
-      }
-    }
-    for (let sy = 0; sy < VH; sy++) {
-      const row = (Math.floor((camY + sy) / k) - iy0) * iw - ix0, o = sy * VW;
-      for (let sx = 0; sx < VW; sx++) bgBuf[o + sx] = win[row + Math.floor((camX + sx) / k)];
-    }
+  function predict(dt, now) {
+    const last = snaps[snaps.length - 1]?.P.get(myId), info = myInfo();
+    if (!body || !last || last.f & 1 || !info) return;
+    const c = CLASSES[info.cls], tf = last.f & 2 && c.skills[2].type === "transform" ? c.skills[2].spd : 1;
+    const spd = c.spd * tf * (last.f & 4 ? 0.5 : 1) * (last.f & 64 ? 0.45 : 1) * PHYS.RUN;
+    stepBody(body, inputDir(), spd, dt, map, now);
   }
+
 
   // lanterns glowing, the spirit vein breathing, and the gold arrow over the way out
   const WARM = hex("#ffb84a"), WARM2 = hex("#ffe08a"), VEIN = hex("#7ff0ff"), GOLDC = GOLD.map(hex);
@@ -467,16 +438,22 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     p.place(0, 0, false);
     p.fade = 1;
     p.lightK = 1;
-    for (const [x, y] of map.lanterns) {
+    for (const [x, y] of scene.lanterns) {
       if (!on(x, y)) continue;
       const f = 0.85 + 0.15 * Math.sin(now * 9 + x) * Math.sin(now * 5.3 + y);
-      p.glow(x - camX, y - 20 - camY, 26, WARM, 0.32 * f);
-      p.glow(x - camX, y - 20 - camY, 7, WARM2, 0.5 * f);
+      p.glow(x - camX, y - camY, 30, WARM, 0.3 * f);
+      p.glow(x - camX, y - camY, 8, WARM2, 0.55 * f);
     }
-    const s = map.spring;
-    if (on(s.x, s.y, 300)) {
-      const busy = [...drawn.values()].some((e) => e.kind === "p" && e.f & 16);
-      p.glow(s.x - camX, s.y - camY, s.rx * 0.9, VEIN, (busy ? 0.18 : 0.08) + 0.05 * Math.sin(now * 1.7));
+    // the taiji floating over its dais, turning; brighter while someone cultivates
+    const s = map.spring, sx = (s.x0 + s.x1) / 2;
+    if (on(sx, s.y, 300)) {
+      const busy = [...drawn.values()].some((e) => e.kind === "p" && e.f & 16), cx = Math.round(sx - camX), cy = Math.round(s.y - camY - 128 + Math.sin(now * 1.3) * 4);
+      taiji(p, cx, cy, 15, now * (busy ? 1.6 : 0.5));
+      p.glow(cx, cy, 34, VEIN, (busy ? 0.4 : 0.18) + 0.06 * Math.sin(now * 2));
+      for (let i = 0; i < 6; i++) {
+        const u = (now * 0.5 + i / 6) % 1;
+        p.px(cx + Math.sin(i * 1.7 + now) * 30, s.y - camY - 8 - u * 70, VEIN);
+      }
     }
     for (const g of map.portals) {
       if (!on(g.x, g.y)) continue;
@@ -488,6 +465,29 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
       }
       p.glow(ax, g.y - camY, 44, GOLDC[3], 0.35);
     }
+  }
+
+  // a yin-yang disc of radius r turned by angle a: light and dark halves, each with its eye
+  const YIN = hex("#1c2036"), YANG = hex("#f4f0e6"), RIM = hex("#e8b438");
+  function taiji(p, cx, cy, r, a) {
+    const ca = Math.cos(a), sa = Math.sin(a);
+    for (let y = -r - 1; y <= r + 1; y++)
+      for (let x = -r - 1; x <= r + 1; x++) {
+        const d = Math.hypot(x, y);
+        if (d > r + 1) continue;
+        if (d > r - 0.5) {
+          p.px(cx + x, cy + y, RIM);
+          continue;
+        }
+        // rotate into the symbol's own frame
+        const u = x * ca + y * sa, v = -x * sa + y * ca, h = r / 2;
+        let light = u < 0;
+        if (Math.hypot(u, v - h) < h) light = true;
+        if (Math.hypot(u, v + h) < h) light = false;
+        if (Math.hypot(u, v - h) < r / 7) light = false;
+        if (Math.hypot(u, v + h) < r / 7) light = true;
+        p.px(cx + x, cy + y, light ? YANG : YIN);
+      }
   }
 
   // the arrow floats in front of everything
@@ -539,17 +539,18 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     const now = performance.now() / 1000, dt = Math.min(0.05, now - lastT);
     lastT = now;
     pumpInput(now);
-    if (!pic) {
+    if (!scene) {
       requestAnimationFrame(render);
       return;
     }
+    predict(dt, now);
     interpolated(now);
     const self = drawn.get(myId);
     if (self) {
       camX = Math.round(Math.max(0, Math.min(map.w - VW, self.x - VW / 2)));
-      camY = Math.round(Math.max(0, Math.min(map.h - VH, self.y - 40 - VH / 2)));
+      camY = Math.round(Math.max(0, Math.min(map.h - VH, self.y - 40 - VH * 0.6)));
     }
-    paintBackground(now);
+    scene.paint(bgBuf, VW, VH, camX, camY, now);
     clearFrame(frame);
     const p = painterFor(frame), on = (x, y, m = 140) => x > camX - m && x < camX + VW + m && y > camY - m && y < camY + VH + m * 1.5;
     const place = (fx, x, y) => {
@@ -614,14 +615,14 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
       if (e.f & 8 && Math.floor(now * 10) & 1) return; // just respawned: blinking
       p.place(sx, sy, e.face < 0);
       // a shadow, and an aura while cultivating or transformed
-      shadow(p, 13);
+      if (!(e.f & 128)) shadow(p, 13);
       if (e.f & 16) {
         p.glow(0, -30, 30, hex("#7ff0ff"), 0.25 + 0.1 * Math.sin(now * 3));
         if (Math.random() < 0.3) texts.push({ x: e.x + (Math.random() * 30 - 15), y: e.y - 20, s: "✦", color: "#9ff8ff", at: now, rise: 40 });
       }
       if (e.f & 2) p.glow(0, -36, 34, hex(LOOKS[info.cls].color), 0.25);
       const c = casts.get(e.id), age = c ? now - c.at : 9;
-      drawCharacter(p, { cls: info.cls, form: !!(e.f & 2), t: now + e.id, moving: !!(e.f & 32), cast: c && age < 0.6 ? { ...c, age } : null, busy: !!(e.f & 64), slow: !!(e.f & 4), flash });
+      drawCharacter(p, { cls: info.cls, form: !!(e.f & 2), t: now + e.id, moving: !!(e.f & 32), air: !!(e.f & 128), cast: c && age < 0.6 ? { ...c, age } : null, busy: !!(e.f & 64), slow: !!(e.f & 4), flash });
     } else if (e.kind === "m") {
       if (e.dead) return;
       if (e.type === "dummy") {

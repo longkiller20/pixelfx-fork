@@ -99,7 +99,7 @@ input:focus { border-color: var(--gold); }
 #joybase.on { opacity: 1; }
 #joyknob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px; border-radius: 50%; background: radial-gradient(#fff8, #fff3); }
 
-.skills { position: absolute; right: 12px; bottom: 12px; display: grid; grid-template-columns: repeat(5, auto); align-items: end; gap: 8px; }
+.skills { position: absolute; right: 12px; bottom: 12px; display: grid; grid-template-columns: repeat(6, auto); align-items: end; gap: 8px; }
 .skills button { position: relative; border-radius: 50%; border: 2px solid #f0c05099; background: radial-gradient(#3a2a10, #120c04); cursor: pointer; touch-action: none; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .skills .sk { width: 66px; height: 66px; }
 .skills .sk.s1 { width: 82px; height: 82px; border-color: var(--gold); }
@@ -160,3 +160,5 @@ body.rotated.touch .chat { top: 122px; }
 #loading { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #0b0912; color: var(--gold2); }
 #loading .spin { width: 38px; height: 38px; border-radius: 50%; border: 3px solid #f0c05033; border-top-color: var(--gold); animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.skills .jump { border-color: #7ff0ff99; background: radial-gradient(#10303a, #05101a); }
+.skills .jump .nm { color: #c8f8ff; }

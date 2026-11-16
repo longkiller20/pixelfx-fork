@@ -6,6 +6,7 @@ import {
   TICK_HZ, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE, levelFromExp, worldMult, arenaMult, mitigate,
 } from "../shared/balance.js";
 import { mapInfo, START_MAP } from "../shared/maps/index.js";
+import { stepBody, fits, PHYS } from "../shared/physics.js";
 import * as store from "./store.js";
 import { userFromToken } from "./auth.js";
 import { KeyedLock } from "./lock.js";
@@ -99,7 +100,7 @@ export class World {
       if (ws.readyState !== WebSocket.OPEN) return;
       const p = {
         id: this.nid++, kind: "p", userId: uid, ws, name: ch.name, cls: ch.cls,
-        ...this.spawnPoint(), face: 1, in: { dx: 0, dy: 0 }, moving: false, portalAt: 0,
+        ...this.spawnPoint(), face: 1, in: { dx: 0, jump: false, down: false }, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
         hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
         cd: [0, 0, 0], busyUntil: 0, tfUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
         medAcc: 0, meditating: false, base: null, pend: zero(), level: 1, medLeft: 0, saving: null, gone: false,
@@ -236,17 +237,16 @@ export class World {
   onMessage(p, m) {
     switch (m.t) {
       case "in": {
-        if (!num(m.dx) || !num(m.dy)) return;
-        let dx = clamp(m.dx, -1, 1), dy = clamp(m.dy, -1, 1);
-        const l = Math.hypot(dx, dy);
-        if (l > 1) (dx /= l), (dy /= l);
-        p.in = { dx, dy };
+        // side view: a direction along the ground, and whether jump and down are held
+        if (!num(m.dx)) return;
+        p.in = { dx: clamp(m.dx, -1, 1), jump: m.jump === true, down: m.down === true };
         return;
       }
       case "cast": {
         const i = m.s | 0;
         if (i < 0 || i > 2) return;
-        let ax = num(m.ax) ? m.ax : p.face, ay = num(m.ay) ? m.ay : 0;
+        // aim mostly along the ground: at most a gentle slope up or down
+        let ax = num(m.ax) ? m.ax : p.face, ay = num(m.ay) ? clamp(m.ay, -Math.abs(ax) * 0.6 - 0.01, Math.abs(ax) * 0.6 + 0.01) : 0;
         const l = Math.hypot(ax, ay);
         if (l < 1e-3) (ax = p.face), (ay = 0);
         else (ax /= l), (ay /= l);
@@ -358,7 +358,7 @@ export class World {
         this.bolts.push({ id: this.nid++, owner: p, cls: p.cls, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
         break;
       case "zone": {
-        const x = clamp(p.x + ax * sk.dist, 20, this.map.w - 20), y = clamp(p.y + ay * sk.dist, 20, this.map.h - 20);
+        const x = clamp(p.x + Math.sign(ax || p.face) * sk.dist, 20, this.map.w - 20), y = p.y;
         this.ev({ e: "fx", k: "timestop", x: Math.round(x), y: Math.round(y) });
         this.at(t + sk.delay, () => {
           if (p.gone) return;
@@ -372,7 +372,7 @@ export class World {
       }
       case "summon":
         this.summons = this.summons.filter((s) => s.owner !== p);
-        this.summons.push({ id: this.nid++, owner: p, ...(this.map.canStand(p.x + p.face * 26, p.y + 2) ? { x: p.x + p.face * 26, y: p.y + 2 } : { x: p.x, y: p.y }), face: p.face, until: t + sk.dur, atk: st.atk, sk, nextBite: t + 0.8, bite: 0 });
+        this.summons.push({ id: this.nid++, owner: p, ...(fits(p.x + p.face * 26, p.y, this.map) ? { x: p.x + p.face * 26, y: p.y } : { x: p.x, y: p.y }), vx: 0, vy: 0, ground: false, dropUntil: 0, tryX: 0, face: p.face, until: t + sk.dur, atk: st.atk, sk, nextBite: t + 0.8, bite: 0 });
         break;
       case "devour": {
         const e = this.nearest(p, p.x, p.y, sk.range);
@@ -467,17 +467,15 @@ export class World {
   spawnPoint() {
     const s = this.map.spawn;
     for (let i = 0; i < 12; i++) {
-      const x = s.x + rnd(-40, 40), y = s.y + rnd(-20, 20);
-      if (this.map.canStand(x, y)) return { x, y };
+      const x = s.x + rnd(-40, 40);
+      if (fits(x, s.y, this.map)) return { x, y: s.y, vx: 0, vy: 0, ground: false };
     }
-    return { x: s.x, y: s.y };
+    return { x: s.x, y: s.y, vx: 0, vy: 0, ground: false };
   }
-  /** Move by (dx, dy), sliding along walls: try the whole step, then each axis alone. */
+  /** Flying things (ghosts) just move, kept inside the map. */
   move(e, dx, dy) {
-    const M = this.map;
-    if (M.canStand(e.x + dx, e.y + dy)) (e.x += dx), (e.y += dy);
-    else if (dx && M.canStand(e.x + dx, e.y)) e.x += dx;
-    else if (dy && M.canStand(e.x, e.y + dy)) e.y += dy;
+    e.x = clamp(e.x + dx, 20, this.map.w - 20);
+    e.y = clamp(e.y + dy, 40, this.map.h - 10);
   }
 
   stepPlayer(p) {
@@ -494,22 +492,23 @@ export class World {
       }
       return;
     }
-    const st = this.stats(p), { dx, dy } = p.in;
-    p.moving = dx !== 0 || dy !== 0;
-    if (p.moving) {
-      this.move(p, dx * st.spd * DT, dy * st.spd * DT);
-      if (Math.abs(dx) > 0.1 && p.busyUntil <= t) p.face = dx > 0 ? 1 : -1;
-    }
+    const st = this.stats(p), inp = p.in;
+    p.moving = Math.abs(inp.dx) > 0.05;
+    stepBody(p, inp, st.spd * PHYS.RUN, DT, this.map, t);
+    if (p.moving && p.busyUntil <= t) p.face = inp.dx > 0 ? 1 : -1;
+    // fell out of the world somehow: back to the spawn
+    if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint());
     // a way out: for now every road beyond the town is still being built
     const gate = this.map.portalAt(p.x, p.y);
     if (gate && t >= p.portalAt) {
       p.portalAt = t + 2.5;
       send(p.ws, { t: "portal", m: gate.msg, to: gate.to });
       // step them back off the arrow so it doesn't fire again straight away
-      this.move(p, 0, -gate.r * 3);
+      const back = p.x >= gate.x ? 1 : -1;
+      if (fits(gate.x + back * gate.r * 2, p.y, this.map)) p.x = gate.x + back * gate.r * 2;
     }
     // cultivating at the spirit vein: standing still, not fighting, up to today's cap
-    p.meditating = !p.moving && p.medLeft > 0 && t - p.lastHurt > MEDITATE.calmAfterHit && t - p.lastCast > 1.5 && this.map.inSpring(p.x, p.y);
+    p.meditating = !p.moving && !!p.ground && p.medLeft > 0 && t - p.lastHurt > MEDITATE.calmAfterHit && t - p.lastCast > 1.5 && this.map.inSpring(p.x, p.y);
     if (p.meditating) {
       p.medAcc += DT;
       if (p.medAcc >= 1) {
@@ -609,6 +608,11 @@ export class World {
         this.ev({ e: "boom", k: b.cls, x: Math.round(b.x), y: Math.round(b.y) });
         continue;
       }
+      // walls stop them (bolts fly at chest height, 30 px above the line they're aimed along)
+      if (this.map.solid(Math.floor(b.x / this.map.T), Math.floor((b.y - 30) / this.map.T))) {
+        this.ev({ e: "boom", k: b.cls, x: Math.round(b.x), y: Math.round(b.y) });
+        continue;
+      }
       if (b.left > 0 && b.x > 0 && b.x < this.map.w && b.y > 0 && b.y < this.map.h) keep.push(b);
     }
     this.bolts = keep;
@@ -638,12 +642,13 @@ export class World {
         }
         (tx = prey.x), (ty = prey.y);
       }
-      const dx = tx - s.x, dy = ty - s.y, l = Math.hypot(dx, dy);
-      if (l > 3) {
-        const st = Math.min(l, sk.spd * DT);
-        this.move(s, (dx / l) * st, (dy / l) * st);
-        if (Math.abs(dx) > 1) s.face = dx > 0 ? 1 : -1;
-      }
+      // it walks there, and hops when something's in the way or its prey is up a level
+      const dx = tx - s.x, want = Math.abs(dx) > 6 ? Math.sign(dx) : 0, x0 = s.x;
+      const hop = !!s.ground && (s.tryX > 0.3 || (prey && prey.y < s.y - 20 && Math.abs(dx) < 120));
+      stepBody(s, { dx: want, jump: hop, down: !!prey && prey.y > s.y + 20 }, sk.spd * PHYS.RUN, DT, this.map, t);
+      s.tryX = want && Math.abs(s.x - x0) < 0.5 ? s.tryX + DT : 0;
+      if (want) s.face = want;
+      if (s.y > this.map.h + 100) s.until = t;
     }
     this.summons = keep;
   }
@@ -652,7 +657,7 @@ export class World {
     const t = this.t, P = [], M = [], B = [], S = [];
     for (const p of this.players.values())
       P.push([p.id, Math.round(p.x), Math.round(p.y), p.face, Math.round(Math.max(0, p.hpFrac) * 1000),
-        (p.dead ? 1 : 0) | (p.tfUntil > t ? 2 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0)]);
+        (p.dead ? 1 : 0) | (p.tfUntil > t ? 2 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128)]);
     for (const m of this.ents.values())
       if (m.kind === "m") M.push([m.id, MTYPES.indexOf(m.type), Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
     for (const b of this.bolts) B.push([b.id, CLS.indexOf(b.cls), Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy)]);

@@ -52,7 +52,11 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 export function drawCharacter(p, st) {
   const look = LOOKS[st.cls], rig = st.form ? look.form : look.base, t = st.t;
   const pose = { armF: 0, armB: 0, dx: 0, dy: 0 };
-  if (st.moving) {
+  if (st.air) {
+    // in the air: arms flung up a little, legs tucked by a pixel
+    pose.armF = -0.6;
+    pose.armB = 0.4;
+  } else if (st.moving) {
     pose.dy = Math.floor(t * 8) & 1 ? -1 : 0;
     pose.armF = Math.sin(t * 10) * 0.22;
     pose.armB = -Math.sin(t * 10) * 0.22;
@@ -108,31 +112,3 @@ export function drawPuppet(p, biting, lift, t) {
 
 export const dragon = new Serpent(decode(DRAGON), DRAGON_SPINE, 0.13);
 export const DRAGON_SIZE = [117, 114], MOUTH = DRAGON_MOUTH;
-
-// ---- maps: the picture, and which of its pixels are water (1 ripples, 2 pours down a fall)
-export async function loadMap(def) {
-  const img = new Image();
-  img.src = def.image;
-  await img.decode();
-  const W = def.imageW, H = def.imageH, cv = document.createElement("canvas");
-  cv.width = W;
-  cv.height = H;
-  const g = cv.getContext("2d", { willReadFrequently: true });
-  g.drawImage(img, 0, 0, W, H);
-  // canvas bytes are r, g, b, a: read as one little-endian number, that's pixelfx's own color layout
-  const bytes = g.getImageData(0, 0, W, H).data, px = new Uint32Array(bytes.buffer.slice(0));
-  const water = new Uint8Array(W * H), w = def.water;
-  const inAny = (list, x, y) => list.some(([x0, y0, x1, y1]) => x >= x0 && y >= y0 && x < x1 && y < y1);
-  for (const [x0, y0, x1, y1] of w.regions)
-    for (let y = y0; y < Math.min(H, y1); y++)
-      for (let x = x0; x < Math.min(W, x1); x++) {
-        if (inAny(w.exclude, x, y)) continue;
-        const i = (y * W + x) * 4, r = bytes[i], gg = bytes[i + 1], b = bytes[i + 2];
-        const lum = (r * 3 + gg * 6 + b) / 10, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
-        const wet = b > r + 40 && gg > r + 8 && b > 115 && lum > 70;
-        const fall = inAny(w.falls, x, y);
-        if (fall && (wet || (lum > 165 && mx - mn < 60 && b >= r))) water[y * W + x] = 2;
-        else if (wet) water[y * W + x] = 1;
-      }
-  return { W, H, px, water };
-}

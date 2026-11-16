@@ -1,33 +1,40 @@
-// The maps, and what the server and the browser both need to know about one: how big it is in the world, where you can
-// stand, where you appear, where you cultivate and where the ways out are. Add a map: write its file like tanthu.js and list it.
+// The maps, and what the server and the browser both need to know about one: its size, which tiles are solid, which are
+// planks you can stand on, where you appear, where you cultivate and where the ways out are. Everything here is in world px.
+// Add a map: write its file like tanthu.js and list it.
 import { TANTHU } from "./tanthu.js";
 
 export const MAPS = { tanthu: TANTHU };
 export const START_MAP = "tanthu";
 
 const cache = new Map();
-/** A map in world px: { def, id, name, w, h, pvp, mobs, spawn, spring, portals, canStand(x, y), inSpring(x, y), portalAt(x, y) }. */
+/**
+ * A map in world px: { def, id, name, sub, T (tile size), cols, rows, w, h, pvp, mobs, spawn, spring, portals, solid(cx, cy),
+ * plank(cx, cy), cell(cx, cy), inSpring(x, y), portalAt(x, y) }. Floors are the top edge of a tile row: row × T.
+ */
 export function mapInfo(id) {
   if (cache.has(id)) return cache.get(id);
-  const def = MAPS[id], k = def.scale, cw = def.cell * k, gw = def.walk[0].length, gh = def.walk.length;
-  const open = new Uint8Array(gw * gh);
-  def.walk.forEach((row, y) => {
-    for (let x = 0; x < gw; x++) open[y * gw + x] = row[x] === "." ? 1 : 0;
-  });
-  const walkable = (x, y) => {
-    const cx = Math.floor(x / cw), cy = Math.floor(y / cw);
-    return cx >= 0 && cy >= 0 && cx < gw && cy < gh && open[cy * gw + cx] === 1;
-  };
-  const s = def.spring, sp = { x: s.x * k, y: s.y * k, rx: s.rx * k, ry: s.ry * k };
-  const portals = def.portals.map((p) => ({ ...p, x: p.x * k, y: p.y * k, r: p.r * k }));
+  const def = MAPS[id], T = def.tile * def.scale, grid = def.grid, rows = grid.length, cols = grid[0].length;
+  const cell = (cx, cy) => (cx < 0 || cx >= cols ? "#" : cy < 0 ? "." : cy >= rows ? "#" : grid[cy][cx]);
+  const s = def.spring;
+  const portals = def.portals.map((p) => ({ ...p, x: p.x * T, y: p.row * T, r: p.r * T }));
   const info = {
-    def, id, name: def.name, sub: def.sub, w: def.imageW * k, h: def.imageH * k, pvp: def.pvp, mobs: def.mobs.map((m) => ({ ...m, x: m.x * k, y: m.y * k })),
-    spawn: { x: def.spawn.x * k, y: def.spawn.y * k }, spring: sp, portals,
-    lanterns: def.lanterns.map(([x, y]) => [x * k, y * k]),
-    /** Feet at (x, y) fit: the point and a little either side are all on open ground. */
-    canStand: (x, y) => walkable(x, y) && walkable(x - 7, y) && walkable(x + 7, y) && walkable(x, y - 4),
-    inSpring: (x, y) => ((x - sp.x) / sp.rx) ** 2 + ((y - sp.y) / sp.ry) ** 2 < 1,
-    portalAt: (x, y) => portals.find((p) => Math.hypot(x - p.x, y - p.y) < p.r) ?? null,
+    def, id, name: def.name, sub: def.sub, T, cols, rows, w: cols * T, h: rows * T, pvp: def.pvp,
+    mobs: def.mobs.map((m) => ({ ...m, x: m.x * T, y: m.row * T })),
+    spawn: { x: def.spawn.x * T, y: def.spawn.row * T },
+    spring: { x0: s.x0 * T, x1: s.x1 * T, y: s.row * T },
+    portals,
+    cell,
+    solid: (cx, cy) => {
+      const c = cell(cx, cy);
+      return c === "#" || c === "s";
+    },
+    plank: (cx, cy) => {
+      const c = cell(cx, cy);
+      return c === "=" || c === "b";
+    },
+    inSpring: (x, y) => x >= s.x0 * T && x <= s.x1 * T && Math.abs(y - s.row * T) < 2,
+    // the column over the arrow, from its step up to three tiles high: walking or jumping through it counts
+    portalAt: (x, y) => portals.find((p) => Math.abs(x - p.x) < p.r && y <= p.y + 2 && y >= p.y - 3 * T) ?? null,
   };
   cache.set(id, info);
   return info;

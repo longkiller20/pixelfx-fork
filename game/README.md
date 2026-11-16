@@ -8,12 +8,22 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - **Long Kỵ Sĩ:** cận chiến; biến thân khoác long giáp; Hỏa Long hiện sau lưng phun lửa.
   - **Thời Không Chúa Tể:** đánh xa; Thời Đình làm chậm kẻ địch; biến thân thành Thời Vương.
   - **Khôi Thi Sư:** triệu hồi khôi thi, Thôn Phệ hút máu.
-- **Bản đồ hiện có: Tân Thủ Thôn,** thôn khởi đầu vẽ theo ảnh của bạn.
-  - Thôn an toàn, không có yêu thú.
-  - Nước (thác, suối, hồ sen, biển) có hoạt ảnh. Đèn lồng lập lòe, hoa anh đào bay.
-  - Chỉ đi được trên đường lát đá, bậc thang, cầu và Thái Cực Đài.
-  - Đứng yên trên Thái Cực Đài để tu luyện.
-  - Mũi tên vàng ở bậc thang phía nam là lối ra. Hiện chưa mở; bước vào sẽ hiện "bản đồ sẽ mở rộng sau, xin đạo hữu thông cảm".
+- **Góc nhìn đi ngang** (side-scroller), khớp với cách pixelfx vẽ nhân vật và hiệu ứng: đi trái/phải, nhảy, đứng trên đài
+  mây, rơi theo trọng lực.
+- **Bản đồ hiện có: Tân Thủ Thôn,** thôn khởi đầu dài 112 ô. Đi từ tây sang đông:
+  - Vách núi có thác đổ xuống hồ, cầu gỗ bắc qua hồ.
+  - Phố nhà mái cong.
+  - Điện thờ trên sân đá cao 2 ô; trước điện là Thái Cực Đài, phía trên có đài mây lơ lửng.
+  - Cổng chào, suối có cầu.
+  - Khu chợ: điểm xuất hiện, có bia Truyền Tống.
+  - Đồi có bảo tháp.
+  - Bậc thang đá đi xuống lối ra.
+- **Thôn an toàn, không có yêu thú.**
+  - Nước và thác có hoạt ảnh, đèn đá lập lòe, hoa anh đào bay.
+  - Phía sau là núi, đảo bay và mây, mỗi lớp trượt chậm hơn tiền cảnh (parallax).
+  - Ngồi thiền trên Thái Cực Đài để tu luyện; đĩa âm dương phía trên quay nhanh hơn khi có người tu luyện.
+  - Mũi tên vàng dưới chân bậc thang đá cuối thôn là lối ra. Hiện chưa mở; đi hoặc nhảy qua sẽ hiện "bản đồ sẽ mở rộng sau,
+    xin đạo hữu thông cảm".
 - **Sắp có:** bản đồ luyện cấp đánh yêu thú, và đấu trường PvP. Mã đã có sẵn, chỉ cần khai báo bản đồ.
 - **Tiến trình:** 9 cảnh giới × 5 tầng (Luyện Khí → Độ Kiếp), linh thạch, Đan Các (cửa hàng), quà mỗi ngày, Bảng Phong Thần.
 
@@ -95,13 +105,16 @@ Có HTTPS thì game tự dùng `wss://`.
 - Khi bấm **Đăng nhập** hoặc **Đăng ký**, game xin chế độ toàn màn hình và khoá màn hình nằm ngang. Android Chrome hỗ trợ việc này.
 - iPhone Safari không cho web khoá hướng màn hình. Vì vậy, nếu máy đang cầm dọc, cả giao diện tự xoay ngang 90° để vẫn chơi được.
 - Nút ⛶ trên thanh menu để vào lại toàn màn hình. Trình duyệt chỉ cho phép việc đó sau một lần chạm, nên khi mở lại game bằng phiên đã lưu, bạn cần bấm nút này.
-- Điều khiển: kéo ngón tay ở nửa trái màn hình để đi. Các nút bên phải là chiêu thức và đan dược. Trên điện thoại, chiêu tự nhắm kẻ địch gần nhất.
+- Điều khiển: kéo ngón tay sang trái/phải ở nửa trái màn hình để đi; kéo lên để nhảy, kéo xuống rồi nhảy để rơi xuyên đài mây.
+  Bên phải có nút Nhảy, các nút chiêu và đan dược. Trên điện thoại, chiêu tự nhắm kẻ địch gần nhất.
 
 ## Máy tính
 
 | Phím | Tác dụng |
 |---|---|
-| WASD / mũi tên | Di chuyển |
+| A/D hoặc ←/→ | Đi trái/phải |
+| W, ↑, Space | Nhảy |
+| S + nhảy | Rơi xuyên đài mây |
 | Chuột | Ngắm |
 | J K L, 1 2 3, chuột trái/phải | Chiêu 1, 2, 3 |
 | 4 | Hồi Xuân Đan |
@@ -139,8 +152,8 @@ Các lớp bảo vệ khác:
 - **Chat:** dọn ký tự lạ, giới hạn độ dài, hiển thị dạng chữ thuần (không chèn được HTML).
 
 Kiểm tra: khi máy chủ đang chạy, `npm run test:race` bắn hàng loạt yêu cầu đồng thời. Nó kiểm tra quà ngày, mua đồ quá tiền,
-mua trùng mã, đăng nhập hai nơi và spam đan dược, rồi đối chiếu số liệu trong database. Nó cũng kiểm tra tường chặn và lối ra
-của Tân Thủ Thôn. Nên chạy trên máy
+mua trùng mã, đăng nhập hai nơi và spam đan dược, rồi đối chiếu số liệu trong database. Nó cũng kiểm tra tường chặn, cú nhảy lên
+sân điện và lối ra của Tân Thủ Thôn. Nên chạy trên máy
 chủ thử, vì nó tạo vài tài khoản `t_...`.
 
 ## Cân bằng
@@ -164,27 +177,50 @@ Muốn chỉnh cân bằng, sửa `shared/balance.js` rồi khởi động lại
 
 ## Bản đồ
 
-Mỗi bản đồ là một file trong `shared/maps/` kèm một ảnh trong `public/maps/`. Mọi toạ độ tính theo pixel của ảnh; trong game,
-ảnh được vẽ to gấp đôi (`scale: 2`).
+Mỗi bản đồ là một file trong `shared/maps/`. Bản đồ dựng từ lưới ô: mỗi ô 18 px của tileset được vẽ to gấp đôi (36 px trong
+game), nên pixel luôn vuông và sắc nét.
 
-- `walk`: lưới đi lại, mỗi ký tự là một ô 8×8 pixel ảnh. `.` là đi được, `#` là chặn. File này **sửa tay được** bằng bất kỳ
-  trình soạn thảo nào.
-  - Với Tân Thủ Thôn, lưới được tạo tự động: lấy theo màu đường lát đá, rồi vẽ thêm tay bậc thang, cầu, Thái Cực Đài.
-  - Sau đó chỉ giữ phần nối liền với điểm xuất hiện, nên không có ô "kẹt" nằm riêng.
-- `spawn`: điểm xuất hiện và hồi sinh, luôn nằm trên ô đi được.
-- `spring`: vùng tu luyện, hình elip.
+- `grid`: mỗi ký tự là một ô, **sửa tay được** bằng bất kỳ trình soạn thảo nào.
+
+  | Ký tự | Ý nghĩa |
+  |---|---|
+  | `.` | không khí |
+  | `#` | đất; có cỏ ở mặt trên nếu phía trên trống |
+  | `s` | đá xây (sân điện, bậc thang) |
+  | `=` | đài mây: đứng được từ trên xuống, nhảy xuyên từ dưới lên, bấm xuống + nhảy để rơi xuyên qua |
+  | `b` | cầu: giống đài mây, có nước bên dưới |
+  | `w` | nước (chỉ để trang trí) |
+  | <code>&#124;</code> | thác (chỉ để trang trí) |
+
+- `props`: các công trình vẽ bằng code theo phong cách tiên hiệp, viết dạng `[loại, x, hàng nền, tuỳ chọn]`. Các loại hiện có:
+  - `house`: nhà mái cong, có 3 kiểu mái.
+  - `temple`: điện thờ.
+  - `pagoda`: bảo tháp.
+  - `gate`: cổng chào.
+  - `lantern`: đèn đá.
+  - `cherry`: cây anh đào.
+  - `bamboo`: khóm trúc.
+  - `taiji`: Thái Cực Đài.
+  - `well`: giếng.
+  - `stall`: sạp hàng chợ.
+  - `spawnstone`: bia Truyền Tống.
+  - `sign`: biển gỗ.
+- `tiles`: các ô trang trí lấy từ tileset Kenney, viết dạng `[chỉ số ô, cột, hàng]`.
+- `spawn`: điểm xuất hiện, luôn đứng trên nền.
+- `spring`: đoạn tu luyện trên Thái Cực Đài.
 - `portals`: lối ra. Có `to` thì chuyển sang bản đồ đó; để `null` thì hiện thông báo `msg`.
-- `mobs`: yêu thú, ví dụ `{ type: "ghost", x, y }`. `pvp: true` để cho phép tỷ thí.
-- `water`: các vùng có nước động.
-  - `regions`: vùng được phép tính là nước.
-  - `exclude`: vùng loại trừ (bầu trời, pha lê...).
-  - `falls`: thác chảy dọc; nước trong `regions` mà ngoài `falls` thì gợn sóng.
+- `mobs`: yêu thú.
+- `pvp`: đặt `true` để cho phép tỷ thí.
 
-Thêm bản đồ mới:
+Vật lý đi ngang nằm trong `shared/physics.js` (trọng lực, nhảy, va chạm ô, rơi xuyên đài mây). Máy chủ dùng nó để di chuyển mọi
+người, và trình duyệt chạy đúng các bước đó để nhân vật của bạn phản hồi ngay khi bấm. Khi hai bên lệch nhau, nhân vật được kéo
+về vị trí của máy chủ.
 
-1. Đặt ảnh vào `public/maps/`.
-2. Viết file khai báo giống `tanthu.js`.
-3. Thêm bản đồ vào `MAPS` trong `shared/maps/index.js`.
+### Tileset và ghi công
+
+- Đất, cỏ, nước, cây cối, hàng rào, biển gỗ, cờ: **Pixel Platformer** của **Kenney** (www.kenney.nl), giấy phép **CC0**,
+  dùng tự do kể cả thương mại. Tệp gốc và giấy phép nằm ở `public/maps/kenney/`.
+- Nhà, điện thờ, cổng, đèn, cây anh đào, trúc, đài mây, thác, bầu trời và núi được vẽ bằng code trong `public/js/scenery.js`.
 
 ## Cấu trúc
 
@@ -197,8 +233,9 @@ game/
   server/db.js           MariaDB: pool, transaction, tạo bảng
   server/auth.js         mật khẩu, phiên đăng nhập, giới hạn tần suất
   shared/balance.js      chỉ số, chiêu thức, cảnh giới, vật phẩm
-  shared/maps/           bản đồ: lưới đi lại, điểm xuất hiện, lối ra, vùng nước
-  public/                trang game: canvas, giao diện, điều khiển; public/maps/ chứa ảnh bản đồ
+  shared/maps/           bản đồ: lưới ô, công trình, điểm xuất hiện, lối ra
+  shared/physics.js      vật lý đi ngang dùng chung cho máy chủ và trình duyệt
+  public/                trang game: canvas, giao diện, điều khiển; public/js/scenery.js vẽ bản đồ; public/maps/kenney/ tileset
   test/race.mjs          kiểm tra tranh chấp, tường và lối ra
 ```
 
