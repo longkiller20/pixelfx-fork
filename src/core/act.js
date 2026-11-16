@@ -322,6 +322,8 @@ export function createAct(mod, o = {}) {
     },
     /** Paint it. { body: false } leaves the character out, { target: false } the target. */
     draw(frame, { body = true, target: showTarget = true } = {}) {
+      // an effect that draws its own character (act.body false) keeps the target, the freeze and the shake
+      if (a.body === false) body = false;
       const W = frame.w, H = frame.h, q = last ?? poseNow(), active = t >= 0;
       const tgt = showTarget ? targets : [];
       const drawTargets = () => tgt.forEach((g) => g.draw(frame.color, W, H, FX, FY, flip));
@@ -341,6 +343,7 @@ export function createAct(mod, o = {}) {
         drawTargets();
         if (active) fx.draw(frame, "front");
         drawStraw();
+        drawDust();
         return;
       }
       const rx = Math.round(q.x ?? 0), ry = Math.round(q.y ?? 0), BX = FX + (flip ? -rx : rx), BY = FY + ry;

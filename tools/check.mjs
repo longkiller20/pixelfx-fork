@@ -135,7 +135,7 @@ for (const id of ids) {
       if (!meta.loop) {
         drawAt(fx, meta.duration, frame, opts);
         const left = count(frame.color, (c, j) => c >>> 24 && inside(j));
-        if (left > 0) notes.push(`${left} px still drawn at t = duration: one-shots should end empty`);
+        if (left > 0 && !meta.holds) notes.push(`${left} px still drawn at t = duration: one-shots should end empty (or meta.holds, when it ends on a character it drew)`);
       }
       // loops have no seam: stepping from the last frame back to the first changes no more than a normal step
       if (meta.loop) {
@@ -199,7 +199,7 @@ for (const id of ids) {
       if (a.some((s, i) => count(s, (c, j) => c !== b[i][j]) > 0)) errs.push("not deterministic: two runs with the same seed differ");
       if (!meta.loop) {
         const left = count(a[a.length - 1], (c, j) => c >>> 24 && inside(j));
-        if (left > 0) notes.push(`${left} px still drawn at t = duration: one-shots should end empty`);
+        if (left > 0 && !meta.holds) notes.push(`${left} px still drawn at t = duration: one-shots should end empty (or meta.holds, when it ends on a character it drew)`);
       }
       ms.sort((x, y) => x - y);
       if (ms[ms.length >> 1] > 4) notes.push(`slow: ${ms[ms.length >> 1].toFixed(1)} ms a frame`);

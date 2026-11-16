@@ -107,6 +107,9 @@ export const act = {
 - **`onBody: true`** when the effect reads `o.actor` (recolors `pixels`, outlines `mask`, exports `actorAlpha`). Draw it against the
   standing body as usual: each pixel of a pose knows which standing pixel it came from, so frost, poison and scan lines follow. What's
   off the body moves with the chest above the belt and stays put on the floor; `follow: 0` keeps it fixed, for a core at the hand.
+- **`body: false`** when the effect draws its own character (sprites of the game's own hero): the act keeps the target, hits, freeze,
+  shake and dust, and leaves the stock body out. `poses` still set the act's span. Set `meta.holds: true` if it ends on that
+  character (a transformation), so the last frame isn't expected to be empty.
 - **What sells it:** a wind-up in the opposite direction to the blow. A big silhouette change on the release frame. A freeze
   on contact, longer for heavier blows (0.03 to 0.2 s). A follow-through that overshoots. Sword tips and hammer heads that meet the effect's arc.
   Raised hands go behind the head by themselves, so the face stays visible; put wind-ups beside or above the head, not across it.
