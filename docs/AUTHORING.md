@@ -94,7 +94,8 @@ export const act = {
   `"snap"` holds the last pose and jumps on the key, `"out"` arrives fast and settles, `"in"` starts slow, `"line"` keeps a
   steady speed.
 - **Hits** freeze everything for `stop` seconds and shake it by `amp` px for `shake` seconds; the target takes `push` (negative
-  rocks it towards the caster), `straw`, `flash`, a `skin` (char, ice, shock, holy, shadow, red, poison; `null` clears it) and `shiver`.
+  rocks it towards the caster), `straw`, `flash`, a `skin` (char, ice, shock, holy, shadow, red, poison; `null` clears it), `shiver`, and `eat` (it's
+  devoured over that many seconds from the caster's side; `0` puts it back; `TARGET_SPRITE` and `eatOrder` let the effect fly the eaten pixels away).
   `at` picks one of several targets; `target: false` leaves them out of it. Line these up with the effect's own constants.
 - **Weapons** are `sword greatsword dagger spear hammer scythe claw bow pistol launcher handle`. `two: true` puts both hands on it.
 - **Hold it like you mean it.** An arm reaches about 15 px from its shoulder and bones don't stretch, so step the body (`x`) rather than ask too much,
