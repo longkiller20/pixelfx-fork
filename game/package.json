@@ -10,7 +10,8 @@
   },
   "scripts": {
     "start": "node server/index.js",
-    "test:race": "node test/race.mjs"
+    "test:race": "node test/race.mjs",
+    "cosmetics": "node tools/cosmetics.mjs"
   },
   "dependencies": {
     "express": "^4.22.3",

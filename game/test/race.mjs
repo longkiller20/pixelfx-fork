@@ -17,7 +17,7 @@ async function call(path, { token, method = "GET", body } = {}) {
   });
   return { status: r.status, data: await r.json().catch(() => ({})) };
 }
-async function player(look = { g: "m", hair: 3, robe: 7 }) {
+async function player(look = { g: "m", hair: 8, robe: 16 }) {
   const u = "t_" + uid();
   const { data } = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
   const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } });
@@ -66,11 +66,42 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   // the look is checked: bad genders and out-of-range parts are refused
   const u = "t_" + uid();
   const { data } = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
-  for (const look of [{ g: "x", hair: 0, robe: 0 }, { g: "m", hair: 40, robe: 0 }, { g: "f", hair: 0, robe: -1 }, { g: "m", hair: 1.5, robe: 0 }, null])
-    assert.equal((await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } })).status, 400);
-  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: { g: "f", hair: 39, robe: 39 } } });
-  assert.deepEqual(c.data.character.look, { g: "f", hair: 39, robe: 39 });
-  ok("creating a character: only a real gender, hair and robe are accepted, and they're saved");
+  // junk, a shop item (hair 0 is sold, not free), and a man's starter hair on a woman
+  for (const look of [{ g: "x", hair: 8, robe: 16 }, { g: "m", hair: 1.5, robe: 16 }, { g: "f", hair: 24, robe: -1 }, null, { g: "m", hair: 0, robe: 16 }, { g: "f", hair: 8, robe: 2 }])
+    assert.equal((await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } })).status, 400, JSON.stringify(look));
+  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: { g: "f", hair: 34, robe: 21 } } });
+  assert.deepEqual(c.data.character.look, { g: "f", hair: 34, robe: 21 });
+  const w = (await call("/cosmetics", { token: data.token })).data;
+  for (const [k, g] of [["hair", "m"], ["hair", "f"], ["robe", "m"], ["robe", "f"]])
+    assert.equal(w.items.filter((i) => i.kind === k && i.g === g && i.starter).length, 5, `5 free ${k} for ${g}`);
+  ok("creating a character: only one of the 5 free hair styles and robes of that gender, and it's saved");
+}
+
+{
+  // the wardrobe: 10 buys of one robe at once charge once; a robe you can't afford, or don't own, can't be worn
+  const p = await player();
+  const items = (await call("/cosmetics", { token: p.token })).data.items;
+  const shop = items.filter((i) => i.g === "m" && !i.starter && i.onSale).sort((a, b) => a.price - b.price);
+  const cheap = shop[0], dear = shop[shop.length - 1];
+  assert.equal((await call("/cosmetics/wear", { token: p.token, method: "POST", body: { id: cheap.id } })).status, 403);
+  assert.equal((await call("/cosmetics/buy", { token: p.token, method: "POST", body: { id: cheap.id } })).status, 409, "20 stones is not enough");
+  const her = items.find((i) => i.g === "f" && !i.starter);
+  assert.equal((await call("/cosmetics/buy", { token: p.token, method: "POST", body: { id: her.id } })).status, 400, "not for this gender");
+  // give them stones straight in the database (an admin's gift) and spend them in a burst
+  const { q, pool } = await import("../server/db.js");
+  const [row] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [p.name]);
+  await q("UPDATE characters SET stones = ? WHERE user_id = ?", [cheap.price + 5, row.id]);
+  const res = await Promise.all(Array.from({ length: 10 }, () => call("/cosmetics/buy", { token: p.token, method: "POST", body: { id: cheap.id, wear: true } })));
+  assert.equal(res.filter((r) => r.status === 200).length, 1);
+  const m = await me(p.token);
+  assert.equal(m.character.stones, 5);
+  assert.equal(m.character.look[cheap.kind], cheap.idx, "worn after buying");
+  // and back to a free one
+  const free = items.find((i) => i.g === "m" && i.starter && i.kind === cheap.kind && i.idx !== cheap.idx);
+  assert.equal((await call("/cosmetics/wear", { token: p.token, method: "POST", body: { id: free.id } })).status, 200);
+  assert.equal((await me(p.token)).character.look[free.kind], free.idx);
+  await pool.end();
+  ok("Y Các: 10 buys at once charge once and wear it; can't wear unbought, other-gender or unaffordable items");
 }
 
 {
@@ -125,7 +156,7 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   // the starter town, side view: walls hold, jumps clear them, and the way out at the foot of the east stairs answers
   const { mapInfo, START_MAP } = await import("../shared/maps/index.js");
   const { fits } = await import("../shared/physics.js");
-  const M = mapInfo(START_MAP), P = await player({ g: "f", hair: 12, robe: 30 }), c = await connect(P.token);
+  const M = mapInfo(START_MAP), P = await player({ g: "f", hair: 24, robe: 2 }), c = await connect(P.token);
   const at = () => c.snap?.P.find((q) => q[0] === c.id);
   await sleep(300);
   const start = at();

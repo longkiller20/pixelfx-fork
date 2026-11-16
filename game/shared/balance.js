@@ -33,7 +33,7 @@ export const arenaMult = (L) => 1 + (0.1 * (L - 1)) / (MAX_LEVEL - 1);
 export const mitigate = (def) => 100 / (100 + def);
 
 // Everyone walks the same road: one stat line and one set of three arts, so a fight is decided by play, not by a
-// pick at sign-up. What sets characters apart is how they look (see LOOK). Skill types the server knows: melee (an arc
+// pick at sign-up. What sets characters apart is how they look. Skill types the server knows: melee (an arc
 // in front), bolt (a projectile), zone (an area some way ahead that hits after a beat and slows). cd in seconds,
 // mult x attack, ranges in px.
 export const CLASSES = {
@@ -49,10 +49,13 @@ export const CLASSES = {
 };
 export const CLASS = "tu";
 
-// A character's look, chosen once at creation: gender, then one of 40 hair styles and 40 robes drawn for that gender.
-export const LOOK = { genders: ["m", "f"], hair: 40, robe: 40 };
-export const validLook = (g, hair, robe) =>
-  LOOK.genders.includes(g) && Number.isInteger(hair) && hair >= 0 && hair < LOOK.hair && Number.isInteger(robe) && robe >= 0 && robe < LOOK.robe;
+// A character's look: a gender, a hair style and a robe. Which styles exist, what they cost and which are free at
+// creation lives in the database (the cosmetics table, see server/cosmetics.js), so an admin can add or price them
+// without a code change. idx is the part's place in its atlas in public/avatar/.
+export const GENDERS = ["m", "f"];
+export const COSMETIC_KINDS = ["hair", "robe"];
+const idxOk = (v) => Number.isInteger(v) && v >= 0 && v < 1000;
+export const validLook = (g, hair, robe) => GENDERS.includes(g) && idxOk(hair) && idxOk(robe);
 
 export const MONSTERS = {
   dummy: { name: "Bù Nhìn Rơm", hp: 500, atk: 0, def: 10, spd: 0, respawn: 5, exp: (L) => 10 + 2 * L, stones: 1 },

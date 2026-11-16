@@ -1,6 +1,7 @@
 // MariaDB: the pool, transactions, and the schema (created on start, safe to run every time).
 import mariadb from "mariadb";
 import { config } from "./config.js";
+import { COSMETICS_SEED } from "./cosmetics-seed.js";
 
 export const pool = mariadb.createPool({
   ...config.db,
@@ -91,6 +92,31 @@ const SCHEMA = [
     PRIMARY KEY (user_id, day),
     CONSTRAINT fk_daily_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
+  // the wardrobe: every hair style and robe the game knows, by its place in the atlases (public/avatar/). An admin adds,
+  // prices, renames or takes items off sale here (or with tools/cosmetics.mjs); the game reads it live.
+  `CREATE TABLE IF NOT EXISTS cosmetics (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    kind VARCHAR(8) NOT NULL,
+    gender CHAR(1) NOT NULL,
+    idx SMALLINT UNSIGNED NOT NULL,
+    name VARCHAR(40) NOT NULL,
+    price INT UNSIGNED NOT NULL DEFAULT 0,
+    starter TINYINT(1) NOT NULL DEFAULT 0,
+    on_sale TINYINT(1) NOT NULL DEFAULT 1,
+    sort INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_part (kind, gender, idx)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // what each account has bought: one row per item, so the same item can never be paid for twice
+  `CREATE TABLE IF NOT EXISTS owned_cosmetics (
+    user_id INT UNSIGNED NOT NULL,
+    cosmetic_id INT UNSIGNED NOT NULL,
+    price INT UNSIGNED NOT NULL DEFAULT 0,
+    bought_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, cosmetic_id),
+    CONSTRAINT fk_own_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_own_item FOREIGN KEY (cosmetic_id) REFERENCES cosmetics(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,
@@ -111,4 +137,17 @@ const UPGRADES = [
 export async function migrate() {
   for (const s of SCHEMA) await q(s);
   for (const s of UPGRADES) await q(s);
+  // the first wardrobe; rows already there (and an admin's changes to them) are kept
+  await pool.batch(
+    "INSERT IGNORE INTO cosmetics (kind, gender, idx, name, price, starter, sort) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    COSMETICS_SEED.map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.idx]),
+  );
+  // whatever a character already wears is theirs to keep, even if it is now sold in the shop
+  for (const kind of ["hair", "robe"])
+    await q(
+      `INSERT IGNORE INTO owned_cosmetics (user_id, cosmetic_id, price)
+       SELECT ch.user_id, c.id, 0 FROM characters ch JOIN cosmetics c ON c.kind = ? AND c.gender = ch.gender AND c.idx = ch.${kind}
+       WHERE c.starter = 0`,
+      [kind],
+    );
 }
