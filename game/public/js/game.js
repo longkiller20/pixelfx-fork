@@ -1,8 +1,9 @@
 // The game in the browser: it shows what the server says is happening, and sends what the player presses.
 import { createFrame, clearFrame, createFx, composite, painterFor, PAL, hex, WHITE } from "/pixelfx/core/index.js";
 import { effects } from "/pixelfx/fx/index.js";
-import { WORLD, ZONES, zoneAt, SPRING, CLASSES, MONSTERS, ITEMS, expForLevel, realmName, MAX_LEVEL } from "/shared/balance.js";
-import { LOOKS, drawCharacter, drawDummy, drawPuppet, dragon, MOUTH, paintWorld, GROUND } from "./art.js";
+import { CLASSES, MONSTERS, ITEMS, expForLevel, realmName, MAX_LEVEL } from "/shared/balance.js";
+import { mapInfo } from "/shared/maps/index.js";
+import { LOOKS, drawCharacter, drawDummy, drawPuppet, dragon, MOUTH, loadMap } from "./art.js";
 
 const CLS = Object.keys(CLASSES), MTYPES = ["dummy", "ghost"];
 const GOLD = ["#2a1604", "#6a3a08", "#b8700e", "#f0a820", "#ffd84a", "#fff2a8", "#ffffff"];
@@ -13,7 +14,7 @@ const $ = (id) => document.getElementById(id);
 export function startGame({ token, character, inventory, api, onFatal, touch }) {
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
-  const worldBg = paintWorld();
+  let map = null, pic = null, win = new Uint32Array(4);
 
   // ---------------------------------------------------------------- state from the server
   let myId = 0, me = null, inv = { ...inventory };
@@ -26,7 +27,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   const drains = [];
   const dragons = new Map(); // player id -> { at, ax, ay }
   const ambient = [];
-  let lastZone = null, alive = true;
+  let alive = true;
 
   // ---------------------------------------------------------------- the socket
   const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
@@ -41,6 +42,16 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     switch (m.t) {
       case "welcome":
         myId = m.id;
+        if (!map || map.id !== m.map) {
+          map = mapInfo(m.map);
+          pic = null;
+          $("loading").hidden = false;
+          loadMap(map.def).then((pc) => {
+            pic = pc;
+            $("loading").hidden = true;
+            zoneBanner(map.name, map.sub);
+          }, () => onFatal("Không tải được bản đồ, hãy thử lại.", false));
+        }
         inv = m.inv;
         for (const p of m.players) infos.set(p.id, p);
         renderInv();
@@ -67,6 +78,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
         break;
       case "feed":
         logLine(null, m.m, "sys");
+        break;
+      case "portal":
+        zoneBanner("Đường phía trước chưa mở", m.m);
         break;
       case "toast":
         toast(m.m);
@@ -260,10 +274,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
       return { ax: dx, ay: dy };
     }
     let best = null, bd = 260;
-    const arena = zoneAt(self.x).pvp;
+    const arena = !!map?.pvp;
     for (const e of drawn.values()) {
       if (e.id === myId || e.dead) continue;
-      if (e.kind === "p" && !(arena && zoneAt(e.x).pvp)) continue;
+      if (e.kind === "p" && !arena) continue;
       if (e.kind === "s") continue;
       const d = Math.hypot(e.x - self.x, e.y - self.y);
       if (d < bd) (bd = d), (best = e);
@@ -332,13 +346,13 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.remove("on"), 2200);
   }
-  function zoneBanner(z) {
+  function zoneBanner(title, sub) {
     const b = $("zone");
     b.innerHTML = "";
     const h = document.createElement("div");
-    h.textContent = z.name;
+    h.textContent = title;
     const s = document.createElement("small");
-    s.textContent = z.pvp ? "Khu tỷ thí: được phép giao đấu, chỉ số được cân bằng" : z.mobs ? "Bãi luyện võ: bù nhìn rơm và âm hồn" : "Vùng an toàn: đứng yên trong linh mạch để tu luyện";
+    s.textContent = sub;
     b.append(h, s);
     b.classList.remove("on");
     void b.offsetWidth;
@@ -348,8 +362,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   // ---------------------------------------------------------------- drawing
   function resize() {
     const box = $("game"), w = box.clientWidth, h = box.clientHeight;
-    VH = 360;
-    VW = Math.max(480, Math.min(860, Math.round((VH * w) / Math.max(1, h)) & ~1));
+    // about 560 px of the world top to bottom: the town reads at a glance, characters stay crisp
+    VH = 560;
+    VW = Math.max(720, Math.min(1300, Math.round((VH * w) / Math.max(1, h)) & ~1));
     view.width = VW;
     view.height = VH;
     frame = createFrame(VW, VH);
@@ -363,12 +378,6 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   addEventListener("resize", resize);
   resize();
 
-  // the scenery that moves on its own
-  const amb = (id, x, y, o = {}) => ambient.push({ fx: createFx(effects[id], { seed: ambient.length + 1, ...o }), x, y });
-  amb("arcane/rune-circle", SPRING.x, SPRING.y + 4, { palette: ["#06141a", "#0c3440", "#14707e", "#28b8c8", "#7ff0ff", "#e0ffff"] });
-  for (const [x, y] of [[1270, 240], [1730, 240], [1270, 860], [1730, 860]]) amb("fire/brazier", x, y);
-  amb("fire/campfire", 520, 700);
-  for (const x of [ZONES[0].x1, ZONES[1].x1]) amb("fire/torch", x - 14, GROUND + 22);
 
   let camX = 0, camY = 0;
   const drawn = new Map(); // id -> what's on screen this frame
@@ -398,8 +407,129 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     if (last && self) {
       const info = myInfo(), ahead = Math.min(0.1, now - snaps[snaps.length - 1].at), d = inputDir();
       const spd = info ? CLASSES[info.cls].spd * (last.f & 4 ? 0.5 : 1) * (last.f & 64 ? 0.45 : 1) : 90;
-      self.x = last.x + (last.f & 1 ? 0 : d.dx * spd * ahead);
-      self.y = last.y + (last.f & 1 ? 0 : d.dy * spd * ahead);
+      const nx = last.x + (last.f & 1 ? 0 : d.dx * spd * ahead), ny = last.y + (last.f & 1 ? 0 : d.dy * spd * ahead);
+      // don't guess past a wall the server won't let you through
+      if (map?.canStand(nx, ny)) (self.x = nx), (self.y = ny);
+      else (self.x = last.x), (self.y = last.y);
+    }
+  }
+
+
+  // ---------------------------------------------------------------- the map: the picture at twice its size, its water alive
+  const fhash = (x, y, z) => {
+    let h = (x * 374761393 + y * 668265263 + z * 1274126177) | 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  };
+  // lighten (k > 0) toward white, or darken (k < 0), one packed color
+  const shade = (c, k) => {
+    let r = c & 255, g = (c >>> 8) & 255, b = (c >>> 16) & 255;
+    if (k > 0) (r += (255 - r) * k), (g += (255 - g) * k), (b += (255 - b) * k);
+    else (r *= 1 + k), (g *= 1 + k), (b *= 1 + k);
+    return (255 << 24) | ((b | 0) << 16) | ((g | 0) << 8) | (r | 0);
+  };
+  function paintBackground(t) {
+    const k = map.def.scale, IW = pic.W, IH = pic.H, PX = pic.px, WA = pic.water;
+    const ix0 = Math.floor(camX / k), iy0 = Math.floor(camY / k), iw = Math.ceil(VW / k) + 2, ih = Math.ceil(VH / k) + 2;
+    if (win.length < iw * ih) win = new Uint32Array(iw * ih);
+    const flow = t * 70, tick = Math.floor(t * 4);
+    for (let j = 0; j < ih; j++) {
+      const iy = Math.min(IH - 1, iy0 + j);
+      for (let i = 0; i < iw; i++) {
+        const ix = Math.min(IW - 1, ix0 + i), idx = iy * IW + ix, w = WA[idx];
+        let c = PX[idx];
+        if (w === 2) {
+          // a waterfall: bright streaks sliding down, broken into lengths, with spray flickering
+          const s = fhash(ix, Math.floor((iy - flow) / 7), 3);
+          if (s > 0.62) c = shade(c, 0.45 * (s - 0.62) / 0.38 + 0.08);
+          else if (s < 0.18) c = shade(c, -0.12);
+          if (fhash(ix, iy, tick) > 0.985) c = shade(c, 0.6);
+        } else if (w === 1) {
+          // still water: slow interfering ripples, and a few glints that come and go
+          const v = Math.sin(ix * 0.21 + iy * 0.09 - t * 2.1) + Math.sin(ix * 0.06 - iy * 0.23 + t * 1.6);
+          if (v > 1.35) c = shade(c, 0.22);
+          else if (v < -1.45) c = shade(c, -0.1);
+          if (fhash(ix, iy, tick) > 0.996) c = shade(c, 0.75);
+        }
+        win[j * iw + i] = c;
+      }
+    }
+    for (let sy = 0; sy < VH; sy++) {
+      const row = (Math.floor((camY + sy) / k) - iy0) * iw - ix0, o = sy * VW;
+      for (let sx = 0; sx < VW; sx++) bgBuf[o + sx] = win[row + Math.floor((camX + sx) / k)];
+    }
+  }
+
+  // lanterns glowing, the spirit vein breathing, and the gold arrow over the way out
+  const WARM = hex("#ffb84a"), WARM2 = hex("#ffe08a"), VEIN = hex("#7ff0ff"), GOLDC = GOLD.map(hex);
+  const ARROW = ["..###..", "..#5#..", "..#5#..", "..#5#..", "#######", ".#555#.", "..#5#..", "...#..."];
+  function drawScenery(p, now, dt, on) {
+    p.place(0, 0, false);
+    p.fade = 1;
+    p.lightK = 1;
+    for (const [x, y] of map.lanterns) {
+      if (!on(x, y)) continue;
+      const f = 0.85 + 0.15 * Math.sin(now * 9 + x) * Math.sin(now * 5.3 + y);
+      p.glow(x - camX, y - 20 - camY, 26, WARM, 0.32 * f);
+      p.glow(x - camX, y - 20 - camY, 7, WARM2, 0.5 * f);
+    }
+    const s = map.spring;
+    if (on(s.x, s.y, 300)) {
+      const busy = [...drawn.values()].some((e) => e.kind === "p" && e.f & 16);
+      p.glow(s.x - camX, s.y - camY, s.rx * 0.9, VEIN, (busy ? 0.18 : 0.08) + 0.05 * Math.sin(now * 1.7));
+    }
+    for (const g of map.portals) {
+      if (!on(g.x, g.y)) continue;
+      const ax = Math.round(g.x - camX);
+      // a ring of light turning on the step under it
+      for (let i = 0; i < 56; i++) {
+        const a = (i / 56) * Math.PI * 2 + now * 1.5;
+        p.px(ax + Math.cos(a) * 30, g.y - camY + Math.sin(a) * 9, GOLDC[i % 4 ? 4 : 6]);
+      }
+      p.glow(ax, g.y - camY, 44, GOLDC[3], 0.35);
+    }
+  }
+
+  // the arrow floats in front of everything
+  function drawPortalArrows(p, now, on) {
+    p.place(0, 0, false);
+    p.fade = 1;
+    p.lightK = 1;
+    for (const g of map.portals) {
+      if (!on(g.x, g.y)) continue;
+      const bob = Math.round(Math.sin(now * 3.2) * 6), ax = Math.round(g.x - camX), ay = Math.round(g.y - camY - 100 + bob), Z = 5;
+      // the arrow, pointing down: a gold rim, its core flickering white-hot, light pooling under it
+      ARROW.forEach((row, y) => [...row].forEach((ch, x) => {
+        if (ch === ".") return;
+        const c = ch === "5" ? GOLDC[Math.floor(now * 8 + y) % 2 ? 5 : 6] : GOLDC[3];
+        p.rect(ax - 17 + x * Z, ay + y * Z, Z, Z, c);
+      }));
+      p.glow(ax, ay + 16, 30, GOLDC[4], 0.6 + 0.25 * Math.sin(now * 6));
+      // motes rising up the beam between the arrow and the ring
+      for (let i = 0; i < 8; i++) {
+        const u = (now * 0.8 + i / 8) % 1;
+        p.px(ax + Math.sin(i * 2.3 + now) * 14, g.y - camY - u * 60, GOLDC[u < 0.5 ? 6 : 4]);
+      }
+    }
+  }
+
+  // cherry petals drifting across the town
+  const petals = [];
+  const PINK = ["#ffd0e0", "#ffa8c8", "#f080a8"].map(hex);
+  function drawPetals(p, now, dt) {
+    while (petals.length < 36) petals.push({ x: camX + Math.random() * (VW + 200) - 100, y: camY - Math.random() * VH, vx: 12 + Math.random() * 14, vy: 16 + Math.random() * 14, ph: Math.random() * 6, c: PINK[(Math.random() * 3) | 0] });
+    p.place(0, 0, false);
+    for (let i = petals.length - 1; i >= 0; i--) {
+      const q = petals[i];
+      q.x += (q.vx + Math.sin(now * 2 + q.ph) * 14) * dt;
+      q.y += q.vy * dt;
+      const sx = q.x - camX, sy = q.y - camY;
+      if (sy > VH + 10 || sx > VW + 120 || sx < -140) {
+        petals.splice(i, 1);
+        continue;
+      }
+      p.px(sx, sy, q.c);
+      if (Math.sin(now * 5 + q.ph) > 0) p.px(sx + 1, sy, q.c);
     }
   }
 
@@ -409,20 +539,17 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     const now = performance.now() / 1000, dt = Math.min(0.05, now - lastT);
     lastT = now;
     pumpInput(now);
+    if (!pic) {
+      requestAnimationFrame(render);
+      return;
+    }
     interpolated(now);
     const self = drawn.get(myId);
     if (self) {
-      camX = Math.round(Math.max(0, Math.min(WORLD.w - VW, self.x - VW / 2)));
-      camY = Math.round(Math.max(0, Math.min(WORLD.h - VH, self.y - 40 - VH / 2)));
-      const z = zoneAt(self.x);
-      if (z !== lastZone) {
-        lastZone = z;
-        zoneBanner(z);
-        $("game").dataset.zone = z.id;
-      }
+      camX = Math.round(Math.max(0, Math.min(map.w - VW, self.x - VW / 2)));
+      camY = Math.round(Math.max(0, Math.min(map.h - VH, self.y - 40 - VH / 2)));
     }
-    // the backdrop window
-    for (let y = 0; y < VH; y++) bgBuf.set(worldBg.subarray((y + camY) * WORLD.w + camX, (y + camY) * WORLD.w + camX + VW), y * VW);
+    paintBackground(now);
     clearFrame(frame);
     const p = painterFor(frame), on = (x, y, m = 140) => x > camX - m && x < camX + VW + m && y > camY - m && y < camY + VH + m * 1.5;
     const place = (fx, x, y) => {
@@ -443,6 +570,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
       if (f.fx.done()) fxs.splice(i, 1);
     }
     for (const f of fxs) if (on(f.x, f.y)) (place(f.fx, f.x, f.y), f.fx.draw(frame, "back"));
+    drawScenery(p, now, dt, on);
     // dragons behind their riders
     for (const [id, d] of dragons) {
       const e = drawn.get(id), age = now - d.at;
@@ -459,6 +587,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     for (const f of fxs) if (on(f.x, f.y)) (place(f.fx, f.x, f.y), f.fx.draw(frame, "front"));
     for (const a of ambient) if (on(a.x, a.y)) (place(a.fx, a.x, a.y), a.fx.draw(frame, "front"));
     drawDrains(p, now);
+    drawPortalArrows(p, now, on);
+    drawPetals(p, now, dt);
     composite(frame, img.data, bgBuf);
     ctx.putImageData(img, 0, 0);
     drawLabels(list, now);
@@ -628,6 +758,17 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
       c.fillRect(x - w / 2 - 1, top - fs * 0.35, w + 2, h + 2);
       c.fillStyle = hp > 0.5 ? "#5ad06a" : hp > 0.25 ? "#e8c040" : "#e04848";
       c.fillRect(x - w / 2, top - fs * 0.35 + 1, w * Math.max(0, hp), h);
+    }
+    for (const g of map.portals) {
+      const x = (g.x - camX) * k, y = (g.y - camY - 104) * k;
+      if (x < -200 || y < -50 || x > labels.width + 200 || y > labels.height + 50) continue;
+      const fs = Math.max(11, Math.round(5.6 * k));
+      c.font = `800 ${fs}px system-ui, sans-serif`;
+      c.lineWidth = Math.max(2, fs / 4);
+      c.strokeStyle = "rgba(0,0,0,.85)";
+      c.strokeText("Lối ra", x, y);
+      c.fillStyle = "#ffe08a";
+      c.fillText("Lối ra", x, y);
     }
     for (let i = texts.length - 1; i >= 0; i--) {
       const t = texts[i], age = now - t.at;

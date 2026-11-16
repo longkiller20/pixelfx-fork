@@ -6,7 +6,6 @@ import { BOY, KING } from "/pixelfx/fx/moves/_timeking-art.js";
 import { PUPPET } from "/pixelfx/fx/moves/corpse-devour.js";
 import { DRAGON_SPINE, DRAGON_MOUTH } from "/pixelfx/fx/moves/henshin-dragon.js";
 import { HERO2, TARGET_SPRITE, hex, mix, WHITE } from "/pixelfx/core/index.js";
-import { WORLD, ZONES, SPRING } from "/shared/balance.js";
 
 // ---- the three schools
 const fighter = new Rig(decode(FIGHTER), [
@@ -44,6 +43,7 @@ export const LOOKS = {
 };
 
 const SLOW = hex("#a060ff"), HAIR_X = 28;
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
  * Draw a character with its feet at the painter's origin. st: { cls, form, t (seconds, for idle motion), moving, cast:
@@ -109,67 +109,30 @@ export function drawPuppet(p, biting, lift, t) {
 export const dragon = new Serpent(decode(DRAGON), DRAGON_SPINE, 0.13);
 export const DRAGON_SIZE = [117, 114], MOUTH = DRAGON_MOUTH;
 
-// ---- the world's backdrop, painted once: a Uint32Array of WORLD.w x WORLD.h
-const rnd = (x, y, s = 0) => {
-  let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-};
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
-export const GROUND = 200;
-
-export function paintWorld() {
-  const W = WORLD.w, H = WORLD.h, out = new Uint32Array(W * H);
-  const C = (h) => hex(h);
-  const sky = [C("#0b0912"), C("#110d1c"), C("#181226"), C("#201833"), C("#2a1f40")];
-  const far = C("#1d1830"), farL = C("#2a2344"), near = C("#241c38"), nearL = C("#33284d");
-  const plaza = [C("#3a3450"), C("#3f3857"), C("#36304b")], mortar = C("#29243b"), edge = C("#5a527a");
-  const grass = [C("#2c4a2e"), C("#305234"), C("#284329"), C("#365c39")], tuft = C("#4a7a44"), dirt = [C("#5a4632"), C("#4e3c2b")];
-  const sand = [C("#8a6a44"), C("#82633f"), C("#93724a")], sandD = C("#6e5236"), ringStone = C("#5a3a2a"), ringL = C("#7a5038");
-  const water = C("#1d5a6a"), waterL = C("#3aa0b0"), waterD = C("#164552");
-  for (let x = 0; x < W; x++) {
-    const ym = 110 + 30 * Math.sin(x / 140) + 18 * Math.sin(x / 53 + 2) + 8 * Math.sin(x / 17);
-    const yn = 160 + 16 * Math.sin(x / 90 + 1) + 9 * Math.sin(x / 31);
-    for (let y = 0; y < GROUND; y++) {
-      let c = sky[Math.min(4, Math.floor((y / GROUND) * 5 + rnd(x, y) * 0.6))];
-      if (rnd(x, y, 3) > 0.996 && y < 120) c = mix(c, C("#d8d0ff"), 0.6);
-      if (y >= ym) c = y < ym + 1.5 ? farL : far;
-      if (y >= yn) c = y < yn + 1.5 ? nearL : near;
-      out[y * W + x] = c;
-    }
-  }
-  const arena = { x: 1500, y: 550, rx: 270, ry: 300 };
-  for (let y = GROUND; y < H; y++)
-    for (let x = 0; x < W; x++) {
-      const z = x < ZONES[0].x1 ? 0 : x < ZONES[1].x1 ? 1 : 2, r = rnd(x, y, 7);
-      let c;
-      if (z === 0) {
-        const row = Math.floor((y - GROUND) / 14), off = row & 1 ? 12 : 0;
-        c = (y - GROUND) % 14 === 13 || (x + off) % 24 === 0 ? mortar : plaza[Math.floor(rnd(Math.floor((x + off) / 24), row, 2) * 3)];
-      } else if (z === 1) {
-        c = grass[Math.floor(rnd(x >> 2, y >> 2, 5) * 4)];
-        if (r > 0.985) c = tuft;
-        if (Math.abs(y - 470 - 12 * Math.sin(x / 60)) < 16 + 4 * rnd(x >> 3, 1)) c = dirt[r > 0.5 ? 0 : 1];
-      } else {
-        const dx = (x - arena.x) / arena.rx, dy = (y - arena.y) / arena.ry, d = Math.hypot(dx, dy);
-        c = sand[Math.floor(r * 3)];
-        if (d > 1) c = sandD;
-        else if (d > 0.965) c = d > 0.985 ? ringL : ringStone;
+// ---- maps: the picture, and which of its pixels are water (1 ripples, 2 pours down a fall)
+export async function loadMap(def) {
+  const img = new Image();
+  img.src = def.image;
+  await img.decode();
+  const W = def.imageW, H = def.imageH, cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const g = cv.getContext("2d", { willReadFrequently: true });
+  g.drawImage(img, 0, 0, W, H);
+  // canvas bytes are r, g, b, a: read as one little-endian number, that's pixelfx's own color layout
+  const bytes = g.getImageData(0, 0, W, H).data, px = new Uint32Array(bytes.buffer.slice(0));
+  const water = new Uint8Array(W * H), w = def.water;
+  const inAny = (list, x, y) => list.some(([x0, y0, x1, y1]) => x >= x0 && y >= y0 && x < x1 && y < y1);
+  for (const [x0, y0, x1, y1] of w.regions)
+    for (let y = y0; y < Math.min(H, y1); y++)
+      for (let x = x0; x < Math.min(W, x1); x++) {
+        if (inAny(w.exclude, x, y)) continue;
+        const i = (y * W + x) * 4, r = bytes[i], gg = bytes[i + 1], b = bytes[i + 2];
+        const lum = (r * 3 + gg * 6 + b) / 10, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+        const wet = b > r + 40 && gg > r + 8 && b > 115 && lum > 70;
+        const fall = inAny(w.falls, x, y);
+        if (fall && (wet || (lum > 165 && mx - mn < 60 && b >= r))) water[y * W + x] = 2;
+        else if (wet) water[y * W + x] = 1;
       }
-      if (y === GROUND) c = edge;
-      // the spirit vein's pool
-      const sx = (x - SPRING.x) / (SPRING.r * 0.9), sy = (y - SPRING.y) / (SPRING.r * 0.42), s = Math.hypot(sx, sy);
-      if (s < 1) c = s > 0.88 ? waterL : s > 0.55 ? water : r > 0.5 ? water : waterD;
-      out[y * W + x] = c;
-    }
-  // gates between the zones: posts with lanterns
-  const post = C("#3a2418"), postL = C("#6a3e24"), lantern = C("#ffcc66");
-  for (const gx of [ZONES[0].x1, ZONES[1].x1])
-    for (let py = GROUND + 20; py < H; py += 90)
-      for (let j = 0; j < 22; j++)
-        for (let i = -2; i <= 2; i++) {
-          const y = py - j, x = gx + i;
-          out[y * W + x] = j > 18 && Math.abs(i) < 2 ? lantern : i < 0 ? postL : post;
-        }
-  return out;
+  return { W, H, px, water };
 }

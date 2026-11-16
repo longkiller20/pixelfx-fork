@@ -1,4 +1,4 @@
-// Race-condition and PvP checks against a running server: node test/race.mjs [http://localhost:5886]
+// Race-condition and map checks against a running server: node test/race.mjs [http://localhost:5886]
 // Each check fires many requests at once and then verifies the database-backed numbers add up.
 import WebSocket from "ws";
 import assert from "node:assert/strict";
@@ -111,26 +111,33 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
 }
 
 {
-  // two players meet in the arena; one beats the other; rank and kills are saved
-  const A = await player("long"), B = await player("time");
-  const a = await connect(A.token), b = await connect(B.token);
-  await Promise.all([walkTo(a, 1480, 500), walkTo(b, 1520, 500)]);
-  await sleep(2100); // past spawn protection
-  let dead = false;
-  for (let i = 0; i < 400 && !dead; i++) {
-    send(a, { t: "cast", s: i % 3 === 0 ? 2 : i % 2, ax: 1, ay: 0 });
-    await sleep(150);
-    dead = a.msgs.some((m) => m.t === "s" && m.E.some((e) => e.e === "die" && e.id === b.id));
+  // the starter town: walls hold, and the way out at the bottom stairs answers
+  const { mapInfo, START_MAP } = await import("../shared/maps/index.js");
+  const M = mapInfo(START_MAP), P = await player("time"), c = await connect(P.token);
+  const at = () => c.snap?.P.find((q) => q[0] === c.id);
+  // straight north from the spawn for 8 s: the temple's terrace stops you, you never end up inside a wall
+  send(c, { t: "in", dx: 0, dy: -1 });
+  await sleep(8000);
+  send(c, { t: "in", dx: 0, dy: 0 });
+  await sleep(200);
+  let p = at();
+  assert.ok(M.canStand(p[1], p[2]), `stopped on open ground (${p[1]}, ${p[2]})`);
+  assert.ok(p[2] > 300, "the temple doors held");
+  ok("walking into the temple for 8 s: stopped by the wall, standing on open ground");
+  // and straight south to the gold arrow
+  send(c, { t: "in", dx: 0, dy: 1 });
+  let msg = null;
+  for (let i = 0; i < 300 && !msg; i++) {
+    await sleep(100);
+    msg = c.msgs.find((m) => m.t === "portal");
   }
-  assert.ok(dead, "the long rider beats the time lord in a duel without a fight back");
-  a.ws.close();
-  b.ws.close();
-  await sleep(800); // leaving saves
-  const ma = await me(A.token), mb = await me(B.token);
-  assert.equal(ma.character.kills, 1);
-  assert.equal(ma.character.rank, 1015);
-  assert.equal(mb.character.rank, 990);
-  ok("an arena duel: the winner gets +15 rank and a kill, the loser -10, saved on leaving");
+  send(c, { t: "in", dx: 0, dy: 0 });
+  assert.ok(msg && /mở rộng sau/.test(msg.m), "the way out says the next map is coming");
+  await sleep(200);
+  p = at();
+  assert.ok(!M.portalAt(p[1], p[2]), "stepped back off the arrow");
+  c.ws.close();
+  ok("the gold arrow at the bottom stairs: 'map sẽ mở rộng sau', and you're stepped back off it");
 }
 
 console.log(`${passed} checks passed`);

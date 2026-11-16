@@ -4,22 +4,12 @@
 // How balance works:
 //  - Every class has the same stat budget (hp, atk, def, speed traded against each other) and its skills are tuned to
 //    about the same damage per second; melee hits harder than ranged because it has to get close.
-//  - Levels make you stronger in the open world (up to about 2x at the top), but in the arena the bonus is squeezed to
-//    at most +10%, so a newcomer can still beat a veteran there. Pills can't be used in the arena.
+//  - Levels make you stronger in the open world (up to about 2x at the top), but on PvP maps the bonus is squeezed to
+//    at most +10%, so a newcomer can still beat a veteran there. Healing pills can't be used on PvP maps.
 //  - Rewards for killing the same player again are cut off for a while, so friends can't farm each other.
 
 export const TICK_HZ = 20;
-export const WORLD = { w: 1800, h: 900 };
-// zones run left to right across the map
-export const ZONES = [
-  { id: "safe", x0: 0, x1: 700, name: "Vạn Giới Quảng Trường", pvp: false, mobs: false },
-  { id: "field", x0: 700, x1: 1200, name: "Luyện Võ Trường", pvp: false, mobs: true },
-  { id: "arena", x0: 1200, x1: 1800, name: "Đấu Trường Đa Vũ Trụ", pvp: true, mobs: false },
-];
-export const zoneAt = (x) => ZONES.find((z) => x < z.x1) ?? ZONES[ZONES.length - 1];
-// the spirit vein: stand still inside it to cultivate
-export const SPRING = { x: 330, y: 470, r: 80 };
-export const SPAWN = { safe: { x: 330, y: 620 }, arena: [{ x: 1260, y: 300 }, { x: 1740, y: 600 }, { x: 1260, y: 650 }, { x: 1740, y: 250 }] };
+// Maps (size, walls, spawn, the spirit vein, the ways out) live in shared/maps/.
 export const PLAYER_R = 14; // body radius on the ground plane
 
 export const REALMS = ["Luyện Khí", "Trúc Cơ", "Kim Đan", "Nguyên Anh", "Hóa Thần", "Luyện Hư", "Hợp Thể", "Đại Thừa", "Độ Kiếp"];

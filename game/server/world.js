@@ -3,15 +3,14 @@
 // 20 times a second. Nothing a client claims about positions, damage or rewards is ever trusted.
 import { WebSocket } from "ws";
 import {
-  TICK_HZ, WORLD, zoneAt, SPRING, SPAWN, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE,
-  levelFromExp, worldMult, arenaMult, mitigate,
+  TICK_HZ, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE, levelFromExp, worldMult, arenaMult, mitigate,
 } from "../shared/balance.js";
+import { mapInfo, START_MAP } from "../shared/maps/index.js";
 import * as store from "./store.js";
 import { userFromToken } from "./auth.js";
 import { KeyedLock } from "./lock.js";
 
 const DT = 1 / TICK_HZ;
-const Y0 = 200, Y1 = WORLD.h - 30;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const num = (v) => typeof v === "number" && Number.isFinite(v);
 const CLS = Object.keys(CLASSES);
@@ -30,6 +29,7 @@ export class World {
     this.t = 0;
     this.tick = 0;
     this.nid = 1;
+    this.map = mapInfo(START_MAP);
     this.spawnMonsters();
     this.timer = setInterval(() => this.step(), 1000 / TICK_HZ);
     this.saver = setInterval(() => this.saveAll(), 5000);
@@ -99,8 +99,8 @@ export class World {
       if (ws.readyState !== WebSocket.OPEN) return;
       const p = {
         id: this.nid++, kind: "p", userId: uid, ws, name: ch.name, cls: ch.cls,
-        x: SPAWN.safe.x + rnd(-40, 40), y: SPAWN.safe.y + rnd(-20, 20), face: 1, in: { dx: 0, dy: 0 }, moving: false,
-        hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect, diedIn: "safe",
+        ...this.spawnPoint(), face: 1, in: { dx: 0, dy: 0 }, moving: false, portalAt: 0,
+        hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
         cd: [0, 0, 0], busyUntil: 0, tfUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
         medAcc: 0, meditating: false, base: null, pend: zero(), level: 1, medLeft: 0, saving: null, gone: false,
       };
@@ -109,7 +109,7 @@ export class World {
       this.ents.set(p.id, p);
       ws.player = p;
       send(ws, {
-        t: "welcome", id: p.id, tick: this.tick, inv,
+        t: "welcome", id: p.id, tick: this.tick, inv, map: this.map.id,
         players: [...this.players.values()].map(info),
       });
       this.broadcast({ t: "pi", ...info(p) }, p);
@@ -214,7 +214,7 @@ export class World {
   }
   stats(e) {
     if (e.kind === "m") return e.st;
-    const c = CLASSES[e.cls], arena = zoneAt(e.x).pvp, m = arena ? arenaMult(e.level) : worldMult(e.level);
+    const c = CLASSES[e.cls], m = this.map.pvp ? arenaMult(e.level) : worldMult(e.level);
     const tf = e.tfUntil > this.t ? c.skills[2] : null;
     return {
       maxHp: Math.round(c.hp * m), atk: c.atk * m * (tf?.atk ?? 1), def: c.def * m * (tf?.def ?? 1),
@@ -271,7 +271,7 @@ export class World {
   async useItem(p, item) {
     const it = ITEMS[item];
     if (!it || p.dead) return;
-    if (it.heal && zoneAt(p.x).pvp) return send(p.ws, { t: "toast", m: "Không thể dùng đan dược hồi phục trong đấu trường." });
+    if (it.heal && this.map.pvp) return send(p.ws, { t: "toast", m: "Không thể dùng đan dược hồi phục ở nơi tỷ thí." });
     if (p.itemCd > this.t) return send(p.ws, { t: "toast", m: "Đan dược chưa hồi." });
     // set the cooldown before waiting on the database, so a burst of taps uses one pill
     p.itemCd = this.t + (it.cd ?? 1);
@@ -295,7 +295,7 @@ export class World {
     if (!e || e.dead) return false;
     if (e.kind === "m") return true;
     if (e.kind !== "p" || e === att || att.kind !== "p") return false;
-    return zoneAt(att.x).pvp && zoneAt(e.x).pvp && e.protectUntil <= this.t;
+    return this.map.pvp && e.protectUntil <= this.t;
   }
   targetsOf(att) {
     const out = [];
@@ -358,7 +358,7 @@ export class World {
         this.bolts.push({ id: this.nid++, owner: p, cls: p.cls, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
         break;
       case "zone": {
-        const x = clamp(p.x + ax * sk.dist, 20, WORLD.w - 20), y = clamp(p.y + ay * sk.dist, Y0, Y1);
+        const x = clamp(p.x + ax * sk.dist, 20, this.map.w - 20), y = clamp(p.y + ay * sk.dist, 20, this.map.h - 20);
         this.ev({ e: "fx", k: "timestop", x: Math.round(x), y: Math.round(y) });
         this.at(t + sk.delay, () => {
           if (p.gone) return;
@@ -372,7 +372,7 @@ export class World {
       }
       case "summon":
         this.summons = this.summons.filter((s) => s.owner !== p);
-        this.summons.push({ id: this.nid++, owner: p, x: clamp(p.x + p.face * 26, 20, WORLD.w - 20), y: p.y + 2, face: p.face, until: t + sk.dur, atk: st.atk, sk, nextBite: t + 0.8, bite: 0 });
+        this.summons.push({ id: this.nid++, owner: p, ...(this.map.canStand(p.x + p.face * 26, p.y + 2) ? { x: p.x + p.face * 26, y: p.y + 2 } : { x: p.x, y: p.y }), face: p.face, until: t + sk.dur, atk: st.atk, sk, nextBite: t + 0.8, bite: 0 });
         break;
       case "devour": {
         const e = this.nearest(p, p.x, p.y, sk.range);
@@ -410,9 +410,7 @@ export class World {
       return;
     }
     // a player
-    const arena = zoneAt(e.x).pvp;
-    e.diedIn = arena ? "arena" : "safe";
-    e.respawnAt = this.t + (arena ? PVP.respawn : RESPAWN_WORLD);
+    e.respawnAt = this.t + (this.map.pvp ? PVP.respawn : RESPAWN_WORLD);
     e.busyUntil = 0;
     e.tfUntil = 0;
     this.summons = this.summons.filter((s) => s.owner !== e);
@@ -465,13 +463,28 @@ export class World {
     if (this.tick % 5 === 0) for (const p of this.players.values()) this.sendMe(p);
   }
 
+  /** Where someone appears: the map's spawn, nudged a little, always on open ground. */
+  spawnPoint() {
+    const s = this.map.spawn;
+    for (let i = 0; i < 12; i++) {
+      const x = s.x + rnd(-40, 40), y = s.y + rnd(-20, 20);
+      if (this.map.canStand(x, y)) return { x, y };
+    }
+    return { x: s.x, y: s.y };
+  }
+  /** Move by (dx, dy), sliding along walls: try the whole step, then each axis alone. */
+  move(e, dx, dy) {
+    const M = this.map;
+    if (M.canStand(e.x + dx, e.y + dy)) (e.x += dx), (e.y += dy);
+    else if (dx && M.canStand(e.x + dx, e.y)) e.x += dx;
+    else if (dy && M.canStand(e.x, e.y + dy)) e.y += dy;
+  }
+
   stepPlayer(p) {
     const t = this.t;
     if (p.dead) {
       if (t >= p.respawnAt) {
-        const s = p.diedIn === "arena" ? SPAWN.arena[(Math.random() * SPAWN.arena.length) | 0] : SPAWN.safe;
-        p.x = s.x + rnd(-20, 20);
-        p.y = s.y + rnd(-15, 15);
+        Object.assign(p, this.spawnPoint());
         p.dead = false;
         p.hpFrac = 1;
         p.slowUntil = 0;
@@ -484,12 +497,19 @@ export class World {
     const st = this.stats(p), { dx, dy } = p.in;
     p.moving = dx !== 0 || dy !== 0;
     if (p.moving) {
-      p.x = clamp(p.x + dx * st.spd * DT, 20, WORLD.w - 20);
-      p.y = clamp(p.y + dy * st.spd * DT, Y0, Y1);
+      this.move(p, dx * st.spd * DT, dy * st.spd * DT);
       if (Math.abs(dx) > 0.1 && p.busyUntil <= t) p.face = dx > 0 ? 1 : -1;
     }
+    // a way out: for now every road beyond the town is still being built
+    const gate = this.map.portalAt(p.x, p.y);
+    if (gate && t >= p.portalAt) {
+      p.portalAt = t + 2.5;
+      send(p.ws, { t: "portal", m: gate.msg, to: gate.to });
+      // step them back off the arrow so it doesn't fire again straight away
+      this.move(p, 0, -gate.r * 3);
+    }
     // cultivating at the spirit vein: standing still, not fighting, up to today's cap
-    p.meditating = !p.moving && p.medLeft > 0 && t - p.lastHurt > MEDITATE.calmAfterHit && t - p.lastCast > 1.5 && Math.hypot(p.x - SPRING.x, p.y - SPRING.y) < SPRING.r;
+    p.meditating = !p.moving && p.medLeft > 0 && t - p.lastHurt > MEDITATE.calmAfterHit && t - p.lastCast > 1.5 && this.map.inSpring(p.x, p.y);
     if (p.meditating) {
       p.medAcc += DT;
       if (p.medAcc >= 1) {
@@ -508,8 +528,7 @@ export class World {
       const m = { id: this.nid++, kind: "m", type, def: d, x, y, home: { x, y }, face: -1, hpFrac: 1, dead: false, respawnAt: 0, slowUntil: 0, lastHurt: -99, nextAtk: 0, target: null, wander: { x, y }, wanderAt: 0, atkAnim: 0, st: { maxHp: d.hp, atk: d.atk, def: d.def, spd: d.spd } };
       this.ents.set(m.id, m);
     };
-    for (const x of [780, 930, 1080]) for (const y of [300, 480, 660]) add("dummy", x, y);
-    for (const [x, y] of [[850, 390], [1010, 390], [850, 570], [1010, 570], [930, 760], [930, 240]]) add("ghost", x, y);
+    for (const m of this.map.mobs) add(m.type, m.x, m.y);
   }
 
   stepMonster(m) {
@@ -532,7 +551,7 @@ export class World {
     }
     const d = m.def, spd = d.spd * (m.slowUntil > t ? 0.5 : 1);
     // pick a prey: whoever hit it, or anyone close, as long as they're out of the safe zone
-    const ok = (p) => p && !p.gone && !p.dead && p.kind === "p" && !zoneAt(p.x).pvp && zoneAt(p.x).mobs && p.protectUntil <= t;
+    const ok = (p) => p && !p.gone && !p.dead && p.kind === "p" && p.protectUntil <= t && Math.hypot(p.x - m.home.x, p.y - m.home.y) < d.aggro * 3;
     if (!ok(m.target) || Math.hypot(m.target.x - m.x, m.target.y - m.y) > d.aggro * 1.6) {
       m.target = null;
       let bd = d.aggro;
@@ -566,8 +585,7 @@ export class World {
     const dx = tx - m.x, dy = ty - m.y, l = Math.hypot(dx, dy);
     if (l > 2) {
       const s = Math.min(l, spd * DT * (m.target ? 1 : 0.5));
-      m.x = clamp(m.x + (dx / l) * s, 710, 1190);
-      m.y = clamp(m.y + (dy / l) * s, Y0, Y1);
+      this.move(m, (dx / l) * s, (dy / l) * s);
       if (Math.abs(dx) > 1) m.face = dx > 0 ? 1 : -1;
     }
   }
@@ -591,7 +609,7 @@ export class World {
         this.ev({ e: "boom", k: b.cls, x: Math.round(b.x), y: Math.round(b.y) });
         continue;
       }
-      if (b.left > 0 && b.x > 0 && b.x < WORLD.w && b.y > Y0 - 40 && b.y < WORLD.h) keep.push(b);
+      if (b.left > 0 && b.x > 0 && b.x < this.map.w && b.y > 0 && b.y < this.map.h) keep.push(b);
     }
     this.bolts = keep;
   }
@@ -623,8 +641,7 @@ export class World {
       const dx = tx - s.x, dy = ty - s.y, l = Math.hypot(dx, dy);
       if (l > 3) {
         const st = Math.min(l, sk.spd * DT);
-        s.x = clamp(s.x + (dx / l) * st, 20, WORLD.w - 20);
-        s.y = clamp(s.y + (dy / l) * st, Y0, Y1);
+        this.move(s, (dx / l) * st, (dy / l) * st);
         if (Math.abs(dx) > 1) s.face = dx > 0 ? 1 : -1;
       }
     }
