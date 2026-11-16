@@ -42,6 +42,8 @@ const armor = new Rig(SA, [
 // the dragon's spine, head to tail, in its own pixels (it faces right)
 const SPINE = [[12, 38], [25, 33], [38, 26], [50, 22], [62, 22], [75, 26], [86, 33], [95, 42], [100, 55], [98, 66], [90, 74], [78, 78], [65, 77], [52, 73], [38, 70], [25, 72], [17, 80], [18, 92], [28, 99], [42, 103], [56, 104], [70, 106], [78, 108]].map(([x, y]) => [115 - x, y + 1]);
 const dragon = new Serpent(SD, SPINE, 0.13);
+// for games that bend the dragon themselves
+export const DRAGON_SPINE = SPINE, DRAGON_MOUTH = MOUTH;
 const EYES = [[20, 15], [29, 14]].map(([x, y]) => [x - SA.ox, y - SA.oy]);
 
 const keyed = (t, keys) => {

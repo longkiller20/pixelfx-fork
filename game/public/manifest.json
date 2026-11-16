@@ -1,0 +1,10 @@
+{
+  "name": "Đa Vũ Trụ Tu Tiên",
+  "short_name": "Tu Tiên",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0912",
+  "theme_color": "#0b0912",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
