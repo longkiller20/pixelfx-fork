@@ -1,33 +1,33 @@
 // The game in the browser: it shows what the server says is happening, and sends what the player presses.
-import { createFrame, clearFrame, createFx, composite, painterFor, PAL, hex, WHITE } from "/pixelfx/core/index.js";
+import { createFrame, clearFrame, createFx, composite, painterFor, hex, WHITE } from "/pixelfx/core/index.js";
 import { effects } from "/pixelfx/fx/index.js";
-import { CLASSES, MONSTERS, ITEMS, expForLevel, realmName, MAX_LEVEL } from "/shared/balance.js";
+import { CLASSES, CLASS, MONSTERS, ITEMS, expForLevel, realmName, MAX_LEVEL } from "/shared/balance.js";
 import { mapInfo } from "/shared/maps/index.js";
-import { LOOKS, drawCharacter, drawDummy, drawPuppet, dragon, MOUTH } from "./art.js";
+import { drawDummy } from "./art.js";
+import { drawAvatar, avatarTop, loadAvatars } from "./avatar.js";
 import { buildScene } from "./scenery.js";
 import { stepBody, PHYS } from "/shared/physics.js";
 
-const CLS = Object.keys(CLASSES), MTYPES = ["dummy", "ghost"];
+const MTYPES = ["dummy", "ghost"];
 const GOLD = ["#2a1604", "#6a3a08", "#b8700e", "#f0a820", "#ffd84a", "#fff2a8", "#ffffff"];
 const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", "#ffffff"];
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
 export function startGame({ token, character, inventory, api, onFatal, touch }) {
+  loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
   let map = null, scene = null, body = null;
 
   // ---------------------------------------------------------------- state from the server
   let myId = 0, me = null, inv = { ...inventory };
-  const infos = new Map(); // player id -> { name, cls, lv }
-  const snaps = []; // { at, P: Map, M: Map, S: Map, B: [] }
+  const infos = new Map(); // player id -> { name, look, lv }
+  const snaps = []; // { at, P: Map, M: Map, B: [] }
   const casts = new Map(); // entity id -> { s, type, at }
   const flashes = new Map(); // entity id -> time of last hit
   const fxs = []; // live effects: { fx, x, y, follow, until }
   const texts = []; // floating numbers: { x, y, s, color, at }
-  const drains = [];
-  const dragons = new Map(); // player id -> { at, ax, ay }
   const ambient = [];
   let alive = true;
 
@@ -99,16 +99,15 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   setInterval(() => send({ t: "ping", c: performance.now() }), 3000);
 
   function onSnapshot(m) {
-    const s = { at: performance.now() / 1000, k: m.k, P: new Map(), M: new Map(), S: new Map(), B: m.B };
+    const s = { at: performance.now() / 1000, k: m.k, P: new Map(), M: new Map(), B: m.B };
     for (const a of m.P) s.P.set(a[0], { id: a[0], x: a[1], y: a[2], face: a[3], hp: a[4] / 1000, f: a[5] });
     for (const a of m.M) s.M.set(a[0], { id: a[0], type: MTYPES[a[1]], x: a[2], y: a[3], face: a[4], hp: a[5] / 1000, f: a[6] });
-    for (const a of m.S) s.S.set(a[0], { id: a[0], owner: a[1], x: a[2], y: a[3], face: a[4], bite: a[5] });
     snaps.push(s);
     while (snaps.length > 30) snaps.shift();
     for (const e of m.E) onEvent(e, s);
   }
 
-  const posOf = (id, s = snaps[snaps.length - 1]) => s?.P.get(id) ?? s?.M.get(id) ?? s?.S.get(id);
+  const posOf = (id, s = snaps[snaps.length - 1]) => s?.P.get(id) ?? s?.M.get(id);
   function addFx(id, x, y, opts = {}, follow = null) {
     const mod = effects[id];
     if (!mod || fxs.length > 48) return;
@@ -120,16 +119,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
       case "cast": {
         const p = s.P.get(e.id), info = infos.get(e.id);
         if (!p || !info) break;
-        const sk = CLASSES[info.cls].skills[e.s];
+        const sk = CLASSES[CLASS].skills[e.s];
         casts.set(e.id, { s: e.s, type: sk.type, at: now });
         const flip = e.ax < 0;
-        if (sk.type === "melee") addFx("melee/claw-swipe", p.x + e.ax * 8, p.y, { flip, palette: PAL.fire }, null);
-        if (sk.type === "breath") dragons.set(e.id, { at: now, ax: e.ax, ay: e.ay });
-        if (sk.type === "transform") {
-          if (info.cls === "time") addFx("arcane/magic-circle-cast", p.x, p.y, { palette: GOLD }, e.id);
-          else addFx("arcane/mana-burst", p.x, p.y - 30, { palette: PAL.fire }, e.id);
-        }
-        if (sk.type === "summon") addFx("spawn/poof", p.x + p.face * 26, p.y, { palette: JADE });
+        if (sk.type === "melee") addFx("melee/sword-slash", p.x + e.ax * 14, p.y - 4, { flip, palette: JADE }, null);
         break;
       }
       case "hit": {
@@ -166,14 +159,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
         break;
       }
       case "fx":
-        if (e.k === "timestop") addFx("arcane/time-stop", e.x, e.y, { palette: GOLD });
-        if (e.k === "devour") drains.push({ from: e.from, to: e.to, at: now });
+        if (e.k === "thunder") addFx("lightning/lightning-strike", e.x, e.y, {});
         break;
       case "boom":
-        addFx("impacts/hit-spark", e.x, e.y - 30, { palette: e.k === "time" ? GOLD : JADE });
-        break;
-      case "unsummon":
-        addFx("spawn/poof", e.x, e.y, { palette: JADE });
+        addFx("impacts/hit-spark", e.x, e.y - 30, { palette: JADE });
         break;
     }
   }
@@ -306,7 +295,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   function renderMe() {
     const info = myInfo();
     if (!me || !info) return;
-    const cls = CLASSES[info.cls];
+    const cls = CLASSES[CLASS];
     $("hpFill").style.width = `${(100 * me.hp) / me.maxHp}%`;
     $("hpText").textContent = `${me.hp} / ${me.maxHp}`;
     const lo = expForLevel(me.lv), hi = me.lv >= MAX_LEVEL ? lo + 1 : expForLevel(me.lv + 1);
@@ -317,7 +306,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     $("stones").textContent = me.stones;
     $("rank").textContent = me.rank;
     $("kd").textContent = `${me.kills}/${me.deaths}`;
-    $("statLine").textContent = `Công ${me.atk} · Thủ ${me.def}${me.tf > 0 ? ` · Biến thân ${me.tf.toFixed(0)}s` : ""}`;
+    $("statLine").textContent = `Công ${me.atk} · Thủ ${me.def}`;
     cls.skills.forEach((sk, i) => {
       const b = document.querySelector(`[data-skill="${i}"]`);
       b.querySelector(".nm").textContent = sk.name;
@@ -408,7 +397,6 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     };
     lerp("p", a.P, b.P);
     lerp("m", a.M, b.M);
-    lerp("s", a.S, b.S);
     // you: moved here by the same physics as the server, straight from what you press, and pulled back to the server's
     // word when the two drift apart (a long way: snap; a little, while you stand still: ease)
     const last = snaps[snaps.length - 1].P.get(myId), self = drawn.get(myId);
@@ -425,8 +413,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   function predict(dt, now) {
     const last = snaps[snaps.length - 1]?.P.get(myId), info = myInfo();
     if (!body || !last || last.f & 1 || !info) return;
-    const c = CLASSES[info.cls], tf = last.f & 2 && c.skills[2].type === "transform" ? c.skills[2].spd : 1;
-    const spd = c.spd * tf * (last.f & 4 ? 0.5 : 1) * (last.f & 64 ? 0.45 : 1) * PHYS.RUN;
+    const c = CLASSES[CLASS];
+    const spd = c.spd * (last.f & 4 ? 0.5 : 1) * (last.f & 64 ? 0.45 : 1) * PHYS.RUN;
     stepBody(body, inputDir(), spd, dt, map, now);
   }
 
@@ -572,22 +560,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     }
     for (const f of fxs) if (on(f.x, f.y)) (place(f.fx, f.x, f.y), f.fx.draw(frame, "back"));
     drawScenery(p, now, dt, on);
-    // dragons behind their riders
-    for (const [id, d] of dragons) {
-      const e = drawn.get(id), age = now - d.at;
-      if (!e || age > 1.6) {
-        dragons.delete(id);
-        continue;
-      }
-      drawDragon(p, e, d, age, now);
-    }
     // everyone, back to front
     const list = [...drawn.values()].filter((e) => on(e.x, e.y)).sort((a, b) => a.y - b.y);
     for (const e of list) drawEntity(p, e, now);
     for (const b of snaps[snaps.length - 1]?.B ?? []) drawBolt(p, b, now);
     for (const f of fxs) if (on(f.x, f.y)) (place(f.fx, f.x, f.y), f.fx.draw(frame, "front"));
     for (const a of ambient) if (on(a.x, a.y)) (place(a.fx, a.x, a.y), a.fx.draw(frame, "front"));
-    drawDrains(p, now);
     drawPortalArrows(p, now, on);
     drawPetals(p, now, dt);
     composite(frame, img.data, bgBuf);
@@ -598,7 +576,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
       me.cd = me.cd.map((c) => Math.max(0, c - dt));
       if (me.respawn > 0) me.respawn = Math.max(0, me.respawn - dt);
       for (let i = 0; i < 3; i++) {
-        const b = document.querySelector(`[data-skill="${i}"]`), sk = CLASSES[myInfo()?.cls]?.skills[i];
+        const b = document.querySelector(`[data-skill="${i}"]`), sk = CLASSES[CLASS].skills[i];
         if (!sk) continue;
         b.style.setProperty("--cd", me.cd[i] > 0 ? me.cd[i] / sk.cd : 0);
         b.querySelector(".cdt").textContent = me.cd[i] > 0.05 ? me.cd[i].toFixed(me.cd[i] < 3 ? 1 : 0) : "";
@@ -614,15 +592,14 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
       if (!info || e.dead) return;
       if (e.f & 8 && Math.floor(now * 10) & 1) return; // just respawned: blinking
       p.place(sx, sy, e.face < 0);
-      // a shadow, and an aura while cultivating or transformed
+      // a shadow, and an aura while cultivating
       if (!(e.f & 128)) shadow(p, 13);
       if (e.f & 16) {
         p.glow(0, -30, 30, hex("#7ff0ff"), 0.25 + 0.1 * Math.sin(now * 3));
         if (Math.random() < 0.3) texts.push({ x: e.x + (Math.random() * 30 - 15), y: e.y - 20, s: "✦", color: "#9ff8ff", at: now, rise: 40 });
       }
-      if (e.f & 2) p.glow(0, -36, 34, hex(LOOKS[info.cls].color), 0.25);
       const c = casts.get(e.id), age = c ? now - c.at : 9;
-      drawCharacter(p, { cls: info.cls, form: !!(e.f & 2), t: now + e.id, moving: !!(e.f & 32), air: !!(e.f & 128), cast: c && age < 0.6 ? { ...c, age } : null, busy: !!(e.f & 64), slow: !!(e.f & 4), flash });
+      drawAvatar(p, info.look, { t: now + e.id, moving: !!(e.f & 32), air: !!(e.f & 128), meditating: !!(e.f & 16), cast: c && age < 0.6 ? { ...c, age } : null, busy: !!(e.f & 64), slow: !!(e.f & 4), flash });
     } else if (e.kind === "m") {
       if (e.dead) return;
       if (e.type === "dummy") {
@@ -644,12 +621,6 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
         if (flash) p.glow(0, -26, 16, WHITE, 0.8);
         if (e.f & 4) p.glow(0, -26, 18, hex("#a060ff"), 0.4);
       }
-    } else if (e.kind === "s") {
-      p.place(sx, sy, e.face < 0);
-      shadow(p, 10);
-      const hop = Math.abs(Math.sin(now * 6 + e.id)) * 5;
-      drawPuppet(p, !!e.bite, Math.round(hop), now);
-      if (e.bite) p.glow(3, -30, 10, hex("#5cf0a0"), 0.6);
     }
   }
   const ghosts = new Map();
@@ -665,65 +636,13 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   }
 
   function drawBolt(p, b, now) {
-    const [, code, x, y, vx, vy] = b, sx = x - camX, sy = y - camY - 30, a = Math.atan2(vy, vx);
+    // a flying sword: jade blade, gold guard, a fading trail of qi
+    const [, , x, y, vx, vy] = b, sx = x - camX, sy = y - camY - 30, a = Math.atan2(vy, vx), cx = Math.cos(a), cy = Math.sin(a);
     p.place(sx, sy, false);
-    if (CLS[code] === "time") {
-      // a golden clock-hand needle
-      for (let i = 0; i < 10; i++) p.px(-Math.cos(a) * i, -Math.sin(a) * i, i < 2 ? WHITE : hex(GOLD[i < 5 ? 5 : 4]));
-      p.glow(0, 0, 9, hex(GOLD[4]), 0.7);
-    } else {
-      // a spinning talisman with a jade trail
-      const w = Math.max(1, Math.round(3 * Math.abs(Math.cos(now * 25))));
-      p.rect(-w / 2, -4, w, 8, hex("#ecd27a"));
-      p.px(0, -1, hex("#c42a2a"));
-      for (let i = 2; i < 9; i++) p.px(-Math.cos(a) * i * 1.5, -Math.sin(a) * i * 1.5, hex(JADE[i < 5 ? 5 : 3]));
-      p.glow(0, 0, 8, hex(JADE[4]), 0.6);
-    }
-  }
-
-  function drawDragon(p, e, d, age, now) {
-    // the dragon rises behind its rider, breathes, and fades back
-    const face = d.ax < 0 ? -1 : 1, k = Math.min(1, age / 0.2) * (1 - Math.max(0, (age - 1.3) / 0.3));
-    const sx = Math.round(e.x - camX), sy = Math.round(e.y - camY);
-    p.place(sx, sy, face < 0);
-    const ox = -70, oy = -128 + Math.round((1 - k) * 30);
-    dragon.draw(p, ox, oy, {
-      bend: (s) => 2.5 * (0.3 + 0.7 * s) * Math.sin(Math.PI * 2 * (1.5 * s - 0.9 * now)),
-      color: (c, s) => (s > k * 1.1 ? 0 : c),
-    });
-    if (age > 0.12 && age < 1.25) {
-      const mx = ox + MOUTH[0], my = oy + MOUTH[1];
-      p.glow(mx, my, 12, hex("#ffd27a"), 0.8);
-      // the breath: a fan of flame toward where it was aimed (drawn in the dragon's own facing)
-      const ang = Math.atan2(d.ay, Math.abs(d.ax)), FIRE = ["#fff3a6", "#ffe26b", "#ffc23d", "#ff8a2a", "#f2561d", "#c9281f"].map(hex);
-      const tx = 0 + Math.cos(ang) * 150, ty = -28 + Math.sin(ang) * 150;
-      for (let i = 0; i < 70; i++) {
-        const u = ((i * 0.618 + now * 3.2) % 1), spread = (Math.sin(i * 12.9898) * 0.5) * u * 18;
-        const x = mx + (tx - mx) * u - Math.sin(ang) * spread, y = my + (ty - my) * u + Math.cos(ang) * spread;
-        const r = 1 + u * 3.5, c = FIRE[Math.min(5, Math.floor(u * 6))];
-        p.circle(x, y, r, c);
-        if (i % 4 === 0) p.light(x, y, c, 0.5);
-      }
-    }
-  }
-
-  function drawDrains(p, now) {
-    for (let i = drains.length - 1; i >= 0; i--) {
-      const d = drains[i], age = now - d.at;
-      if (age > 0.6) {
-        drains.splice(i, 1);
-        continue;
-      }
-      const a = drawn.get(d.from), b = drawn.get(d.to);
-      if (!a || !b) continue;
-      p.place(0, 0, false);
-      for (let j = 0; j < 26; j++) {
-        const u = Math.min(1, (age * 2.2 + j / 26) % 1), curl = Math.sin(j * 1.7) * 14 * Math.sin(Math.PI * u);
-        const x = a.x + (b.x - a.x) * u - camX, y = a.y - 34 + (b.y - a.y) * u - camY + curl;
-        p.px(x, y, hex(JADE[u > 0.7 ? 6 : 4]));
-        p.light(x, y, hex(JADE[4]), 0.4);
-      }
-    }
+    for (let i = 3; i < 16; i++) p.dot(-cx * i * 1.2, -cy * i * 1.2, hex(JADE[i < 8 ? 4 : 2]), 1 - i / 16);
+    for (let i = -6; i <= 6; i++) p.px(cx * i, cy * i, i > 3 ? WHITE : i > -3 ? hex("#d8f0ff") : hex("#ecd27a"));
+    for (const k of [-1, 1]) p.px(-cx * 3 - cy * k * 2, -cy * 3 + cx * k * 2, hex("#ecd27a"));
+    p.glow(0, 0, 9, hex(JADE[4]), 0.6);
   }
 
   function drawLabels(list, now) {
@@ -733,15 +652,15 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     c.textBaseline = "bottom";
     c.lineJoin = "round";
     for (const e of list) {
-      if (e.dead || e.kind === "s") continue;
+      if (e.dead) continue;
       const x = (e.x - camX) * k;
       let top, name, color, hp = e.hp;
       if (e.kind === "p") {
         const info = infos.get(e.id);
         if (!info) continue;
-        top = (e.y - camY - (e.f & 2 && info.cls === "time" ? 90 : LOOKS[info.cls].h + 4)) * k;
+        top = (e.y - camY - avatarTop(info.look) - 4) * k;
         name = `${info.name} · ${realmName(info.lv)}`;
-        color = e.id === myId ? "#fff6c8" : LOOKS[info.cls].color;
+        color = e.id === myId ? "#fff6c8" : info.look?.g === "f" ? "#ffb8d8" : "#a8e0ff";
       } else {
         top = (e.y - camY - (e.type === "dummy" ? 58 : 66)) * k;
         name = MONSTERS[e.type].name;

@@ -1,7 +1,7 @@
 // Screens: log in, make a character, play. Plus the shop, the leaderboard and the daily gift.
 import { createFrame, clearFrame, composite, painterFor } from "/pixelfx/core/index.js";
-import { CLASSES, ITEMS, DAILY_STONES, realmName } from "/shared/balance.js";
-import { drawCharacter, LOOKS } from "./art.js";
+import { ITEMS, DAILY_STONES, LOOK, realmName } from "/shared/balance.js";
+import { loadAvatars, drawAvatar, partCanvas } from "./avatar.js";
 import { startGame } from "./game.js";
 
 const $ = (id) => document.getElementById(id);
@@ -92,75 +92,83 @@ async function enter() {
   play();
 }
 
-// ---------------------------------------------------------------- choosing a school
-let chosen = "long";
-function showCreate() {
+// ---------------------------------------------------------------- making a character: gender, name, hair, robe
+const look = { g: "m", hair: 0, robe: 0 };
+let anim = "idle";
+async function showCreate() {
   show("create");
-  const list = $("classes");
-  list.innerHTML = "";
-  for (const [id, c] of Object.entries(CLASSES)) {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `card ${id === chosen ? "on" : ""}`;
-    card.dataset.cls = id;
-    const cv = document.createElement("canvas");
-    cv.width = 120;
-    cv.height = 96;
-    const h = document.createElement("h3");
-    h.textContent = c.name;
-    const p = document.createElement("p");
-    p.textContent = c.lore;
-    const ul = document.createElement("ul");
-    for (const s of c.skills) {
-      const li = document.createElement("li");
-      li.textContent = s.name;
-      ul.append(li);
-    }
-    const st = document.createElement("div");
-    st.className = "stats";
-    for (const [k, v, max] of [["Sinh lực", c.hp, 1200], ["Công", c.atk, 70], ["Thủ", c.def, 40], ["Tốc", c.spd, 110]]) {
-      const row = document.createElement("div");
-      row.innerHTML = `<span></span><i><b style="width:${(100 * v) / max}%"></b></i>`;
-      row.firstChild.textContent = k;
-      st.append(row);
-    }
-    card.append(cv, h, p, st, ul);
-    card.addEventListener("click", () => {
-      chosen = id;
-      for (const x of list.children) x.classList.toggle("on", x === card);
-    });
-    list.append(card);
-    previews.push({ cv, cls: id });
-  }
-  requestAnimationFrame(drawPreviews);
+  await loadAvatars();
+  look.hair = rnd(LOOK.hair);
+  look.robe = rnd(LOOK.robe);
+  fillPicks();
+  requestAnimationFrame(drawPreview);
 }
-const previews = [];
-function drawPreviews() {
+const rnd = (n) => Math.floor(Math.random() * n);
+function fillPicks() {
+  for (const b of document.querySelectorAll("[data-g]")) b.classList.toggle("on", b.dataset.g === look.g);
+  for (const [kind, n, box] of [["hair", LOOK.hair, $("hairs")], ["robe", LOOK.robe, $("robes")]]) {
+    box.innerHTML = "";
+    for (let i = 0; i < n; i++) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.title = `${kind === "hair" ? "Tóc" : "Y phục"} ${i + 1}`;
+      b.append(partCanvas(kind, look.g, i));
+      b.addEventListener("click", () => {
+        look[kind] = i;
+        markPicks();
+      });
+      box.append(b);
+    }
+  }
+  markPicks();
+}
+function markPicks() {
+  for (const [kind, box] of [["hair", $("hairs")], ["robe", $("robes")]])
+    [...box.children].forEach((b, i) => b.classList.toggle("on", i === look[kind]));
+  $("hairNo").textContent = `${look.hair + 1}/${LOOK.hair}`;
+  $("robeNo").textContent = `${look.robe + 1}/${LOOK.robe}`;
+}
+for (const b of document.querySelectorAll("[data-g]"))
+  b.addEventListener("click", () => {
+    if (look.g === b.dataset.g) return;
+    look.g = b.dataset.g;
+    fillPicks();
+  });
+for (const b of document.querySelectorAll("[data-anim]"))
+  b.addEventListener("click", () => {
+    anim = b.dataset.anim;
+    for (const x of document.querySelectorAll("[data-anim]")) x.classList.toggle("on", x === b);
+  });
+$("randLook").addEventListener("click", () => {
+  look.hair = rnd(LOOK.hair);
+  look.robe = rnd(LOOK.robe);
+  markPicks();
+  for (const box of [$("hairs"), $("robes")]) box.querySelector(".on")?.scrollIntoView({ block: "nearest" });
+});
+
+let pv = null;
+function drawPreview() {
   if ($("create").classList.contains("hidden")) return;
-  const t = performance.now() / 1000;
-  for (const pv of previews) {
-    const ctx = pv.cv.getContext("2d"), f = (pv.f ??= createFrame(120, 96)), img = (pv.img ??= ctx.createImageData(120, 96));
-    clearFrame(f);
-    const p = painterFor(f);
-    // the plain form and, every other few seconds, the transformed one
-    const form = Math.floor(t / 2.5) % 2 === 1;
-    p.place(60, 92, false);
-    p.glow(0, -36, 40, hexToNum(LOOKS[pv.cls].color), form ? 0.35 : 0.12);
-    drawCharacter(p, { cls: pv.cls, form, t, moving: false });
-    composite(f, img.data, hexToNum("#16121f"));
-    ctx.putImageData(img, 0, 0);
-  }
-  requestAnimationFrame(drawPreviews);
+  const cv = $("pv"), W = cv.width, H = cv.height, t = performance.now() / 1000;
+  pv ??= { ctx: cv.getContext("2d"), f: createFrame(W, H), img: cv.getContext("2d").createImageData(W, H) };
+  clearFrame(pv.f);
+  const p = painterFor(pv.f);
+  // the chosen move, looping: a jump arcs up and back down, a cast swings every second
+  const jump = anim === "jump" ? Math.max(0, Math.sin((t % 1.1) / 1.1 * Math.PI)) : 0;
+  p.place(W / 2, H - 12 - Math.round(jump * 14), false);
+  drawAvatar(p, look, {
+    t, moving: anim === "walk", air: anim === "jump" && jump > 0.05,
+    cast: anim === "cast" ? { type: Math.floor(t / 1.2) % 2 ? "bolt" : "melee", age: t % 1.2 } : null,
+  });
+  composite(pv.f, pv.img.data, null);
+  pv.ctx.putImageData(pv.img, 0, 0);
+  requestAnimationFrame(drawPreview);
 }
-const hexToNum = (h) => {
-  const n = parseInt(h.slice(1), 16);
-  return (255 << 24) | ((n & 255) << 16) | (n & 0xff00) | ((n >> 16) & 255);
-};
 $("createForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   $("createErr").textContent = "";
   try {
-    await call("/character", { method: "POST", body: { name: $("charName").value, cls: chosen } });
+    await call("/character", { method: "POST", body: { name: $("charName").value, look } });
     state = await call("/me");
     play();
   } catch (err) {
@@ -248,7 +256,7 @@ $("rankBtn").addEventListener("click", async () => {
       const ol = document.createElement("ol");
       for (const r of rows) {
         const li = document.createElement("li");
-        li.textContent = `${r.name} (${CLASSES[r.cls]?.name ?? r.cls}, ${realmName(r.level)}): ${r.v} ${unit}`;
+        li.textContent = `${r.name} (${realmName(r.level)}): ${r.v} ${unit}`;
         ol.append(li);
       }
       col.append(h, ol);

@@ -14,7 +14,6 @@ import { KeyedLock } from "./lock.js";
 const DT = 1 / TICK_HZ;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const num = (v) => typeof v === "number" && Number.isFinite(v);
-const CLS = Object.keys(CLASSES);
 const MTYPES = ["dummy", "ghost"];
 const sessionLock = new KeyedLock();
 
@@ -23,7 +22,6 @@ export class World {
     this.ents = new Map(); // id -> player or monster
     this.players = new Map(); // userId -> player
     this.bolts = [];
-    this.summons = [];
     this.later = [];
     this.events = [];
     this.pairs = new Map(); // "killer:victim" -> time of the last rewarded kill
@@ -99,10 +97,10 @@ export class World {
       const inv = await store.inventory(uid);
       if (ws.readyState !== WebSocket.OPEN) return;
       const p = {
-        id: this.nid++, kind: "p", userId: uid, ws, name: ch.name, cls: ch.cls,
+        id: this.nid++, kind: "p", userId: uid, ws, name: ch.name, cls: ch.cls, look: ch.look,
         ...this.spawnPoint(), face: 1, in: { dx: 0, jump: false, down: false }, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
         hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
-        cd: [0, 0, 0], busyUntil: 0, tfUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
+        cd: [0, 0, 0], busyUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
         medAcc: 0, meditating: false, base: null, pend: zero(), level: 1, medLeft: 0, saving: null, gone: false,
       };
       this.applyBase(p, ch, true);
@@ -125,7 +123,6 @@ export class World {
     p.gone = true;
     if (this.players.get(p.userId) === p) this.players.delete(p.userId);
     this.ents.delete(p.id);
-    this.summons = this.summons.filter((s) => s.owner !== p);
     this.broadcast({ t: "gone", id: p.id });
     await this.save(p);
   }
@@ -216,10 +213,9 @@ export class World {
   stats(e) {
     if (e.kind === "m") return e.st;
     const c = CLASSES[e.cls], m = this.map.pvp ? arenaMult(e.level) : worldMult(e.level);
-    const tf = e.tfUntil > this.t ? c.skills[2] : null;
     return {
-      maxHp: Math.round(c.hp * m), atk: c.atk * m * (tf?.atk ?? 1), def: c.def * m * (tf?.def ?? 1),
-      spd: c.spd * (tf?.spd ?? 1) * (e.slowUntil > this.t ? 0.5 : 1) * (e.busyUntil > this.t ? 0.45 : 1),
+      maxHp: Math.round(c.hp * m), atk: c.atk * m, def: c.def * m,
+      spd: c.spd * (e.slowUntil > this.t ? 0.5 : 1) * (e.busyUntil > this.t ? 0.45 : 1),
     };
   }
   sendMe(p) {
@@ -228,7 +224,7 @@ export class World {
       t: "me", lv: p.level, exp: this.exp(p), stones: p.base.stones + p.pend.stones, rank: p.base.rank + p.pend.rank,
       kills: p.base.kills + p.pend.kills, deaths: p.base.deaths + p.pend.deaths, medLeft: p.medLeft,
       hp: Math.max(0, Math.round(p.hpFrac * st.maxHp)), maxHp: st.maxHp, atk: Math.round(st.atk), def: Math.round(st.def),
-      cd: p.cd.map((c) => Math.max(0, +(c - this.t).toFixed(2))), tf: Math.max(0, +(p.tfUntil - this.t).toFixed(2)),
+      cd: p.cd.map((c) => Math.max(0, +(c - this.t).toFixed(2))),
       respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
     });
   }
@@ -257,7 +253,7 @@ export class World {
         const text = m.m.replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 120);
         if (!text) return;
         p.chatAt = this.t + 1;
-        return this.broadcast({ t: "chat", n: p.name, c: p.cls, m: text });
+        return this.broadcast({ t: "chat", n: p.name, m: text });
       }
       case "use":
         if (typeof m.item === "string") this.useItem(p, m.item);
@@ -302,14 +298,6 @@ export class World {
     for (const e of this.ents.values()) if (this.hostile(att, e)) out.push(e);
     return out;
   }
-  nearest(att, x, y, range) {
-    let best = null, bd = range;
-    for (const e of this.targetsOf(att)) {
-      const d = Math.hypot(e.x - x, e.y - y) - PLAYER_R;
-      if (d < bd) (bd = d), (best = e);
-    }
-    return best;
-  }
   /** Hit every enemy of att in a cone from (x, y) along (ax, ay). */
   cone(att, x, y, ax, ay, range, arc, atk, mult) {
     const c = Math.cos(arc / 2);
@@ -336,7 +324,7 @@ export class World {
     if (p.dead) return;
     const sk = CLASSES[p.cls].skills[i], t = this.t;
     if (p.cd[i] > t + 0.05) return;
-    if (p.busyUntil > t && sk.type !== "transform") return;
+    if (p.busyUntil > t) return;
     p.cd[i] = t + sk.cd;
     p.lastCast = t;
     if (Math.abs(ax) > 0.15) p.face = ax > 0 ? 1 : -1;
@@ -346,20 +334,12 @@ export class World {
       case "melee":
         this.cone(p, p.x, p.y, ax, ay, sk.range, sk.arc, st.atk, sk.mult);
         break;
-      case "breath":
-        p.busyUntil = t + sk.ticks * sk.every;
-        for (let k = 0; k < sk.ticks; k++)
-          this.at(t + 0.15 + k * sk.every, () => {
-            if (p.dead || p.gone) return;
-            this.cone(p, p.x + ax * 10, p.y + ay * 10, ax, ay, sk.range, sk.arc, this.stats(p).atk, sk.mult);
-          });
-        break;
       case "bolt":
-        this.bolts.push({ id: this.nid++, owner: p, cls: p.cls, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
+        this.bolts.push({ id: this.nid++, owner: p, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
         break;
       case "zone": {
         const x = clamp(p.x + Math.sign(ax || p.face) * sk.dist, 20, this.map.w - 20), y = p.y;
-        this.ev({ e: "fx", k: "timestop", x: Math.round(x), y: Math.round(y) });
+        this.ev({ e: "fx", k: "thunder", x: Math.round(x), y: Math.round(y) });
         this.at(t + sk.delay, () => {
           if (p.gone) return;
           for (const e of this.targetsOf(p))
@@ -370,25 +350,6 @@ export class World {
         });
         break;
       }
-      case "summon":
-        this.summons = this.summons.filter((s) => s.owner !== p);
-        this.summons.push({ id: this.nid++, owner: p, ...(fits(p.x + p.face * 26, p.y, this.map) ? { x: p.x + p.face * 26, y: p.y } : { x: p.x, y: p.y }), vx: 0, vy: 0, ground: false, dropUntil: 0, tryX: 0, face: p.face, until: t + sk.dur, atk: st.atk, sk, nextBite: t + 0.8, bite: 0 });
-        break;
-      case "devour": {
-        const e = this.nearest(p, p.x, p.y, sk.range);
-        if (!e) {
-          p.cd[i] = t + 0.5; // nothing in reach: almost no cooldown spent
-          send(p.ws, { t: "toast", m: "Không có mục tiêu trong tầm." });
-          break;
-        }
-        this.ev({ e: "fx", k: "devour", from: e.id, to: p.id });
-        const d = this.damage(p, st.atk, e, sk.mult);
-        if (!p.dead) p.hpFrac = Math.min(1, p.hpFrac + (d * sk.heal) / st.maxHp);
-        break;
-      }
-      case "transform":
-        p.tfUntil = t + sk.dur;
-        break;
     }
     this.sendMe(p);
   }
@@ -412,8 +373,6 @@ export class World {
     // a player
     e.respawnAt = this.t + (this.map.pvp ? PVP.respawn : RESPAWN_WORLD);
     e.busyUntil = 0;
-    e.tfUntil = 0;
-    this.summons = this.summons.filter((s) => s.owner !== e);
     if (owner && owner !== e) {
       const key = `${owner.userId}:${e.userId}`, last = this.pairs.get(key);
       const rewarded = last === undefined || this.t - last > PVP.repeatCooldown;
@@ -458,7 +417,6 @@ export class World {
     for (const p of this.players.values()) this.stepPlayer(p);
     for (const m of this.ents.values()) if (m.kind === "m") this.stepMonster(m);
     this.stepBolts();
-    this.stepSummons();
     this.snapshot();
     if (this.tick % 5 === 0) for (const p of this.players.values()) this.sendMe(p);
   }
@@ -605,12 +563,12 @@ export class World {
         }
       if (hit) {
         this.damage(b.owner, b.atk, hit, b.mult);
-        this.ev({ e: "boom", k: b.cls, x: Math.round(b.x), y: Math.round(b.y) });
+        this.ev({ e: "boom", x: Math.round(b.x), y: Math.round(b.y) });
         continue;
       }
       // walls stop them (bolts fly at chest height, 30 px above the line they're aimed along)
       if (this.map.solid(Math.floor(b.x / this.map.T), Math.floor((b.y - 30) / this.map.T))) {
-        this.ev({ e: "boom", k: b.cls, x: Math.round(b.x), y: Math.round(b.y) });
+        this.ev({ e: "boom", x: Math.round(b.x), y: Math.round(b.y) });
         continue;
       }
       if (b.left > 0 && b.x > 0 && b.x < this.map.w && b.y > 0 && b.y < this.map.h) keep.push(b);
@@ -618,51 +576,15 @@ export class World {
     this.bolts = keep;
   }
 
-  stepSummons() {
-    const t = this.t, keep = [];
-    for (const s of this.summons) {
-      const o = s.owner;
-      if (t >= s.until || o.gone || o.dead) {
-        this.ev({ e: "unsummon", id: s.id, x: Math.round(s.x), y: Math.round(s.y) });
-        continue;
-      }
-      keep.push(s);
-      const sk = s.sk, prey = this.nearest(o, s.x, s.y, 220);
-      let tx = o.x - o.face * 28, ty = o.y + 4;
-      if (prey) {
-        const d = Math.hypot(prey.x - s.x, prey.y - s.y);
-        s.face = prey.x > s.x ? 1 : -1;
-        if (d <= sk.reach + PLAYER_R) {
-          if (t >= s.nextBite) {
-            s.nextBite = t + sk.every;
-            s.bite = t + 0.35;
-            this.damage(o, s.atk, prey, sk.mult);
-          }
-          continue;
-        }
-        (tx = prey.x), (ty = prey.y);
-      }
-      // it walks there, and hops when something's in the way or its prey is up a level
-      const dx = tx - s.x, want = Math.abs(dx) > 6 ? Math.sign(dx) : 0, x0 = s.x;
-      const hop = !!s.ground && (s.tryX > 0.3 || (prey && prey.y < s.y - 20 && Math.abs(dx) < 120));
-      stepBody(s, { dx: want, jump: hop, down: !!prey && prey.y > s.y + 20 }, sk.spd * PHYS.RUN, DT, this.map, t);
-      s.tryX = want && Math.abs(s.x - x0) < 0.5 ? s.tryX + DT : 0;
-      if (want) s.face = want;
-      if (s.y > this.map.h + 100) s.until = t;
-    }
-    this.summons = keep;
-  }
-
   snapshot() {
-    const t = this.t, P = [], M = [], B = [], S = [];
+    const t = this.t, P = [], M = [], B = [];
     for (const p of this.players.values())
       P.push([p.id, Math.round(p.x), Math.round(p.y), p.face, Math.round(Math.max(0, p.hpFrac) * 1000),
-        (p.dead ? 1 : 0) | (p.tfUntil > t ? 2 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128)]);
+        (p.dead ? 1 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128)]);
     for (const m of this.ents.values())
       if (m.kind === "m") M.push([m.id, MTYPES.indexOf(m.type), Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
-    for (const b of this.bolts) B.push([b.id, CLS.indexOf(b.cls), Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy)]);
-    for (const s of this.summons) S.push([s.id, s.owner.id, Math.round(s.x), Math.round(s.y), s.face, s.bite > t ? 1 : 0]);
-    const msg = JSON.stringify({ t: "s", k: this.tick, P, M, B, S, E: this.events });
+    for (const b of this.bolts) B.push([b.id, 0, Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy)]);
+    const msg = JSON.stringify({ t: "s", k: this.tick, P, M, B, E: this.events });
     this.events = [];
     for (const p of this.players.values()) sendRaw(p.ws, msg);
   }
@@ -679,7 +601,7 @@ export class World {
 
 const zero = () => ({ exp: 0, stones: 0, rank: 0, kills: 0, deaths: 0, med: 0 });
 const rnd = (a, b) => a + Math.random() * (b - a);
-const info = (p) => ({ id: p.id, name: p.name, cls: p.cls, lv: p.level });
+const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level });
 // a client that can't keep up (more than 1 MB queued) skips snapshots instead of growing the server's memory
 function sendRaw(ws, msg) {
   if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 1 << 20) ws.send(msg);

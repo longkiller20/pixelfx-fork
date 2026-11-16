@@ -18,7 +18,7 @@
   <section id="auth" class="screen hidden">
     <div class="box">
       <h1>Đa Vũ Trụ<br><span>Tu Tiên</span></h1>
-      <p class="sub">Vạn giới hội tụ: tu sĩ, long kỵ, thời không chúa tể cùng tỷ thí.</p>
+      <p class="sub">Vạn giới hội tụ: tu sĩ khắp các vũ trụ cùng tỷ thí.</p>
       <div class="tabs"><button type="button" data-tab="login" class="on">Đăng nhập</button><button type="button" data-tab="register">Đăng ký</button></div>
       <form id="authForm" autocomplete="on">
         <input id="user" name="username" placeholder="Tên đăng nhập" autocomplete="username" required minlength="3" maxlength="16" pattern="[A-Za-z0-9_]+" autocapitalize="off" spellcheck="false">
@@ -31,14 +31,37 @@
   </section>
 
   <section id="create" class="screen hidden">
-    <div class="box wide">
-      <h2>Chọn môn phái</h2>
-      <div id="classes" class="classes"></div>
-      <form id="createForm" class="row">
-        <input id="charName" placeholder="Đạo hiệu (3-16 ký tự)" required minlength="3" maxlength="16">
-        <button class="primary" type="submit">Nhập đạo</button>
+    <div class="box wide maker">
+      <h2>Tạo nhân vật</h2>
+      <form id="createForm" class="maker-grid">
+        <div class="preview">
+          <canvas id="pv" width="96" height="96"></canvas>
+          <div class="pvbar">
+            <button type="button" data-anim="idle" class="on">Đứng</button>
+            <button type="button" data-anim="walk">Đi</button>
+            <button type="button" data-anim="jump">Nhảy</button>
+            <button type="button" data-anim="cast">Xuất chiêu</button>
+          </div>
+        </div>
+        <div class="choices">
+          <div class="row">
+            <div class="seg" role="radiogroup" aria-label="Giới tính">
+              <button type="button" data-g="m" class="on">Nam</button>
+              <button type="button" data-g="f">Nữ</button>
+            </div>
+            <input id="charName" placeholder="Đạo hiệu (3-16 ký tự)" required minlength="3" maxlength="16" autocomplete="off">
+            <button type="button" id="randLook" title="Ngẫu nhiên">🎲</button>
+          </div>
+          <h4>Tóc <span id="hairNo" class="dim"></span></h4>
+          <div id="hairs" class="picks"></div>
+          <h4>Y phục <span id="robeNo" class="dim"></span></h4>
+          <div id="robes" class="picks"></div>
+          <div class="row end">
+            <p id="createErr" class="err" role="alert"></p>
+            <button class="primary" type="submit">Nhập đạo</button>
+          </div>
+        </div>
       </form>
-      <p id="createErr" class="err" role="alert"></p>
     </div>
   </section>
 
