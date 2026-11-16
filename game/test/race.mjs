@@ -17,10 +17,10 @@ async function call(path, { token, method = "GET", body } = {}) {
   });
   return { status: r.status, data: await r.json().catch(() => ({})) };
 }
-async function player(cls = "long") {
+async function player(look = { g: "m", hair: 3, robe: 7 }) {
   const u = "t_" + uid();
   const { data } = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
-  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), cls } });
+  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } });
   assert.equal(c.status, 200, JSON.stringify(c.data));
   return { token: data.token, name: c.data.character.name };
 }
@@ -61,6 +61,17 @@ async function walkTo(c, x, y) {
 }
 
 console.log("Đa vũ trụ tu tiên: race checks against", BASE);
+
+{
+  // the look is checked: bad genders and out-of-range parts are refused
+  const u = "t_" + uid();
+  const { data } = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
+  for (const look of [{ g: "x", hair: 0, robe: 0 }, { g: "m", hair: 40, robe: 0 }, { g: "f", hair: 0, robe: -1 }, { g: "m", hair: 1.5, robe: 0 }, null])
+    assert.equal((await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } })).status, 400);
+  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: { g: "f", hair: 39, robe: 39 } } });
+  assert.deepEqual(c.data.character.look, { g: "f", hair: 39, robe: 39 });
+  ok("creating a character: only a real gender, hair and robe are accepted, and they're saved");
+}
 
 {
   const p = await player();
@@ -114,7 +125,7 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   // the starter town, side view: walls hold, jumps clear them, and the way out at the foot of the east stairs answers
   const { mapInfo, START_MAP } = await import("../shared/maps/index.js");
   const { fits } = await import("../shared/physics.js");
-  const M = mapInfo(START_MAP), P = await player("time"), c = await connect(P.token);
+  const M = mapInfo(START_MAP), P = await player({ g: "f", hair: 12, robe: 30 }), c = await connect(P.token);
   const at = () => c.snap?.P.find((q) => q[0] === c.id);
   await sleep(300);
   const start = at();

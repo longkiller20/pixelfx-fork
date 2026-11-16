@@ -60,7 +60,7 @@ export function api(world) {
   }));
 
   r.post("/character", requireAuth, writeLimit, wrap(async (req, res) => {
-    res.json({ character: await store.createCharacter(req.userId, req.body?.name, req.body?.cls) });
+    res.json({ character: await store.createCharacter(req.userId, req.body?.name, req.body?.look) });
   }));
 
   r.post("/shop/buy", requireAuth, writeLimit, wrap(async (req, res) => {

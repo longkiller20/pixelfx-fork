@@ -1,13 +1,15 @@
 # Đa Vũ Trụ Tu Tiên
 
-Game web nhiều người chơi, nơi tu sĩ, long kỵ sĩ và thời không chúa tể từ khắp các vũ trụ gặp nhau. Phần chữ trong game bằng
+Game web nhiều người chơi, nơi tu sĩ từ khắp các vũ trụ gặp nhau. Phần chữ trong game bằng
 tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay trong repo này. Chơi được trên máy tính lẫn điện thoại.
 
 - **Máy chủ:** Node.js + Express, WebSocket (`ws`) cho thế giới chung, MariaDB lưu dữ liệu, mặc định chạy ở cổng **5886**.
-- **Ba môn phái:**
-  - **Long Kỵ Sĩ:** cận chiến; biến thân khoác long giáp; Hỏa Long hiện sau lưng phun lửa.
-  - **Thời Không Chúa Tể:** đánh xa; Thời Đình làm chậm kẻ địch; biến thân thành Thời Vương.
-  - **Khôi Thi Sư:** triệu hồi khôi thi, Thôn Phệ hút máu.
+- **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 40 kiểu tóc và 1 trong 40 bộ y phục (nam và nữ có bộ riêng),
+  xem trước nhân vật cử động: đứng, đi, nhảy, xuất chiêu.
+  - Mọi nhân vật dựng từ cùng một thân gốc, nên tóc và áo nào cũng mặc vừa.
+  - Có rig và hoạt ảnh: thân trên thở và nhún, tay áo xoay quanh vai, vạt áo và tóc bay theo bước chạy, hai chân bước.
+- **Chiêu thức chung cho mọi người:** Kiếm Khí Trảm (cận chiến), Phi Kiếm (phóng kiếm), Lôi Ấn Trận (sét đánh xuống một
+  vùng, làm chậm). Thắng thua nhờ cách chơi, không nhờ chọn phái.
 - **Góc nhìn đi ngang** (side-scroller), khớp với cách pixelfx vẽ nhân vật và hiệu ứng: đi trái/phải, nhảy, đứng trên đài
   mây, rơi theo trọng lực.
 - **Bản đồ hiện có: Tân Thủ Thôn,** thôn khởi đầu dài 128 ô (mỗi ô 32 px). Đi từ tây sang đông:
@@ -160,11 +162,11 @@ chủ thử, vì nó tạo vài tài khoản `t_...`.
 
 Mọi con số nằm trong `shared/balance.js`; máy chủ và trình duyệt dùng chung file này.
 
-- **Cùng ngân sách chỉ số:** ba môn phái đánh đổi sinh lực, công, thủ, tốc với nhau. Ở cùng cảnh giới, thời gian hạ một đối
-  thủ (khi trúng hết đòn) nằm trong khoảng 10–13 giây.
-  - Cận chiến nhỉnh hơn một chút vì phải áp sát.
-  - Đánh xa có lợi thế tầm.
-  - Khôi Thi Sư hút máu bù lại.
+- **Mọi người cùng chỉ số và chiêu thức:** ngoại hình không ảnh hưởng sức mạnh. Ở cùng cảnh giới, hạ một đối thủ (khi trúng
+  hết đòn) mất khoảng 10–15 giây.
+  - Cận chiến gây sát thương mỗi giây cao hơn vì phải áp sát.
+  - Phi Kiếm có lợi thế tầm.
+  - Lôi Ấn Trận làm chậm để đuổi hoặc thoát.
 - **Bản đồ PvP nén chênh lệch cảnh giới** (khi mở): ngoài thế giới, cảnh giới cao nhất mạnh gấp khoảng 2 lần người mới. Trên
   bản đồ PvP, chênh lệch chỉ còn tối đa 10%, và không được dùng đan hồi phục.
 - **Chống "nuôi điểm":**
@@ -254,11 +256,29 @@ game/
   shared/maps/           bản đồ: lưới ô, công trình, điểm xuất hiện, lối ra
   shared/physics.js      vật lý đi ngang dùng chung cho máy chủ và trình duyệt
   public/                trang game: canvas, giao diện, điều khiển; public/js/scenery.js vẽ bản đồ; public/maps/tiles/ tileset
+  public/js/avatar.js    rig và hoạt ảnh nhân vật (thân gốc + tóc + y phục)
+  public/avatar/         atlas thân gốc, 80 kiểu tóc, 80 bộ y phục (tạo bằng tools/avatar/build.py)
+  tools/avatar/          ảnh gốc của họa sĩ và script cắt, thu nhỏ, canh tóc và áo vào thân
   test/race.mjs          kiểm tra tranh chấp, tường và lối ra
 ```
 
-Hình ảnh nhân vật, rồng, khôi thi và mọi hiệu ứng đến từ `../src` (pixelfx): máy chủ phục vụ thư mục đó ở đường dẫn
+Hình nhân vật nằm ở `public/avatar/`. Bù nhìn và mọi hiệu ứng đến từ `../src` (pixelfx): máy chủ phục vụ thư mục đó ở đường dẫn
 `/pixelfx`, nên phải giữ nguyên game trong repo này.
+
+## Thêm tóc hoặc y phục
+
+Ảnh gốc nằm trong `tools/avatar/src/`:
+- Sheet nhân vật gốc 29 × 63 pixel.
+- 4 sheet 8 × 5 món, nền trong suốt: tóc nam, tóc nữ, y phục nam, y phục nữ.
+
+Vẽ thêm hoặc sửa sheet, rồi chạy `python3 tools/avatar/build.py` (cần Pillow và numpy). Script tự cắt từng món, thu nhỏ về
+cỡ nhân vật, rồi canh vào thân:
+- Tóc phủ kín da đầu mà không che mắt.
+- Áo có cổ nằm dưới cằm và gấu áo chạm chân.
+
+Kết quả ghi vào `public/avatar/`. Muốn nhiều hơn 40 món mỗi loại thì sửa thêm `LOOK` trong `shared/balance.js`.
+
+Nhân vật tạo trước bản cập nhật này vẫn giữ tên và tu vi, và nhận ngoại hình mặc định (tóc 1, y phục 1).
 
 ## Mở rộng
 

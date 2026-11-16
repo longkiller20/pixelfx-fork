@@ -50,6 +50,9 @@ const SCHEMA = [
     user_id INT UNSIGNED NOT NULL PRIMARY KEY,
     name VARCHAR(16) NOT NULL,
     class VARCHAR(16) NOT NULL,
+    gender CHAR(1) NOT NULL DEFAULT 'm',
+    hair TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    robe TINYINT UNSIGNED NOT NULL DEFAULT 0,
     exp BIGINT UNSIGNED NOT NULL DEFAULT 0,
     stones INT UNSIGNED NOT NULL DEFAULT 0,
     rank_points INT UNSIGNED NOT NULL DEFAULT 1000,
@@ -98,6 +101,14 @@ const SCHEMA = [
   ) ENGINE=InnoDB`,
 ];
 
+// columns added after the first release: older databases get them here (characters made before keep the first look)
+const UPGRADES = [
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS gender CHAR(1) NOT NULL DEFAULT 'm' AFTER class",
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS hair TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER gender",
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS robe TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER hair",
+];
+
 export async function migrate() {
   for (const s of SCHEMA) await q(s);
+  for (const s of UPGRADES) await q(s);
 }

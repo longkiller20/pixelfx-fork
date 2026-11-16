@@ -8,7 +8,7 @@
 //     that happened in between is never overwritten.
 import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
-import { CLASSES, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, NAME_RE, levelFromExp } from "../shared/balance.js";
+import { CLASS, validLook, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, NAME_RE, levelFromExp } from "../shared/balance.js";
 
 export class GameError extends Error {
   constructor(message, status = 400) {
@@ -17,9 +17,9 @@ export class GameError extends Error {
   }
 }
 
-const COLS = "user_id, name, class, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp";
+const COLS = "user_id, name, gender, hair, robe, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp";
 const shape = (r) => r && {
-  userId: r.user_id, name: r.name, cls: r.class, exp: Number(r.exp), stones: Number(r.stones), rank: Number(r.rank_points),
+  userId: r.user_id, name: r.name, cls: CLASS, look: { g: r.gender === "f" ? "f" : "m", hair: Number(r.hair), robe: Number(r.robe) }, exp: Number(r.exp), stones: Number(r.stones), rank: Number(r.rank_points),
   kills: Number(r.kills), deaths: Number(r.deaths), level: levelFromExp(Number(r.exp)),
   medLeft: Math.max(0, MEDITATE.dailyCap - (r.med_today ? Number(r.med_exp) : 0)),
 };
@@ -39,13 +39,14 @@ export async function dailyClaimed(uid) {
   return rows.length > 0;
 }
 
-export function createCharacter(uid, name, cls) {
+export function createCharacter(uid, name, look) {
   name = String(name ?? "").trim().replace(/\s+/g, " ");
   if (!NAME_RE.test(name)) throw new GameError("Đạo hiệu dài 3-16 ký tự, chỉ gồm chữ, số, khoảng trắng hoặc _.");
-  if (!CLASSES[cls]) throw new GameError("Môn phái không hợp lệ.");
+  const g = look?.g, hair = look?.hair, robe = look?.robe;
+  if (!validLook(g, hair, robe)) throw new GameError("Ngoại hình không hợp lệ.");
   return userLock.run(uid, () => tx(async (c) => {
     try {
-      await c.query("INSERT INTO characters (user_id, name, class, stones) VALUES (?, ?, ?, 20)", [uid, name, cls]);
+      await c.query("INSERT INTO characters (user_id, name, class, gender, hair, robe, stones) VALUES (?, ?, ?, ?, ?, ?, 20)", [uid, name, CLASS, g, hair, robe]);
     } catch (e) {
       if (isDup(e)) throw new GameError(/uq_name/.test(e.message) ? "Đạo hiệu này đã có người dùng." : "Tài khoản đã có nhân vật.", 409);
       throw e;
@@ -130,8 +131,8 @@ export function useItem(uid, item, level) {
 export const logPvp = (killer, victim, rewarded) => q("INSERT INTO pvp_log (killer_id, victim_id, rewarded) VALUES (?, ?, ?)", [killer, victim, rewarded ? 1 : 0]);
 
 export async function leaderboard() {
-  const rank = await q("SELECT name, class, rank_points AS v, exp FROM characters ORDER BY rank_points DESC, exp DESC LIMIT 20");
-  const exp = await q("SELECT name, class, exp AS v, exp FROM characters ORDER BY exp DESC LIMIT 20");
-  const fmt = (rows) => rows.map((r) => ({ name: r.name, cls: r.class, v: Number(r.v), level: levelFromExp(Number(r.exp)) }));
+  const rank = await q("SELECT name, gender, hair, robe, rank_points AS v, exp FROM characters ORDER BY rank_points DESC, exp DESC LIMIT 20");
+  const exp = await q("SELECT name, gender, hair, robe, exp AS v, exp FROM characters ORDER BY exp DESC LIMIT 20");
+  const fmt = (rows) => rows.map((r) => ({ name: r.name, look: { g: r.gender, hair: Number(r.hair), robe: Number(r.robe) }, v: Number(r.v), level: levelFromExp(Number(r.exp)) }));
   return { rank: fmt(rank), exp: fmt(exp) };
 }

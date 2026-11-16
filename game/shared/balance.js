@@ -2,8 +2,8 @@
 // The server is the only one that acts on these; the browser uses them to draw cooldowns, bars and tooltips.
 //
 // How balance works:
-//  - Every class has the same stat budget (hp, atk, def, speed traded against each other) and its skills are tuned to
-//    about the same damage per second; melee hits harder than ranged because it has to get close.
+//  - Everyone has the same stats and arts; the sword cut at close range out-damages the flying sword over time,
+//    because it has to get close.
 //  - Levels make you stronger in the open world (up to about 2x at the top), but on PvP maps the bonus is squeezed to
 //    at most +10%, so a newcomer can still beat a veteran there. Healing pills can't be used on PvP maps.
 //  - Rewards for killing the same player again are cut off for a while, so friends can't farm each other.
@@ -32,41 +32,27 @@ export const arenaMult = (L) => 1 + (0.1 * (L - 1)) / (MAX_LEVEL - 1);
 /** Damage taken after defense. */
 export const mitigate = (def) => 100 / (100 + def);
 
-// Skill types the server knows: melee (an arc in front), breath (a cone that ticks), bolt (a projectile), zone (an area
-// some way ahead that hits after a beat and slows), summon (a puppet that fights for you), devour (hit the nearest enemy and
-// heal), transform (a timed form with stat multipliers). cd in seconds, mult x attack, ranges in px.
+// Everyone walks the same road: one stat line and one set of three arts, so a fight is decided by play, not by a
+// pick at sign-up. What sets characters apart is how they look (see LOOK). Skill types the server knows: melee (an arc
+// in front), bolt (a projectile), zone (an area some way ahead that hits after a beat and slows). cd in seconds,
+// mult x attack, ranges in px.
 export const CLASSES = {
-  long: {
-    name: "Long Kỵ Sĩ",
-    lore: "Võ giả khế ước cùng Hỏa Long, biến thân khoác long giáp. Cận chiến, trâu bò.",
-    hp: 1100, atk: 60, def: 32, spd: 92,
+  tu: {
+    name: "Tu Sĩ",
+    hp: 1000, atk: 60, def: 28, spd: 96,
     skills: [
-      { key: "s1", name: "Long Trảo", type: "melee", cd: 0.6, mult: 0.8, range: 50, arc: 1.4 },
-      { key: "s2", name: "Hỏa Long Phún", type: "breath", cd: 7, mult: 0.36, ticks: 6, every: 0.18, range: 140, arc: 0.6 },
-      { key: "s3", name: "Long Giáp Biến Thân", type: "transform", cd: 28, dur: 9, atk: 1.2, def: 1.35, spd: 1.0 },
-    ],
-  },
-  time: {
-    name: "Thời Không Chúa Tể",
-    lore: "Thiếu niên nắm giữ thời gian, biến thân thành Thời Vương. Đánh xa, khống chế.",
-    hp: 900, atk: 64, def: 22, spd: 100,
-    skills: [
-      { key: "s1", name: "Thời Châm", type: "bolt", cd: 0.7, mult: 1.0, range: 220, speed: 320, r: 10 },
-      { key: "s2", name: "Thời Đình", type: "zone", cd: 9, mult: 1.2, dist: 110, r: 60, delay: 0.35, slow: 0.5, slowDur: 2.5 },
-      { key: "s3", name: "Thời Vương Biến Thân", type: "transform", cd: 28, dur: 9, atk: 1.3, def: 1.2, spd: 1.15 },
-    ],
-  },
-  corpse: {
-    name: "Khôi Thi Sư",
-    lore: "Đạo sĩ luyện thi, sai khiến khôi thi thôn phệ địch. Triệu hồi, hút máu.",
-    hp: 950, atk: 58, def: 26, spd: 96,
-    skills: [
-      { key: "s1", name: "Âm Phù", type: "bolt", cd: 0.75, mult: 0.95, range: 200, speed: 280, r: 10 },
-      { key: "s2", name: "Triệu Khôi Thi", type: "summon", cd: 15, dur: 10, hp: 0.35, mult: 0.5, every: 1.0, spd: 110, reach: 30 },
-      { key: "s3", name: "Thôn Phệ", type: "devour", cd: 12, mult: 1.6, range: 110, heal: 0.5 },
+      { key: "s1", name: "Kiếm Khí Trảm", type: "melee", cd: 0.6, mult: 0.85, range: 54, arc: 1.4 },
+      { key: "s2", name: "Phi Kiếm", type: "bolt", cd: 2.5, mult: 1.5, range: 240, speed: 360, r: 10 },
+      { key: "s3", name: "Lôi Ấn Trận", type: "zone", cd: 9, mult: 1.4, dist: 110, r: 60, delay: 0.35, slow: 0.5, slowDur: 2.5 },
     ],
   },
 };
+export const CLASS = "tu";
+
+// A character's look, chosen once at creation: gender, then one of 40 hair styles and 40 robes drawn for that gender.
+export const LOOK = { genders: ["m", "f"], hair: 40, robe: 40 };
+export const validLook = (g, hair, robe) =>
+  LOOK.genders.includes(g) && Number.isInteger(hair) && hair >= 0 && hair < LOOK.hair && Number.isInteger(robe) && robe >= 0 && robe < LOOK.robe;
 
 export const MONSTERS = {
   dummy: { name: "Bù Nhìn Rơm", hp: 500, atk: 0, def: 10, spd: 0, respawn: 5, exp: (L) => 10 + 2 * L, stones: 1 },
