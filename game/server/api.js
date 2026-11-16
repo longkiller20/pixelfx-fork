@@ -70,6 +70,23 @@ export function api(world) {
     res.json({ ...out, inventory: await store.inventory(req.userId) });
   }));
 
+  // the wardrobe: list, buy, wear. Buying and wearing change how others see you, so the world is told at once.
+  r.get("/cosmetics", requireAuth, rateLimit({ windowMs: 10_000, max: 20, key: (req) => `c${req.userId}` }), wrap(async (req, res) => {
+    res.json(await store.wardrobe(req.userId));
+  }));
+
+  r.post("/cosmetics/buy", requireAuth, writeLimit, wrap(async (req, res) => {
+    const character = await store.buyCosmetic(req.userId, req.body?.id, req.body?.wear === true);
+    world.refresh(req.userId, character);
+    res.json({ character, ...(await store.wardrobe(req.userId)) });
+  }));
+
+  r.post("/cosmetics/wear", requireAuth, writeLimit, wrap(async (req, res) => {
+    const character = await store.wearCosmetic(req.userId, req.body?.id);
+    world.refresh(req.userId, character);
+    res.json({ character });
+  }));
+
   r.post("/daily", requireAuth, writeLimit, wrap(async (req, res) => {
     const character = await store.claimDaily(req.userId);
     world.refresh(req.userId, character);

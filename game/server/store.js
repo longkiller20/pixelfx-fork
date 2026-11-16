@@ -45,6 +45,12 @@ export function createCharacter(uid, name, look) {
   const g = look?.g, hair = look?.hair, robe = look?.robe;
   if (!validLook(g, hair, robe)) throw new GameError("Ngoại hình không hợp lệ.");
   return userLock.run(uid, () => tx(async (c) => {
+    // at creation only the free starter styles of that gender can be picked; the rest are bought in game
+    const free = await c.query(
+      "SELECT kind FROM cosmetics WHERE gender = ? AND starter = 1 AND ((kind = 'hair' AND idx = ?) OR (kind = 'robe' AND idx = ?))",
+      [g, hair, robe],
+    );
+    if (free.length !== 2) throw new GameError("Ngoại hình này chưa mở, hãy chọn kiểu khởi đầu.");
     try {
       await c.query("INSERT INTO characters (user_id, name, class, gender, hair, robe, stones) VALUES (?, ?, ?, ?, ?, ?, 20)", [uid, name, CLASS, g, hair, robe]);
     } catch (e) {
@@ -124,6 +130,72 @@ export function useItem(uid, item, level) {
     const r = await c.query("UPDATE inventory SET qty = qty - 1 WHERE user_id = ? AND item = ? AND qty > 0", [uid, item]);
     if (r.affectedRows !== 1) throw new GameError("Đạo hữu không còn viên nào.", 409);
     if (it.exp) await c.query("UPDATE characters SET exp = exp + ? WHERE user_id = ?", [it.exp(level), uid]);
+    return loadCharacter(uid, c);
+  }));
+}
+
+// ---------------------------------------------------------------- the wardrobe (Y Các)
+const ITEM_COLS = "id, kind, gender, idx, name, price, starter, on_sale";
+const shapeItem = (r) => ({ id: r.id, kind: r.kind, g: r.gender, idx: r.idx, name: r.name, price: r.price, starter: !!r.starter, onSale: !!r.on_sale });
+
+/** Everything a player may see in the wardrobe: what's on sale, the free styles, and anything they own; plus their ids. */
+export async function wardrobe(uid) {
+  const owned = (await q("SELECT cosmetic_id FROM owned_cosmetics WHERE user_id = ?", [uid])).map((r) => r.cosmetic_id);
+  const rows = await q(
+    `SELECT ${ITEM_COLS} FROM cosmetics WHERE on_sale = 1 OR starter = 1 OR id IN (SELECT cosmetic_id FROM owned_cosmetics WHERE user_id = ?)
+     ORDER BY kind, gender, starter DESC, sort, idx`,
+    [uid],
+  );
+  return { items: rows.map(shapeItem), owned };
+}
+
+const itemId = (id) => {
+  id = Number(id);
+  if (!Number.isInteger(id) || id < 1) throw new GameError("Món đồ không tồn tại.");
+  return id;
+};
+
+/**
+ * Buy a hair style or robe for spirit stones, and wear it straight away if asked. Owning is one row per (account, item):
+ * a second buy of the same item, however many arrive at once, finds the row and is refused without charging.
+ */
+export function buyCosmetic(uid, id, wear) {
+  id = itemId(id);
+  return userLock.run(uid, () => tx(async (c) => {
+    const [ch] = await c.query("SELECT gender FROM characters WHERE user_id = ?", [uid]);
+    if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
+    const [it] = await c.query(`SELECT ${ITEM_COLS} FROM cosmetics WHERE id = ?`, [id]);
+    if (!it) throw new GameError("Món đồ không tồn tại.");
+    if (it.gender !== ch.gender) throw new GameError("Món này dành cho giới tính khác.");
+    if (it.starter) throw new GameError("Món này miễn phí, cứ mặc thôi.");
+    if (!it.on_sale) throw new GameError("Món này đã ngừng bán.");
+    try {
+      await c.query("INSERT INTO owned_cosmetics (user_id, cosmetic_id, price) VALUES (?, ?, ?)", [uid, id, it.price]);
+    } catch (e) {
+      if (isDup(e)) throw new GameError("Đạo hữu đã có món này rồi.", 409);
+      throw e;
+    }
+    const r = await c.query("UPDATE characters SET stones = stones - ? WHERE user_id = ? AND stones >= ?", [it.price, uid, it.price]);
+    if (r.affectedRows !== 1) throw new GameError("Không đủ linh thạch.", 409);
+    if (wear) await c.query(`UPDATE characters SET ${it.kind === "hair" ? "hair" : "robe"} = ? WHERE user_id = ?`, [it.idx, uid]);
+    return loadCharacter(uid, c);
+  }));
+}
+
+/** Wear a hair style or robe the player owns (or a free one). */
+export function wearCosmetic(uid, id) {
+  id = itemId(id);
+  return userLock.run(uid, () => tx(async (c) => {
+    const [ch] = await c.query("SELECT gender FROM characters WHERE user_id = ?", [uid]);
+    if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
+    const [it] = await c.query(
+      `SELECT ${ITEM_COLS}, EXISTS(SELECT 1 FROM owned_cosmetics WHERE user_id = ? AND cosmetic_id = cosmetics.id) AS mine FROM cosmetics WHERE id = ?`,
+      [uid, id],
+    );
+    if (!it) throw new GameError("Món đồ không tồn tại.");
+    if (it.gender !== ch.gender) throw new GameError("Món này dành cho giới tính khác.");
+    if (!it.starter && !it.mine) throw new GameError("Đạo hữu chưa có món này.", 403);
+    await c.query(`UPDATE characters SET ${it.kind === "hair" ? "hair" : "robe"} = ? WHERE user_id = ?`, [it.idx, uid]);
     return loadCharacter(uid, c);
   }));
 }

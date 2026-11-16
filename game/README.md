@@ -4,8 +4,10 @@ Game web nhiều người chơi, nơi tu sĩ từ khắp các vũ trụ gặp nh
 tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay trong repo này. Chơi được trên máy tính lẫn điện thoại.
 
 - **Máy chủ:** Node.js + Express, WebSocket (`ws`) cho thế giới chung, MariaDB lưu dữ liệu, mặc định chạy ở cổng **5886**.
-- **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 40 kiểu tóc và 1 trong 40 bộ y phục (nam và nữ có bộ riêng),
-  xem trước nhân vật cử động: đứng, đi, nhảy, xuất chiêu.
+- **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
+  mỗi giới), xem trước nhân vật cử động: đứng, đi, nhảy, xuất chiêu.
+- **Y Các (nút 👘 trong game):** bán 35 kiểu tóc và 35 bộ y phục còn lại của mỗi giới, giá 150 / 300 / 500 linh thạch tùy độ cầu
+  kỳ. Thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
   - Mọi nhân vật dựng từ cùng một thân gốc, nên tóc và áo nào cũng mặc vừa.
   - Có rig và hoạt ảnh: thân trên thở và nhún, tay áo xoay quanh vai, vạt áo và tóc bay theo bước chạy, hai chân bước.
 - **Chiêu thức chung cho mọi người:** Kiếm Khí Trảm (cận chiến), Phi Kiếm (phóng kiếm), Lôi Ấn Trận (sét đánh xuống một
@@ -249,7 +251,7 @@ game/
   server/index.js        Express, file tĩnh, WebSocket, tắt máy an toàn
   server/api.js          REST: đăng ký, đăng nhập, nhân vật, Đan Các, quà ngày, bảng xếp hạng
   server/world.js        thế giới chung: di chuyển (va chạm theo bản đồ), chiêu thức, lối ra, phần thưởng, 20 lần/giây
-  server/store.js        mọi thay đổi dữ liệu nhân vật, an toàn khi tranh chấp
+  server/store.js        mọi thay đổi dữ liệu nhân vật (cả mua và mặc đồ ở Y Các), an toàn khi tranh chấp
   server/db.js           MariaDB: pool, transaction, tạo bảng
   server/auth.js         mật khẩu, phiên đăng nhập, giới hạn tần suất
   shared/balance.js      chỉ số, chiêu thức, cảnh giới, vật phẩm
@@ -259,26 +261,56 @@ game/
   public/js/avatar.js    rig và hoạt ảnh nhân vật (thân gốc + tóc + y phục)
   public/avatar/         atlas thân gốc, 80 kiểu tóc, 80 bộ y phục (tạo bằng tools/avatar/build.py)
   tools/avatar/          ảnh gốc của họa sĩ và script cắt, thu nhỏ, canh tóc và áo vào thân
+  tools/cosmetics.mjs    công cụ admin cho tóc và y phục (giá, tên, bán, tặng, thêm mới)
+  server/cosmetics-seed.js  danh sách tóc và y phục ban đầu, nạp vào bảng cosmetics lần đầu chạy
   test/race.mjs          kiểm tra tranh chấp, tường và lối ra
 ```
 
 Hình nhân vật nằm ở `public/avatar/`. Bù nhìn và mọi hiệu ứng đến từ `../src` (pixelfx): máy chủ phục vụ thư mục đó ở đường dẫn
 `/pixelfx`, nên phải giữ nguyên game trong repo này.
 
-## Thêm tóc hoặc y phục
+## Tóc và y phục: quản lý trong database
 
-Ảnh gốc nằm trong `tools/avatar/src/`:
-- Sheet nhân vật gốc 29 × 63 pixel.
-- 4 sheet 8 × 5 món, nền trong suốt: tóc nam, tóc nữ, y phục nam, y phục nữ.
+Danh sách tóc và y phục nằm trong bảng `cosmetics`. Mỗi dòng là một món:
 
-Vẽ thêm hoặc sửa sheet, rồi chạy `python3 tools/avatar/build.py` (cần Pillow và numpy). Script tự cắt từng món, thu nhỏ về
-cỡ nhân vật, rồi canh vào thân:
-- Tóc phủ kín da đầu mà không che mắt.
-- Áo có cổ nằm dưới cằm và gấu áo chạm chân.
+| Cột | Ý nghĩa |
+| --- | --- |
+| `kind` | `hair` (tóc) hoặc `robe` (y phục) |
+| `gender` | `m` (nam) hoặc `f` (nữ) |
+| `idx` | vị trí của món trong atlas `public/avatar/<kind>_<gender>.png`, đếm từng hàng từ 0 |
+| `name`, `price` | tên và giá (linh thạch) |
+| `starter` | 1 = miễn phí, được chọn lúc tạo nhân vật |
+| `on_sale` | 0 = ngừng bán; người đã mua vẫn giữ |
 
-Kết quả ghi vào `public/avatar/`. Muốn nhiều hơn 40 món mỗi loại thì sửa thêm `LOOK` trong `shared/balance.js`.
+Đồ người chơi đã mua nằm trong bảng `owned_cosmetics`. Khóa chính là (tài khoản, món), nên dù bấm mua dồn dập cũng chỉ bị trừ
+tiền một lần.
 
-Nhân vật tạo trước bản cập nhật này vẫn giữ tên và tu vi, và nhận ngoại hình mặc định (tóc 1, y phục 1).
+Lần đầu chạy, máy chủ tự điền 160 món từ `server/cosmetics-seed.js`. Những lần sau, máy chủ không ghi đè: tên, giá hay trạng
+thái admin đã sửa đều được giữ. Game đọc bảng trực tiếp ở mỗi lần xem hoặc mua, nên sửa xong là có hiệu lực ngay, không cần
+khởi động lại. Tên món được đặt tự động theo màu; đổi tên tùy ý.
+
+Công cụ cho admin (dùng `.env` của máy chủ):
+
+```bash
+npm run cosmetics -- list robe f                       # xem y phục nữ: id, giá, số người đã mua
+npm run cosmetics -- price 57 800                      # đổi giá
+npm run cosmetics -- rename 57 "Phượng Hoàng Y"
+npm run cosmetics -- sale 57 off                       # ngừng bán
+npm run cosmetics -- starter 57 on                     # cho chọn miễn phí lúc tạo nhân vật
+npm run cosmetics -- give tenDangNhap 57               # tặng một món (giải thưởng sự kiện, đền bù)
+npm run cosmetics -- add hair f 40 400 "Tuyết Liên Kế" # thêm món mới
+```
+
+Hoặc dùng SQL trực tiếp, ví dụ `UPDATE cosmetics SET price = 800 WHERE id = 57;`.
+
+**Thêm kiểu mới:**
+1. Vẽ vào sheet trong `tools/avatar/src/`. Có thể nối thêm hàng mới, mỗi hàng 8 món.
+2. Chạy `python3 tools/avatar/build.py` (cần Pillow và numpy). Script tự cắt từng món, thu nhỏ về cỡ nhân vật, rồi canh vào thân:
+   - Tóc phủ kín da đầu mà không che mắt.
+   - Áo có cổ nằm dưới cằm và gấu áo chạm chân.
+3. Thêm một dòng vào bảng bằng lệnh `add` ở trên, với `idx` là vị trí mới.
+
+Nhân vật tạo trước bản cập nhật này vẫn giữ tên, tu vi và bộ đang mặc (được ghi là đã sở hữu).
 
 ## Mở rộng
 

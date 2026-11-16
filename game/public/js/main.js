@@ -1,6 +1,6 @@
 // Screens: log in, make a character, play. Plus the shop, the leaderboard and the daily gift.
 import { createFrame, clearFrame, composite, painterFor } from "/pixelfx/core/index.js";
-import { ITEMS, DAILY_STONES, LOOK, realmName } from "/shared/balance.js";
+import { ITEMS, DAILY_STONES, realmName } from "/shared/balance.js";
 import { loadAvatars, drawAvatar, partCanvas } from "./avatar.js";
 import { startGame } from "./game.js";
 
@@ -92,78 +92,104 @@ async function enter() {
   play();
 }
 
+// ---------------------------------------------------------------- previews: a character moving on a small canvas
+/** Keep drawing look() on canvas cv while alive() holds; anim() picks the move. */
+function preview(cv, look, anim, alive) {
+  const W = cv.width, H = cv.height, ctx = cv.getContext("2d"), f = createFrame(W, H), img = ctx.createImageData(W, H);
+  const step = () => {
+    if (!alive()) return;
+    const t = performance.now() / 1000, a = anim();
+    clearFrame(f);
+    const p = painterFor(f);
+    // the chosen move, looping: a jump arcs up and back down, a cast swings every second
+    const jump = a === "jump" ? Math.max(0, Math.sin(((t % 1.1) / 1.1) * Math.PI)) : 0;
+    p.place(W / 2, H - 12 - Math.round(jump * 14), false);
+    drawAvatar(p, look(), {
+      t, moving: a === "walk", air: a === "jump" && jump > 0.05,
+      cast: a === "cast" ? { type: Math.floor(t / 1.2) % 2 ? "bolt" : "melee", age: t % 1.2 } : null,
+    });
+    composite(f, img.data, null);
+    ctx.putImageData(img, 0, 0);
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function animButtons(box, set) {
+  for (const b of box.querySelectorAll("[data-anim]"))
+    b.addEventListener("click", () => {
+      set(b.dataset.anim);
+      for (const x of box.querySelectorAll("[data-anim]")) x.classList.toggle("on", x === b);
+    });
+}
+/** A grid of part thumbnails: pick(item) on click; badge(item) is an optional corner label (a price, a tick). */
+function partGrid(box, items, isOn, pick, badge = () => "") {
+  box.innerHTML = "";
+  for (const it of items) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.title = it.name;
+    b.append(partCanvas(it.kind, it.g, it.idx));
+    const tag = badge(it);
+    if (tag) {
+      const s = document.createElement("span");
+      s.className = "tag";
+      s.textContent = tag;
+      b.append(s);
+    }
+    b.classList.toggle("on", isOn(it));
+    b.addEventListener("click", () => {
+      pick(it);
+      [...box.children].forEach((x, i) => x.classList.toggle("on", isOn(items[i])));
+    });
+    box.append(b);
+  }
+}
+
 // ---------------------------------------------------------------- making a character: gender, name, hair, robe
+// Only the free starter styles are offered here; the rest are bought in game at the Y Các.
 const look = { g: "m", hair: 0, robe: 0 };
-let anim = "idle";
+let anim = "idle", catalog = [];
+const starters = (kind) => catalog.filter((c) => c.starter && c.kind === kind && c.g === look.g);
+const pickRandom = (kind) => {
+  const s = starters(kind);
+  if (s.length) look[kind] = s[Math.floor(Math.random() * s.length)].idx;
+};
 async function showCreate() {
   show("create");
   await loadAvatars();
-  look.hair = rnd(LOOK.hair);
-  look.robe = rnd(LOOK.robe);
+  catalog = (await call("/cosmetics")).items;
+  pickRandom("hair");
+  pickRandom("robe");
   fillPicks();
-  requestAnimationFrame(drawPreview);
+  preview($("pv"), () => look, () => anim, () => !$("create").classList.contains("hidden"));
 }
-const rnd = (n) => Math.floor(Math.random() * n);
 function fillPicks() {
   for (const b of document.querySelectorAll("[data-g]")) b.classList.toggle("on", b.dataset.g === look.g);
-  for (const [kind, n, box] of [["hair", LOOK.hair, $("hairs")], ["robe", LOOK.robe, $("robes")]]) {
-    box.innerHTML = "";
-    for (let i = 0; i < n; i++) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.title = `${kind === "hair" ? "Tóc" : "Y phục"} ${i + 1}`;
-      b.append(partCanvas(kind, look.g, i));
-      b.addEventListener("click", () => {
-        look[kind] = i;
-        markPicks();
-      });
-      box.append(b);
-    }
-  }
-  markPicks();
-}
-function markPicks() {
   for (const [kind, box] of [["hair", $("hairs")], ["robe", $("robes")]])
-    [...box.children].forEach((b, i) => b.classList.toggle("on", i === look[kind]));
-  $("hairNo").textContent = `${look.hair + 1}/${LOOK.hair}`;
-  $("robeNo").textContent = `${look.robe + 1}/${LOOK.robe}`;
+    partGrid(box, starters(kind), (it) => it.idx === look[kind], (it) => {
+      look[kind] = it.idx;
+      names();
+    });
+  names();
+}
+function names() {
+  $("hairNo").textContent = starters("hair").find((c) => c.idx === look.hair)?.name ?? "";
+  $("robeNo").textContent = starters("robe").find((c) => c.idx === look.robe)?.name ?? "";
 }
 for (const b of document.querySelectorAll("[data-g]"))
   b.addEventListener("click", () => {
     if (look.g === b.dataset.g) return;
     look.g = b.dataset.g;
+    pickRandom("hair");
+    pickRandom("robe");
     fillPicks();
   });
-for (const b of document.querySelectorAll("[data-anim]"))
-  b.addEventListener("click", () => {
-    anim = b.dataset.anim;
-    for (const x of document.querySelectorAll("[data-anim]")) x.classList.toggle("on", x === b);
-  });
+animButtons($("create"), (a) => (anim = a));
 $("randLook").addEventListener("click", () => {
-  look.hair = rnd(LOOK.hair);
-  look.robe = rnd(LOOK.robe);
-  markPicks();
-  for (const box of [$("hairs"), $("robes")]) box.querySelector(".on")?.scrollIntoView({ block: "nearest" });
+  pickRandom("hair");
+  pickRandom("robe");
+  fillPicks();
 });
-
-let pv = null;
-function drawPreview() {
-  if ($("create").classList.contains("hidden")) return;
-  const cv = $("pv"), W = cv.width, H = cv.height, t = performance.now() / 1000;
-  pv ??= { ctx: cv.getContext("2d"), f: createFrame(W, H), img: cv.getContext("2d").createImageData(W, H) };
-  clearFrame(pv.f);
-  const p = painterFor(pv.f);
-  // the chosen move, looping: a jump arcs up and back down, a cast swings every second
-  const jump = anim === "jump" ? Math.max(0, Math.sin((t % 1.1) / 1.1 * Math.PI)) : 0;
-  p.place(W / 2, H - 12 - Math.round(jump * 14), false);
-  drawAvatar(p, look, {
-    t, moving: anim === "walk", air: anim === "jump" && jump > 0.05,
-    cast: anim === "cast" ? { type: Math.floor(t / 1.2) % 2 ? "bolt" : "melee", age: t % 1.2 } : null,
-  });
-  composite(pv.f, pv.img.data, null);
-  pv.ctx.putImageData(pv.img, 0, 0);
-  requestAnimationFrame(drawPreview);
-}
 $("createForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   $("createErr").textContent = "";
@@ -244,6 +270,94 @@ $("shopBtn").addEventListener("click", async () => {
   panel("Đan Các", wrap);
 });
 
+// ---------------------------------------------------------------- the wardrobe (Y Các): try on, buy and wear
+$("wardBtn").addEventListener("click", async () => {
+  let w, me;
+  try {
+    [w, me] = await Promise.all([call("/cosmetics"), call("/me")]);
+  } catch (err) {
+    return flash(err.message);
+  }
+  if (!me.character) return;
+  state.character = me.character;
+  const g = me.character.look.g, owned = new Set(w.owned), trying = { ...me.character.look };
+  let kind = "hair", sel = null, wAnim = "idle";
+  const has = (it) => it.starter || owned.has(it.id);
+  const wearing = (it) => me.character.look[it.kind] === it.idx;
+
+  const wrap = document.createElement("div");
+  wrap.className = "ward";
+  wrap.innerHTML = `<div class="preview"><canvas width="96" height="96"></canvas>
+    <div class="pvbar"><button type="button" data-anim="idle" class="on">Đứng</button><button type="button" data-anim="walk">Đi</button>
+    <button type="button" data-anim="jump">Nhảy</button><button type="button" data-anim="cast">Chiêu</button></div>
+    <div class="sel"><b class="nm"></b><span class="st dim"></span><button type="button" class="primary act"></button></div></div>
+    <div class="choices"><div class="row"><div class="seg"><button type="button" data-k="hair" class="on">Tóc</button>
+    <button type="button" data-k="robe">Y phục</button></div><span class="bal"></span></div><div class="picks big"></div></div>`;
+  const $$ = (s) => wrap.querySelector(s);
+  const bal = () => ($$(".bal").textContent = `💎 ${me.character.stones} linh thạch`);
+  const grid = () => {
+    // free and owned first, then the shop from cheapest
+    const items = w.items.filter((it) => it.kind === kind && it.g === g && (it.onSale || has(it)));
+    items.sort((a, b) => has(b) - has(a) || a.price - b.price || a.idx - b.idx);
+    partGrid($$(".picks"), items, (it) => sel?.id === it.id, (it) => {
+      sel = it;
+      trying[it.kind] = it.idx;
+      side();
+    }, (it) => (wearing(it) ? "✓" : has(it) ? "" : `💎${it.price}`));
+  };
+  const side = () => {
+    const b = $$(".act"), st = $$(".st");
+    $$(".nm").textContent = sel?.name ?? "Chọn một món để thử";
+    b.hidden = !sel;
+    b.disabled = false;
+    st.textContent = "";
+    if (!sel) return;
+    if (wearing(sel)) (st.textContent = "Đang mặc"), (b.hidden = true);
+    else if (has(sel)) (st.textContent = sel.starter ? "Miễn phí" : "Đã có"), (b.textContent = "Mặc");
+    else {
+      st.textContent = `${sel.price} linh thạch`;
+      b.textContent = me.character.stones >= sel.price ? "Mua và mặc" : "Chưa đủ linh thạch";
+      b.disabled = me.character.stones < sel.price;
+    }
+  };
+  $$(".act").addEventListener("click", async () => {
+    const it = sel, b = $$(".act");
+    if (!it) return;
+    if (!has(it) && !confirm(`Mua ${it.name} với giá ${it.price} linh thạch?`)) return;
+    b.disabled = true;
+    try {
+      if (has(it)) me.character = (await call("/cosmetics/wear", { method: "POST", body: { id: it.id } })).character;
+      else {
+        const out = await call("/cosmetics/buy", { method: "POST", body: { id: it.id, wear: true } });
+        me.character = out.character;
+        w = { items: out.items, owned: out.owned };
+        owned.clear();
+        for (const id of out.owned) owned.add(id);
+        flash(`Đã mua ${it.name}!`);
+      }
+      state.character = me.character;
+      Object.assign(trying, me.character.look);
+      bal();
+      grid();
+    } catch (err) {
+      alertIn(wrap, err.message);
+    }
+    side();
+  });
+  for (const b of wrap.querySelectorAll("[data-k]"))
+    b.addEventListener("click", () => {
+      kind = b.dataset.k;
+      for (const x of wrap.querySelectorAll("[data-k]")) x.classList.toggle("on", x === b);
+      grid();
+    });
+  animButtons(wrap, (a) => (wAnim = a));
+  bal();
+  grid();
+  side();
+  panel("Y Các", wrap);
+  preview($$("canvas"), () => trying, () => wAnim, () => !$("panel").hidden && wrap.isConnected);
+});
+
 $("rankBtn").addEventListener("click", async () => {
   const wrap = document.createElement("div");
   wrap.className = "board";
@@ -283,6 +397,7 @@ $("helpBtn").addEventListener("click", () => {
   d.className = "help";
   d.innerHTML = `<p><b>Máy tính:</b> A/D hoặc ←/→ để đi, W/↑/Space để nhảy, S + nhảy để xuống khỏi ván gỗ. Chuột để ngắm. J/K/L (hoặc 1/2/3, chuột trái/phải) dùng chiêu. 4: Hồi Xuân Đan, 5: Tụ Khí Đan. Enter để trò chuyện.</p>
   <p><b>Điện thoại:</b> kéo ngón tay trái/phải bên trái màn hình để đi (kéo lên để nhảy, kéo xuống + nhảy để xuống ván), nút Nhảy và các nút chiêu bên phải; chiêu tự nhắm kẻ địch gần nhất.</p>
+  <p><b>Y Các (👘):</b> thử và mua kiểu tóc, y phục mới bằng linh thạch; đồ đã mua mặc lại lúc nào cũng được.</p>
   <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (bệ đá dưới đĩa âm dương xoay, trước điện thờ) để tăng tu vi, tối đa mỗi ngày có hạn.</p>
   <p><b>Tân Thủ Thôn:</b> thôn khởi đầu, an toàn, không có yêu thú. Đi sang phải qua chợ, lên đồi; mũi tên vàng dưới chân bậc thang đá ở cuối thôn phía đông là lối ra (bản đồ mới sẽ mở sau).</p>
   <p><b>Sắp mở:</b> bản đồ luyện cấp đánh yêu thú và đấu trường tỷ thí. Ở đấu trường, chỉ số được cân bằng (cảnh giới cao chỉ hơn tối đa 10%) và không dùng được đan hồi phục.</p>`;

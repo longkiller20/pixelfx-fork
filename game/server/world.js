@@ -135,12 +135,17 @@ export class World {
     }
   }
 
-  /** The database changed under a connected player (a purchase, the daily gift): take its numbers. */
+  /** The database changed under a connected player (a purchase, the daily gift, a new look): take its numbers. */
   refresh(uid, ch) {
     const p = this.players.get(uid);
     if (p && ch) {
       this.applyBase(p, ch);
       this.sendMe(p);
+      // a new hair style or robe: everyone sees it
+      if (ch.look && JSON.stringify(ch.look) !== JSON.stringify(p.look)) {
+        p.look = ch.look;
+        this.broadcast({ t: "pi", ...info(p) });
+      }
     }
   }
 
