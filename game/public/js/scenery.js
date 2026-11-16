@@ -1,14 +1,21 @@
-// The side-view town, drawn: Kenney's Pixel Platformer tiles (CC0) for the ground, planks, water and greenery, and the
-// xianxia pieces (pagoda houses, the temple, the gate, stone lanterns, cherry trees, bamboo, the taiji dais) painted in code
-// at the same pixel size. Everything is painted once at half the world's size (a tile is 18 px there, 36 in the world) and
-// doubled on screen, so every pixel stays square and sharp. Behind it all, layers of mountains, floating isles and cloud
-// slide past slower than the town.
+// The side-view town, drawn at the characters' own pixel size: one art pixel is one world pixel. That lets buildings and trees
+// be as big as they really are beside a person: doors taller than you, houses three times your height, a temple and a pagoda
+// towering over the street, cherry trees above the roofs.
+//   terrain  Frogatto's old tile art (CC0): earth, grass, stone bricks, flowers, 16 px tiles, four to a 32 px map cell
+//   roofs    the Oriental Roof Tiles sheet (CC0): an end piece and a repeating middle, in four colours, for every roof
+//   the rest walls, doors, lattice windows, pillars, lanterns, cherry trees, bamboo, clouds, water and sky are painted here
+// Everything still is painted once into one picture of the whole map; the far scenery (sky, peaks, isles, cloud) slides behind
+// at its own pace, and water moves every frame.
 import { hex, mix } from "/pixelfx/core/index.js";
 
 const C = (h) => hex(h);
-const FALL = ["#1a5a9a", "#2e8ad0", "#4ab4ee", "#9adcff", "#ffffff"].map((h) => C(h));
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
-const clear = 0;
+const dith = (x, y) => BAYER[((y & 3) << 2) | (x & 3)];
+const hash = (x, y, s = 0) => {
+  let h = (x * 374761393 + y * 668265263 + s * 1274126177) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
 
 class Buf {
   constructor(w, h) {
@@ -19,24 +26,34 @@ class Buf {
   set(x, y, c) {
     x = Math.round(x);
     y = Math.round(y);
-    if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.px[y * this.w + x] = c;
+    if (c && x >= 0 && y >= 0 && x < this.w && y < this.h) this.px[y * this.w + x] = c;
   }
   get(x, y) {
     return x >= 0 && y >= 0 && x < this.w && y < this.h ? this.px[y * this.w + x] : 0;
   }
   rect(x, y, w, h, c) {
+    x = Math.round(x);
+    y = Math.round(y);
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.set(x + i, y + j, c);
+  }
+  /** A rect shaded top to bottom between two colours with an ordered dither. */
+  grad(x, y, w, h, a, b) {
+    x = Math.round(x);
+    y = Math.round(y);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.set(x + i, y + j, dith(x + i, y + j) < j / Math.max(1, h - 1) ? b : a);
   }
   disc(cx, cy, r, c) {
     for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r + r * 0.6) this.set(cx + x, cy + y, c);
   }
+  /** Copy a picture (Uint32 pixels, w x h) with its top left at (x, y), optionally mirrored; transparent pixels skipped. */
+  blit(src, sw, sx0, sy0, w, h, x, y, flip = false) {
+    for (let j = 0; j < h; j++)
+      for (let i = 0; i < w; i++) {
+        const c = src[(sy0 + j) * sw + sx0 + (flip ? w - 1 - i : i)];
+        if (c >>> 24 > 128) this.set(x + i, y + j, c | 0xff000000);
+      }
+  }
 }
-
-const hash = (x, y, s = 0) => {
-  let h = (x * 374761393 + y * 668265263 + s * 1274126177) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-};
 
 async function loadPixels(src) {
   const img = new Image();
@@ -51,261 +68,318 @@ async function loadPixels(src) {
   return { w: img.width, h: img.height, px: new Uint32Array(d.buffer.slice(0)) };
 }
 
-// ---------------------------------------------------------------- the palette of the hand-painted pieces
+// ---------------------------------------------------------------- colours of the painted pieces
 const P = {
-  ink: C("#1d1626"), ink2: C("#2b2135"),
-  stone: [C("#3e3a52"), C("#5a5674"), C("#7a7696"), C("#a29ec0"), C("#c8c4de")],
-  wood: [C("#3a1e14"), C("#5a2e1c"), C("#7a4426"), C("#9a5e34")],
-  red: [C("#5a1416"), C("#8a2024"), C("#b8302c"), C("#e04a3a")],
-  gold: [C("#7a5214"), C("#b8801e"), C("#e8b438"), C("#ffe08a")],
-  plaster: [C("#b8a890"), C("#d8ccb2"), C("#f0e6d0")],
-  paper: [C("#c88a3a"), C("#f0b850"), C("#ffe2a0")],
-  roofs: [
-    [C("#1c2238"), C("#2c3656"), C("#3e4c78"), C("#5a6ca0")],
-    [C("#163024"), C("#20483a"), C("#2e6650"), C("#4a8a6c")],
-    [C("#3a1418"), C("#5a1e22"), C("#7c2a2c"), C("#a8443c")],
-  ],
-  pink: [C("#a03c6a"), C("#d76a9a"), C("#f38bb5"), C("#f7b0cc"), C("#ffd6e6")],
-  bamboo: [C("#24461e"), C("#3a6a2a"), C("#5a9a3a"), C("#8ac85a")],
-  bark: [C("#3a2418"), C("#5a3a26"), C("#7a5236")],
-  cloth: [[C("#7a2026"), C("#c8483c"), C("#f0e0c8")], [C("#1e3a6a"), C("#3a6ab8"), C("#e8eef8")]],
-  jade: [C("#0b2a1e"), C("#22a06a"), C("#5cf0a0"), C("#c8ffe0")],
+  ink: C("#1a1420"),
+  stone: [C("#2e2c3e"), C("#4a4860"), C("#66647e"), C("#8a88a2"), C("#b4b2c8")],
+  wood: [C("#2a160e"), C("#4a2616"), C("#6a3a20"), C("#8a5430"), C("#a8703e")],
+  red: [C("#4a0e10"), C("#7a1a1c"), C("#a82a26"), C("#d0402e"), C("#ec6a48")],
+  gold: [C("#6a4612"), C("#a8781c"), C("#d8a832"), C("#f4d070"), C("#fff0b8")],
+  plaster: [C("#9a8a72"), C("#bcae94"), C("#d8ccb2"), C("#ece2cc")],
+  paper: [C("#8a5420"), C("#d08a30"), C("#f0b850"), C("#ffe0a0")],
+  pink: [C("#7a2a52"), C("#b44c80"), C("#dc74a6"), C("#f39ec4"), C("#ffc8de"), C("#ffe8f2")],
+  bark: [C("#2a1a12"), C("#43291c"), C("#5e3c28"), C("#7a5236")],
+  bamboo: [C("#1e3a18"), C("#2e5a22"), C("#46842e"), C("#6aac44"), C("#9ad068")],
+  cloth: [[C("#5a1418"), C("#a8302c"), C("#e8d8bc")], [C("#16305a"), C("#2e5aa0"), C("#e2e8f4")]],
+  jade: [C("#0b2a1e"), C("#1e7a52"), C("#3cc888"), C("#9af0c8"), C("#e0fff0")],
 };
 
-// a curved tiled roof between x0 and x1 (eaves overhanging), its ridge at y, `h` px tall; tips curl up at the ends
-function roof(B, x0, x1, y, h, R) {
-  for (let j = 0; j < h; j++) {
-    const k = j / Math.max(1, h - 1), inset = Math.round((1 - k) * (h * 0.9)), a = x0 + inset, b = x1 - inset;
-    for (let x = a; x <= b; x++) {
-      const c = j === 0 ? P.gold[2] : j === h - 1 ? R[0] : (x + (j & 1) * 2) % 4 === 0 ? R[1] : j < 2 ? R[3] : R[2];
-      B.set(x, y + j, c);
+// ---------------------------------------------------------------- the painted pieces, all at one art pixel per world pixel
+function lattice(B, x, y, w, h) {
+  B.rect(x - 2, y - 2, w + 4, h + 4, P.wood[0]);
+  B.rect(x - 1, y - 1, w + 2, h + 2, P.wood[2]);
+  for (let j = 0; j < h; j++)
+    for (let i = 0; i < w; i++) {
+      const bar = i % 6 === 2 || j % 6 === 2;
+      B.set(x + i, y + j, bar ? P.wood[1] : j < h / 2 ? P.paper[3] : P.paper[2]);
     }
-    B.set(a - 1, y + j, P.ink);
-    B.set(b + 1, y + j, P.ink);
-  }
-  // the ridge, gold, and the upturned tips
-  B.rect(x0 + Math.round(h * 0.9) - 1, y - 1, x1 - x0 - Math.round(h * 1.8) + 3, 1, P.ink);
-  for (const [sx, dir] of [[x0, -1], [x1, 1]]) {
-    B.set(sx + dir, y + h - 2, P.gold[2]);
-    B.set(sx + dir * 2, y + h - 3, P.gold[3]);
-    B.set(sx + dir * 2, y + h - 4, P.gold[2]);
-  }
-  B.rect(x0 - 1, y + h, x1 - x0 + 3, 1, P.ink);
 }
 
-function lattice(B, x, y, w, h, lit = true) {
-  B.rect(x - 1, y - 1, w + 2, h + 2, P.wood[0]);
-  for (let j = 0; j < h; j++)
-    for (let i = 0; i < w; i++) B.set(x + i, y + j, i % 3 === 1 || j % 3 === 1 ? P.wood[1] : lit ? P.paper[(i + j) % 5 === 0 ? 2 : 1] : P.plaster[0]);
+function pillar(B, x, top, bottom, w = 8) {
+  for (let y = top; y < bottom; y++)
+    for (let i = 0; i < w; i++) B.set(x + i, y, i === 0 ? P.red[0] : i === 1 ? P.red[3] : i === w - 1 ? P.red[0] : i > w - 3 ? P.red[1] : P.red[2]);
+  B.rect(x - 2, bottom - 6, w + 4, 6, P.stone[2]);
+  B.rect(x - 2, bottom - 6, w + 4, 1, P.stone[4]);
+}
+
+function door(B, cx, floor, w, h) {
+  const x = Math.round(cx - w / 2), y = floor - h;
+  B.rect(x - 4, y - 6, w + 8, h + 6, P.red[1]);
+  B.rect(x - 4, y - 6, w + 8, 2, P.red[3]);
+  B.rect(x, y, w, h, P.wood[2]);
+  B.rect(x + Math.floor(w / 2) - 1, y, 2, h, P.wood[0]);
+  for (let j = 6; j < h - 4; j += 10) {
+    B.rect(x + 2, y + j, w - 4, 1, P.wood[1]);
+    for (let i = 4; i < w - 3; i += 6) B.set(x + i, y + j + 4, P.gold[2]);
+  }
+  B.disc(x + Math.floor(w / 2) - 5, y + Math.floor(h / 2), 2, P.gold[3]);
+  B.disc(x + Math.floor(w / 2) + 4, y + Math.floor(h / 2), 2, P.gold[3]);
+}
+
+function walls(B, x, w, top, floor) {
+  // plaster with a dithered shadow under the eaves, a stone footing, a timber beam
+  B.grad(x, top, w, floor - top, P.plaster[1], P.plaster[2]);
+  B.grad(x, top, w, 14, P.plaster[0], P.plaster[1]);
+  for (let y = top + 22; y < floor - 12; y += 18) for (let i = 0; i < w; i++) if (hash(x + i, y) > 0.55) B.set(x + i, y, P.plaster[1]);
+  B.rect(x, top, w, 6, P.wood[2]);
+  B.rect(x, top, w, 1, P.wood[4]);
+  B.rect(x, top + 5, w, 1, P.wood[0]);
+  B.rect(x - 4, floor - 10, w + 8, 10, P.stone[1]);
+  B.rect(x - 4, floor - 10, w + 8, 2, P.stone[3]);
+  for (let i = 0; i < w + 8; i += 14) B.rect(x - 4 + i, floor - 8, 1, 8, P.stone[0]);
 }
 
 const PROPS = {
-  house(B, x, y, o = {}) {
-    const w = (o.w ?? 6) * 18, R = P.roofs[o.style ?? 0], wallH = 30;
-    // stone footing, plaster walls between red-brown posts, a beam
-    B.rect(x, y - 3, w, 3, P.stone[1]);
-    B.rect(x, y - 3, w, 1, P.stone[3]);
-    B.rect(x + 2, y - 3 - wallH, w - 4, wallH, P.plaster[1]);
-    for (let j = 0; j < wallH; j += 6) B.rect(x + 2, y - 3 - wallH + j, w - 4, 1, P.plaster[0]);
-    for (let px = x + 2; px <= x + w - 5; px += 18) B.rect(px, y - 3 - wallH, 3, wallH, P.red[1]), B.rect(px, y - 3 - wallH, 1, wallH, P.red[2]);
-    B.rect(x + w - 5, y - 3 - wallH, 3, wallH, P.red[1]);
-    B.rect(x + 2, y - 3 - wallH, w - 4, 3, P.wood[1]);
-    B.rect(x + 2, y - 3 - wallH, w - 4, 1, P.wood[3]);
-    // the door in the middle, windows either side
-    const dx = x + Math.round(w / 2) - 7;
-    B.rect(dx - 1, y - 24, 16, 21, P.wood[0]);
-    B.rect(dx, y - 23, 14, 20, P.wood[2]);
-    B.rect(dx + 6, y - 23, 2, 20, P.wood[1]);
-    B.set(dx + 4, y - 13, P.gold[3]);
-    B.set(dx + 9, y - 13, P.gold[3]);
-    B.rect(dx - 2, y - 26, 18, 2, P.red[2]);
-    for (let wx = x + 9; wx + 10 < dx - 2; wx += 18) lattice(B, wx, y - 24, 9, 8);
-    for (let wx = dx + 21; wx + 10 < x + w - 4; wx += 18) lattice(B, wx, y - 24, 9, 8);
-    roof(B, x - 6, x + w + 5, y - 3 - wallH - 13, 13, R);
-    // a red lantern hanging off the eaves
-    B.rect(x + 4, y - 3 - wallH + 2, 1, 3, P.ink);
-    B.rect(x + 3, y - 3 - wallH + 5, 3, 4, P.red[3]);
-  },
-  temple(B, x, y, o = {}) {
-    const w = (o.w ?? 13) * 18, R = P.roofs[2];
-    // a grand hall: red pillars, gold plaque, two roofs
-    B.rect(x + 6, y - 46, w - 12, 46, P.plaster[1]);
-    for (let j = 0; j < 46; j += 7) B.rect(x + 6, y - 46 + j, w - 12, 1, P.plaster[0]);
-    for (let px = x + 8; px < x + w - 8; px += 22) B.rect(px, y - 46, 5, 46, P.red[1]), B.rect(px + 1, y - 46, 1, 46, P.red[3]), B.rect(px, y - 4, 5, 4, P.stone[2]);
-    const cx = x + Math.round(w / 2);
-    B.rect(cx - 13, y - 34, 26, 34, P.wood[0]);
-    B.rect(cx - 12, y - 33, 24, 33, P.red[2]);
-    for (let i = 0; i < 4; i++) for (let j = 0; j < 5; j++) B.set(cx - 9 + i * 6, y - 28 + j * 6, P.gold[2]);
-    B.rect(cx, y - 33, 1, 33, P.red[0]);
-    for (let wx = x + 16; wx < cx - 22; wx += 22) lattice(B, wx, y - 36, 12, 16);
-    for (let wx = cx + 20; wx < x + w - 26; wx += 22) lattice(B, wx, y - 36, 12, 16);
-    roof(B, x - 8, x + w + 7, y - 46 - 16, 16, R);
-    // the upper storey and its roof, a gold plaque between
-    B.rect(cx - 30, y - 62 - 16, 60, 16, P.red[1]);
-    B.rect(cx - 16, y - 62 - 13, 32, 9, P.gold[1]);
-    B.rect(cx - 15, y - 62 - 12, 30, 7, P.gold[2]);
-    for (let i = 0; i < 4; i++) B.rect(cx - 11 + i * 7, y - 62 - 10, 3, 3, P.red[0]);
-    roof(B, cx - 44, cx + 44, y - 62 - 16 - 14, 14, R);
-    // a gem on the ridge
-    B.rect(cx - 1, y - 62 - 16 - 20, 3, 6, P.jade[2]);
-    B.set(cx, y - 62 - 16 - 21, P.jade[3]);
-  },
-  pagoda(B, x, y) {
-    const R = P.roofs[0];
-    for (let tier = 0; tier < 3; tier++) {
-      const w = 40 - tier * 9, h = 16, by = y - tier * (h + 9), cx = x;
-      B.rect(cx - w / 2 + 3, by - h, w - 6, h, P.plaster[1]);
-      B.rect(cx - w / 2 + 3, by - h, 2, h, P.red[1]);
-      B.rect(cx + w / 2 - 5, by - h, 2, h, P.red[1]);
-      lattice(B, cx - 3, by - h + 4, 6, 7);
-      roof(B, cx - w / 2 - 4, cx + w / 2 + 3, by - h - 8, 8, R);
+  house(B, x, floor, o, R) {
+    const w = o.w * 32, top = floor - 128;
+    walls(B, x, w, top, floor);
+    const n = Math.max(2, Math.round(w / 96));
+    for (let k = 0; k <= n; k++) pillar(B, Math.round(x + (k * (w - 10)) / n), top + 6, floor - 4, 10);
+    door(B, x + w / 2, floor - 10, 40, 92);
+    for (let k = 0; k < n; k++) {
+      const cx = x + ((k + 0.5) * w) / n;
+      if (Math.abs(cx - (x + w / 2)) < 40) continue;
+      lattice(B, Math.round(cx - 15), top + 30, 30, 26);
     }
-    B.rect(x - 1, y - 3 * 25 - 14, 2, 12, P.gold[2]);
-    B.disc(x, y - 3 * 25 - 15, 2, P.gold[3]);
-  },
-  gate(B, x, y) {
-    // a paifang: two red pillars on stone feet, a beam, a gold plaque, a little roof
-    for (const px of [x, x + 52]) {
-      B.rect(px - 3, y - 6, 10, 6, P.stone[2]);
-      B.rect(px - 3, y - 6, 10, 1, P.stone[4]);
-      B.rect(px, y - 58, 5, 52, P.red[2]);
-      B.rect(px, y - 58, 1, 52, P.red[3]);
-      B.rect(px + 4, y - 58, 1, 52, P.red[0]);
-    }
-    B.rect(x - 4, y - 50, 65, 5, P.red[1]);
-    B.rect(x - 4, y - 50, 65, 1, P.red[3]);
-    B.rect(x + 18, y - 46, 21, 10, P.gold[1]);
-    B.rect(x + 19, y - 45, 19, 8, P.ink2);
-    for (let i = 0; i < 3; i++) B.rect(x + 22 + i * 6, y - 43, 3, 4, P.gold[3]);
-    roof(B, x - 12, x + 68, y - 70, 12, P.roofs[1]);
-  },
-  lantern(B, x, y) {
-    // a stone lantern: foot, post, the light box, a little roof, a knob
-    B.rect(x - 5, y - 3, 11, 3, P.stone[1]);
-    B.rect(x - 2, y - 14, 5, 11, P.stone[2]);
-    B.rect(x - 2, y - 14, 1, 11, P.stone[3]);
-    B.rect(x - 5, y - 16, 11, 2, P.stone[2]);
-    B.rect(x - 4, y - 23, 9, 7, P.stone[1]);
-    B.rect(x - 2, y - 22, 5, 5, P.paper[1]);
-    B.rect(x - 1, y - 21, 3, 3, P.paper[2]);
-    B.rect(x - 7, y - 25, 15, 2, P.stone[2]);
-    B.rect(x - 5, y - 27, 11, 2, P.stone[3]);
-    B.rect(x - 1, y - 29, 3, 2, P.stone[3]);
-  },
-  cherry(B, x, y) {
-    // trunk and branches
-    B.rect(x - 2, y - 26, 5, 26, P.bark[1]);
-    B.rect(x - 2, y - 26, 1, 26, P.bark[2]);
-    B.rect(x + 2, y - 26, 1, 26, P.bark[0]);
-    for (let i = 0; i < 8; i++) (B.set(x - 3 - i, y - 22 - i, P.bark[1]), B.set(x + 3 + i, y - 24 - i, P.bark[1]));
-    // the blossom: overlapping clouds of pink, dark under, light on top
-    const blobs = [[-12, -34, 9], [0, -40, 11], [12, -34, 9], [-6, -28, 7], [8, -28, 7], [-18, -28, 6], [18, -29, 6]];
-    for (const [bx, by, r] of blobs) B.disc(x + bx, y + by + 2, r, P.pink[0]);
-    for (const [bx, by, r] of blobs) B.disc(x + bx, y + by, r, P.pink[2]);
-    for (const [bx, by, r] of blobs) B.disc(x + bx - 2, y + by - 3, Math.max(2, r - 4), P.pink[3]);
-    for (let i = 0; i < 26; i++) {
-      const a = hash(x, i, 3) * 6.28, d = hash(x, i, 4) * 18;
-      B.set(x + Math.cos(a) * d * 1.3, y - 34 + Math.sin(a) * d * 0.7, hash(x, i, 5) > 0.5 ? P.pink[4] : P.pink[1]);
+    R.draw(B, x - 28, x + w + 28, top + 14, o.roof ?? 0);
+    // red lanterns hanging from the eaves
+    for (const lx of [x + 18, x + w - 26]) {
+      B.rect(lx + 3, top + 14, 1, 10, P.ink);
+      B.grad(lx, top + 24, 8, 12, P.red[3], P.red[1]);
+      B.rect(lx + 1, top + 23, 6, 1, P.gold[2]);
+      B.rect(lx + 1, top + 36, 6, 1, P.gold[2]);
     }
   },
-  bamboo(B, x, y) {
-    for (let s = 0; s < 4; s++) {
-      const bx = x - 6 + s * 4, h = 44 + Math.round(hash(x, s) * 16);
+  temple(B, x, floor, o, R) {
+    const w = o.w * 32, cx = Math.round(x + w / 2), top = floor - 138;
+    // the main hall: a broad stair, red pillars, a great door under a gold plaque
+    for (let s = 0; s < 3; s++) B.rect(cx - 70 - s * 12, floor - 8 + s * 0 - (2 - s) * 8, 140 + s * 24, 8, P.stone[2 + (s & 1)]);
+    walls(B, x, w, top, floor - 24);
+    for (let k = 0; k <= 6; k++) pillar(B, Math.round(x + (k * (w - 12)) / 6), top + 6, floor - 24, 12);
+    door(B, cx, floor - 24, 64, 100);
+    for (const s of [-1, 1]) for (const d of [1, 2]) lattice(B, cx + s * (40 + d * 50) - (s < 0 ? 34 : 0), top + 34, 34, 40);
+    R.draw(B, x - 34, x + w + 34, top + 14, 2);
+    // the upper storey and its own roof, a plaque between
+    const uw = 200, ux = cx - uw / 2, ut = top + 14 - 104 - 58;
+    walls(B, ux, uw, ut, top + 14 - 96);
+    for (let k = 0; k <= 3; k++) pillar(B, Math.round(ux + (k * (uw - 10)) / 3), ut + 6, top + 14 - 96, 10);
+    B.rect(cx - 40, ut + 16, 80, 26, P.gold[1]);
+    B.rect(cx - 37, ut + 19, 74, 20, P.red[0]);
+    for (let i = 0; i < 4; i++) B.rect(cx - 28 + i * 16, ut + 24, 8, 10, P.gold[3]);
+    R.draw(B, ux - 22, ux + uw + 22, ut + 12, 2);
+    // a jade pearl on the ridge
+    B.disc(cx, ut + 12 - 104 + 2, 5, P.jade[2]);
+    B.disc(cx - 1, ut + 12 - 104 + 1, 2, P.jade[4]);
+  },
+  pagoda(B, cx, floor, o, R) {
+    // two storeys, each with its own roof, and a gold spire
+    let base = floor;
+    for (const [w, h, roofW] of [[150, 70, 0], [120, 58, 0]]) {
+      const x = cx - w / 2, top = base - h;
+      walls(B, x, w, top, base);
+      for (let k = 0; k <= 2; k++) pillar(B, Math.round(x + (k * (w - 10)) / 2), top + 6, base - 4, 10);
+      lattice(B, cx - 14, top + 20, 28, 30);
+      R.draw(B, x - 24 - roofW, x + w + 24 + roofW, top + 10, 0);
+      base = top + 10 - 96;
+    }
+    B.rect(cx - 2, base - 40, 4, 48, P.gold[2]);
+    B.rect(cx - 1, base - 40, 1, 48, P.gold[4]);
+    for (let k = 0; k < 4; k++) B.rect(cx - 7 + k, base - 30 + k * 7, 14 - k * 2, 3, P.gold[1]);
+    B.disc(cx, base - 44, 4, P.gold[3]);
+  },
+  gate(B, x, floor, o, R) {
+    // a paifang: two tall red pillars on stone, two beams, a gold plaque, a roof
+    const span = 150;
+    for (const px of [x, x + span]) {
+      B.rect(px - 8, floor - 18, 30, 18, P.stone[2]);
+      B.rect(px - 8, floor - 18, 30, 3, P.stone[4]);
+      pillar(B, px, floor - 210, floor - 18, 14);
+    }
+    for (const [y, h] of [[floor - 196, 14], [floor - 150, 10]]) {
+      B.rect(x - 22, y, span + 58, h, P.red[1]);
+      B.rect(x - 22, y, span + 58, 2, P.red[3]);
+      B.rect(x - 22, y + h - 2, span + 58, 2, P.red[0]);
+    }
+    B.rect(x + span / 2 - 34, floor - 182, 82, 32, P.gold[1]);
+    B.rect(x + span / 2 - 31, floor - 179, 76, 26, P.ink);
+    for (let i = 0; i < 3; i++) B.rect(x + span / 2 - 20 + i * 20, floor - 174, 10, 16, P.gold[3]);
+    R.draw(B, x - 40, x + span + 54, floor - 196 + 6, 3);
+  },
+  lantern(B, cx, floor) {
+    // a stone lantern a little lower than a person's shoulder: foot, shaft, the light box, a capped roof
+    const S = P.stone;
+    B.rect(cx - 12, floor - 8, 24, 8, S[1]);
+    B.rect(cx - 12, floor - 8, 24, 2, S[3]);
+    B.rect(cx - 5, floor - 34, 10, 26, S[2]);
+    B.rect(cx - 5, floor - 34, 2, 26, S[4]);
+    B.rect(cx + 3, floor - 34, 2, 26, S[1]);
+    B.rect(cx - 11, floor - 38, 22, 4, S[2]);
+    B.rect(cx - 9, floor - 52, 18, 14, S[1]);
+    B.grad(cx - 6, floor - 50, 12, 10, P.paper[3], P.paper[1]);
+    B.rect(cx - 16, floor - 56, 32, 4, S[2]);
+    B.rect(cx - 16, floor - 56, 32, 1, S[4]);
+    B.rect(cx - 11, floor - 60, 22, 4, S[3]);
+    B.rect(cx - 3, floor - 65, 6, 5, S[3]);
+  },
+  cherry(B, cx, floor) {
+    // a big old cherry: a twisting trunk well above the roofs, boughs, then billows of blossom lit from the top left
+    const H = 250;
+    for (let y = 0; y < H - 60; y++) {
+      const wob = Math.round(Math.sin(y * 0.05) * 4), w = Math.round(16 - (y / H) * 8);
+      for (let i = 0; i < w; i++) B.set(cx - w / 2 + i + wob, floor - y, i < 2 ? P.bark[3] : i > w - 3 ? P.bark[0] : hash(cx + i, y) > 0.8 ? P.bark[0] : P.bark[1 + (i < w / 3 ? 1 : 0)]);
+    }
+    const bough = (x0, y0, dx, dy, len) => {
+      for (let t = 0; t < len; t++) for (let k = -2; k <= 2; k++) B.set(x0 + dx * t, y0 + dy * t + k, k < -1 ? P.bark[3] : P.bark[1]);
+    };
+    bough(cx, floor - 150, -1.2, -0.5, 60);
+    bough(cx, floor - 175, 1.2, -0.55, 64);
+    bough(cx, floor - 190, -0.4, -0.8, 40);
+    const blobs = [[-80, -200, 34], [-40, -232, 40], [10, -246, 44], [62, -228, 40], [96, -196, 32], [-60, -176, 28], [40, -186, 32], [0, -200, 34], [-100, -168, 22], [110, -168, 20]];
+    for (const [bx, by, r] of blobs) B.disc(cx + bx, floor + by + 6, r, P.pink[0]);
+    for (const [bx, by, r] of blobs)
+      for (let y = -r; y <= r; y++)
+        for (let x = -r; x <= r; x++) {
+          if (x * x + y * y > r * r) continue;
+          const lit = (-x - y) / (r * 1.5) + 0.5, d = dith(cx + bx + x, floor + by + y);
+          const c = lit > 0.95 + d * 0.2 ? P.pink[4] : lit > 0.6 + d * 0.25 ? P.pink[3] : lit > 0.2 + d * 0.25 ? P.pink[2] : P.pink[1];
+          B.set(cx + bx + x, floor + by + y, c);
+        }
+    for (let i = 0; i < 160; i++) {
+      const a = hash(cx, i, 3) * 6.28, d = Math.sqrt(hash(cx, i, 4)) * 110;
+      B.set(cx + Math.cos(a) * d, floor - 210 + Math.sin(a) * d * 0.4, hash(cx, i, 5) > 0.5 ? P.pink[5] : P.pink[1]);
+    }
+    // fallen petals on the ground
+    for (let i = 0; i < 40; i++) B.set(cx - 90 + hash(cx, i, 7) * 180, floor - 1 - (hash(cx, i, 8) > 0.7 ? 1 : 0), P.pink[3]);
+  },
+  bamboo(B, cx, floor) {
+    for (let s = 0; s < 5; s++) {
+      const bx = cx - 24 + s * 11 + Math.round(hash(cx, s) * 4), h = 210 + Math.round(hash(cx, s, 2) * 70);
       for (let j = 0; j < h; j++) {
-        const knot = (j + s * 3) % 9 === 0;
-        B.set(bx, y - j, knot ? P.bamboo[0] : P.bamboo[2]);
-        B.set(bx + 1, y - j, knot ? P.bamboo[1] : P.bamboo[3]);
+        const knot = (j + s * 7) % 26 < 2;
+        for (let i = 0; i < 6; i++) B.set(bx + i, floor - j, knot ? (i === 0 ? P.bamboo[0] : P.bamboo[4]) : i === 0 ? P.bamboo[0] : i === 1 ? P.bamboo[3] : i === 5 ? P.bamboo[1] : P.bamboo[2]);
       }
-      for (let l = 0; l < 4; l++) {
-        const ly = y - h + 4 + l * 7, dir = (l + s) & 1 ? 1 : -1;
-        for (let k = 0; k < 6; k++) B.set(bx + dir * (2 + k), ly + (k >> 1), k < 3 ? P.bamboo[2] : P.bamboo[1]);
+      for (let l = 0; l < 7; l++) {
+        const ly = floor - h + 8 + l * 22, dir = (l + s) & 1 ? 1 : -1, len = 18 + Math.round(hash(cx, s * 9 + l) * 10);
+        for (let k = 0; k < len; k++) {
+          const y = ly + Math.round(k * 0.45);
+          B.set(bx + 3 + dir * (3 + k), y, k < len * 0.6 ? P.bamboo[3] : P.bamboo[2]);
+          B.set(bx + 3 + dir * (3 + k), y + 1, P.bamboo[1]);
+        }
       }
     }
   },
-  taiji(B, x, y) {
-    // the dais: three stone steps; the floating taiji is drawn live
-    B.rect(x - 36, y - 4, 72, 4, P.stone[1]);
-    B.rect(x - 36, y - 4, 72, 1, P.stone[3]);
-    B.rect(x - 28, y - 8, 56, 4, P.stone[2]);
-    B.rect(x - 28, y - 8, 56, 1, P.stone[4]);
-    for (let i = -24; i <= 24; i += 8) B.set(x + i, y - 6, P.gold[2]);
-  },
-  well(B, x, y) {
-    B.rect(x - 10, y - 10, 21, 10, P.stone[1]);
-    B.rect(x - 10, y - 10, 21, 2, P.stone[3]);
-    for (let i = 0; i < 21; i += 5) B.rect(x - 10 + i, y - 8, 1, 8, P.stone[0]);
-    B.rect(x - 9, y - 30, 2, 20, P.wood[2]);
-    B.rect(x + 8, y - 30, 2, 20, P.wood[2]);
-    roof(B, x - 14, x + 14, y - 38, 7, P.roofs[1]);
-    B.rect(x, y - 28, 1, 10, P.ink);
-    B.rect(x - 2, y - 18, 5, 4, P.wood[3]);
-  },
-  stall(B, x, y, o = {}) {
-    const w = (o.w ?? 3) * 18, [d, m, l] = P.cloth[o.style ?? 0];
-    B.rect(x + 2, y - 30, 2, 30, P.wood[1]);
-    B.rect(x + w - 4, y - 30, 2, 30, P.wood[1]);
-    B.rect(x, y - 12, w, 3, P.wood[3]);
-    B.rect(x + 2, y - 9, w - 4, 9, P.wood[1]);
-    // goods: jars and bundles
-    for (let i = 4; i < w - 6; i += 7) {
-      B.rect(x + i, y - 17, 5, 5, i % 2 ? P.jade[1] : P.paper[0]);
-      B.rect(x + i + 1, y - 18, 3, 1, P.ink2);
+  taiji(B, cx, floor) {
+    // the dais: three wide stone steps, gold studs; the floating taiji itself is drawn live
+    for (let s = 0; s < 3; s++) {
+      const w = 220 - s * 40, y = floor - 10 - s * 10;
+      B.rect(cx - w / 2, y, w, 10, P.stone[1 + s]);
+      B.rect(cx - w / 2, y, w, 2, P.stone[3 + (s > 0 ? 1 : 0)]);
+      for (let i = -w / 2 + 10; i < w / 2 - 6; i += 20) B.rect(cx + i, y + 5, 3, 3, P.gold[2]);
     }
-    // the striped awning
-    for (let j = 0; j < 8; j++) for (let i = -3; i < w + 3; i++) B.set(x + i, y - 38 + j, j === 7 ? d : Math.floor((i + 9) / 6) % 2 ? m : l);
-    for (let i = -3; i < w + 3; i += 6) B.rect(x + i, y - 30, 3, 2, m);
   },
-  spawnstone(B, x, y) {
-    // a stele that brings travellers here: grey stone, a glowing jade rune
-    B.rect(x - 10, y - 4, 21, 4, P.stone[1]);
-    B.rect(x - 7, y - 34, 15, 30, P.stone[2]);
-    B.rect(x - 7, y - 34, 2, 30, P.stone[3]);
-    B.rect(x - 9, y - 37, 19, 3, P.stone[3]);
-    B.rect(x - 2, y - 28, 5, 14, P.jade[1]);
-    B.rect(x - 1, y - 27, 3, 12, P.jade[2]);
+  well(B, cx, floor, o, R) {
+    B.rect(cx - 30, floor - 30, 60, 30, P.stone[1]);
+    B.rect(cx - 30, floor - 30, 60, 4, P.stone[3]);
+    for (let j = 0; j < 26; j += 9) for (let i = (j / 9) % 2 ? 8 : 0; i < 60; i += 16) B.rect(cx - 30 + i, floor - 26 + j, 1, 9, P.stone[0]);
+    B.rect(cx - 28, floor - 100, 6, 70, P.wood[2]);
+    B.rect(cx + 22, floor - 100, 6, 70, P.wood[2]);
+    B.rect(cx - 30, floor - 100, 60, 5, P.wood[1]);
+    B.rect(cx - 1, floor - 95, 2, 34, P.ink);
+    B.grad(cx - 7, floor - 62, 14, 12, P.wood[3], P.wood[1]);
+  },
+  stall(B, x, floor, o) {
+    const w = o.w * 32, [d, m, l] = P.cloth[o.style ?? 0];
+    B.rect(x + 4, floor - 110, 6, 110, P.wood[1]);
+    B.rect(x + w - 10, floor - 110, 6, 110, P.wood[1]);
+    B.rect(x, floor - 42, w, 8, P.wood[3]);
+    B.rect(x, floor - 42, w, 2, P.wood[4]);
+    B.grad(x + 4, floor - 34, w - 8, 34, P.wood[2], P.wood[0]);
+    // goods: jars, rolls of cloth, baskets of fruit
+    for (let i = 10, k = 0; i < w - 20; i += 18, k++) {
+      if (k % 3 === 0) {
+        B.grad(x + i, floor - 62, 14, 20, P.jade[2], P.jade[0]);
+        B.rect(x + i + 3, floor - 64, 8, 2, P.ink);
+      } else if (k % 3 === 1) {
+        B.grad(x + i, floor - 56, 14, 14, P.paper[2], P.paper[0]);
+      } else for (let f = 0; f < 5; f++) B.disc(x + i + 4 + (f % 3) * 3, floor - 48 - Math.floor(f / 3) * 5, 3, f & 1 ? P.red[3] : P.gold[3]);
+    }
+    // the striped awning, scalloped at the front
+    for (let j = 0; j < 22; j++) for (let i = -10; i < w + 10; i++) B.set(x + i, floor - 132 + j, j > 19 ? d : Math.floor((i + 40) / 14) % 2 ? m : l);
+    for (let i = -10; i < w + 10; i += 14) for (let k = 0; k < 7; k++) B.rect(x + i + k, floor - 110, 14 - k * 2, 1, m), B.rect(x + i + 3, floor - 110 + 3, 8, 2, m);
+  },
+  spawnstone(B, cx, floor) {
+    // a stele that brings travellers here: grey stone, a glowing jade rune, a tortoise plinth
+    B.grad(cx - 40, floor - 22, 80, 22, P.stone[2], P.stone[0]);
+    B.rect(cx - 40, floor - 22, 80, 3, P.stone[4]);
+    B.grad(cx - 22, floor - 132, 44, 110, P.stone[3], P.stone[1]);
+    B.rect(cx - 22, floor - 132, 3, 110, P.stone[4]);
+    B.rect(cx - 26, floor - 140, 52, 8, P.stone[3]);
+    B.rect(cx - 26, floor - 140, 52, 2, P.stone[4]);
+    B.grad(cx - 7, floor - 118, 14, 70, P.jade[3], P.jade[1]);
+    B.rect(cx - 3, floor - 114, 6, 62, P.jade[4]);
   },
 };
 
-// ---------------------------------------------------------------- the far scenery, layer by layer
+// a cloud you can stand on: flat white top, billows under it, a faint jade glow inside
+function cloudCell(B, x, y, leftEnd, rightEnd, seed) {
+  const W = C("#ffffff"), L = C("#eef4ff"), M = C("#cddcf4"), D = C("#9cb0dc");
+  for (let i = 0; i < 32; i++) {
+    const inL = leftEnd ? 8 - i : -1, inR = rightEnd ? i - 23 : -1, cut = Math.max(0, inL, inR);
+    const depth = 13 + Math.round(Math.sin(i * 0.5 + seed * 2.1) * 2.5) - cut;
+    for (let j = cut; j < depth; j++) B.set(x + i, y + j, j === cut ? W : j < cut + 4 ? L : j < depth - 3 ? M : D);
+  }
+  B.rect(x + 10 + (seed % 3) * 4, y + 6, 3, 2, P.jade[3]);
+}
+
+function bridgeCell(B, x, y, leftEnd, rightEnd) {
+  for (let i = 0; i < 32; i++) {
+    const c = i % 8 === 7 ? P.wood[0] : i % 8 === 0 ? P.wood[4] : P.wood[2];
+    B.rect(x + i, y, 1, 9, c);
+    B.set(x + i, y + 9, P.wood[0]);
+  }
+  for (let i = 0; i < 32; i++) B.set(x + i, y - 20 + Math.round(Math.sin((i / 32) * Math.PI) * 4), P.bark[3]);
+  if (leftEnd || rightEnd) {
+    const px = leftEnd ? x : x + 28;
+    B.rect(px, y - 26, 4, 26, P.wood[1]);
+    B.rect(px, y - 28, 4, 2, P.gold[2]);
+  }
+  B.rect(x + 15, y - 22, 2, 22, P.wood[1]);
+}
+
+// ---------------------------------------------------------------- the far scenery, layer by layer, at half size (it's far away)
 function layers(w, h) {
-  // the sky: a gradient in a few flat steps, blended with an ordered dither so it reads as pixels, not stripes
   const top = [C("#24306a"), C("#3a58a0"), C("#6a94d0"), C("#a8c8ea"), C("#f2dcc4")];
   const skyA = new Uint32Array(h), skyB = new Uint32Array(h), skyK = new Float32Array(h);
   for (let y = 0; y < h; y++) {
-    const u = Math.min(0.999, y / (h * 0.78)), i = Math.floor(u * 4), k = u * 4 - i, step = Math.floor(k * 4) / 4;
+    const u = Math.min(0.999, y / (h * 0.8)), i = Math.floor(u * 4), k = u * 4 - i, step = Math.floor(k * 4) / 4;
     skyA[y] = mix(top[i], top[i + 1], step);
     skyB[y] = mix(top[i], top[i + 1], Math.min(1, step + 0.25));
     skyK[y] = (k - step) * 4;
   }
-  const sky = { a: skyA, b: skyB, k: skyK };
   const mk = () => new Buf(w, h);
-  // far peaks, pale; then isles floating; then nearer mountains wrapped in mist; then hills with pines
   const far = mk(), isles = mk(), mid = mk(), near = mk(), cloud = mk();
   const ridge = (B, base, amp, freq, seed, cols, snow) => {
     for (let x = 0; x < w; x++) {
       const v = Math.sin((x / w) * Math.PI * 2 * freq + seed) * 0.5 + Math.sin((x / w) * Math.PI * 2 * freq * 2.7 + seed * 2) * 0.3 + Math.sin((x / w) * Math.PI * 2 * freq * 6.1 + seed * 3) * 0.12;
-      const top = Math.round(base - amp * (0.55 + 0.45 * v));
-      for (let y = Math.max(0, top); y < h; y++) {
-        const d = y - top;
+      const t = Math.round(base - amp * (0.55 + 0.45 * v));
+      for (let y = Math.max(0, t); y < h; y++) {
+        const d = y - t;
         B.set(x, y, snow && d < 3 && v > 0.1 ? cols[2] : d < 1 ? cols[1] : cols[0]);
       }
     }
   };
-  ridge(far, h * 0.62, h * 0.32, 3, 1.3, [C("#8a9ccc"), C("#b4c4e4"), C("#e8eefa")], true);
-  ridge(mid, h * 0.74, h * 0.2, 5, 4.1, [C("#5a6ea8"), C("#7a8ec0"), C("#a0b4d8")], false);
-  ridge(near, h * 0.84, h * 0.12, 9, 2.2, [C("#3a4c80"), C("#4a5e94"), C("#4a5e94")], false);
-  // pines on the near hills
+  ridge(far, h * 0.6, h * 0.34, 3, 1.3, [C("#8a9ccc"), C("#b4c4e4"), C("#e8eefa")], true);
+  ridge(mid, h * 0.72, h * 0.22, 5, 4.1, [C("#5a6ea8"), C("#7a8ec0"), C("#a0b4d8")], false);
+  ridge(near, h * 0.84, h * 0.13, 9, 2.2, [C("#3a4c80"), C("#4a5e94"), C("#4a5e94")], false);
   for (let x = 6; x < w; x += 9 + Math.floor(hash(x, 1) * 9)) {
-    let top = 0;
-    while (top < h && !near.get(x, top)) top++;
+    let t = 0;
+    while (t < h && !near.get(x, t)) t++;
     const th = 8 + Math.floor(hash(x, 2) * 8);
-    for (let j = 0; j < th; j++) for (let i = -Math.floor(j / 2.2); i <= Math.floor(j / 2.2); i++) near.set(x + i, top - th + j + 2, C("#2e3e6c"));
+    for (let j = 0; j < th; j++) for (let i = -Math.floor(j / 2.2); i <= Math.floor(j / 2.2); i++) near.set(x + i, t - th + j + 2, C("#2e3e6c"));
   }
-  // mist between the mountains: soft pale bands
-  for (let y = Math.round(h * 0.66); y < h * 0.74; y++) for (let x = 0; x < w; x++) if (!mid.get(x, y) && hash(x >> 3, y, 7) > 0.35) mid.set(x, y, C("#c8d6ee"));
-  // floating isles: rock hanging under grass, a tiny pagoda, a waterfall spilling off
+  for (let y = Math.round(h * 0.64); y < h * 0.72; y++) for (let x = 0; x < w; x++) if (!mid.get(x, y) && hash(x >> 3, y, 7) > 0.35) mid.set(x, y, C("#c8d6ee"));
   for (let n = 0; n < 4; n++) {
-    const cx = Math.round((n + 0.3 + hash(n, 9) * 0.4) * (w / 4)), cy = Math.round(h * (0.22 + hash(n, 8) * 0.18)), r = 12 + Math.round(hash(n, 7) * 10);
+    const cx = Math.round((n + 0.3 + hash(n, 9) * 0.4) * (w / 4)), cy = Math.round(h * (0.2 + hash(n, 8) * 0.18)), r = 12 + Math.round(hash(n, 7) * 10);
     for (let x = -r; x <= r; x++) {
       const d = Math.round((1 - (x / r) ** 2) * r * 1.3);
       for (let y = 0; y < d; y++) isles.set(cx + x, cy + y, y < 2 ? C("#6aa06a") : y < 4 ? C("#4a7a58") : C("#6a6a96"));
@@ -316,75 +390,93 @@ function layers(w, h) {
     }
     for (let y = cy + 2; y < cy + r * 2.5; y++) isles.set(cx + r - 4, y, (y & 3) === 0 ? C("#ffffff") : C("#bfe4ff"));
   }
-  // clouds drifting
   for (let n = 0; n < 9; n++) {
-    const cx = Math.round(hash(n, 11) * w), cy = Math.round(h * (0.08 + hash(n, 12) * 0.3)), s = 4 + Math.round(hash(n, 13) * 5);
+    const cx = Math.round(hash(n, 11) * w), cy = Math.round(h * (0.08 + hash(n, 12) * 0.28)), s = 4 + Math.round(hash(n, 13) * 5);
     for (let k = 0; k < 4; k++) cloud.disc(cx + (k - 1.5) * s * 1.4, cy - (k % 2) * s * 0.5, s, k % 2 ? C("#ffffff") : C("#eef4ff"));
-    for (let x = cx - s * 4; x < cx + s * 4; x++) for (let y = cy + s * 0.6; y < cy + s; y++) cloud.set(x, y, 0);
+    for (let x = cx - s * 4; x < cx + s * 4; x++) for (let y = cy + s * 0.6; y < cy + s; y++) cloud.px[Math.round(y) * w + x] = 0;
   }
-  return { sky, list: [[cloud, 0.08, 0.05], [far, 0.12, 0.08], [isles, 0.2, 0.12], [mid, 0.3, 0.2], [near, 0.5, 0.35]] };
+  return { sky: { a: skyA, b: skyB, k: skyK }, list: [[cloud, 0.08, 0.05], [far, 0.12, 0.08], [isles, 0.2, 0.12], [mid, 0.3, 0.2], [near, 0.5, 0.35]] };
 }
+
+const WATER = ["#0e3a6a", "#16548e", "#2274b4", "#3a98d4", "#8ad0f4", "#ffffff"].map(C);
 
 // ---------------------------------------------------------------- the whole scene
 export async function buildScene(M) {
-  const ts = await loadPixels(M.def.tileset), TS = M.def.tile, cols = M.cols, rows = M.rows, k = M.def.scale;
-  const SW = cols * TS, SH = rows * TS, S = new Buf(SW, SH);
-  const tile = (idx, cx, cy, flip = false) => {
-    const tc = ts.w / TS, sx = (idx % tc) * TS, sy = Math.floor(idx / tc) * TS;
-    for (let y = 0; y < TS; y++)
-      for (let x = 0; x < TS; x++) {
-        const c = ts.px[(sy + y) * ts.w + sx + (flip ? TS - 1 - x : x)];
-        if (c >>> 24 > 128) S.set(cx * TS + x, cy * TS + y, c | 0xff000000);
-      }
-  };
+  const [ts, rf] = await Promise.all([loadPixels(M.def.terrain), loadPixels(M.def.roof)]);
+  const T = M.T, cols = M.cols, rows = M.rows, SW = M.w, SH = M.h, S = new Buf(SW, SH);
   const at = (cx, cy) => M.cell(cx, cy);
-  const solidCh = (ch) => ch === "#" || ch === "s";
-  // props first: they stand behind the ground's front edge and the planks
-  for (const [kind, x, row, o] of M.def.props) if (PROPS[kind]) PROPS[kind](S, Math.round(x * TS), row * TS, o);
-  else if (kind === "sign") tile(85, Math.floor(x), row - 1);
+  const solid = (ch) => ch === "#" || ch === "s";
+  const sub = (scol, srow, x, y) => S.blit(ts.px, ts.w, scol * 16, srow * 16, 16, 16, x, y);
+  // roofs: the end piece is 111 px wide, the middle repeats every 16 px; colour v is a row of the atlas
+  const RE = 111, RM = 16, RH = 114;
+  const roofs = {
+    draw(B, x0, x1, eaveY, v) {
+      const n = Math.max(0, Math.round((x1 - x0 - 2 * RE) / RM)), w = 2 * RE + n * RM, x = Math.round((x0 + x1) / 2 - w / 2), y = eaveY - RH + 10;
+      B.blit(rf.px, rf.w, 0, v * RH, RE, RH, x, y);
+      for (let k = 0; k < n; k++) B.blit(rf.px, rf.w, RE, v * RH, RM, RH, x + RE + k * RM, y);
+      B.blit(rf.px, rf.w, 0, v * RH, RE, RH, x + RE + n * RM, y, true);
+    },
+  };
+  // buildings and trees first: the ground's front edge, bridges and clouds go over them
+  const ordered = [...M.def.props].sort((a, b) => (["cherry", "bamboo"].includes(a[0]) ? 0 : 1) - (["cherry", "bamboo"].includes(b[0]) ? 0 : 1));
+  for (const [kind, x, row, o] of ordered) {
+    if (kind === "sign") sub(19, 7, Math.round(x * T), row * T - 16);
+    else if (PROPS[kind]) PROPS[kind](S, Math.round(x * T), row * T, o ?? {}, roofs);
+  }
   const water = [], falls = [];
   for (let cy = 0; cy < rows; cy++)
     for (let cx = 0; cx < cols; cx++) {
-      const ch = at(cx, cy);
+      const ch = at(cx, cy), x = cx * T, y = cy * T;
       if (ch === "#") {
-        const open = !solidCh(at(cx, cy - 1)), L = solidCh(at(cx - 1, cy)), R = solidCh(at(cx + 1, cy));
-        if (open) tile(!L && !R ? 0 : !L ? 1 : !R ? 3 : 2, cx, cy);
-        else tile(5, cx, cy);
-      } else if (ch === "s") stoneTile(S, cx * TS, cy * TS, !solidCh(at(cx, cy - 1)), hash(cx, cy));
-      else if (ch === "=") cloudTile(S, cx * TS, cy * TS, at(cx - 1, cy) !== "=", at(cx + 1, cy) !== "=", cx);
+        const open = !solid(at(cx, cy - 1));
+        for (let j = 0; j < 2; j++)
+          for (let i = 0; i < 2; i++) {
+            const h = hash(cx * 2 + i, cy * 2 + j);
+            if (open && j === 0) sub([1, 2, 3, 5][Math.floor(h * 4)], 2, x + i * 16, y);
+            else sub(...(h > 0.5 ? [10, 0] : [10, 1]), x + i * 16, y + j * 16);
+          }
+        // grass blades and the odd flower standing on the top
+        if (open) for (let i = 0; i < 2; i++) {
+          const h = hash(cx, i, 31);
+          if (h > 0.7) sub([2, 3, 4, 5][Math.floor(h * 13) % 4], 1, x + i * 16, y - 16);
+          else if (h < 0.06) sub(6, 0, x + i * 16, y - 16);
+        }
+        // a dark rim where earth meets open air at the sides
+        for (const [dir, edge] of [[-1, 0], [1, T - 1]]) if (!solid(at(cx + dir, cy)) && at(cx + dir, cy) !== "w") S.rect(x + edge, y + (open ? 6 : 0), 1, T, C("#231a14"));
+      } else if (ch === "s") {
+        const open = !solid(at(cx, cy - 1));
+        for (let j = 0; j < 2; j++)
+          for (let i = 0; i < 2; i++) {
+            const h = hash(cx * 2 + i, cy * 2 + j, 5);
+            if (open && j === 0) sub([9, 11, 14, 15][Math.floor(h * 4)], 8, x + i * 16, y);
+            else sub(...[[9, 9], [10, 9], [15, 10], [8, 10], [9, 10]][Math.floor(h * 5)], x + i * 16, y + j * 16);
+          }
+      } else if (ch === "=") cloudCell(S, x, y, at(cx - 1, cy) !== "=", at(cx + 1, cy) !== "=", cx);
       else if (ch === "b") {
-        bridgeTile(S, cx * TS, cy * TS, at(cx - 1, cy) !== "b", at(cx + 1, cy) !== "b");
+        bridgeCell(S, x, y, at(cx - 1, cy) !== "b", at(cx + 1, cy) !== "b");
         if (at(cx, cy + 1) === "w") water.push([cx, cy, true]);
       } else if (ch === "w") water.push([cx, cy, at(cx, cy - 1) !== "w" && at(cx, cy - 1) !== "b"]);
       else if (ch === "|") falls.push([cx, cy]);
     }
-  for (const [idx, cx, cy] of M.def.tiles) tile(idx, cx, cy);
+  // tall flowering plants from the sheet: two tiles high
+  for (const [c, r, x, row] of M.def.deco ?? []) (sub(c, r - 1, Math.round(x * T), row * T - 32), sub(c, r, Math.round(x * T), row * T - 16));
 
-  // water tiles as pixels: the surface (33) and the body (73), the waterfall (74) and where it lands (54)
-  const grab = (idx) => {
-    const tc = ts.w / TS, sx = (idx % tc) * TS, sy = Math.floor(idx / tc) * TS, out = new Uint32Array(TS * TS);
-    for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) out[y * TS + x] = ts.px[(sy + y) * ts.w + sx + x];
-    return out;
-  };
-  const WT = { top: grab(33), body: grab(73) };
-  const LW = 640, LH = SH, far = layers(LW, LH);
-  const lanterns = M.def.props.filter((p) => p[0] === "lantern").map(([, x, row]) => [x * TS * k, row * TS * k - 44]);
-  const lights = M.def.props.filter((p) => p[0] === "house" || p[0] === "temple").map(([, x, row, o]) => [x * TS * k, row * TS * k, (o?.w ?? 6) * TS * k]);
+  const LW = 640, LH = Math.ceil(SH / 2), far = layers(LW, LH);
+  const lanterns = M.def.props.filter((p) => p[0] === "lantern").map(([, x, row]) => [x * T, row * T - 44]);
 
-  /** Paint the window (camX, camY, VW x VH world px) into out (a Uint32Array of VW x VH), at time t. */
+  /** Paint the window (camX, camY, VW x VH world px) into out (Uint32Array, VW x VH) at time t. */
   function paint(out, VW, VH, camX, camY, t) {
-    const SPX = S.px;
+    const SPX = S.px, A = far.sky.a, Bk = far.sky.b, K = far.sky.k;
     for (let sy = 0; sy < VH; sy++) {
-      const wy = camY + sy, hy = wy >> 1, o = sy * VW, row = hy * SW, sr = Math.min(LH - 1, hy), skA = far.sky.a[sr], skB = far.sky.b[sr], skK = far.sky.k[sr];
+      const wy = camY + sy, o = sy * VW, row = wy * SW, hy = Math.min(LH - 1, wy >> 1);
       for (let sx = 0; sx < VW; sx++) {
-        const hx = (camX + sx) >> 1;
-        let c = hy < SH && hx < SW ? SPX[row + hx] : 0;
+        const wx = camX + sx;
+        let c = wy < SH && wx < SW ? SPX[row + wx] : 0;
         if (!c) {
-          // the far scenery, nearest layer first: each slides at its own pace, and wraps round
-          c = BAYER[((hy & 3) << 2) | (((camX + sx) >> 1) & 3)] < skK ? skB : skA;
+          c = dith(wx >> 1, hy) < K[hy] ? Bk[hy] : A[hy];
           for (let li = far.list.length - 1; li >= 0; li--) {
             const [L, px, py] = far.list[li], lx = (((Math.floor((camX * px + sx) / 2) + (li === 0 ? Math.floor(t * 2) : 0)) % LW) + LW) % LW;
-            const ly = Math.floor((wy - camY * (1 - py) - 40 * (1 - py)) / 2);
+            const ly = Math.floor((sy + camY * py - 40 * (1 - py)) / 2);
             if (ly < 0 || ly >= LH) continue;
             const v = L.px[ly * LW + lx];
             if (v) {
@@ -396,82 +488,38 @@ export async function buildScene(M) {
         out[o + sx] = c;
       }
     }
-    // water, alive: the surface rolls sideways, the body shimmers, falls pour down
-    const x0 = Math.floor(camX / (TS * k)) - 1, x1 = Math.ceil((camX + VW) / (TS * k)) + 1, y0 = Math.floor(camY / (TS * k)) - 1, y1 = Math.ceil((camY + VH) / (TS * k)) + 1;
-    const roll = Math.floor(t * 9);
-    // water goes behind anything painted over it (a bridge's deck, a prop in front of a fall)
+    // water behind whatever is painted over it: a rolling bright surface, a deep body with drifting light, falls pouring
+    const x0 = Math.floor(camX / T) - 1, x1 = Math.ceil((camX + VW) / T) + 1, y0 = Math.floor(camY / T) - 1, y1 = Math.ceil((camY + VH) / T) + 1;
     const put = (wx, wy, c) => {
       const sx = wx - camX, sy = wy - camY;
-      if (sx >= 0 && sy >= 0 && sx < VW && sy < VH && c >>> 24 > 128 && !SPX[(wy >> 1) * SW + (wx >> 1)]) out[sy * VW + sx] = c | 0xff000000;
+      if (sx >= 0 && sy >= 0 && sx < VW && sy < VH && !SPX[wy * SW + wx]) out[sy * VW + sx] = c;
     };
     for (const [cx, cy, top] of water) {
       if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
-      const src = top ? WT.top : WT.body;
-      for (let y = 0; y < TS * k; y++)
-        for (let x = 0; x < TS * k; x++) {
-          const tx = x >> 1, ty = y >> 1;
-          let c = src[ty * TS + ((tx + (top ? roll : 0)) % TS)];
-          if (!top && Math.sin((cx * TS + tx) * 0.5 + ty * 0.3 - t * 3) > 0.92) c = mix(c, 0xffffffff, 0.35);
-          if (hash(cx * TS + tx, cy * TS + ty, Math.floor(t * 4)) > 0.994) c = 0xffffffff;
-          put(cx * TS * k + x, cy * TS * k + y, c);
+      for (let y = 0; y < T; y++)
+        for (let x = 0; x < T; x++) {
+          const wx = cx * T + x, wy = cy * T + y, depth = (cy - 15) * T + y;
+          // shallow light near the top fading to deep blue, dithered between bands, thin ripples drifting
+          const band = depth / 18, d = dith(wx, wy);
+          let k = 4 - Math.min(3, Math.floor(band + d * 0.9));
+          if (top && y < 2) k = Math.sin(wx * 0.3 - t * 4) > 0.2 ? 5 : 4;
+          if (Math.abs(Math.sin(wx * 0.07 + Math.sin(wy * 0.2 + t) * 2 - t * 1.5)) < 0.04 && depth > 4) k = Math.min(5, k + 1);
+          if (hash(wx, wy, Math.floor(t * 4)) > 0.997) k = 5;
+          put(wx, wy, WATER[k]);
         }
     }
-    // falls: one sheet of water across all its columns, streaks pouring down, darker at its edges, foaming where it lands
     for (const [cx, cy] of falls) {
       if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
       const L = at(cx - 1, cy) !== "|", R = at(cx + 1, cy) !== "|", foot = at(cx, cy + 1) !== "|";
-      for (let ty = 0; ty < TS; ty++)
-        for (let tx = 0; tx < TS; tx++) {
-          const gx = cx * TS + tx, gy = cy * TS + ty, s = hash(gx, Math.floor((gy - t * 70) / 6), 9);
-          let c = s > 0.8 ? FALL[4] : s > 0.55 ? FALL[3] : s > 0.2 ? FALL[2] : FALL[1];
-          if ((L && tx < 2) || (R && tx > TS - 3)) c = tx === 0 || tx === TS - 1 ? FALL[0] : FALL[1];
-          if (foot && ty > TS - 7 && hash(gx, gy, Math.floor(t * 10)) > 0.35) c = FALL[4];
-          for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) put(gx * k + i, gy * k + j, c);
+      for (let y = 0; y < T; y++)
+        for (let x = 0; x < T; x++) {
+          const wx = cx * T + x, wy = cy * T + y, s = hash(wx >> 1, Math.floor((wy - t * 140) / 10), 9);
+          let k = s > 0.82 ? 5 : s > 0.6 ? 4 : s > 0.25 ? 3 : 2;
+          if ((L && x < 3) || (R && x > T - 4)) k = x === 0 || x === T - 1 ? 0 : 1;
+          if (foot && y > T - 12 && hash(wx, wy, Math.floor(t * 12)) > 0.3) k = 5;
+          put(wx, wy, WATER[k]);
         }
     }
   }
-  return { paint, lanterns, lights };
-}
-
-function stoneTile(B, x, y, top, r) {
-  const s = P.stone;
-  for (let j = 0; j < 18; j++)
-    for (let i = 0; i < 18; i++) {
-      const row = Math.floor(j / 6), off = row & 1 ? 9 : 0, mortar = j % 6 === 5 || (i + off) % 18 === 0;
-      let c = mortar ? s[0] : (i + off) % 18 === 1 || j % 6 === 0 ? s[2] : s[1];
-      if (!mortar && hash(x + i, y + j) > 0.93) c = s[0];
-      B.set(x + i, y + j, c);
-    }
-  if (top) {
-    B.rect(x, y, 18, 2, s[3]);
-    B.rect(x, y, 18, 1, s[4]);
-    B.rect(x, y + 2, 18, 1, P.gold[1]);
-  }
-}
-
-// a floating cloud you can stand on: a flat white top, billows under it, a jade glow at the core
-function cloudTile(B, x, y, leftEnd, rightEnd, seed) {
-  const W = C("#ffffff"), L = C("#eaf2ff"), M = C("#c6d6f2"), D = C("#94a8d8");
-  for (let i = 0; i < 18; i++) {
-    const edge = (leftEnd && i < 4) || (rightEnd && i > 13), d = leftEnd ? 4 - i : rightEnd ? i - 13 : 0, cut = edge ? Math.max(0, d) : 0;
-    const depth = 7 + Math.round(Math.sin(i * 0.9 + seed * 2.1) * 1.5) - cut;
-    for (let j = cut; j < depth; j++) B.set(x + i, y + j, j === cut ? W : j < 3 ? L : j < depth - 2 ? M : D);
-  }
-  for (let i = 3; i < 15; i += 6) B.set(x + i + (seed % 3), y + 4, C("#9ff8d8"));
-}
-
-function bridgeTile(B, x, y, leftEnd, rightEnd) {
-  // planks across, a rope rail above on posts
-  for (let i = 0; i < 18; i++) {
-    const c = i % 6 === 5 ? P.wood[0] : i % 6 === 0 ? P.wood[3] : P.wood[2];
-    B.rect(x + i, y, 1, 5, c);
-    B.set(x + i, y + 5, P.wood[0]);
-  }
-  for (let i = 0; i < 18; i++) B.set(x + i, y - 9 + Math.round(Math.sin((i / 18) * Math.PI) * 2), P.bark[2]);
-  if (leftEnd || rightEnd) {
-    const px = leftEnd ? x : x + 16;
-    B.rect(px, y - 12, 2, 12, P.wood[1]);
-    B.rect(px, y - 13, 2, 1, P.gold[2]);
-  }
-  B.rect(x + 8, y - 10, 1, 10, P.bark[1]);
+  return { paint, lanterns };
 }

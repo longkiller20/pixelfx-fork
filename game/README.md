@@ -10,7 +10,7 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - **Khôi Thi Sư:** triệu hồi khôi thi, Thôn Phệ hút máu.
 - **Góc nhìn đi ngang** (side-scroller), khớp với cách pixelfx vẽ nhân vật và hiệu ứng: đi trái/phải, nhảy, đứng trên đài
   mây, rơi theo trọng lực.
-- **Bản đồ hiện có: Tân Thủ Thôn,** thôn khởi đầu dài 112 ô. Đi từ tây sang đông:
+- **Bản đồ hiện có: Tân Thủ Thôn,** thôn khởi đầu dài 128 ô (mỗi ô 32 px). Đi từ tây sang đông:
   - Vách núi có thác đổ xuống hồ, cầu gỗ bắc qua hồ.
   - Phố nhà mái cong.
   - Điện thờ trên sân đá cao 2 ô; trước điện là Thái Cực Đài, phía trên có đài mây lơ lửng.
@@ -177,8 +177,7 @@ Muốn chỉnh cân bằng, sửa `shared/balance.js` rồi khởi động lại
 
 ## Bản đồ
 
-Mỗi bản đồ là một file trong `shared/maps/`. Bản đồ dựng từ lưới ô: mỗi ô 18 px của tileset được vẽ to gấp đôi (36 px trong
-game), nên pixel luôn vuông và sắc nét.
+Mỗi bản đồ là một file trong `shared/maps/`. Bản đồ dựng từ lưới ô 32 px; mỗi ô gồm 4 ô 16 px của tileset, vẽ đúng cỡ gốc.
 
 - `grid`: mỗi ký tự là một ô, **sửa tay được** bằng bất kỳ trình soạn thảo nào.
 
@@ -205,7 +204,7 @@ game), nên pixel luôn vuông và sắc nét.
   - `stall`: sạp hàng chợ.
   - `spawnstone`: bia Truyền Tống.
   - `sign`: biển gỗ.
-- `tiles`: các ô trang trí lấy từ tileset Kenney, viết dạng `[chỉ số ô, cột, hàng]`.
+- `deco`: cây hoa lấy từ tileset đất, viết dạng `[cột trong tấm, hàng trong tấm, x, hàng nền]`.
 - `spawn`: điểm xuất hiện, luôn đứng trên nền.
 - `spring`: đoạn tu luyện trên Thái Cực Đài.
 - `portals`: lối ra. Có `to` thì chuyển sang bản đồ đó; để `null` thì hiện thông báo `msg`.
@@ -218,9 +217,22 @@ về vị trí của máy chủ.
 
 ### Tileset và ghi công
 
-- Đất, cỏ, nước, cây cối, hàng rào, biển gỗ, cờ: **Pixel Platformer** của **Kenney** (www.kenney.nl), giấy phép **CC0**,
-  dùng tự do kể cả thương mại. Tệp gốc và giấy phép nằm ở `public/maps/kenney/`.
-- Nhà, điện thờ, cổng, đèn, cây anh đào, trúc, đài mây, thác, bầu trời và núi được vẽ bằng code trong `public/js/scenery.js`.
+Mọi thứ được vẽ ở **cùng cỡ pixel với nhân vật** (1 pixel ảnh = 1 pixel thế giới). Nhờ vậy nhà cửa, cây cối có kích thước như
+thật bên cạnh người:
+- Cửa cao hơn người.
+- Nhà cao khoảng 3 lần nhân vật.
+- Điện thờ 2 tầng mái và bảo tháp cao vượt cả phố.
+- Cây anh đào và khóm trúc cao hơn mái nhà.
+
+Nguồn tài nguyên:
+- **Đất, cỏ, đá xây, cây hoa:** *old frogatto tile art* (OpenGameArt), giấy phép **CC0**. Mình đã bỏ nền và đổi màu đất sang nâu.
+- **Mái ngói cong:** *Oriental Roof Tiles* (OpenGameArt), giấy phép **CC0**. Mình cắt thành đầu mái và đoạn giữa lặp lại, phối 4
+  màu (xám, lam, đỏ gạch, ngọc).
+- **Nơi lấy:** cả hai lấy từ kho CC0 https://github.com/Tiddybub/2d-assets, vì môi trường dựng game không truy cập được
+  OpenGameArt và itch.io.
+- **Ghi công đầy đủ:** `public/maps/tiles/CREDITS.md`.
+- **Vẽ bằng code** trong `public/js/scenery.js`: tường, cửa, cửa sổ song gỗ, cột đỏ, điện thờ, cổng, bảo tháp, đèn đá, cây anh đào,
+  trúc, đài mây, cầu, nước, thác, bầu trời và núi.
 
 ## Cấu trúc
 
@@ -235,7 +247,7 @@ game/
   shared/balance.js      chỉ số, chiêu thức, cảnh giới, vật phẩm
   shared/maps/           bản đồ: lưới ô, công trình, điểm xuất hiện, lối ra
   shared/physics.js      vật lý đi ngang dùng chung cho máy chủ và trình duyệt
-  public/                trang game: canvas, giao diện, điều khiển; public/js/scenery.js vẽ bản đồ; public/maps/kenney/ tileset
+  public/                trang game: canvas, giao diện, điều khiển; public/js/scenery.js vẽ bản đồ; public/maps/tiles/ tileset
   test/race.mjs          kiểm tra tranh chấp, tường và lối ra
 ```
 
