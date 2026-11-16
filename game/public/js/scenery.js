@@ -357,27 +357,7 @@ function layers(w, h) {
     skyK[y] = (k - step) * 4;
   }
   const mk = () => new Buf(w, h);
-  const far = mk(), isles = mk(), mid = mk(), near = mk(), cloud = mk();
-  const ridge = (B, base, amp, freq, seed, cols, snow) => {
-    for (let x = 0; x < w; x++) {
-      const v = Math.sin((x / w) * Math.PI * 2 * freq + seed) * 0.5 + Math.sin((x / w) * Math.PI * 2 * freq * 2.7 + seed * 2) * 0.3 + Math.sin((x / w) * Math.PI * 2 * freq * 6.1 + seed * 3) * 0.12;
-      const t = Math.round(base - amp * (0.55 + 0.45 * v));
-      for (let y = Math.max(0, t); y < h; y++) {
-        const d = y - t;
-        B.set(x, y, snow && d < 3 && v > 0.1 ? cols[2] : d < 1 ? cols[1] : cols[0]);
-      }
-    }
-  };
-  ridge(far, h * 0.6, h * 0.34, 3, 1.3, [C("#8a9ccc"), C("#b4c4e4"), C("#e8eefa")], true);
-  ridge(mid, h * 0.72, h * 0.22, 5, 4.1, [C("#5a6ea8"), C("#7a8ec0"), C("#a0b4d8")], false);
-  ridge(near, h * 0.84, h * 0.13, 9, 2.2, [C("#3a4c80"), C("#4a5e94"), C("#4a5e94")], false);
-  for (let x = 6; x < w; x += 9 + Math.floor(hash(x, 1) * 9)) {
-    let t = 0;
-    while (t < h && !near.get(x, t)) t++;
-    const th = 8 + Math.floor(hash(x, 2) * 8);
-    for (let j = 0; j < th; j++) for (let i = -Math.floor(j / 2.2); i <= Math.floor(j / 2.2); i++) near.set(x + i, t - th + j + 2, C("#2e3e6c"));
-  }
-  for (let y = Math.round(h * 0.64); y < h * 0.72; y++) for (let x = 0; x < w; x++) if (!mid.get(x, y) && hash(x >> 3, y, 7) > 0.35) mid.set(x, y, C("#c8d6ee"));
+  const isles = mk(), cloud = mk();
   for (let n = 0; n < 4; n++) {
     const cx = Math.round((n + 0.3 + hash(n, 9) * 0.4) * (w / 4)), cy = Math.round(h * (0.2 + hash(n, 8) * 0.18)), r = 12 + Math.round(hash(n, 7) * 10);
     for (let x = -r; x <= r; x++) {
@@ -395,14 +375,15 @@ function layers(w, h) {
     for (let k = 0; k < 4; k++) cloud.disc(cx + (k - 1.5) * s * 1.4, cy - (k % 2) * s * 0.5, s, k % 2 ? C("#ffffff") : C("#eef4ff"));
     for (let x = cx - s * 4; x < cx + s * 4; x++) for (let y = cy + s * 0.6; y < cy + s; y++) cloud.px[Math.round(y) * w + x] = 0;
   }
-  return { sky: { a: skyA, b: skyB, k: skyK }, list: [[cloud, 0.08, 0.05], [far, 0.12, 0.08], [isles, 0.2, 0.12], [mid, 0.3, 0.2], [near, 0.5, 0.35]] };
+  return { sky: { a: skyA, b: skyB, k: skyK }, cloud, isles };
 }
 
+const PINES = [[8, 164], [172, 296], [304, 424]];
 const WATER = ["#0e3a6a", "#16548e", "#2274b4", "#3a98d4", "#8ad0f4", "#ffffff"].map(C);
 
 // ---------------------------------------------------------------- the whole scene
 export async function buildScene(M) {
-  const [ts, rf] = await Promise.all([loadPixels(M.def.terrain), loadPixels(M.def.roof)]);
+  const [ts, rf, mt, pn] = await Promise.all([loadPixels(M.def.terrain), loadPixels(M.def.roof), loadPixels(M.def.mountains), loadPixels(M.def.pines)]);
   const T = M.T, cols = M.cols, rows = M.rows, SW = M.w, SH = M.h, S = new Buf(SW, SH);
   const at = (cx, cy) => M.cell(cx, cy);
   const solid = (ch) => ch === "#" || ch === "s";
@@ -421,6 +402,11 @@ export async function buildScene(M) {
   const ordered = [...M.def.props].sort((a, b) => (["cherry", "bamboo"].includes(a[0]) ? 0 : 1) - (["cherry", "bamboo"].includes(b[0]) ? 0 : 1));
   for (const [kind, x, row, o] of ordered) {
     if (kind === "sign") sub(19, 7, Math.round(x * T), row * T - 16);
+    else if (kind === "pine") {
+      // Crisisworks' Asian mountain pines, at half their size: still four times a person's height
+      const [a, b] = PINES[(o?.v ?? 0) % PINES.length];
+      S.blit(pn.px, pn.w, a, 0, b - a, pn.h, Math.round(x * T - (b - a) / 2), row * T - pn.h);
+    }
     else if (PROPS[kind]) PROPS[kind](S, Math.round(x * T), row * T, o ?? {}, roofs);
   }
   const water = [], falls = [];
@@ -462,6 +448,8 @@ export async function buildScene(M) {
   for (const [c, r, x, row] of M.def.deco ?? []) (sub(c, r - 1, Math.round(x * T), row * T - 32), sub(c, r, Math.round(x * T), row * T - 16));
 
   const LW = 640, LH = Math.ceil(SH / 2), far = layers(LW, LH);
+  // the mountains' feet sit a little above the town's floor line, their peaks well up the sky
+  const mtOff = mt.h - SH + 40;
   const lanterns = M.def.props.filter((p) => p[0] === "lantern").map(([, x, row]) => [x * T, row * T - 44]);
 
   /** Paint the window (camX, camY, VW x VH world px) into out (Uint32Array, VW x VH) at time t. */
@@ -473,17 +461,19 @@ export async function buildScene(M) {
         const wx = camX + sx;
         let c = wy < SH && wx < SW ? SPX[row + wx] : 0;
         if (!c) {
-          c = dith(wx >> 1, hy) < K[hy] ? Bk[hy] : A[hy];
-          for (let li = far.list.length - 1; li >= 0; li--) {
-            const [L, px, py] = far.list[li], lx = (((Math.floor((camX * px + sx) / 2) + (li === 0 ? Math.floor(t * 2) : 0)) % LW) + LW) % LW;
-            const ly = Math.floor((sy + camY * py - 40 * (1 - py)) / 2);
-            if (ly < 0 || ly >= LH) continue;
-            const v = L.px[ly * LW + lx];
-            if (v) {
-              c = v;
-              break;
-            }
+          // far away, nearest first: floating isles, then the misty mountains (Crisisworks), then drifting cloud, then sky
+          const ix = (((Math.floor((camX * 0.25 + sx) / 2)) % LW) + LW) % LW, iy = Math.floor((sy + camY * 0.15 - 30) / 2);
+          c = iy >= 0 && iy < LH ? far.isles.px[iy * LW + ix] : 0;
+          if (!c) {
+            const mx = (((Math.floor(camX * 0.15) + sx) % mt.w) + mt.w) % mt.w, my = sy + Math.floor(camY * 0.1) + mtOff;
+            const v = my >= 0 && my < mt.h ? mt.px[my * mt.w + mx] : 0;
+            if (v >>> 24 > 128) c = v | 0xff000000;
           }
+          if (!c) {
+            const cx = (((Math.floor((camX * 0.08 + sx) / 2) + Math.floor(t * 2)) % LW) + LW) % LW, cy = Math.floor((sy + camY * 0.05) / 2);
+            c = cy >= 0 && cy < LH ? far.cloud.px[cy * LW + cx] : 0;
+          }
+          if (!c) c = dith(wx >> 1, hy) < K[hy] ? Bk[hy] : A[hy];
         }
         out[o + sx] = c;
       }

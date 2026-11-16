@@ -198,6 +198,7 @@ Mỗi bản đồ là một file trong `shared/maps/`. Bản đồ dựng từ l
   - `gate`: cổng chào.
   - `lantern`: đèn đá.
   - `cherry`: cây anh đào.
+  - `pine`: cây tùng (`{ v: 0..2 }` chọn 1 trong 3 dáng).
   - `bamboo`: khóm trúc.
   - `taiji`: Thái Cực Đài.
   - `well`: giếng.
@@ -228,8 +229,13 @@ Nguồn tài nguyên:
 - **Đất, cỏ, đá xây, cây hoa:** *old frogatto tile art* (OpenGameArt), giấy phép **CC0**. Mình đã bỏ nền và đổi màu đất sang nâu.
 - **Mái ngói cong:** *Oriental Roof Tiles* (OpenGameArt), giấy phép **CC0**. Mình cắt thành đầu mái và đoạn giữa lặp lại, phối 4
   màu (xám, lam, đỏ gạch, ngọc).
-- **Nơi lấy:** cả hai lấy từ kho CC0 https://github.com/Tiddybub/2d-assets, vì môi trường dựng game không truy cập được
-  OpenGameArt và itch.io.
+- **Núi sương và rừng thông phía xa:** *Asian Mountain Forest BG* của **Crisisworks** (OpenGameArt), giấy phép **CC-BY 4.0**.
+  Mình phối lại sang tông lam ngọc, phần trời để trong suốt.
+- **Cây tùng lớn:** *Asian Mountain Trees* của **Crisisworks** (OpenGameArt), giấy phép **CC-BY 4.0**. Đã thu nhỏ một nửa nhưng
+  vẫn cao khoảng 4 lần nhân vật.
+- **Nơi lấy:** ngói và đất lấy qua kho CC0 https://github.com/Tiddybub/2d-assets. Núi và cây tùng tải thẳng từ OpenGameArt.
+- **Lưu ý giấy phép CC-BY:** dùng tự do kể cả thương mại, nhưng **phải ghi tên tác giả**. Giữ nguyên phần ghi công này và file
+  `public/maps/tiles/CREDITS.md`; nếu game có màn hình giới thiệu (credits), nên ghi thêm "Crisisworks (OpenGameArt)".
 - **Ghi công đầy đủ:** `public/maps/tiles/CREDITS.md`.
 - **Vẽ bằng code** trong `public/js/scenery.js`: tường, cửa, cửa sổ song gỗ, cột đỏ, điện thờ, cổng, bảo tháp, đèn đá, cây anh đào,
   trúc, đài mây, cầu, nước, thác, bầu trời và núi.
