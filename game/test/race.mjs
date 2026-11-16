@@ -111,33 +111,45 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
 }
 
 {
-  // the starter town: walls hold, and the way out at the bottom stairs answers
+  // the starter town, side view: walls hold, jumps clear them, and the way out at the foot of the east stairs answers
   const { mapInfo, START_MAP } = await import("../shared/maps/index.js");
+  const { fits } = await import("../shared/physics.js");
   const M = mapInfo(START_MAP), P = await player("time"), c = await connect(P.token);
   const at = () => c.snap?.P.find((q) => q[0] === c.id);
-  // straight north from the spawn for 8 s: the temple's terrace stops you, you never end up inside a wall
-  send(c, { t: "in", dx: 0, dy: -1 });
-  await sleep(8000);
-  send(c, { t: "in", dx: 0, dy: 0 });
-  await sleep(200);
+  await sleep(300);
+  const start = at();
+  // west for 6 s without jumping: the temple terrace's stone step stops you, standing on the ground
+  send(c, { t: "in", dx: -1, jump: false, down: false });
+  await sleep(6000);
+  send(c, { t: "in", dx: 0, jump: false, down: false });
+  await sleep(300);
   let p = at();
-  assert.ok(M.canStand(p[1], p[2]), `stopped on open ground (${p[1]}, ${p[2]})`);
-  assert.ok(p[2] > 300, "the temple doors held");
-  ok("walking into the temple for 8 s: stopped by the wall, standing on open ground");
-  // and straight south to the gold arrow
-  send(c, { t: "in", dx: 0, dy: 1 });
+  assert.ok(p[1] > 49 * M.T && p[1] < start[1], `stopped at the terrace step (x ${p[1]})`);
+  assert.equal(p[2], 15 * M.T, "still on the ground");
+  assert.ok(fits(p[1], p[2], M), "not inside a wall");
+  ok("walking into the terrace step: stopped by it, standing on the ground");
+  // now jump while walking: up onto the terrace
+  send(c, { t: "in", dx: -1, jump: true, down: false });
+  await sleep(1200);
+  send(c, { t: "in", dx: 0, jump: false, down: false });
+  await sleep(900);
+  p = at();
+  assert.equal(p[2], 13 * M.T, `up on the terrace (y ${p[2]})`);
+  ok("jumping: up onto the temple terrace, two tiles high");
+  // east, hopping over the hill, down the stairs to the gold arrow
+  send(c, { t: "in", dx: 1, jump: true, down: false });
   let msg = null;
-  for (let i = 0; i < 300 && !msg; i++) {
+  for (let i = 0; i < 400 && !msg; i++) {
     await sleep(100);
     msg = c.msgs.find((m) => m.t === "portal");
   }
-  send(c, { t: "in", dx: 0, dy: 0 });
+  send(c, { t: "in", dx: 0, jump: false, down: false });
   assert.ok(msg && /mở rộng sau/.test(msg.m), "the way out says the next map is coming");
-  await sleep(200);
+  await sleep(300);
   p = at();
   assert.ok(!M.portalAt(p[1], p[2]), "stepped back off the arrow");
   c.ws.close();
-  ok("the gold arrow at the bottom stairs: 'map sẽ mở rộng sau', and you're stepped back off it");
+  ok("the gold arrow at the foot of the east stairs: 'map sẽ mở rộng sau', and you're stepped back off it");
 }
 
 console.log(`${passed} checks passed`);
