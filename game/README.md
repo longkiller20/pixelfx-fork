@@ -8,10 +8,13 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - **Long Kỵ Sĩ:** cận chiến; biến thân khoác long giáp; Hỏa Long hiện sau lưng phun lửa.
   - **Thời Không Chúa Tể:** đánh xa; Thời Đình làm chậm kẻ địch; biến thân thành Thời Vương.
   - **Khôi Thi Sư:** triệu hồi khôi thi, Thôn Phệ hút máu.
-- **Ba khu vực:**
-  - **Vạn Giới Quảng Trường:** an toàn; đứng yên trong Linh Mạch để tu luyện.
-  - **Luyện Võ Trường:** đánh bù nhìn rơm và âm hồn.
-  - **Đấu Trường Đa Vũ Trụ:** PvP có cân bằng chỉ số.
+- **Bản đồ hiện có: Tân Thủ Thôn,** thôn khởi đầu vẽ theo ảnh của bạn.
+  - Thôn an toàn, không có yêu thú.
+  - Nước (thác, suối, hồ sen, biển) có hoạt ảnh. Đèn lồng lập lòe, hoa anh đào bay.
+  - Chỉ đi được trên đường lát đá, bậc thang, cầu và Thái Cực Đài.
+  - Đứng yên trên Thái Cực Đài để tu luyện.
+  - Mũi tên vàng ở bậc thang phía nam là lối ra. Hiện chưa mở; bước vào sẽ hiện "bản đồ sẽ mở rộng sau, xin đạo hữu thông cảm".
+- **Sắp có:** bản đồ luyện cấp đánh yêu thú, và đấu trường PvP. Mã đã có sẵn, chỉ cần khai báo bản đồ.
 - **Tiến trình:** 9 cảnh giới × 5 tầng (Luyện Khí → Độ Kiếp), linh thạch, Đan Các (cửa hàng), quà mỗi ngày, Bảng Phong Thần.
 
 ## Cài lên VPS (Ubuntu/Debian)
@@ -136,7 +139,8 @@ Các lớp bảo vệ khác:
 - **Chat:** dọn ký tự lạ, giới hạn độ dài, hiển thị dạng chữ thuần (không chèn được HTML).
 
 Kiểm tra: khi máy chủ đang chạy, `npm run test:race` bắn hàng loạt yêu cầu đồng thời. Nó kiểm tra quà ngày, mua đồ quá tiền,
-mua trùng mã, đăng nhập hai nơi, spam đan dược và một trận đấu trường, rồi đối chiếu số liệu trong database. Nên chạy trên máy
+mua trùng mã, đăng nhập hai nơi và spam đan dược, rồi đối chiếu số liệu trong database. Nó cũng kiểm tra tường chặn và lối ra
+của Tân Thủ Thôn. Nên chạy trên máy
 chủ thử, vì nó tạo vài tài khoản `t_...`.
 
 ## Cân bằng
@@ -148,8 +152,8 @@ Mọi con số nằm trong `shared/balance.js`; máy chủ và trình duyệt d�
   - Cận chiến nhỉnh hơn một chút vì phải áp sát.
   - Đánh xa có lợi thế tầm.
   - Khôi Thi Sư hút máu bù lại.
-- **Đấu trường nén chênh lệch cảnh giới:** ngoài thế giới, cảnh giới cao nhất mạnh gấp khoảng 2 lần người mới. Trong đấu
-  trường, chênh lệch chỉ còn tối đa 10%, và không được dùng đan hồi phục.
+- **Bản đồ PvP nén chênh lệch cảnh giới** (khi mở): ngoài thế giới, cảnh giới cao nhất mạnh gấp khoảng 2 lần người mới. Trên
+  bản đồ PvP, chênh lệch chỉ còn tối đa 10%, và không được dùng đan hồi phục.
 - **Chống "nuôi điểm":**
   - Hạ cùng một người trong vòng 2 phút không được thưởng.
   - Vừa hồi sinh được miễn sát thương 2 giây.
@@ -158,19 +162,44 @@ Mọi con số nằm trong `shared/balance.js`; máy chủ và trình duyệt d�
 
 Muốn chỉnh cân bằng, sửa `shared/balance.js` rồi khởi động lại máy chủ.
 
+## Bản đồ
+
+Mỗi bản đồ là một file trong `shared/maps/` kèm một ảnh trong `public/maps/`. Mọi toạ độ tính theo pixel của ảnh; trong game,
+ảnh được vẽ to gấp đôi (`scale: 2`).
+
+- `walk`: lưới đi lại, mỗi ký tự là một ô 8×8 pixel ảnh. `.` là đi được, `#` là chặn. File này **sửa tay được** bằng bất kỳ
+  trình soạn thảo nào.
+  - Với Tân Thủ Thôn, lưới được tạo tự động: lấy theo màu đường lát đá, rồi vẽ thêm tay bậc thang, cầu, Thái Cực Đài.
+  - Sau đó chỉ giữ phần nối liền với điểm xuất hiện, nên không có ô "kẹt" nằm riêng.
+- `spawn`: điểm xuất hiện và hồi sinh, luôn nằm trên ô đi được.
+- `spring`: vùng tu luyện, hình elip.
+- `portals`: lối ra. Có `to` thì chuyển sang bản đồ đó; để `null` thì hiện thông báo `msg`.
+- `mobs`: yêu thú, ví dụ `{ type: "ghost", x, y }`. `pvp: true` để cho phép tỷ thí.
+- `water`: các vùng có nước động.
+  - `regions`: vùng được phép tính là nước.
+  - `exclude`: vùng loại trừ (bầu trời, pha lê...).
+  - `falls`: thác chảy dọc; nước trong `regions` mà ngoài `falls` thì gợn sóng.
+
+Thêm bản đồ mới:
+
+1. Đặt ảnh vào `public/maps/`.
+2. Viết file khai báo giống `tanthu.js`.
+3. Thêm bản đồ vào `MAPS` trong `shared/maps/index.js`.
+
 ## Cấu trúc
 
 ```text
 game/
-  server/index.js    Express, file tĩnh, WebSocket, tắt máy an toàn
-  server/api.js      REST: đăng ký, đăng nhập, nhân vật, Đan Các, quà ngày, bảng xếp hạng
-  server/world.js    thế giới chung: di chuyển, chiêu thức, quái, đấu trường, phần thưởng, 20 lần/giây
-  server/store.js    mọi thay đổi dữ liệu nhân vật, an toàn khi tranh chấp
-  server/db.js       MariaDB: pool, transaction, tạo bảng
-  server/auth.js     mật khẩu, phiên đăng nhập, giới hạn tần suất
-  shared/balance.js  chỉ số, chiêu thức, cảnh giới, vật phẩm
-  public/            trang game: canvas, giao diện, điều khiển
-  test/race.mjs      kiểm tra tranh chấp và PvP
+  server/index.js        Express, file tĩnh, WebSocket, tắt máy an toàn
+  server/api.js          REST: đăng ký, đăng nhập, nhân vật, Đan Các, quà ngày, bảng xếp hạng
+  server/world.js        thế giới chung: di chuyển (va chạm theo bản đồ), chiêu thức, lối ra, phần thưởng, 20 lần/giây
+  server/store.js        mọi thay đổi dữ liệu nhân vật, an toàn khi tranh chấp
+  server/db.js           MariaDB: pool, transaction, tạo bảng
+  server/auth.js         mật khẩu, phiên đăng nhập, giới hạn tần suất
+  shared/balance.js      chỉ số, chiêu thức, cảnh giới, vật phẩm
+  shared/maps/           bản đồ: lưới đi lại, điểm xuất hiện, lối ra, vùng nước
+  public/                trang game: canvas, giao diện, điều khiển; public/maps/ chứa ảnh bản đồ
+  test/race.mjs          kiểm tra tranh chấp, tường và lối ra
 ```
 
 Hình ảnh nhân vật, rồng, khôi thi và mọi hiệu ứng đến từ `../src` (pixelfx): máy chủ phục vụ thư mục đó ở đường dẫn
