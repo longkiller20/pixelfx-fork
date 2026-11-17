@@ -39,9 +39,10 @@ export function api(world) {
 
   r.post("/login", authLimit, wrap(async (req, res) => {
     const { username, password } = creds(req.body);
-    const rows = await q("SELECT id, pass_hash FROM users WHERE username = ?", [username]);
+    const rows = await q("SELECT id, pass_hash, banned, ban_reason FROM users WHERE username = ?", [username]);
     const ok = rows.length ? await verifyPassword(password, rows[0].pass_hash) : await dummyVerify(password);
     if (!rows.length || !ok) throw new GameError("Sai tên đăng nhập hoặc mật khẩu.", 401);
+    if (rows[0].banned) throw new GameError(`Tài khoản đã bị khóa${rows[0].ban_reason ? `: ${rows[0].ban_reason}` : "."}`, 403);
     res.json({ token: await createSession(rows[0].id) });
   }));
 

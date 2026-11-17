@@ -32,4 +32,7 @@ export const config = {
   // extra origins allowed to open the WebSocket, comma separated (the page's own origin is always allowed)
   allowedOrigins: env("ALLOWED_ORIGINS", "").split(",").map((s) => s.trim()).filter(Boolean),
   sessionDays: Number(env("SESSION_DAYS", 7)),
+  // the admin site: its own port, so it can be firewalled or bound to localhost apart from the game
+  adminPort: Number(env("ADMIN_PORT", 5885)),
+  adminHost: env("ADMIN_HOST", "0.0.0.0"),
 };
