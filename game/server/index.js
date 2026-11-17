@@ -8,6 +8,7 @@ import { migrate, pool } from "./db.js";
 import { api } from "./api.js";
 import { World } from "./world.js";
 import { loadConfig, watchConfig } from "./gameconfig.js";
+import { adminApp, adminMigrate } from "./admin.js";
 
 await migrate();
 // the game's numbers from the database; if they're broken at start, run on the built-in defaults and say why
@@ -16,6 +17,7 @@ try {
 } catch (e) {
   console.error("config: database có số liệu không hợp lệ, tạm dùng số liệu mặc định:", e.message);
 }
+await adminMigrate();
 const world = new World();
 watchConfig(() => world.onConfig());
 const app = express();
@@ -76,6 +78,9 @@ wss.on("connection", (ws) => {
 });
 
 server.listen(config.port, config.host, () => console.log(`Đa vũ trụ tu tiên chạy ở http://${config.host}:${config.port}`));
+// the admin site on its own port
+const adminServer = http.createServer(adminApp(world));
+adminServer.listen(config.adminPort, config.adminHost, () => console.log(`Trang admin chạy ở http://${config.adminHost}:${config.adminPort}`));
 
 let stopping = false;
 async function stop(sig) {
@@ -87,6 +92,7 @@ async function stop(sig) {
     await world.shutdown();
     wss.close();
     server.close();
+    adminServer.close();
     await pool.end();
   } catch (e) {
     console.error(e);

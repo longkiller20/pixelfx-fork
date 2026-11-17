@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Quản trị · Đa Vũ Trụ Tu Tiên</title>
+<link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+<section id="login" class="screen center" hidden>
+  <form id="loginForm" class="box">
+    <h1>Quản trị</h1>
+    <p class="dim">Đa Vũ Trụ Tu Tiên</p>
+    <label>Tài khoản <input id="lUser" autocomplete="username" required></label>
+    <label>Mật khẩu <input id="lPass" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Đăng nhập</button>
+    <p class="err" id="lErr" role="alert"></p>
+  </form>
+</section>
+
+<section id="pw" class="screen center" hidden>
+  <form id="pwForm" class="box">
+    <h1>Đổi mật khẩu</h1>
+    <p class="note" id="pwNote">Đây là lần đăng nhập đầu tiên với mật khẩu mặc định: hãy đặt mật khẩu mới để tiếp tục.</p>
+    <label>Mật khẩu hiện tại <input id="pwOld" type="password" autocomplete="current-password" required></label>
+    <label>Mật khẩu mới (8-72 ký tự) <input id="pwNew" type="password" autocomplete="new-password" minlength="8" maxlength="72" required></label>
+    <label>Nhập lại mật khẩu mới <input id="pwNew2" type="password" autocomplete="new-password" required></label>
+    <button class="primary" type="submit">Lưu mật khẩu mới</button>
+    <button type="button" id="pwCancel" class="ghost" hidden>Để sau</button>
+    <p class="err" id="pwErr" role="alert"></p>
+  </form>
+</section>
+
+<section id="app" class="screen" hidden>
+  <header>
+    <b>⚙ Quản trị</b>
+    <span class="dim" id="who"></span>
+    <span class="grow"></span>
+    <button id="myPw" class="ghost small">Đổi mật khẩu</button>
+    <button id="logout" class="ghost small">Thoát</button>
+  </header>
+  <nav id="tabs">
+    <button data-tab="overview">Tổng quan</button>
+    <button data-tab="players">Người chơi</button>
+    <button data-tab="realms">Cảnh giới</button>
+    <button data-tab="items">Đan dược</button>
+    <button data-tab="monsters">Yêu thú</button>
+    <button data-tab="skills">Chiêu thức</button>
+    <button data-tab="settings">Cài đặt</button>
+    <button data-tab="cosmetics">Tóc &amp; Y phục</button>
+    <button data-tab="admins">Admin</button>
+    <button data-tab="log">Nhật ký</button>
+  </nav>
+  <main id="main"></main>
+</section>
+<div id="toast" role="status"></div>
+<script type="module" src="/admin.js"></script>
+</body>
+</html>

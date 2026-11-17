@@ -38,7 +38,8 @@ export async function createSession(userId) {
 /** The user id a token belongs to, or null. */
 export async function userFromToken(token) {
   if (typeof token !== "string" || token.length < 20 || token.length > 100) return null;
-  const rows = await q("SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at > NOW()", [sha(token)]);
+  // a banned account's sessions stop working at once
+  const rows = await q("SELECT s.user_id FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > NOW() AND u.banned = 0", [sha(token)]);
   return rows[0]?.user_id ?? null;
 }
 

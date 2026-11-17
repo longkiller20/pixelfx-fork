@@ -182,6 +182,45 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
 }
 
 {
+  // the admin site: its own port, its own accounts; a first login must change the password; bad numbers are refused; a ban
+  // locks the player out at once
+  const ADMIN = process.env.ADMIN_URL ?? BASE.replace(/:\d+$/, ":5885");
+  const { q } = await import("../server/db.js");
+  const { hashPassword } = await import("../server/auth.js");
+  const name = "t_adm_" + uid(), pw = "tamthoi123";
+  await q("INSERT INTO admins (username, pass_hash, must_change) VALUES (?, ?, 1)", [name, await hashPassword(pw)]);
+  const adm = async (path, { token, method = "GET", body } = {}) => {
+    const r = await fetch(ADMIN + "/api" + path, { method, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body && JSON.stringify(body) });
+    return { status: r.status, data: await r.json().catch(() => ({})) };
+  };
+  try {
+    assert.equal((await adm("/login", { method: "POST", body: { username: name, password: "sai" } })).status, 401);
+    const { data } = await adm("/login", { method: "POST", body: { username: name, password: pw } });
+    assert.equal(data.mustChange, true);
+    const token = data.token;
+    assert.equal((await adm("/overview", { token })).status, 403, "nothing before the password is changed");
+    assert.equal((await adm("/me/password", { token, method: "POST", body: { old: pw, password: "MatKhauMoi#9" } })).status, 200);
+    assert.equal((await adm("/overview", { token })).status, 200);
+    assert.equal((await adm("/overview")).status, 401, "no token, no admin");
+    // a realm with no stages would break levels: refused, nothing saved
+    const realms = (await adm("/t/realms", { token })).data;
+    assert.equal((await adm(`/t/realms/${realms[0].id}`, { token, method: "PATCH", body: { stages: 0 } })).status, 400);
+    assert.equal((await adm("/t/realms", { token })).data[0].stages, realms[0].stages);
+    // ban a player: their login and their session stop working
+    const p = await player();
+    const [u] = await q("SELECT u.id, u.username FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [p.name]);
+    assert.equal((await adm(`/players/${u.id}`, { token, method: "PATCH", body: { stones: 777 } })).status, 200);
+    assert.equal((await me(p.token)).character.stones, 777);
+    assert.equal((await adm(`/players/${u.id}/ban`, { token, method: "POST", body: { banned: true, reason: "thử" } })).status, 200);
+    assert.equal((await call("/me", { token: p.token })).status, 401);
+    assert.equal((await call("/login", { method: "POST", body: { username: u.username, password: "secret123" } })).status, 403);
+  } finally {
+    await q("DELETE FROM admins WHERE username = ?", [name]);
+  }
+  ok("admin site: password change forced first, bad numbers refused, edits and bans take effect");
+}
+
+{
   // a jump tap shorter than a server tick (pressed and let go in the same instant) still jumps
   const P = await player(), c = await connect(P.token);
   await sleep(600);

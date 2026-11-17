@@ -127,6 +127,12 @@ export class World {
     await this.save(p);
   }
 
+  /** An admin changed someone's inventory: show them the new one if they're on. */
+  async sendInv(uid) {
+    const p = this.players.get(uid);
+    if (p) send(p.ws, { t: "inv", inv: await store.inventory(uid) });
+  }
+
   kickUser(uid, why) {
     const p = this.players.get(uid);
     if (p) {

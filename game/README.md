@@ -3,7 +3,7 @@
 Game web nhiều người chơi, nơi tu sĩ từ khắp các vũ trụ gặp nhau. Phần chữ trong game bằng
 tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay trong repo này. Chơi được trên máy tính lẫn điện thoại.
 
-- **Máy chủ:** Node.js + Express, WebSocket (`ws`) cho thế giới chung, MariaDB lưu dữ liệu, mặc định chạy ở cổng **5886**.
+- **Máy chủ:** Node.js + Express, WebSocket (`ws`) cho thế giới chung, MariaDB lưu dữ liệu, mặc định chạy ở cổng **5886**. Trang admin ở cổng riêng **5885** (xem phần "Trang admin").
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật cử động: đứng, đi, nhảy, xuất chiêu.
 - **Y Các (nút 👘 trong game):** bán 35 kiểu tóc và 35 bộ y phục còn lại của mỗi giới, giá 150 / 300 / 500 linh thạch tùy độ cầu
@@ -68,7 +68,7 @@ Sau đó cài game:
 
 4. Chạy thử: `npm start`, rồi mở `http://IP-VPS:5886`.
 
-5. Mở cổng tường lửa nếu có: `sudo ufw allow 5886/tcp`.
+5. Mở cổng tường lửa nếu có: `sudo ufw allow 5886/tcp`. Cổng admin 5885 chỉ nên mở cho IP của bạn: `sudo ufw allow from IP-CUA-BAN to any port 5885 proto tcp` (xem phần "Trang admin").
 
 6. Chạy nền, tự khởi động lại. Chọn **một** trong hai cách:
 
@@ -262,7 +262,9 @@ game/
   public/avatar/         atlas thân gốc, 80 kiểu tóc, 80 bộ y phục (tạo bằng tools/avatar/build.py)
   tools/avatar/          ảnh gốc của họa sĩ và script cắt, thu nhỏ, canh tóc và áo vào thân
   tools/cosmetics.mjs    công cụ admin cho tóc và y phục (giá, tên, bán, tặng, thêm mới)
-  tools/admin.mjs        công cụ admin cho cảnh giới, đan dược, yêu thú, chiêu thức, cài đặt
+  tools/admin.mjs        công cụ admin dòng lệnh cho cảnh giới, đan dược, yêu thú, chiêu thức, cài đặt
+  server/admin.js        máy chủ trang admin (cổng 5885): tài khoản admin, API, nhật ký
+  admin/                 giao diện trang admin (HTML, CSS, JS)
   server/gameconfig.js   đọc số liệu game từ database, kiểm tra, tự cập nhật khi admin sửa
   server/cosmetics-seed.js  danh sách tóc và y phục ban đầu, nạp vào bảng cosmetics lần đầu chạy
   test/race.mjs          kiểm tra tranh chấp, tường và lối ra
@@ -270,6 +272,50 @@ game/
 
 Hình nhân vật nằm ở `public/avatar/`. Bù nhìn và mọi hiệu ứng đến từ `../src` (pixelfx): máy chủ phục vụ thư mục đó ở đường dẫn
 `/pixelfx`, nên phải giữ nguyên game trong repo này.
+
+## Trang admin (cổng 5885)
+
+Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nhưng trên một cổng riêng, nên chặn hoặc mở cổng này riêng được.
+
+**Đăng nhập lần đầu:**
+- Tài khoản `admin`, mật khẩu `admin123456`. Máy chủ tự tạo tài khoản này trong database khi chưa có admin nào.
+- Ngay sau khi đăng nhập, trang bắt đổi mật khẩu mới (8-72 ký tự). Chưa đổi thì không dùng được gì khác.
+- Muốn đổi lại sau này: nút "Đổi mật khẩu" ở góc trên.
+
+**Các tab:**
+
+| Tab | Làm được gì |
+| --- | --- |
+| Tổng quan | Người đang online, số tài khoản, đăng ký và nhận quà hôm nay, linh thạch đang lưu hành và đã tiêu, top tu vi, thao tác admin gần đây |
+| Người chơi | Tìm theo tên đăng nhập hoặc đạo hiệu. Sửa: đạo hiệu, linh thạch, tu vi, điểm đấu trường, hạ/bại, giới tính, tóc, áo; túi đồ; tặng hoặc lấy lại tóc/áo. Mời ra khỏi game, khóa/mở khóa (kèm lý do), đặt lại mật khẩu, xóa tài khoản |
+| Cảnh giới | Thêm, đổi tên, số tầng, đổi thứ tự (↑ ↓), xóa; hiện khoảng cấp của từng cảnh giới |
+| Đan dược | Thêm, sửa giá, công dụng (hồi máu, tu vi), thời gian hồi, mô tả, bật/tắt bán, xóa |
+| Yêu thú | Mọi chỉ số và phần thưởng của bù nhìn và âm hồn |
+| Chiêu thức | Tên, loại, thời gian hồi, sát thương và thông số riêng của 3 chiêu |
+| Cài đặt | 25 con số còn lại, chia nhóm, mỗi số có giải thích |
+| Tóc & Y phục | Lọc theo loại, giới, trạng thái; ảnh xem trước; sửa tên, giá, miễn phí, đang bán; thêm món ở ô atlas còn trống; xóa |
+| Admin | Thêm admin (người mới phải đổi mật khẩu lần đầu), xóa admin, đổi mật khẩu của mình |
+| Nhật ký | Mọi thao tác của admin: ai, làm gì, lúc nào, giá trị trước và sau |
+
+Trên điện thoại cầm dọc, các tab thành một hàng kéo ngang và mỗi món hiện thành một thẻ.
+
+**Sửa là có hiệu lực ngay:**
+- Số liệu được kiểm tra trước khi lưu. Số sai (cảnh giới 0 tầng, sinh lực âm, ô tóc/áo không có trong atlas…) bị từ chối, kèm lý do.
+- Khi lưu, game áp dụng tức thì và người chơi đang online thấy luôn.
+- Sửa linh thạch, tu vi hay túi đồ của người đang online: game nhận số mới ngay. Đổi tên, giới tính, tóc hay áo: người đó được mời vào lại game để ai cũng thấy.
+- Khóa tài khoản: người chơi bị đẩy ra ngay, không đăng nhập lại được, và thấy lý do bị khóa.
+
+**Bảo mật:**
+- Tài khoản và phiên admin tách khỏi tài khoản người chơi. Mật khẩu admin được băm bằng scrypt.
+- Phiên admin hết hạn sau 12 giờ; đổi mật khẩu thì các phiên khác của admin đó bị đăng xuất.
+- Đăng nhập sai quá 8 lần mỗi phút bị chặn tạm.
+- Nên chỉ mở cổng 5885 cho IP của bạn (ufw như ở bước 5).
+- Kín nhất: đặt `ADMIN_HOST=127.0.0.1` trong `.env`, rồi vào bằng đường hầm SSH `ssh -L 5885:127.0.0.1:5885 user@IP-VPS` và mở `http://localhost:5885`.
+- Nếu đặt sau nginx, hãy dùng HTTPS cho trang admin.
+
+**Quên mật khẩu admin:** chạy `mysql dvtt -e "DELETE FROM admins"` rồi khởi động lại game. Tài khoản `admin` / `admin123456` được tạo lại và phải đổi mật khẩu ở lần đăng nhập đầu.
+
+Các lệnh `npm run admin` và `npm run cosmetics` vẫn dùng được song song với trang web.
 
 ## Tóc và y phục: quản lý trong database
 
