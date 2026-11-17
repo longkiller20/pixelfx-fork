@@ -83,7 +83,8 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     lửa ở vực.
   - Cảnh vật dùng ảnh của Xianxia Pixel Pack (CC0), cộng hiệu ứng pixelfx chạy liên tục làm cảnh sống: gợn nước, đài
     phun, quỷ hỏa, lửa ám, đầu lâu quanh lửa xanh, lò lửa, trụ lửa, lốc lửa, cổng và vòng phù văn.
-  - Rơi xuống nham thạch ở Huyết Diễm Ma Uyên bị bỏng: mỗi giây mất 18% sinh lực.
+  - Chạm vào nham thạch ở Huyết Diễm Ma Uyên bị bỏng mất 20% sinh lực và bị hất về chỗ đất vừa đứng (không ai lội
+    dưới đáy dung nham).
   - Cổng cuối Ma Uyên còn phong ấn, cho vùng đất sau này.
 - **Nhiều bản đồ cùng chạy:** mỗi map một thế giới riêng (người chơi, yêu thú, đạn), cùng một nhịp 20 lần/giây, nên hồi
   chiêu, buff và thời gian bảo vệ vẫn đúng khi đổi map. Trò chuyện thì mọi map đều thấy.

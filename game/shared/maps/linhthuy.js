@@ -54,10 +54,10 @@ export const LINHTHUY = {
     XX("bg_mid_02_05", 9, 15, 2), ["lantern", 15, 15], XX("bg_xianxia_deco_01_02", 17.5, 15, 4), ["sign", 4.6, 15],
     // ripples on the open water
     RIPPLE(25), RIPPLE(37), RIPPLE(63), RIPPLE(74), RIPPLE(102), RIPPLE(117),
-    // the little isle: a lotus basin with a fountain playing, a jade rock
-    XX("bg_xianxia_mid_04_01", 51.5, 14, 3), ["fx", 51.5, 14, { id: "water/fountain", h: 30, k: 1.2 }], XX("bg_xianxia_deco_01_02", 56.5, 14, 4, { f: 1 }),
+    // the little isle: a weeping willow over the water, a stone lantern, a jade rock, orchids
+    XX("bg_mid_02_05", 48, 14, 2), ["lantern", 53.5, 14], XX("bg_xianxia_deco_01_02", 56.5, 14, 4, { f: 1 }), XX("bg_xianxia_deco_01_01", 51, 14, 5),
     // the big isle: a pavilion under a pine, lanterns, orchids
-    XX("bg_mid_01_04", 83, 12, 2), XX("bg_mid_01_00", 89, 12, 2), ["lantern", 81.5, 13], ["lantern", 95, 13], XX("bg_xianxia_deco_01_01", 93, 12, 5),
+    XX("bg_mid_01_04", 84, 12, 2, { f: 1 }), XX("bg_mid_01_00", 89.5, 12, 2), ["lantern", 81.5, 13], ["lantern", 95, 13], XX("bg_xianxia_deco_01_01", 93, 12, 5),
     // the marsh: willows, reeds, mushrooms, bubbles in the pools
     XX("bg_mid_02_05", 124, 15, 2, { f: 1 }), XX("bg_near_01_04", 133, 15, 3, { tint: "#2a5a3a", k: 0.6 }), XX("bg_near_01_04", 137.5, 15, 3, { tint: "#2a5a3a", k: 0.6, f: 1 }),
     XX("bg_xianxia_deco_01_00", 144, 15, 5), ["fx", 129.5, 15, { id: "water/bubbles", h: -8, k: 1 }], ["fx", 140, 15, { id: "water/bubbles", h: -8, k: 1 }],
