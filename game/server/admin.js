@@ -14,6 +14,9 @@ import { readConfig, loadConfig } from "./gameconfig.js";
 import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS } from "../shared/balance.js";
 import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem, adminArt, loadCharacter, grantArtMany } from "./store.js";
 import { userLock } from "./lock.js";
+import { MAPS as MAP_DEFS, mapInfo } from "../shared/maps/index.js";
+
+const MAPS = Object.keys(MAP_DEFS).map((id) => mapInfo(id));
 
 const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
 const wrap = (fn) => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
@@ -68,8 +71,11 @@ const T = {
     cols: { name: "str:40", kind: "enum:pill|book|material", description: "str:200", price: "uint", heal: "num", exp_base: "uint", exp_per_level: "uint", cooldown: "num", on_sale: "bool", sort: "int" },
   },
   monsters: {
-    pk: "type", order: "type", config: true,
-    cols: { name: "str:40", hp: "num", atk: "num", def: "num", spd: "num", respawn: "num", exp_base: "uint", exp_per_level: "uint", stones: "uint", aggro: "num", reach: "num", cooldown: "num", mult: "num", common_drops: "bool" },
+    pk: "type", pkType: "key", order: "type", config: true, add: true, del: true,
+    cols: {
+      name: "str:40", hp: "num", atk: "num", def: "num", spd: "num", respawn: "num", exp_base: "uint", exp_per_level: "uint", stones: "uint", aggro: "num", reach: "num",
+      cooldown: "num", mult: "num", common_drops: "bool", fx: "str:48", style: "enum:melee|ranged|none", fly: "bool", shot_range: "num", shot_speed: "num", shot_fx: "str:48", drop_rate: "num",
+    },
   },
   // công pháp, what each needs to learn, and what monsters drop (see shared/arts-seed.js)
   arts: {
@@ -92,7 +98,7 @@ const T = {
 function value(type, v, col) {
   if (type.startsWith("str:")) {
     const s = String(v ?? "").trim();
-    if (!s && !["description", "fx", "source_note"].includes(col)) throw bad(`${col}: không được để trống`);
+    if (!s && !["description", "fx", "source_note", "shot_fx"].includes(col)) throw bad(`${col}: không được để trống`);
     if (s.length > Number(type.slice(4))) throw bad(`${col}: tối đa ${type.slice(4)} ký tự`);
     return s;
   }
@@ -321,6 +327,12 @@ export function adminApp(world) {
       await c.query(`DELETE FROM ${name} WHERE ${t.pk} = ?`, [pk]);
       // an art takes what it needed with it; who learned it keeps the row (harmless) until it comes back
       if (name === "arts") await c.query("DELETE FROM art_reqs WHERE art_key = ?", [pk]);
+      // a monster takes its drop list with it; one a map places can't go
+      if (name === "monsters") {
+        const used = MAPS.filter((m) => m.mobs.some((x) => x.type === pk)).map((m) => m.name);
+        if (used.length) throw bad(`Không xóa được: bản đồ ${used.join(", ")} đang đặt yêu thú này.`);
+        await c.query("DELETE FROM monster_drops WHERE monster = ?", [pk]);
+      }
       if (t.config) await checkInside(c);
       await log(req.admin, `${name}.del`, pk, before);
     });
@@ -422,6 +434,15 @@ export function adminApp(world) {
     for (const id of ids) if (world.players.has(id)) world.refresh(id, await loadCharacter(id));
     await log(req.admin, "arts.grant", key, { to: to === "all" || to === "online" ? to : req.body?.names, count: ids.length });
     res.json({ ok: true, count: ids.length });
+  }));
+
+  // an admin's test: drop a monster by an online player (no map has the new ones yet). It never comes back once killed.
+  r.post("/players/:id/summon", wrap(async (req, res) => {
+    const id = playerId(req.params.id), type = String(req.body?.type ?? "");
+    if (!world.players.has(id)) throw bad("Người chơi đang offline.", 409);
+    if (!world.summon(id, type)) throw bad("Không có yêu thú này.");
+    await log(req.admin, "player.summon", id, { type });
+    res.json(await playerDetail(id));
   }));
 
   // teach an art without spending anything, or take one back (it leaves the bar too); an online player gets it at once

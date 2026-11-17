@@ -4,7 +4,10 @@
 // applied live and pushed to every browser; a broken one is refused with a log line and the game keeps the last good set.
 import { q, pool } from "./db.js";
 import { DEFAULTS, applyConfig } from "../shared/balance.js";
-import { ARTS_SEED, ART_ITEMS_SEED, ART_REQS_SEED, DROPS_SEED } from "../shared/arts-seed.js";
+import { ARTS_SEED, ART_ITEMS_SEED, ART_REQS_SEED, DROPS_SEED, ELEMENTS } from "../shared/arts-seed.js";
+
+// the element each critter's drops follow
+const MONSTER_ELEMENT = { ghost: "am", bat: "am", bird: "phong", butterfly: "moc", eyeball: "huyen", fish_school: "thuy", flying_skull: "hoa", frog: "moc", jellyfish: "loi", slime: "thu", snake: "moc", wisp: "quang" };
 
 export const CONFIG_SCHEMA = [
   // one row per realm, in sort order; each realm has `stages` levels ("tầng")
@@ -92,6 +95,14 @@ export const CONFIG_SCHEMA = [
   "ALTER TABLE items ADD COLUMN IF NOT EXISTS kind VARCHAR(8) NOT NULL DEFAULT 'pill' AFTER name",
   // straw dummies drop nothing; everything else takes the '*' drops
   "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS common_drops TINYINT(1) NOT NULL DEFAULT 1",
+  // how a monster looks and fights (see MONSTER_STYLES in shared/balance.js), and the chance a kill drops anything at all
+  "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS fx VARCHAR(48) NOT NULL DEFAULT ''",
+  "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS style VARCHAR(8) NOT NULL DEFAULT 'melee'",
+  "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS fly TINYINT(1) NOT NULL DEFAULT 0",
+  "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS shot_range DOUBLE NOT NULL DEFAULT 0",
+  "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS shot_speed DOUBLE NOT NULL DEFAULT 0",
+  "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS shot_fx VARCHAR(48) NOT NULL DEFAULT ''",
+  "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS drop_rate DOUBLE NOT NULL DEFAULT 0",
   `CREATE TABLE IF NOT EXISTS settings (
     k VARCHAR(48) NOT NULL PRIMARY KEY,
     v DOUBLE NOT NULL,
@@ -110,15 +121,23 @@ export async function seedConfig() {
     "INSERT IGNORE INTO items (item_key, name, description, price, heal, exp_base, exp_per_level, cooldown, on_sale, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     DEFAULTS.items.map((i) => [i.key, i.name, i.desc, i.price, i.heal, i.expBase, i.expPerLevel, i.cd, i.onSale ? 1 : 0, i.sort]),
   );
+  // the monsters a database doesn't have yet get their own drop list too (after the items exist, in seedArts)
+  const had = new Set((await q("SELECT type FROM monsters")).map((r) => r.type));
   await pool.batch(
-    "INSERT IGNORE INTO monsters (type, name, hp, atk, def, spd, respawn, exp_base, exp_per_level, stones, aggro, reach, cooldown, mult) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    DEFAULTS.monsters.map((m) => [m.type, m.name, m.hp, m.atk, m.def, m.spd, m.respawn, m.expBase, m.expPerLevel, m.stones, m.aggro, m.reach, m.cd, m.mult]),
+    `INSERT IGNORE INTO monsters (type, name, hp, atk, def, spd, respawn, exp_base, exp_per_level, stones, aggro, reach, cooldown, mult,
+       fx, style, fly, shot_range, shot_speed, shot_fx, drop_rate, common_drops) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    DEFAULTS.monsters.map((m) => [m.type, m.name, m.hp, m.atk, m.def, m.spd, m.respawn, m.expBase, m.expPerLevel, m.stones, m.aggro, m.reach, m.cd, m.mult,
+      m.fx, m.style, m.fly ? 1 : 0, m.range, m.shotSpeed, m.shotFx, m.dropRate, m.commonDrops ? 1 : 0]),
   );
+  // the two from before the columns: the ghost is a flying critter that rushes in, the dummy just stands
+  await q("UPDATE monsters SET fx = 'critters/ghost', fly = 1, style = 'melee', drop_rate = 0.3 WHERE type = 'ghost' AND fx = ''");
+  await q("UPDATE monsters SET style = 'none' WHERE type = 'dummy' AND style = 'melee' AND fx = ''");
+  const fresh = DEFAULTS.monsters.filter((m) => !had.has(m.type) && m.fx).map((m) => m.type);
   // the straw dummies now stand in the starter town to try the arts on: no spirit stones and only a token of exp for
   // breaking one, so they can't be farmed. Changed only if an admin never touched their rewards.
   await q("UPDATE monsters SET exp_base = 2, exp_per_level = 0, stones = 0 WHERE type = 'dummy' AND exp_base = 10 AND exp_per_level = 2 AND stones = 1");
   await pool.batch("INSERT IGNORE INTO skills (slot, name, type, cd, mult, params) VALUES (?, ?, ?, ?, ?, ?)", DEFAULTS.skills.map((s) => [s.slot, s.name, s.type, s.cd, s.mult, JSON.stringify(s.params)]));
-  await seedArts();
+  await seedArts(fresh);
   await pool.batch("INSERT IGNORE INTO settings (k, v, note) VALUES (?, ?, ?)", Object.entries(DEFAULTS.settings).map(([k, [v, note]]) => [k, v, note]));
 }
 
@@ -127,7 +146,7 @@ export async function seedConfig() {
  * changes stay). Requirements and drops are filled only the first time there are arts at all, so a row an admin deleted
  * doesn't come back. Phi Kiếm and Lôi Ấn Trận used to be skills 2 and 3: an admin's numbers for them move over.
  */
-async function seedArts() {
+async function seedArts(freshMonsters = []) {
   const [{ n }] = await q("SELECT COUNT(*) AS n FROM arts");
   const first = !Number(n);
   const old = first ? await q("SELECT slot, name, cd, mult, params FROM skills WHERE slot IN (1, 2)") : [];
@@ -150,6 +169,19 @@ async function seedArts() {
   // a campfire, a fountain or the weather stays where it was called up instead of walking along with the caster
   await q("UPDATE arts SET fx_at = 'target' WHERE fx_at = 'self' AND fx IN ('fire/brazier', 'fire/campfire', 'fire/candle', 'fire/torch', 'water/fountain', 'weather/aurora', 'weather/cherry-blossoms', 'weather/god-rays', 'weather/clouds')");
   await q("UPDATE arts SET fx_life = 10 WHERE fx = 'holy/halo' AND fx_life = 4");
+  // each new monster's own list: the essence of its element, a little Linh Tủy, a Hồi Xuân Đan, and the bí kíp of its
+  // element's arts (rarer the higher the tier). A weight, not a chance: one item is picked per drop.
+  if (freshMonsters.length)
+    await pool.batch(
+      "INSERT IGNORE INTO monster_drops (monster, item_key, chance, min_qty, max_qty) VALUES (?, ?, ?, ?, ?)",
+      freshMonsters.flatMap((t) => {
+        const el = MONSTER_ELEMENT[t] ?? "kim";
+        return [
+          [t, ELEMENTS[el].mat, 50, 1, 2], [t, "mat_linhtuy", 3, 1, 1], [t, "hoixuan", 20, 1, 1],
+          ...ARTS_SEED.filter((a) => !a.starter && a.element === el).map((a) => [t, "bk_" + a.key, [0, 6, 3, 1][a.tier], 1, 1]),
+        ];
+      }),
+    );
   if (first) {
     // the old skill rows 2 and 3 now live on as arts
     await q("DELETE FROM skills WHERE slot IN (1, 2)");
@@ -180,6 +212,7 @@ export async function readConfig(conn = null) {
     monsters: monsters.map((m) => ({
       type: m.type, name: m.name, hp: m.hp, atk: m.atk, def: m.def, spd: m.spd, respawn: m.respawn, expBase: Number(m.exp_base), expPerLevel: Number(m.exp_per_level),
       stones: Number(m.stones), aggro: m.aggro, reach: m.reach, cd: m.cooldown, mult: m.mult, commonDrops: m.common_drops === undefined ? true : !!m.common_drops,
+      fx: m.fx ?? "", style: m.style ?? "melee", fly: !!m.fly, range: m.shot_range ?? 0, shotSpeed: m.shot_speed ?? 0, shotFx: m.shot_fx ?? "", dropRate: m.drop_rate ?? 0,
     })),
     arts: arts.map((a) => ({
       key: a.art_key, name: a.name, desc: a.description, element: a.element, tier: a.tier, type: a.type, cd: a.cd, mult: a.mult, params: a.params,

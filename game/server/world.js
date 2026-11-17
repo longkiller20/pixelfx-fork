@@ -14,7 +14,6 @@ import { KeyedLock } from "./lock.js";
 const DT = 1 / TICK_HZ;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const num = (v) => typeof v === "number" && Number.isFinite(v);
-const MTYPES = ["dummy", "ghost"];
 const sessionLock = new KeyedLock();
 
 export class World {
@@ -401,6 +400,8 @@ export class World {
   // ---------------------------------------------------------------- combat
   hostile(att, e) {
     if (!e || e.dead) return false;
+    // monsters only go for players, and not one who just appeared
+    if (att.kind === "m") return e.kind === "p" && !e.gone && e.protectUntil <= this.t;
     if (e.kind === "m") return true;
     if (e.kind !== "p" || e === att || att.kind !== "p") return false;
     return this.map.pvp && e.protectUntil <= this.t;
@@ -512,11 +513,21 @@ export class World {
     this.sendMe(p);
   }
 
-  /** Roll a dead monster's drops for whoever killed it: its own list, plus the "*" list if it takes common drops. */
+  /**
+   * A dead monster's drop: with its drop chance, exactly one item, picked by weight from its own list (plus the "*" list if
+   * it takes common drops), in a number between that row's min and max. It goes straight into the killer's bag.
+   */
   rollDrops(owner, m) {
-    const list = [...(DROPS[m.type] ?? []), ...(m.def.commonDrops ? DROPS["*"] ?? [] : [])], got = {};
-    for (const d of list) if (Math.random() < d.chance) got[d.item] = (got[d.item] ?? 0) + d.min + Math.floor(Math.random() * (d.max - d.min + 1));
-    if (!Object.keys(got).length) return;
+    if (!(Math.random() < (m.def.dropRate ?? 0))) return;
+    const list = [...(DROPS[m.type] ?? []), ...(m.def.commonDrops ? DROPS["*"] ?? [] : [])].filter((d) => d.chance > 0);
+    const total = list.reduce((a, d) => a + d.chance, 0);
+    if (!total) return;
+    let r = Math.random() * total, d = list[list.length - 1];
+    for (const x of list) if ((r -= x.chance) < 0) {
+      d = x;
+      break;
+    }
+    const got = { [d.item]: d.min + Math.floor(Math.random() * (d.max - d.min + 1)) };
     store.grantItems(owner.userId, got).then(() => {
       if (owner.gone) return;
       this.sendInv(owner.userId);
@@ -524,6 +535,7 @@ export class World {
     }).catch((e) => console.error("drop", e.message));
     this.ev({ e: "drop", id: owner.id, x: Math.round(m.x), y: Math.round(m.y) });
   }
+
 
   /** A reward after the player's gain buff (exp, stones, med), never below zero. */
   gain(p, stat, v) {
@@ -659,39 +671,57 @@ export class World {
     } else p.medAcc = 0;
   }
 
-  spawnMonsters() {
-    const add = (type, x, y) => {
-      const d = MONSTERS[type];
-      const m = { id: this.nid++, kind: "m", type, def: d, x, y, home: { x, y }, face: -1, hpFrac: 1, dead: false, respawnAt: 0, slowUntil: 0, lastHurt: -99, nextAtk: 0, target: null, wander: { x, y }, wanderAt: 0, atkAnim: 0, st: { maxHp: d.hp, atk: d.atk, def: d.def, spd: d.spd } };
-      this.ents.set(m.id, m);
+  /** A monster at (x, y): from the map, or (temp) one an admin dropped by a player to try, which never comes back. */
+  addMonster(type, x, y, temp = false) {
+    const d = MONSTERS[type];
+    if (!d) return null;
+    const m = {
+      id: this.nid++, kind: "m", type, def: d, x, y, home: { x, y }, face: -1, hpFrac: 1, dead: false, respawnAt: 0, slowUntil: 0, lastHurt: -99, nextAtk: 0,
+      target: null, wander: { x, y }, wanderAt: 0, atkAnim: 0, vx: 0, vy: 0, ground: false, dropUntil: 0, temp, bornAt: this.t,
+      st: { maxHp: d.hp, atk: d.atk, def: d.def, spd: d.spd },
     };
-    for (const m of this.map.mobs) add(m.type, m.x, m.y);
+    this.ents.set(m.id, m);
+    return m;
+  }
+  spawnMonsters() {
+    for (const m of this.map.mobs) this.addMonster(m.type, m.x, m.y);
+  }
+  /** An admin's test: a monster of that type a little way from the player. Gone after it dies or after 5 minutes. */
+  summon(uid, type) {
+    const p = this.players.get(uid);
+    if (!p || !MONSTERS[type]) return null;
+    const d = MONSTERS[type], x = clamp(p.x + p.face * 160, 30, this.map.w - 30);
+    const m = this.addMonster(type, x, d.fly ? p.y - 40 : p.y, true);
+    this.ev({ e: "spawn", id: m.id });
+    return m;
   }
 
   stepMonster(m) {
-    const t = this.t;
+    const t = this.t, d = m.def;
     if (m.dead) {
+      if (m.temp) {
+        if (t - m.respawnAt > -d.respawn + 1.5) this.ents.delete(m.id);
+        return;
+      }
       if (t >= m.respawnAt) {
-        m.dead = false;
-        m.hpFrac = 1;
-        m.x = m.home.x;
-        m.y = m.home.y;
-        m.target = null;
+        Object.assign(m, { dead: false, hpFrac: 1, x: m.home.x, y: m.home.y, vx: 0, vy: 0, target: null });
         this.ev({ e: "spawn", id: m.id });
       }
       return;
     }
-    if (m.type !== "ghost") {
+    if (m.temp && t - m.bornAt > 300) return void this.ents.delete(m.id);
+    if (d.style === "none") {
       // straw dummies heal back slowly when left alone
       if (t - m.lastHurt > 4) m.hpFrac = Math.min(1, m.hpFrac + 0.1 * DT);
       return;
     }
-    const d = m.def, spd = d.spd * (m.slowUntil > t ? 0.5 : 1);
-    // pick a prey: whoever hit it, or anyone close, as long as they're out of the safe zone
-    const ok = (p) => p && !p.gone && !p.dead && p.kind === "p" && p.protectUntil <= t && Math.hypot(p.x - m.home.x, p.y - m.home.y) < d.aggro * 3;
-    if (!ok(m.target) || Math.hypot(m.target.x - m.x, m.target.y - m.y) > d.aggro * 1.6) {
+    const spd = d.spd * (m.slowUntil > t ? 0.5 : 1);
+    // pick a prey: whoever hit it, or anyone close, as long as they're out of the safe zone and not too far from its home
+    const ok = (p) => p && !p.gone && !p.dead && p.kind === "p" && p.protectUntil <= t && Math.hypot(p.x - m.home.x, p.y - m.home.y) < Math.max(d.aggro, 60) * 3;
+    const sense = Math.max(d.aggro, d.style === "ranged" ? d.range : 0);
+    if (!ok(m.target) || Math.hypot(m.target.x - m.x, m.target.y - m.y) > sense * 1.6) {
       m.target = null;
-      let bd = d.aggro;
+      let bd = sense;
       for (const p of this.players.values())
         if (ok(p)) {
           const dd = Math.hypot(p.x - m.x, p.y - m.y);
@@ -699,31 +729,54 @@ export class World {
         }
       if (!m.target && ok(m.lastHitBy) && t - m.lastHurt < 3) m.target = m.lastHitBy;
     }
-    let tx, ty;
+    // where to go: at the prey (melee), or to a spot at about two thirds of its range, backing off if it comes too close
+    let gx = null, gy = null, run = 1;
     if (m.target) {
-      const p = m.target, dd = Math.hypot(p.x - m.x, p.y - m.y);
-      m.face = p.x > m.x ? 1 : -1;
-      if (dd <= d.reach) {
-        if (t >= m.nextAtk) {
+      const p = m.target, ty = d.fly ? p.y - 34 : p.y, dx = p.x - m.x, dd = Math.hypot(dx, ty - m.y);
+      m.face = dx > 0 ? 1 : -1;
+      if (d.style === "melee") {
+        if (Math.hypot(p.x - m.x, p.y - m.y) <= d.reach + PLAYER_R) {
+          if (t >= m.nextAtk) {
+            m.nextAtk = t + d.cd;
+            m.atkAnim = t + 0.3;
+            this.damage(m, d.atk, p, d.mult);
+          }
+        } else (gx = p.x - Math.sign(dx) * d.reach * 0.6), (gy = ty);
+      } else {
+        if (dd <= d.range && t >= m.nextAtk) {
+          // a shot at the prey's chest, flying at shotSpeed, carrying the monster's type so it's drawn as its own
           m.nextAtk = t + d.cd;
           m.atkAnim = t + 0.3;
-          this.damage(m, d.atk, p, d.mult);
+          const sy = m.y - (d.fly ? 0 : 24), ax = p.x - m.x, ay = p.y - 26 - sy, l = Math.hypot(ax, ay) || 1;
+          this.bolts.push({ id: this.nid++, owner: m, art: "@" + m.type, x: m.x, y: sy + 30, vx: (ax / l) * d.shotSpeed, vy: (ay / l) * d.shotSpeed, left: d.range * 1.3, r: 12, atk: d.atk, mult: d.mult });
         }
-        return;
+        if (dd > d.range * 0.85) (gx = p.x - Math.sign(dx) * d.range * 0.6), (gy = ty);
+        else if (dd < d.range * 0.4) (gx = m.x - Math.sign(dx) * 60), (gy = ty), (run = 0.7);
       }
-      (tx = p.x), (ty = p.y);
     } else {
       if (t >= m.wanderAt) {
         m.wanderAt = t + rnd(2, 5);
-        m.wander = { x: m.home.x + rnd(-60, 60), y: m.home.y + rnd(-40, 40) };
+        m.wander = { x: m.home.x + rnd(-70, 70), y: d.fly ? m.home.y + rnd(-30, 30) : m.home.y };
       }
-      (tx = m.wander.x), (ty = m.wander.y);
+      (gx = m.wander.x), (gy = m.wander.y), (run = 0.5);
     }
-    const dx = tx - m.x, dy = ty - m.y, l = Math.hypot(dx, dy);
-    if (l > 2) {
-      const s = Math.min(l, spd * DT * (m.target ? 1 : 0.5));
-      this.move(m, (dx / l) * s, (dy / l) * s);
-      if (Math.abs(dx) > 1) m.face = dx > 0 ? 1 : -1;
+    if (d.fly) {
+      // flyers go straight there, through anything
+      if (gx !== null) {
+        const dx = gx - m.x, dy = gy - m.y, l = Math.hypot(dx, dy);
+        if (l > 2) {
+          const st = Math.min(l, spd * DT * run);
+          this.move(m, (dx / l) * st, (dy / l) * st);
+          if (!m.target && Math.abs(dx) > 1) m.face = dx > 0 ? 1 : -1;
+        }
+      }
+    } else {
+      // walkers: along the ground with gravity, the same steps as players; a hop when a wall is in the way
+      const dx = gx === null || Math.abs(gx - m.x) < 4 ? 0 : Math.sign(gx - m.x), x0 = m.x;
+      stepBody(m, { dx, jump: !!m.hop, down: false }, spd * run, DT, this.map, t);
+      m.hop = dx !== 0 && m.ground && Math.abs(m.x - x0) < 0.01;
+      if (!m.target && dx) m.face = dx;
+      if (m.y > this.map.h + 100) Object.assign(m, { x: m.home.x, y: m.home.y, vx: 0, vy: 0 });
     }
   }
 
@@ -762,7 +815,7 @@ export class World {
       P.push([p.id, Math.round(p.x), Math.round(p.y), p.face, Math.round(Math.max(0, p.hpFrac) * 1000),
         (p.dead ? 1 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128)]);
     for (const m of this.ents.values())
-      if (m.kind === "m") M.push([m.id, MTYPES.indexOf(m.type), Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
+      if (m.kind === "m") M.push([m.id, m.type, Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
     // the thrower's id: a flying sword is drawn as the weapon its owner holds
     // ... and the art it belongs to ("" for none): Phi Kiếm draws the weapon, other arts their own effect
     for (const b of this.bolts) B.push([b.id, b.owner.id, Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy), b.art ?? ""]);

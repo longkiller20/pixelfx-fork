@@ -9,7 +9,6 @@ import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
 import { buildScene } from "./scenery.js";
 import { stepBody, PHYS } from "/shared/physics.js";
 
-const MTYPES = ["dummy", "ghost"];
 // each buff's status icon (Xianxia Pixel Pack)
 const BUFF_ICON = { hp: "item_peach", atk: "status_burn", def: "status_golden_shield", spd: "status_swift", exp: "item_jade_slip", stones: "item_spirit_stone", med: "item_lingzhi" };
 const GOLD = ["#2a1604", "#6a3a08", "#b8700e", "#f0a820", "#ffd84a", "#fff2a8", "#ffffff"];
@@ -122,7 +121,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   function onSnapshot(m) {
     const s = { at: performance.now() / 1000, k: m.k, P: new Map(), M: new Map(), B: m.B };
     for (const a of m.P) s.P.set(a[0], { id: a[0], x: a[1], y: a[2], face: a[3], hp: a[4] / 1000, f: a[5] });
-    for (const a of m.M) s.M.set(a[0], { id: a[0], type: MTYPES[a[1]], x: a[2], y: a[3], face: a[4], hp: a[5] / 1000, f: a[6] });
+    for (const a of m.M) s.M.set(a[0], { id: a[0], type: a[1], x: a[2], y: a[3], face: a[4], hp: a[5] / 1000, f: a[6] });
     snaps.push(s);
     while (snaps.length > 30) snaps.shift();
     for (const e of m.E) onEvent(e, s);
@@ -723,7 +722,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     for (const e of list) drawEntity(p, e, now);
     const live = new Set();
     for (const b of snaps[snaps.length - 1]?.B ?? []) {
-      const a = b[6] && ARTS[b[6]];
+      // a monster's shot ("@type") rides its own effect too
+      const a = b[6]?.[0] === "@" ? { fx: MONSTERS[b[6].slice(1)]?.shotFx, at: "bolt", scale: 1.1 } : b[6] && ARTS[b[6]];
       if (!a || !a.fx) drawBolt(p, b, now);
       else if (a.at === "bolt") {
         // the art's own effect rides the projectile, turned the way it flies
@@ -771,28 +771,37 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       drawAvatar(p, info.look, { t: now + e.id, moving: !!(e.f & 32), air: !!(e.f & 128), meditating: !!(e.f & 16), cast: c && age < 0.6 ? { ...c, age } : null, busy: !!(e.f & 64), slow: !!(e.f & 4), flash });
     } else if (e.kind === "m") {
       if (e.dead) return;
-      if (e.type === "dummy") {
+      const md = MONSTERS[e.type];
+      if (!md?.fx || !effects[md.fx]) {
         p.place(sx, sy, false);
         shadow(p, 12);
         const hit = now - (flashes.get(e.id) ?? -9);
         drawDummy(p, hit < 0.6 ? Math.round(Math.sin(hit * 30) * 3 * (1 - hit / 0.6)) : 0, flash);
       } else {
+        // a critter: its own pixelfx effect, a size up to sit with the characters; it lunges a little when it strikes
         let g = ghosts.get(e.id);
-        if (!g) ghosts.set(e.id, (g = createFx(effects["critters/ghost"], { seed: e.id })));
-        g.update(1 / 60);
-        g.options.x = sx;
-        g.options.y = sy - 6;
-        g.options.flip = e.face < 0;
+        if (!g || g.mod !== md.fx) ghosts.set(e.id, (g = { mod: md.fx, fx: createFx(effects[md.fx], { seed: e.id }) }));
+        g.fx.update(1 / 60);
+        g.fx.options.flip = e.face < 0;
+        const lunge = e.f & 128 ? e.face * 6 : 0;
+        if (!md.fly) (p.place(sx, sy, false), shadow(p, 12));
+        drawFx(g.fx, "back", e.x + lunge, e.y, MON_SCALE);
+        drawFx(g.fx, "front", e.x + lunge, e.y, MON_SCALE);
         p.place(sx, sy, false);
-        shadow(p, 11);
-        g.draw(frame, "back");
-        g.draw(frame, "front");
-        if (flash) p.glow(0, -26, 16, WHITE, 0.8);
-        if (e.f & 4) p.glow(0, -26, 18, hex("#a060ff"), 0.4);
+        const cy = -monsterHeight(md) / 2;
+        if (flash) p.glow(lunge, cy, 18, WHITE, 0.8);
+        if (e.f & 4) p.glow(lunge, cy, 20, hex("#a060ff"), 0.4);
       }
     }
   }
-  const ghosts = new Map();
+  const ghosts = new Map(); // monster id -> its critter effect
+  const MON_SCALE = 1.4;
+  // how tall a monster stands above its anchor (fliers are anchored at their middle, walkers at their feet)
+  const monsterHeight = (md) => {
+    const m = effects[md.fx]?.meta;
+    if (!m) return 58;
+    return (md.fly ? m.size[1] / 2 : m.origin?.[1] ?? m.size[1]) * MON_SCALE * 0.6;
+  };
   // a soft shadow under the feet: truly translucent, not dithered
   const BLACK = hex("#000000");
   function shadow(p, rx) {
@@ -832,9 +841,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         name = `${info.name} · ${realmName(info.lv)}`;
         color = e.id === myId ? "#fff6c8" : info.look?.g === "f" ? "#ffb8d8" : "#a8e0ff";
       } else {
-        top = (e.y - camY - (e.type === "dummy" ? 58 : 66)) * k;
-        name = MONSTERS[e.type].name;
-        color = e.type === "ghost" ? "#ff9a9a" : "#d8c890";
+        const md = MONSTERS[e.type];
+        if (!md) continue;
+        top = (e.y - camY - (md.fx ? monsterHeight(md) + 8 : 58)) * k;
+        name = md.name;
+        color = md.style === "none" ? "#d8c890" : "#ff9a9a";
       }
       const fs = Math.max(10, Math.round(5.2 * k));
       c.font = `600 ${fs}px system-ui, sans-serif`;

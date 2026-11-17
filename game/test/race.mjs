@@ -317,8 +317,9 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
 
       // drops: a dummy set to always drop two Huyền Thiết Tinh; break it and they are in the bag
       const row = (await adm("/t/monster_drops", { token, method: "POST", body: { monster: "dummy", item_key: "mat_kim", chance: 1, min_qty: 2, max_qty: 2 } })).data;
+      await adm("/t/monsters/dummy", { token, method: "PATCH", body: { drop_rate: 1 } });
       try {
-        const d = c3.snap.M.find((m) => m[1] === 0);
+        const d = c3.snap.M.find((m) => m[1] === "dummy");
         for (let i = 0; i < 120; i++) {
           const pos = c3.snap.P.find((x) => x[0] === c3.id), dx = d[2] + 30 - pos[1];
           if (Math.abs(dx) < 6) break;
@@ -335,6 +336,56 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
         assert.equal((await me(P.token)).inventory.mat_kim, 2, "and in the bag");
       } finally {
         await adm(`/t/monster_drops/${row.id}`, { token, method: "DELETE" });
+        await adm("/t/monsters/dummy", { token, method: "PATCH", body: { drop_rate: 0 } });
+      }
+
+      // pixelfx's monsters, dropped by the player to try (no map has them yet): a bat rushes in and bites, an eyeball keeps
+      // its distance and shoots; killed, one drops exactly one item from its own list
+      assert.ok((await adm("/t/monsters", { token })).data.length >= 13, "all of pixelfx's critters are in");
+      await adm(`/players/${pu.id}/live`, { token, method: "POST", body: { action: "heal" } });
+      const hp0 = c3.me.hp;
+      for (const type of ["bat", "eyeball"]) assert.equal((await adm(`/players/${pu.id}/summon`, { token, method: "POST", body: { type } })).status, 200);
+      let shot = false, bit = false;
+      for (let i = 0; i < 80 && !(shot && bit); i++) {
+        await sleep(100);
+        const s = c3.snap;
+        shot ||= s.B.some((b) => b[6] === "@eyeball");
+        const bat = s.M.find((m) => m[1] === "bat");
+        bit ||= !!bat && (bat[6] & 128) > 0;
+      }
+      assert.ok(shot, "the eyeball shoots");
+      assert.ok(bit, "the bat strikes");
+      await sleep(300);
+      assert.ok(c3.me.hp < hp0, `and the player is hurt (${hp0} -> ${c3.me.hp})`);
+      // a monster that always drops, from a list of two: break it, one of the two, once
+      await adm("/t/monsters", { token, method: "POST", body: { type: "t_box", name: "Hộp thử", style: "none", fx: "", hp: 1, atk: 0, def: 0, spd: 0, respawn: 60, aggro: 0, reach: 0, shot_range: 0, shot_speed: 0, cooldown: 0, mult: 0, exp_base: 0, exp_per_level: 0, stones: 0, drop_rate: 1, common_drops: 0 } });
+      try {
+        await adm("/t/monster_drops", { token, method: "POST", body: { monster: "t_box", item_key: "mat_thuy", chance: 1, min_qty: 1, max_qty: 1 } });
+        await adm("/t/monster_drops", { token, method: "POST", body: { monster: "t_box", item_key: "mat_bang", chance: 1, min_qty: 1, max_qty: 1 } });
+        await sleep(200);
+        const before = (await me(P.token)).inventory, drops0 = c3.msgs.filter((m) => m.t === "drop").length;
+        await adm(`/players/${pu.id}/summon`, { token, method: "POST", body: { type: "t_box" } });
+        await sleep(300);
+        const box = c3.snap.M.find((m) => m[1] === "t_box"), pos = c3.snap.P.find((x) => x[0] === c3.id);
+        for (let i = 0; i < 100; i++) {
+          const me2 = c3.snap.P.find((x) => x[0] === c3.id), dx = box[2] - Math.sign(box[2] - pos[1]) * 30 - me2[1];
+          if (Math.abs(dx) < 6) break;
+          send(c3, { t: "in", dx: Math.sign(dx), jump: false, down: false });
+          await sleep(50);
+        }
+        send(c3, { t: "in", dx: 0, jump: false, down: false });
+        for (let i = 0; i < 20 && c3.msgs.filter((m) => m.t === "drop").length === drops0; i++) {
+          send(c3, { t: "cast", s: 0, ax: Math.sign(box[2] - pos[1]) || 1, ay: 0 });
+          await sleep(650);
+        }
+        await sleep(300);
+        const got = c3.msgs.filter((m) => m.t === "drop").slice(drops0);
+        assert.equal(got.length, 1, "one drop");
+        assert.equal(Object.keys(got[0].items).length, 1, "of exactly one item");
+        const after = (await me(P.token)).inventory;
+        assert.equal((after.mat_thuy ?? 0) + (after.mat_bang ?? 0) - (before.mat_thuy ?? 0) - (before.mat_bang ?? 0), 1, "and it is in the bag");
+      } finally {
+        await adm("/t/monsters/t_box", { token, method: "DELETE" });
         c3.ws.close();
       }
     }
@@ -345,7 +396,7 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   } finally {
     await q("DELETE FROM admins WHERE username = ?", [name]);
   }
-  ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs, bảo vật gifts, công pháp (learn once, 5-slot bar, event-only arts, drops) and bans take effect");
+  ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs, bảo vật gifts, công pháp (learn once, 5-slot bar, event-only arts, drops), monsters (melee, ranged, one weighted drop) and bans take effect");
 }
 
 {
@@ -356,7 +407,7 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   const P = await player(), c = await connect(P.token);
   await sleep(300);
   // a standing one (the công pháp check may just have broken the other)
-  const d = c.snap.M.find((m) => m[1] === 0 && !(m[6] & 1));
+  const d = c.snap.M.find((m) => m[1] === "dummy" && !(m[6] & 1));
   // walk to just right of the dummy, face it and cut
   for (let i = 0; i < 80; i++) {
     const me = c.snap.P.find((q) => q[0] === c.id), dx = d[2] + 30 - me[1];

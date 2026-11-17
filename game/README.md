@@ -19,6 +19,19 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   kỳ. Thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
   - Mọi nhân vật dựng từ cùng một thân gốc, nên tóc và áo nào cũng mặc vừa.
   - Có rig và hoạt ảnh: thân trên thở và nhún, tay áo xoay quanh vai, vạt áo và tóc bay theo bước chạy, hai chân bước.
+- **Yêu thú:** cả 12 critters của pixelfx đều đã có chỉ số trong database, nhưng chưa đặt lên bản đồ nào; sẽ có khi có
+  map mới.
+  - Đánh gần, lao tới cắn: Huyết Bức (dơi), Linh Điểu (chim), Ngư Yêu Quần (đàn cá), Âm Hồn, Độc Thiềm (ếch),
+    Nhuyễn Yêu (slime), Thanh Xà (rắn).
+  - Đánh xa, giữ khoảng cách và bắn; bị áp sát thì lùi: Huyễn Điệp (bướm, cầu huyền quang), Ma Nhãn (tia laser),
+    Phi Đầu Lâu (cầu lửa), Thủy Mẫu Tinh (cầu nước), Quỷ Hỏa (u linh hỏa).
+  - Con bay thì lơ lửng và bay thẳng tới. Con đi bộ thì chạy trên mặt đất theo trọng lực giống người chơi, gặp tường thì
+    nhảy.
+  - Thấy người chơi trong tầm phát hiện thì tự đuổi; ra quá xa chỗ của nó thì bỏ.
+  - Rơi đồ: mỗi lần hạ, tung "tỉ lệ rơi đồ" của con đó. Trúng thì rơi đúng 1 món trong danh sách admin cài cho con đó,
+    chọn theo trọng số. Danh sách có sẵn: tinh thạch cùng hệ, Linh Tủy, Hồi Xuân Đan và bí kíp công pháp cùng hệ.
+  - Admin thêm, sửa, xóa yêu thú (hình, kiểu đánh, bay, chỉ số, tầm bắn, đạn, tỉ lệ rơi). Để thử khi chưa có map, ở
+    trang người chơi có nút "Thả quái thử": thả một con cạnh người đang online; con đó chết là mất, không hồi sinh.
 - **Đánh thường:** Kiếm Khí Trảm, nút to ở góc (J), ai cũng có.
 - **Công Pháp (nút 📜):** 215 công pháp, mỗi hiệu ứng có thể làm chiêu của pixelfx là một môn (chỉ bỏ ui, chuyển cảnh và
   vật phẩm nhặt). Có 7 kiểu: cận chiến, phóng xa, vùng phía trước, vùng quanh thân, lướt tới, hồi sinh lực, tăng chỉ số
@@ -342,8 +355,8 @@ Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nh�
 | Cảnh giới | Thêm, đổi tên, số tầng, đổi thứ tự (↑ ↓), xóa; hiện khoảng cấp của từng cảnh giới |
 | Vật phẩm | Đan dược, bí kíp, nguyên liệu: lọc theo loại, tìm; thêm, sửa giá, công dụng, thời gian hồi, mô tả, bật/tắt bán, xóa |
 | Công pháp | 215 môn: lọc theo loại, hệ, tìm; sửa tên, hệ, bậc, loại chiêu, hồi chiêu, sát thương, thông số, hiệu ứng pixelfx và chỗ vẽ, bật/tắt; sửa từng vật phẩm yêu cầu và số lượng, thêm, bỏ; thêm môn mới, xóa |
-| Rơi đồ | Yêu thú nào (hoặc `*` mọi yêu thú) rơi vật phẩm gì, tỉ lệ, số lượng ít nhất và nhiều nhất |
-| Yêu thú | Mọi chỉ số và phần thưởng của bù nhìn và âm hồn; bật/tắt rơi đồ chung |
+| Rơi đồ | Danh sách rơi của từng yêu thú (hoặc `*` mọi yêu thú): vật phẩm, trọng số (kèm % mỗi lần rơi), số lượng ít nhất và nhiều nhất |
+| Yêu thú | Thêm, sửa, xóa yêu thú: hình, kiểu đánh (gần, xa, đứng yên), bay, chỉ số, tầm bắn và đạn, phần thưởng, tỉ lệ rơi đồ; số món trong danh sách rơi |
 | Đánh thường | Tên, thời gian hồi, sát thương và tầm của Kiếm Khí Trảm |
 | Cài đặt | 25 con số còn lại, chia nhóm, mỗi số có giải thích |
 | Tóc & Y phục | Lọc theo loại, giới, trạng thái; ảnh xem trước; sửa tên, giá, miễn phí, đang bán; thêm món ở ô atlas còn trống; xóa |
@@ -447,7 +460,8 @@ Các bảng trong database:
 | `skills` | Đánh thường (J): tên, thời gian hồi, hệ số sát thương, tầm (`params`). |
 | `arts` | Công pháp: `source` (`learn`: lĩnh ngộ bằng vật phẩm; `event`: chỉ admin phát, cho hoạt động, sự kiện, đấu giá) và `source_note` (nhận ở đâu); tên, hệ, bậc, loại (`melee`, `bolt`, `zone`, `nova`, `dash`, `heal`, `buff`), hồi chiêu, hệ số, `params` (JSON, theo loại), hiệu ứng pixelfx (`fx`) và chỗ vẽ (`fx_at`: `front`, `self`, `target`, `bolt`), `starter` (ai cũng biết), `enabled`. Danh sách đầu nằm ở `shared/arts-seed.js`. |
 | `art_reqs` | Mỗi dòng là một vật phẩm (và số lượng) cần để lĩnh ngộ một công pháp. |
-| `monster_drops` | Rơi đồ: `monster` (hoặc `*` cho mọi yêu thú có `common_drops`), vật phẩm, `chance` (0-1), `min_qty`, `max_qty`. |
+| `monster_drops` | Rơi đồ: `monster` (hoặc `*` cho mọi yêu thú có `common_drops`), vật phẩm, `chance` (trọng số: mỗi lần rơi chọn 1 món theo tỉ lệ `chance` / tổng), `min_qty`, `max_qty`. |
+| `monsters` (tiếp) | `fx` (hình pixelfx, vd `critters/bat`), `style` (`melee`, `ranged`, `none`), `fly`, `shot_range`, `shot_speed`, `shot_fx` (đạn của con đánh xa), `drop_rate` (tỉ lệ một lần hạ có rơi đồ). |
 | `learned_arts`, `characters.art_slots` | Công pháp người chơi đã lĩnh ngộ, và 5 ô trên thanh (JSON). |
 | `settings` | Các con số còn lại, mỗi dòng có ghi chú ý nghĩa: chỉ số gốc nhân vật, đường tu vi, quà mỗi ngày, quà tân thủ, tu luyện, thưởng PvP, thời gian hồi sinh… |
 

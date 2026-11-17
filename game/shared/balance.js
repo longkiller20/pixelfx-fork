@@ -57,9 +57,17 @@ export const ART_AT = ["front", "self", "target", "bolt"];
 export const ART_SOURCES = ["learn", "event"];
 export const ITEM_KINDS = ["pill", "book", "material"];
 const PARAM_MAX = { arc: 6.3, slow: 0.95, pct: 500, dur: 600 };
-// the monster types the game can draw; their numbers are free to change
-export const MONSTER_TYPES = ["dummy", "ghost"];
+// Monsters: any type an admin adds, drawn with a pixelfx effect (`fx`, the critters), or as a straw dummy. The maps place
+// them by type, so the types a map uses must exist. style: melee (rushes in and strikes at `reach`), ranged (keeps its
+// distance and shoots `shotFx` within `range`), none (stands, like the dummies). fly: hovers and goes where it likes;
+// otherwise it walks the ground with gravity and hops walls. Each kill: dropRate is the chance of a drop, and then exactly
+// one item drops, picked by weight from that monster's drop list (and the "*" list if commonDrops).
+export const MONSTER_TYPES = ["dummy"]; // used by the maps
+export const MONSTER_STYLES = ["melee", "ranged", "none"];
 
+// a monster's look and way of fighting: its pixelfx effect, style, flying, drop chance; and for shooters their range,
+// shot speed and shot effect
+const M = (fx, style, fly, dropRate, range = 0, shotSpeed = 0, shotFx = "") => ({ fx, style, fly, dropRate, range, shotSpeed, shotFx, commonDrops: fx === "critters/ghost" });
 export const DEFAULTS = {
   realms: ["Luyện Khí", "Trúc Cơ", "Kim Đan", "Nguyên Anh", "Hóa Thần", "Luyện Hư", "Hợp Thể", "Đại Thừa", "Độ Kiếp"].map((name) => ({ name, stages: 5 })),
   // the basic attack on the big button; every other art is in the arts table (shared/arts-seed.js)
@@ -69,8 +77,20 @@ export const DEFAULTS = {
     { key: "tukhi", name: "Tụ Khí Đan", desc: "Tăng tu vi ngay lập tức", price: 40, heal: 0, expBase: 150, expPerLevel: 30, cd: 1, onSale: true, sort: 2 },
   ],
   monsters: [
-    { type: "dummy", name: "Bù Nhìn Rơm", hp: 500, atk: 0, def: 10, spd: 0, respawn: 5, expBase: 2, expPerLevel: 0, stones: 0, aggro: 0, reach: 0, cd: 0, mult: 0 },
-    { type: "ghost", name: "Âm Hồn", hp: 420, atk: 30, def: 12, spd: 62, respawn: 8, expBase: 30, expPerLevel: 4, stones: 2, aggro: 150, reach: 34, cd: 1.2, mult: 1 },
+    { ...M("", "none", 0, 0), type: "dummy", name: "Bù Nhìn Rơm", hp: 500, atk: 0, def: 10, spd: 0, respawn: 5, expBase: 2, expPerLevel: 0, stones: 0, aggro: 0, reach: 0, cd: 0, mult: 0 },
+    { type: "ghost", name: "Âm Hồn", hp: 420, atk: 30, def: 12, spd: 62, respawn: 8, expBase: 30, expPerLevel: 4, stones: 2, aggro: 150, reach: 40, cd: 1.2, mult: 1, ...M("critters/ghost", "melee", 1, 0.3) },
+    // the rest of pixelfx's critters; on no map yet (they come with the next maps). An admin can drop one by a player to try
+    { type: "bat", name: "Huyết Bức", hp: 300, atk: 24, def: 6, spd: 110, respawn: 8, expBase: 22, expPerLevel: 3, stones: 1, aggro: 170, reach: 40, cd: 0.9, mult: 1, ...M("critters/bat", "melee", 1, 0.3) },
+    { type: "bird", name: "Linh Điểu", hp: 260, atk: 20, def: 5, spd: 130, respawn: 8, expBase: 20, expPerLevel: 3, stones: 1, aggro: 150, reach: 40, cd: 0.8, mult: 1, ...M("critters/bird", "melee", 1, 0.3) },
+    { type: "butterfly", name: "Huyễn Điệp", hp: 220, atk: 18, def: 4, spd: 80, respawn: 9, expBase: 22, expPerLevel: 3, stones: 1, aggro: 190, reach: 0, cd: 1.8, mult: 1, ...M("critters/butterfly", "ranged", 1, 0.3, 160, 180, "arcane/arcane-orb") },
+    { type: "eyeball", name: "Ma Nhãn", hp: 480, atk: 34, def: 14, spd: 50, respawn: 12, expBase: 40, expPerLevel: 5, stones: 2, aggro: 240, reach: 0, cd: 1.6, mult: 1, ...M("critters/eyeball", "ranged", 1, 0.35, 220, 360, "projectiles/laser-bolt") },
+    { type: "fish_school", name: "Ngư Yêu Quần", hp: 360, atk: 22, def: 8, spd: 100, respawn: 9, expBase: 26, expPerLevel: 3, stones: 1, aggro: 160, reach: 44, cd: 1, mult: 1, ...M("critters/fish-school", "melee", 1, 0.3) },
+    { type: "flying_skull", name: "Phi Đầu Lâu", hp: 520, atk: 38, def: 16, spd: 70, respawn: 12, expBase: 45, expPerLevel: 5, stones: 3, aggro: 230, reach: 0, cd: 2, mult: 1.2, ...M("critters/flying-skull", "ranged", 1, 0.35, 200, 260, "fire/fireball") },
+    { type: "frog", name: "Độc Thiềm", hp: 380, atk: 28, def: 10, spd: 90, respawn: 10, expBase: 28, expPerLevel: 4, stones: 1, aggro: 160, reach: 36, cd: 1.1, mult: 1, ...M("critters/frog", "melee", 0, 0.3) },
+    { type: "jellyfish", name: "Thủy Mẫu Tinh", hp: 340, atk: 26, def: 8, spd: 50, respawn: 10, expBase: 32, expPerLevel: 4, stones: 2, aggro: 200, reach: 0, cd: 1.8, mult: 1, ...M("critters/jellyfish", "ranged", 1, 0.3, 170, 200, "water/water-orb") },
+    { type: "slime", name: "Nhuyễn Yêu", hp: 500, atk: 22, def: 18, spd: 60, respawn: 10, expBase: 24, expPerLevel: 3, stones: 1, aggro: 140, reach: 34, cd: 1.3, mult: 1, ...M("critters/slime", "melee", 0, 0.3) },
+    { type: "snake", name: "Thanh Xà", hp: 400, atk: 32, def: 10, spd: 95, respawn: 10, expBase: 30, expPerLevel: 4, stones: 2, aggro: 170, reach: 42, cd: 1, mult: 1, ...M("critters/snake", "melee", 0, 0.3) },
+    { type: "wisp", name: "Quỷ Hỏa", hp: 300, atk: 30, def: 6, spd: 90, respawn: 10, expBase: 34, expPerLevel: 4, stones: 2, aggro: 210, reach: 0, cd: 1.7, mult: 1, ...M("critters/wisp", "ranged", 1, 0.3, 190, 240, "fire/spirit-flame") },
   ],
   // [value, what it means] — the meaning is stored beside the value for whoever edits it
   settings: {
@@ -167,8 +187,14 @@ export function checkConfig(c) {
   }
   const monsters = {};
   for (const m of c.monsters ?? []) {
-    if (!MONSTER_TYPES.includes(m.type)) continue;
+    if (!/^[a-z0-9_]{2,16}$/.test(String(m.type))) throw new Error(`Mã yêu thú "${m.type}": 2-16 chữ thường không dấu, số, _`);
+    const style = m.style ?? "melee";
+    if (!MONSTER_STYLES.includes(style)) throw new Error(`Yêu thú ${m.type}: kiểu đánh "${style}" không có (${MONSTER_STYLES.join(", ")})`);
+    for (const k of ["fx", "shotFx"]) if (m[k] && !/^[a-z]+\/[a-z0-9-]+$/.test(m[k])) throw new Error(`Yêu thú ${m.type}: hiệu ứng "${m[k]}" sai dạng (vd critters/bat)`);
+    if (style === "ranged" && !(Number(m.range) > 0 && Number(m.shotSpeed) > 0)) throw new Error(`Yêu thú ${m.type} đánh xa: cần tầm bắn và tốc độ đạn lớn hơn 0`);
     monsters[m.type] = {
+      fx: String(m.fx ?? ""), style, fly: !!m.fly && m.fly !== "0", range: num(m.range ?? 0, `${m.type} tầm bắn`, 0, 2000), shotSpeed: num(m.shotSpeed ?? 0, `${m.type} tốc độ đạn`, 0, 3000),
+      shotFx: String(m.shotFx ?? ""), dropRate: num(m.dropRate ?? 0, `${m.type} tỉ lệ rơi đồ`, 0, 1),
       name: str(m.name, `tên ${m.type}`), hp: num(m.hp, `${m.type} hp`, 1), atk: num(m.atk, `${m.type} atk`), def: num(m.def, `${m.type} def`),
       spd: num(m.spd, `${m.type} spd`, 0, 1000), respawn: num(m.respawn, `${m.type} respawn`, 0.5, 3600), expBase: num(m.expBase, `${m.type} exp`) | 0,
       expPerLevel: num(m.expPerLevel, `${m.type} exp/cấp`) | 0, stones: num(m.stones, `${m.type} linh thạch`) | 0, aggro: num(m.aggro ?? 0, `${m.type} aggro`, 0, 2000),
@@ -216,7 +242,8 @@ export function checkConfig(c) {
     if (!items[d.item]) throw new Error(`Rơi đồ: vật phẩm "${d.item}" không có`);
     const min = num(d.min, `số lượng tối thiểu ${d.item}`, 1, 999) | 0, max = num(d.max, `số lượng tối đa ${d.item}`, 1, 999) | 0;
     if (max < min) throw new Error(`Rơi đồ ${d.item}: tối đa nhỏ hơn tối thiểu`);
-    (drops[d.monster] ??= []).push({ item: d.item, chance: num(d.chance, `tỉ lệ rơi ${d.item}`, 0, 1), min, max });
+    // chance is a weight now: one item is picked per drop, each with chance / (the list's total)
+    (drops[d.monster] ??= []).push({ item: d.item, chance: num(d.chance, `trọng số rơi ${d.item}`, 0, 1e6), min, max });
   }
   return { realms, skills, items, monsters, settings: S, arts, drops };
 }

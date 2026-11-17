@@ -223,6 +223,7 @@ const ART_PARAM_HINT = {
   nova: '{"r": 90, "delay": 0.2, "slow": 0, "slowDur": 0}', dash: '{"dist": 140, "r": 26}', heal: '{"pct": 0.2}', buff: '{"stat": "atk", "pct": 20, "dur": 8}',
 };
 const ELEMENTS = [["kim", "Kim"], ["hoa", "Hỏa"], ["thuy", "Thủy"], ["bang", "Băng"], ["loi", "Lôi"], ["moc", "Mộc"], ["tho", "Thổ"], ["quang", "Quang"], ["am", "Ám"], ["huyen", "Huyền"], ["phong", "Phong"], ["di", "Dị Giới"], ["bao", "Bạo"], ["thu", "Ngự Thú"]];
+const MON_STYLE = [["melee", "Đánh gần (lao tới)"], ["ranged", "Đánh xa (bắn)"], ["none", "Đứng yên (bù nhìn)"]];
 const ART_SOURCE = [["learn", "Lĩnh ngộ bằng vật phẩm"], ["event", "Chỉ qua hoạt động / sự kiện / đấu giá (admin phát)"]];
 const ITEM_KIND = [["pill", "Đan dược (dùng được)"], ["book", "Bí kíp"], ["material", "Nguyên liệu"]];
 /** Show a long list a page at a time: the first `n`, then a button for the next `n`. */
@@ -449,7 +450,7 @@ const VIEWS = {
     const mons = [["*", "* Mọi yêu thú (có bật rơi đồ chung)"], ...monsters.map((m) => [m.type, `${m.name} (${m.type})`])];
     const F = [
       { k: "monster", label: "Yêu thú", type: "select", options: mons }, { k: "item_key", label: "Vật phẩm", type: "select", options: itemOptions(items) },
-      { k: "chance", label: "Tỉ lệ mỗi lần hạ (0-1)", type: "number", step: 0.001, hint: "0.05 = 5%" },
+      { k: "chance", label: "Trọng số", type: "number", step: 0.001, hint: "chỉ so với các món khác cùng danh sách: 50 và 5 = món đầu ra nhiều gấp 10" },
       { k: "min_qty", label: "Ít nhất", type: "number", step: 1 }, { k: "max_qty", label: "Nhiều nhất", type: "number", step: 1 },
     ];
     const nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name]));
@@ -457,6 +458,10 @@ const VIEWS = {
       title: "Thêm vật phẩm rơi", isNew: true, row: { monster: "*", item_key: items[0]?.item_key, chance: 0.05, min_qty: 1, max_qty: 1 }, fields: F,
       onSave: async (c) => (await guard(() => api("/t/monster_drops", { method: "POST", body: c }), "Đã thêm.")) && reload(),
     });
+    // a row's share of its list: the chance it is the one item when that monster drops something
+    const sums = {};
+    for (const r of rows) sums[r.monster] = (sums[r.monster] ?? 0) + r.chance;
+    const share = (r) => `${sums[r.monster] ? ((r.chance / sums[r.monster]) * 100).toFixed(1) : 0}% mỗi lần rơi`;
     const mon = el("select", {}, [["", "Mọi yêu thú"], ...mons].map(([v, l]) => el("option", { value: v }, l)));
     const q = el("input", { type: "search", placeholder: "Tìm vật phẩm..." });
     const out = el("div");
@@ -464,7 +469,7 @@ const VIEWS = {
       const t = q.value.trim().toLowerCase();
       const list = rows.filter((r) => (!mon.value || r.monster === mon.value) && (!t || (nameOf[r.item_key] ?? r.item_key).toLowerCase().includes(t) || r.item_key.includes(t)));
       out.replaceChildren(...paged(list, (r) => record({
-        title: nameOf[r.item_key] ?? r.item_key, sub: `${r.monster === "*" ? "mọi yêu thú" : r.monster} · ${(r.chance * 100).toFixed(2)}%`, row: r, fields: F,
+        title: nameOf[r.item_key] ?? r.item_key, sub: `${r.monster === "*" ? "mọi yêu thú" : r.monster} · trọng số ${r.chance} (${share(r)})`, row: r, fields: F,
         onSave: async (c) => (await guard(() => api(`/t/monster_drops/${r.id}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
         onDelete: async () => confirm("Bỏ dòng rơi đồ này?") && (await guard(() => api(`/t/monster_drops/${r.id}`, { method: "DELETE" }), "Đã bỏ.")) && reload(),
       }), 30));
@@ -473,25 +478,45 @@ const VIEWS = {
     q.addEventListener("input", draw);
     draw();
     return [el("h2", {}, "Rơi đồ"),
-      el("p", { class: "dim" }, "Mỗi lần hạ một yêu thú, mỗi dòng của nó (và các dòng \"*\" nếu yêu thú bật rơi đồ chung) được tung xúc xắc riêng theo tỉ lệ. Bù nhìn rơm không rơi gì. Vật phẩm rơi vào túi người hạ."),
+      el("p", { class: "dim" }, "Mỗi lần hạ một yêu thú: tung \"Tỉ lệ rơi đồ\" của con đó (tab Yêu thú). Trúng thì rơi đúng 1 món trong danh sách của nó (cộng các dòng \"*\" nếu con đó bật rơi đồ chung), chọn theo trọng số, số lượng từ ít nhất đến nhiều nhất. Vật phẩm vào thẳng túi người hạ. Bù nhìn rơm không rơi gì."),
       el("div", { class: "grid" }, add), el("div", { class: "bar" }, mon, q), out];
   },
 
   async monsters() {
-    const rows = await api("/t/monsters");
+    const [rows, drops, items] = await Promise.all([api("/t/monsters"), api("/t/monster_drops"), api("/t/items")]);
+    const nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name]));
     const F = [
-      { k: "name", label: "Tên" }, { k: "hp", label: "Sinh lực", type: "number" }, { k: "atk", label: "Công", type: "number" }, { k: "def", label: "Thủ", type: "number" },
-      { k: "spd", label: "Tốc độ", type: "number" }, { k: "respawn", label: "Hồi sinh (giây)", type: "number" },
+      { k: "name", label: "Tên" }, { k: "style", label: "Kiểu đánh", type: "select", options: MON_STYLE },
+      { k: "fly", label: "Bay (không thì đi trên mặt đất)", type: "bool" },
+      { k: "fx", label: "Hình (hiệu ứng pixelfx)", hint: "vd critters/bat; để trống = bù nhìn rơm" },
+      { k: "hp", label: "Sinh lực", type: "number" }, { k: "atk", label: "Công", type: "number" }, { k: "def", label: "Thủ", type: "number" },
+      { k: "spd", label: "Tốc độ (px/giây)", type: "number" }, { k: "respawn", label: "Hồi sinh (giây)", type: "number" },
+      { k: "aggro", label: "Tầm phát hiện (px)", type: "number" }, { k: "reach", label: "Tầm đánh gần (px)", type: "number" },
+      { k: "shot_range", label: "Tầm bắn (px, đánh xa)", type: "number" }, { k: "shot_speed", label: "Tốc độ đạn (px/giây)", type: "number" },
+      { k: "shot_fx", label: "Hình viên đạn (pixelfx)", hint: "vd fire/fireball, projectiles/laser-bolt" },
+      { k: "cooldown", label: "Hồi đòn (giây)", type: "number" }, { k: "mult", label: "Hệ số sát thương", type: "number" },
       { k: "exp_base", label: "Tu vi thưởng", type: "number", step: 1 }, { k: "exp_per_level", label: "Tu vi thêm mỗi cấp người hạ", type: "number", step: 1 },
-      { k: "stones", label: "Linh thạch thưởng", type: "number", step: 1 }, { k: "aggro", label: "Tầm phát hiện (px)", type: "number" },
-      { k: "reach", label: "Tầm đánh (px)", type: "number" }, { k: "cooldown", label: "Hồi đòn (giây)", type: "number" }, { k: "mult", label: "Hệ số sát thương", type: "number" },
-      { k: "common_drops", label: "Rơi đồ chung (các dòng * ở tab Rơi đồ)", type: "bool" },
+      { k: "stones", label: "Linh thạch thưởng", type: "number", step: 1 },
+      { k: "drop_rate", label: "Tỉ lệ rơi đồ mỗi lần hạ (0-1)", type: "number", step: 0.01, hint: "0.3 = 30% số lần hạ rơi 1 món" },
+      { k: "common_drops", label: "Tính cả danh sách * (rơi đồ chung)", type: "bool" },
     ];
-    return [el("h2", {}, "Yêu thú"), el("p", { class: "dim" }, "Loại yêu thú gắn với hình vẽ trong game; ở đây đổi được mọi con số và tên."),
-      el("div", { class: "grid" }, rows.map((r) => record({
-        title: r.name, sub: r.type, row: r, fields: F,
-        onSave: async (c) => (await guard(() => api(`/t/monsters/${r.type}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
-      })))];
+    const add = record({
+      title: "Thêm yêu thú", isNew: true,
+      row: { style: "melee", fly: 0, fx: "critters/bat", hp: 300, atk: 25, def: 8, spd: 90, respawn: 10, aggro: 160, reach: 40, shot_range: 0, shot_speed: 0, shot_fx: "", cooldown: 1, mult: 1, exp_base: 20, exp_per_level: 3, stones: 1, drop_rate: 0.3, common_drops: 0 },
+      fields: [{ k: "type", label: "Mã (chữ thường, không dấu)", hint: "vd: hac_lang" }, ...F],
+      onSave: async (c) => (await guard(() => api("/t/monsters", { method: "POST", body: c }), "Đã thêm.")) && reload(),
+    });
+    return [el("h2", {}, `Yêu thú (${rows.length})`),
+      el("p", { class: "dim" }, "Đánh gần: thấy người chơi là lao tới đánh. Đánh xa: giữ khoảng cách và bắn trong tầm bắn, bị áp sát thì lùi. Mỗi lần hạ, tung tỉ lệ rơi đồ; trúng thì rơi đúng 1 món, chọn theo trọng số trong danh sách của con đó (tab Rơi đồ). Các yêu thú mới chưa có trên bản đồ nào; thả thử ở trang người chơi (nút \"Thả quái thử\")."),
+      el("div", { class: "grid" }, add, rows.map((r) => {
+        const mine = drops.filter((d) => d.monster === r.type), w = mine.reduce((a, d) => a + d.chance, 0);
+        return record({
+          title: r.name, sub: `${r.type} · ${MON_STYLE.find((x) => x[0] === r.style)?.[1] ?? r.style}${r.fly ? " · bay" : ""}`, row: r, fields: F,
+          extra: el("span", { class: "tag", title: mine.map((d) => `${nameOf[d.item_key] ?? d.item_key}: ${w ? ((d.chance / w) * 100).toFixed(1) : 0}%`).join("\n") }, `${mine.length} món rơi${r.common_drops ? " + *" : ""}`),
+          onSave: async (c) => (await guard(() => api(`/t/monsters/${r.type}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
+          onDelete: async () => confirm(`Xóa hẳn ${r.name} và danh sách rơi đồ của nó?`) && (await guard(() => api(`/t/monsters/${r.type}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
+        });
+      }))];
   },
 
   async skills() {
@@ -640,7 +665,7 @@ const VIEWS = {
 
 const ACTIONS = {
   login: "đăng nhập", password: "đổi mật khẩu", "admin.add": "thêm admin", "admin.del": "xóa admin", "player.edit": "sửa người chơi", "player.item": "sửa túi đồ",
-  "arts.grant": "phát công pháp", "player.teach": "truyền công pháp", "player.unteach": "lấy lại công pháp", "player.give": "tặng tóc/áo/vũ khí", "player.take": "lấy lại tóc/áo/vũ khí", "player.ban": "khóa tài khoản", "player.unban": "mở khóa", "player.kick": "mời ra khỏi game",
+  "arts.grant": "phát công pháp", "player.summon": "thả quái thử", "player.teach": "truyền công pháp", "player.unteach": "lấy lại công pháp", "player.give": "tặng tóc/áo/vũ khí", "player.take": "lấy lại tóc/áo/vũ khí", "player.ban": "khóa tài khoản", "player.unban": "mở khóa", "player.kick": "mời ra khỏi game",
   "player.password": "đặt lại mật khẩu người chơi", "player.delete": "xóa tài khoản", "player.adjust": "chỉnh chỉ số", "player.level": "đặt cảnh giới",
   "player.meditation": "làm mới lượt tu luyện", "player.look": "đổi tên/ngoại hình", "player.buff": "thêm buff", "player.unbuff": "gỡ buff", "player.live": "thao tác trực tiếp",
 };
@@ -665,7 +690,9 @@ const ago = (ms) => {
 
 async function playerView(id) {
   const main = $("main");
-  const [first, items, cos, realms, arts] = await Promise.all([api(`/players/${id}`), api("/t/items"), (async () => (await loadAtlas(), api("/t/cosmetics")))(), api("/t/realms"), api("/t/arts")]);
+  const [first, items, cos, realms, arts, mons] = await Promise.all([api(`/players/${id}`), api("/t/items"), (async () => (await loadAtlas(), api("/t/cosmetics")))(), api("/t/realms"), api("/t/arts"), api("/t/monsters")]);
+  // drop a monster by the player to try it (one killed this way never comes back)
+  const summonSel = el("select", {}, mons.filter((m) => m.style !== "none").map((m) => el("option", { value: m.type }, `${m.name} (${m.style === "ranged" ? "đánh xa" : "đánh gần"})`)));
   // levels by realm, for the "straight to a realm" picker
   const levels = [];
   for (const r of realms) for (let s = 1; s <= r.stages; s++) levels.push(`${r.name} tầng ${s}`);
@@ -699,6 +726,7 @@ async function playerView(id) {
         L.dead ? el("span", { class: "tag red" }, "Đang tử trận") : null, L.meditating ? el("span", { class: "tag green" }, "Đang tu luyện") : null),
       el("div", { class: "dim" }, `Chưa lưu: +${fmt(L.pending.exp + L.pending.med)} tu vi, +${fmt(L.pending.stones)} linh thạch · đang ghi: +${fmt(L.saving.exp + L.saving.med)} tu vi, +${fmt(L.saving.stones)} linh thạch`),
       el("div", { class: "actions left" }, LIVE.map(([a, l]) => el("button", { class: "small", onclick: () => act(() => api(`/players/${p.id}/live`, { method: "POST", body: { action: a } }), `${l}: xong.`) }, l)),
+      el("div", { class: "bar" }, summonSel, el("button", { class: "small", onclick: () => act(() => api(`/players/${p.id}/summon`, { method: "POST", body: { type: summonSel.value } }), "Đã thả quái cạnh người chơi.") }, "Thả quái thử")),
         el("button", { class: "small", onclick: () => guard(() => api(`/players/${p.id}/kick`, { method: "POST", body: {} }), "Đã mời ra khỏi game.").then(() => setTimeout(async () => draw(await api(`/players/${p.id}`)), 600)) }, "Mời ra khỏi game")));
   }
 
