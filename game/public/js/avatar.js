@@ -89,6 +89,16 @@ function rigFor(g, hair, robe) {
   // the hem's right edge at the waist line, where the robe's body under the sleeve ends
   r.hemR = Math.max(21, ...r.robe.filter(([, y, , part]) => y === SKIRT_Y && part === SKIRT).map(([x]) => x));
   // the sleeves as lookup grids, for drawing them turned
+  // where this robe's front fist is: its skin-coloured pixels low on the front sleeve (the weapon is held there)
+  {
+    let sx = 0, sy = 0, n = 0;
+    for (const [x, y, c, part] of r.robe) {
+      if (part !== ARM_F || y < 33) continue;
+      const R = c & 255, G = (c >>> 8) & 255, B = (c >>> 16) & 255;
+      if (R > 170 && R - B > 45 && G > 110 && G < R && B < G + 10 && B > 60) (sx += x), (sy += y), n++;
+    }
+    r.hand = n >= 3 ? [sx / n - SH_F[0], sy / n - SH_F[1]] : HAND;
+  }
   for (const [name, part, piv] of [["armF", ARM_F, SH_F]]) {
     const px = r.robe.filter((p) => p[3] === part);
     const m = new Map(px.map(([x, y, c]) => [y * 256 + x, c]));
@@ -135,6 +145,8 @@ export function poseOf(st) {
     P.skirt = Math.sin(t * 1.3) * 0.6;
   }
   const c = st.cast;
+  // a long weapon has its own angle (null: upright at rest): turning it with the arm would sweep it across the face
+  P.longW = null;
   if (st.busy) P.armF = -1.5;
   else if (c && c.age < 0.5) {
     const u = c.age / 0.5;
@@ -142,9 +154,14 @@ export function poseOf(st) {
       // raise the sword arm high in front, cut down through the target, let it fall back
       P.armF = u < 0.2 ? -2.6 * (u / 0.2) : u < 0.45 ? -2.6 + 2.1 * ((u - 0.2) / 0.25) : -0.5 * (1 - (u - 0.45) / 0.55);
       P.lean = u > 0.2 && u < 0.7 ? 2 : 1;
+      // a polearm: drawn back over the shoulder, then brought down in a chop in front
+      P.longW = u < 0.2 ? -1.3 - 0.7 * (u / 0.2) : u < 0.45 ? -2.0 + 2.3 * ((u - 0.2) / 0.25) : 0.3 - 1.6 * ((u - 0.45) / 0.55);
     } else {
       // a palm thrust straight ahead, held, then lowered
-      P.armF = -1.45 * (u < 0.15 ? u / 0.15 : u > 0.7 ? 1 - (u - 0.7) / 0.3 : 1);
+      const k = u < 0.15 ? u / 0.15 : u > 0.7 ? 1 - (u - 0.7) / 0.3 : 1;
+      P.armF = -1.45 * k;
+      // a polearm: levelled and thrust straight ahead
+      P.longW = -1.3 * (1 - k);
       P.lean = u < 0.3 ? -1 : 1;
     }
     P.wind += 0.6;
@@ -200,11 +217,11 @@ export function drawAvatar(p, look, st) {
   for (const [x, y, c] of r.face) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
   // the weapon, in the front hand: it turns with the arm about the shoulder, the fist drawn over its grip
   if (look.weapon !== undefined && look.weapon !== null) {
-    const a = P.armF, [sx, sy] = SH_F, hx = HAND[0], hy = HAND[1];
+    const a = P.armF, [sx, sy] = SH_F, [hx, hy] = r.hand;
     const handX = sx + hx * Math.cos(a) - hy * Math.sin(a), handY = sy + hx * Math.sin(a) + hy * Math.cos(a);
     // long arms (spears, halberds, staves) stand upright at rest; swords and the like point forward, clear of the ground
     const long = (meta.weapon_a[look.weapon]?.[2] ?? 0) > 62;
-    drawWeapon(p, look.weapon, X(handX + lean(sy)) + 0.5, Y(handY + bob(sy)) + 0.5, (long ? WEAPON_REST_LONG : WEAPON_REST) + a, tint, true);
+    drawWeapon(p, look.weapon, X(Math.round(handX) + lean(sy)) + 0.5, Y(Math.round(handY) + bob(sy)) + 0.5, long ? P.longW ?? WEAPON_REST_LONG : WEAPON_REST + a, tint, true);
   }
   drawArm(p, r.armF, P.armF, P.swingF, lean, bob, tint, X, Y);
   return true;
