@@ -326,14 +326,14 @@ $("wardBtn").addEventListener("click", async () => {
   const $$ = (s) => wrap.querySelector(s);
   const bal = () => ($$(".bal").textContent = `💎 ${me.character.stones} linh thạch`);
   const grid = () => {
-    // free and owned first, then the shop from cheapest
+    // bảo vật first (only ever there when owned), then free and owned, then the shop from cheapest
     const items = w.items.filter((it) => it.kind === kind && (it.g === g || it.g === "a") && (it.onSale || has(it)));
-    items.sort((a, b) => has(b) - has(a) || a.price - b.price || a.idx - b.idx);
+    items.sort((a, b) => b.special - a.special || has(b) - has(a) || a.price - b.price || a.idx - b.idx);
     partGrid($$(".picks"), items, (it) => sel?.id === it.id, (it) => {
       sel = it;
       trying[it.kind] = it.idx;
       side();
-    }, (it) => (wearing(it) ? "✓" : has(it) ? "" : `💎${it.price}`));
+    }, (it) => (wearing(it) ? "✓" : it.special ? "★" : has(it) ? "" : `💎${it.price}`));
   };
   const side = () => {
     const b = $$(".act"), st = $$(".st");
@@ -343,7 +343,7 @@ $("wardBtn").addEventListener("click", async () => {
     st.textContent = "";
     if (!sel) return;
     if (wearing(sel)) (st.textContent = "Đang mặc"), (b.hidden = true);
-    else if (has(sel)) (st.textContent = sel.starter ? "Miễn phí" : "Đã có"), (b.textContent = "Mặc");
+    else if (has(sel)) (st.textContent = sel.special ? "★ Bảo vật" : sel.starter ? "Miễn phí" : "Đã có"), (b.textContent = "Mặc");
     else {
       st.textContent = `${sel.price} linh thạch`;
       b.textContent = me.character.stones >= sel.price ? "Mua và mặc" : "Chưa đủ linh thạch";

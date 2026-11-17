@@ -75,7 +75,7 @@ const T = {
   settings: { pk: "k", order: "k", config: true, cols: { v: "num" } },
   cosmetics: {
     pk: "id", order: "kind, gender, starter DESC, sort, idx", add: true, del: true,
-    cols: { kind: "enum:hair|robe|weapon", gender: "enum:m|f|a", idx: "uint", name: "str:40", price: "uint", starter: "bool", on_sale: "bool", sort: "int" },
+    cols: { kind: "enum:hair|robe|weapon", gender: "enum:m|f|a", idx: "uint", name: "str:40", price: "uint", starter: "bool", on_sale: "bool", special: "bool", sort: "int" },
   },
 };
 
@@ -346,7 +346,7 @@ export function adminApp(world) {
     const [p] = await q(`SELECT ${PLAYER_COLS} FROM users u LEFT JOIN characters c ON c.user_id = u.id WHERE u.id = ?`, [id]);
     if (!p) throw bad("Không có người chơi này.", 404);
     const [owned, buys, pvp, history, oldBuffs] = await Promise.all([
-      q("SELECT c.id, c.kind, c.gender, c.idx, c.name, c.price, o.price AS paid, o.bought_at FROM owned_cosmetics o JOIN cosmetics c ON c.id = o.cosmetic_id WHERE o.user_id = ? ORDER BY c.kind, c.idx", [id]),
+      q("SELECT c.id, c.kind, c.gender, c.idx, c.name, c.price, c.special, o.price AS paid, o.bought_at FROM owned_cosmetics o JOIN cosmetics c ON c.id = o.cosmetic_id WHERE o.user_id = ? ORDER BY c.kind, c.idx", [id]),
       q("SELECT item, qty, price, created_at FROM purchases WHERE user_id = ? ORDER BY created_at DESC LIMIT 20", [id]),
       q(`SELECT l.killer_id, l.victim_id, l.rewarded, l.at, k.name AS killer, v.name AS victim FROM pvp_log l
          LEFT JOIN characters k ON k.user_id = l.killer_id LEFT JOIN characters v ON v.user_id = l.victim_id

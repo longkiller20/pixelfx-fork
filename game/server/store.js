@@ -139,14 +139,16 @@ export function useItem(uid, item, level) {
 
 // ---------------------------------------------------------------- the wardrobe (Y Các)
 const SLOT = { hair: "hair", robe: "robe", weapon: "weapon" };
-const ITEM_COLS = "id, kind, gender, idx, name, price, starter, on_sale";
-const shapeItem = (r) => ({ id: r.id, kind: r.kind, g: r.gender, idx: r.idx, name: r.name, price: r.price, starter: !!r.starter, onSale: !!r.on_sale });
+const ITEM_COLS = "id, kind, gender, idx, name, price, starter, on_sale, special";
+// a special item (bảo vật) is never on sale and never free, whatever its other flags say
+const shapeItem = (r) => ({ id: r.id, kind: r.kind, g: r.gender, idx: r.idx, name: r.name, price: r.price, starter: !!r.starter && !r.special, onSale: !!r.on_sale && !r.special, special: !!r.special });
 
-/** Everything a player may see in the wardrobe: what's on sale, the free styles, and anything they own; plus their ids. */
+/** Everything a player may see in the wardrobe: what's on sale, the free styles, and anything they own (bảo vật only
+ * when owned); plus their ids. */
 export async function wardrobe(uid) {
   const owned = (await q("SELECT cosmetic_id FROM owned_cosmetics WHERE user_id = ?", [uid])).map((r) => r.cosmetic_id);
   const rows = await q(
-    `SELECT ${ITEM_COLS} FROM cosmetics WHERE on_sale = 1 OR starter = 1 OR id IN (SELECT cosmetic_id FROM owned_cosmetics WHERE user_id = ?)
+    `SELECT ${ITEM_COLS} FROM cosmetics WHERE (special = 0 AND (on_sale = 1 OR starter = 1)) OR id IN (SELECT cosmetic_id FROM owned_cosmetics WHERE user_id = ?)
      ORDER BY kind, gender, starter DESC, sort, idx`,
     [uid],
   );
@@ -171,6 +173,7 @@ export function buyCosmetic(uid, id, wear) {
     const [it] = await c.query(`SELECT ${ITEM_COLS} FROM cosmetics WHERE id = ?`, [id]);
     if (!it) throw new GameError("Món đồ không tồn tại.");
     if (it.gender !== ch.gender && it.gender !== "a") throw new GameError("Món này dành cho giới tính khác.");
+    if (it.special) throw new GameError("Bảo vật không bán ở Y Các; chỉ có được từ hoạt động, sự kiện hay đấu giá.", 403);
     if (it.starter) throw new GameError("Món này miễn phí, cứ mặc thôi.");
     if (!it.on_sale) throw new GameError("Món này đã ngừng bán.");
     try {
@@ -198,7 +201,7 @@ export function wearCosmetic(uid, id) {
     );
     if (!it) throw new GameError("Món đồ không tồn tại.");
     if (it.gender !== ch.gender && it.gender !== "a") throw new GameError("Món này dành cho giới tính khác.");
-    if (!it.starter && !it.mine) throw new GameError("Đạo hữu chưa có món này.", 403);
+    if ((!it.starter || it.special) && !it.mine) throw new GameError("Đạo hữu chưa có món này.", 403);
     await c.query(`UPDATE characters SET ${SLOT[it.kind]} = ? WHERE user_id = ?`, [it.idx, uid]);
     return loadCharacter(uid, c);
   }));

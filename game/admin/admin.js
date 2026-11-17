@@ -401,18 +401,19 @@ const VIEWS = {
     const rows = await api("/t/cosmetics");
     const kind = el("select", {}, [["hair", "Tóc"], ["robe", "Y phục"], ["weapon", "Vũ khí"]].map(([v, l]) => el("option", { value: v }, l)));
     const g = el("select", {}, [["m", "Nam"], ["f", "Nữ"]].map(([v, l]) => el("option", { value: v }, l)));
-    const state = el("select", {}, [["all", "Tất cả"], ["starter", "Miễn phí (khởi đầu)"], ["sale", "Đang bán"], ["off", "Ngừng bán"]].map(([v, l]) => el("option", { value: v }, l)));
+    const state = el("select", {}, [["all", "Tất cả"], ["starter", "Miễn phí (khởi đầu)"], ["sale", "Đang bán"], ["off", "Ngừng bán"], ["special", "Bảo vật (đặc biệt)"]].map(([v, l]) => el("option", { value: v }, l)));
     const q = el("input", { placeholder: "Tìm theo tên...", type: "search" });
     const grid = el("div", { class: "grid" });
     const F = [
       { k: "name", label: "Tên", wide: true }, { k: "price", label: "Giá (linh thạch)", type: "number", step: 1 }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
       { k: "starter", label: "Miễn phí khi tạo nhân vật", type: "bool" }, { k: "on_sale", label: "Đang bán", type: "bool" },
+      { k: "special", label: "Bảo vật: không bán, chỉ tặng (sự kiện, đấu giá)", type: "bool" },
     ];
     const draw = () => {
       const gv = kind.value === "weapon" ? "a" : g.value;
       g.disabled = kind.value === "weapon";
       const list = rows.filter((r) => r.kind === kind.value && r.gender === gv &&
-        (state.value === "all" || (state.value === "starter" && r.starter) || (state.value === "sale" && r.on_sale && !r.starter) || (state.value === "off" && !r.on_sale)) &&
+        (state.value === "all" || (state.value === "special" && r.special) || (!r.special && ((state.value === "starter" && r.starter) || (state.value === "sale" && r.on_sale && !r.starter) || (state.value === "off" && !r.on_sale)))) &&
         r.name.toLowerCase().includes(q.value.trim().toLowerCase()));
       const used = new Set(rows.filter((r) => r.kind === kind.value && r.gender === gv).map((r) => r.idx));
       const total = atlas.meta[`${kind.value}_${gv}`].length;
@@ -426,7 +427,7 @@ const VIEWS = {
       grid.replaceChildren(add, ...list.map((r) => {
         const card = record({
           title: r.name, sub: `id ${r.id} · ô ${r.idx}`, row: r, fields: F,
-          extra: el("span", {}, r.starter ? el("span", { class: "tag gold" }, "Miễn phí") : null, " ", r.on_sale ? null : el("span", { class: "tag" }, "Ngừng bán"), " ", el("span", { class: "tag" }, `${r.owners} người có`)),
+          extra: el("span", {}, r.special ? el("span", { class: "tag gold" }, "★ Bảo vật") : r.starter ? el("span", { class: "tag gold" }, "Miễn phí") : null, " ", r.on_sale || r.special ? null : el("span", { class: "tag" }, "Ngừng bán"), " ", el("span", { class: "tag" }, `${r.owners} người có`)),
           onSave: async (c) => (await guard(() => api(`/t/cosmetics/${r.id}`, { method: "PATCH", body: c }), "Đã lưu.")) && (await refresh()),
           onDelete: async () => confirm(`Xóa ${r.name}? ${r.owners} người đang có món này sẽ mất nó.`) && (await guard(() => api(`/t/cosmetics/${r.id}`, { method: "DELETE" }), "Đã xóa.")) && (await refresh()),
         });
@@ -441,7 +442,7 @@ const VIEWS = {
     for (const s of [kind, g, state]) s.addEventListener("change", draw);
     q.addEventListener("input", draw);
     draw();
-    return [el("h2", {}, "Tóc, Y phục & Vũ khí"), el("p", { class: "dim" }, "Tóc và áo \"Miễn phí\" được chọn lúc tạo nhân vật; vũ khí miễn phí ai cũng dùng được trong Y Các. Còn lại bán ở Y Các trong game. Vũ khí dùng chung cho nam và nữ."), el("div", { class: "bar" }, kind, g, state, q), grid];
+    return [el("h2", {}, "Tóc, Y phục & Vũ khí"), el("p", { class: "dim" }, "Tóc và áo \"Miễn phí\" được chọn lúc tạo nhân vật; vũ khí miễn phí ai cũng dùng được trong Y Các. Còn lại bán ở Y Các trong game. Vũ khí dùng chung cho nam và nữ. \"Bảo vật\" (vd. các vũ khí của pixelfx) không bán và không miễn phí: chỉ có khi được tặng, ở trang người chơi (sau này từ hoạt động, sự kiện, đấu giá)."), el("div", { class: "bar" }, kind, g, state, q), grid];
   },
 
   async admins() {
@@ -479,7 +480,7 @@ const VIEWS = {
 
 const ACTIONS = {
   login: "đăng nhập", password: "đổi mật khẩu", "admin.add": "thêm admin", "admin.del": "xóa admin", "player.edit": "sửa người chơi", "player.item": "sửa túi đồ",
-  "player.give": "tặng tóc/áo", "player.take": "lấy lại tóc/áo", "player.ban": "khóa tài khoản", "player.unban": "mở khóa", "player.kick": "mời ra khỏi game",
+  "player.give": "tặng tóc/áo/vũ khí", "player.take": "lấy lại tóc/áo/vũ khí", "player.ban": "khóa tài khoản", "player.unban": "mở khóa", "player.kick": "mời ra khỏi game",
   "player.password": "đặt lại mật khẩu người chơi", "player.delete": "xóa tài khoản", "player.adjust": "chỉnh chỉ số", "player.level": "đặt cảnh giới",
   "player.meditation": "làm mới lượt tu luyện", "player.look": "đổi tên/ngoại hình", "player.buff": "thêm buff", "player.unbuff": "gỡ buff", "player.live": "thao tác trực tiếp",
 };
@@ -634,11 +635,15 @@ async function playerView(id) {
           act(() => api(`/players/${p.id}/look`, { method: "PATCH", body }), "Đã đổi tên/ngoại hình.");
         } }, "Lưu tên & ngoại hình"))));
 
-      // ---- hair and robes owned
+      // ---- hair, robes and weapons owned; bảo vật listed first in the gift picker
       const mine = new Set(p.owned.map((o) => o.id));
-      const pick = el("select", {}, cos.filter((c) => (c.gender === p.gender || c.gender === "a") && !c.starter && !mine.has(c.id)).map((c) => el("option", { value: c.id }, `${{ hair: "Tóc", robe: "Áo", weapon: "Vũ khí" }[c.kind]} · ${c.name} (${c.price})`)));
-      parts.push(el("div", { class: "card" }, el("h3", {}, `Tóc & y phục đã mua (${p.owned.length})`),
-        el("div", { class: "chips" }, p.owned.length ? p.owned.map((o) => el("span", { class: "chip" }, thumb(o.kind, o.gender, o.idx, ""), el("span", {}, o.name, el("small", { class: "dim" }, ` · trả ${fmt(o.paid)}`)),
+      const giftable = cos.filter((c) => (c.gender === p.gender || c.gender === "a") && (!c.starter || c.special) && !mine.has(c.id));
+      const label = (c) => `${{ hair: "Tóc", robe: "Áo", weapon: "Vũ khí" }[c.kind]} · ${c.name}${c.special ? "" : ` (${c.price})`}`;
+      const pick = el("select", {},
+        el("optgroup", { label: "★ Bảo vật (chỉ tặng)" }, giftable.filter((c) => c.special).map((c) => el("option", { value: c.id }, label(c)))),
+        el("optgroup", { label: "Đồ bán ở Y Các" }, giftable.filter((c) => !c.special).map((c) => el("option", { value: c.id }, label(c)))));
+      parts.push(el("div", { class: "card" }, el("h3", {}, `Tóc, y phục & vũ khí đang có (${p.owned.length})`),
+        el("div", { class: "chips" }, p.owned.length ? p.owned.map((o) => el("span", { class: "chip" }, thumb(o.kind, o.gender, o.idx, ""), el("span", {}, o.special ? "★ " : "", o.name, el("small", { class: "dim" }, o.special ? " · bảo vật" : ` · trả ${fmt(o.paid)}`)),
           el("button", { class: "small danger", title: "Lấy lại", onclick: () => confirm(`Lấy lại ${o.name} của người này?`) && act(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: o.id, own: false } }), "Đã lấy lại.") }, "✕")))
           : el("span", { class: "dim" }, "Chưa mua món nào (các món miễn phí ai cũng có).")),
         el("div", { class: "bar" }, pick, el("button", { class: "small", onclick: () => pick.value && act(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: Number(pick.value), own: true } }), "Đã tặng.") }, "Tặng"))));

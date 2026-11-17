@@ -19,6 +19,7 @@ Also used, from `public/xianxia/` (licence text in `public/xianxia/LICENSE.txt`)
 | `xianxia/bg/*` | Golden palace, pagoda, palaces and isles on the clouds | *Xianxia Pixel Pack v2.1* | CC0 |
 | `xianxia/weapons.png` | 90 weapons, scaled to 45% | *Xianxia Pixel Pack v2.1* | CC0 |
 | `xianxia/ui/*` | Panels, buttons, bars, item and status icons, sword cursor | *Xianxia Pixel Pack v2.1* | CC0 |
+| `xianxia/weapons.png` (last row) | 8 bảo vật: pixelfx's own code-drawn weapons (sword, greatsword, dagger, spear, hammer, scythe, claw, bow), rendered flat by `tools/xianxia/pixelfx-weapons.mjs` | pixelfx (this repository) | MIT |
 | `xianxia/ui/ring_*.png` | Round frames of the action buttons, drawn for this game in the pack's style by `tools/xianxia/rings.py` | this project | CC0 |
 
 Everything else in the town (walls, doors, windows, pillars, the gate, lanterns, cherry trees, bamboo, water, sky and the

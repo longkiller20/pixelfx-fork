@@ -240,13 +240,28 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
     assert.equal(d2.live.atk, Math.round(60 * 1.5), "the +50% attack buff is live");
     assert.ok(c2.me.buffs.some((b) => b.stat === "atk" && b.pct === 50), "and shown to the player");
     c2.ws.close();
+
+    // bảo vật (pixelfx's weapons): not in the wardrobe, can't be bought or worn; given by an admin, it shows up and is worn
+    const sp = (await adm("/t/cosmetics", { token })).data.filter((c) => c.special);
+    assert.equal(sp.length, 8, "eight pixelfx weapons seeded as bảo vật");
+    const gem = sp.find((c) => c.idx === 90);
+    const before = (await call("/cosmetics", { token: q2.token })).data;
+    assert.ok(!before.items.some((it) => it.id === gem.id), "a bảo vật nobody gave you isn't on the shelf");
+    assert.equal((await call("/cosmetics/buy", { token: q2.token, method: "POST", body: { id: gem.id } })).status, 403, "and can't be bought");
+    assert.equal((await call("/cosmetics/wear", { token: q2.token, method: "POST", body: { id: gem.id } })).status, 403, "or worn");
+    assert.equal((await adm(`/players/${u2.id}/cosmetics`, { token, method: "POST", body: { id: gem.id, own: true } })).status, 200);
+    const after = (await call("/cosmetics", { token: q2.token })).data;
+    const mineGem = after.items.find((it) => it.id === gem.id);
+    assert.ok(mineGem?.special && !mineGem.onSale && after.owned.includes(gem.id), "given: it is theirs, marked special");
+    assert.equal((await call("/cosmetics/wear", { token: q2.token, method: "POST", body: { id: gem.id } })).data.character.look.weapon, 90, "and in their hand");
+
     assert.equal((await adm(`/players/${u.id}/ban`, { token, method: "POST", body: { banned: true, reason: "thử" } })).status, 200);
     assert.equal((await call("/me", { token: p.token })).status, 401);
     assert.equal((await call("/login", { method: "POST", body: { username: u.username, password: "secret123" } })).status, 403);
   } finally {
     await q("DELETE FROM admins WHERE username = ?", [name]);
   }
-  ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs and bans take effect");
+  ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs, bảo vật gifts and bans take effect");
 }
 
 {

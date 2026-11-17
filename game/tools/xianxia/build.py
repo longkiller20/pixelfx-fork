@@ -2,10 +2,12 @@
 """Take what the game uses from the Xianxia Pixel Pack v2.1 (CC0) and put it in public/xianxia/.
 
   python3 tools/xianxia/build.py /path/to/Xianxia_Pixel_Pack        (needs Pillow and numpy)
+  python3 tools/xianxia/build.py --pixelfx-only                     (just re-add pixelfx's weapons to the atlas)
 
   terrain.png + terrain.json   the bamboo (earth), bluestone (stone) and cloud (cloud platforms) sets, 32 px tiles,
                                one row per set, in the order of TILES below
-  weapons.png + weapons.json   all 90 weapons, scaled to the characters' size, with where the hand holds each
+  weapons.png + weapons.json   all 90 weapons, scaled to the characters' size, with where the hand holds each; then
+                               pixelfx's own weapons (pixelfx-weapons.json, from pixelfx-weapons.mjs) after them
   bg/, ui/                     the buildings, far scenery and interface pieces the game uses, copied as they are
 """
 import json
@@ -103,6 +105,35 @@ def skill_icons():
         canvas.save(os.path.join(OUT, "ui", out + ".png"))
 
 
+def append_pixelfx():
+    """Add the weapons pixelfx draws (tools/xianxia/pixelfx-weapons.json) to the end of the weapons atlas, as a new row
+    below the pack's. Any pixelfx weapons already there are dropped first, so running this twice changes nothing."""
+    src = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pixelfx-weapons.json")))
+    items = [i for i in json.load(open(os.path.join(OUT, "weapons.json"))) if not i["name"].startswith("pixelfx_")]
+    sheet = np.array(Image.open(os.path.join(OUT, "weapons.png")).convert("RGBA"))
+    top = max(i["y"] + i["h"] for i in items)
+    sheet = sheet[:top]
+    row_h = max(w["h"] for w in src)
+    width = max(sheet.shape[1], sum(w["w"] + 2 for w in src))
+    grown = np.zeros((top + row_h, width, 4), np.uint8)
+    grown[:top, : sheet.shape[1]] = sheet
+    x = 0
+    for w in src:
+        for j, row in enumerate(w["px"]):
+            for k, c in enumerate(row.split(" ")):
+                if c:
+                    grown[top + j, x + k] = (int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16), 255)
+        item = {"name": w["name"], "x": x, "y": top, "w": w["w"], "h": w["h"], "gx": w["gx"], "gy": w["gy"]}
+        if w.get("long"):
+            item["long"] = True
+        items.append(item)
+        x += w["w"] + 2
+    Image.fromarray(grown).save(os.path.join(OUT, "weapons.png"), optimize=True)
+    with open(os.path.join(OUT, "weapons.json"), "w") as f:
+        json.dump(items, f, separators=(",", ":"))
+    print("pixelfx weapons", len(src), "added; atlas", grown.shape[1], "x", grown.shape[0], len(items), "items")
+
+
 def main():
     os.makedirs(os.path.join(OUT, "bg"), exist_ok=True)
     os.makedirs(os.path.join(OUT, "ui"), exist_ok=True)
@@ -147,9 +178,10 @@ def main():
     for n in UI:
         shutil.copy(os.path.join(PACK, "ui", n + ".png"), os.path.join(OUT, "ui", n + ".png"))
     skill_icons()
+    append_pixelfx()
     shutil.copy(os.path.join(PACK, "LICENSE.txt"), os.path.join(OUT, "LICENSE.txt"))
     print("terrain", atlas.size, "weapons", sheet.shape[1], "x", sheet.shape[0], len(items), "items")
 
 
 if __name__ == "__main__":
-    main()
+    append_pixelfx() if PACK == "--pixelfx-only" else main()
