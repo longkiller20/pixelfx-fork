@@ -4,11 +4,13 @@ import { effects } from "/pixelfx/fx/index.js";
 import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL } from "/shared/balance.js";
 import { mapInfo } from "/shared/maps/index.js";
 import { drawDummy } from "./art.js";
-import { drawAvatar, avatarTop, loadAvatars } from "./avatar.js";
+import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
 import { buildScene } from "./scenery.js";
 import { stepBody, PHYS } from "/shared/physics.js";
 
 const MTYPES = ["dummy", "ghost"];
+// each buff's status icon (Xianxia Pixel Pack)
+const BUFF_ICON = { hp: "item_peach", atk: "status_burn", def: "status_golden_shield", spd: "status_swift", exp: "item_jade_slip", stones: "item_spirit_stone", med: "item_lingzhi" };
 const GOLD = ["#2a1604", "#6a3a08", "#b8700e", "#f0a820", "#ffd84a", "#fff2a8", "#ffffff"];
 const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", "#ffffff"];
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
@@ -318,8 +320,17 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     $("kd").textContent = `${me.kills}/${me.deaths}`;
     // buffs from an admin (event prizes and the like): stat, percent, time left
     const left = (sec) => (sec === null ? "" : sec >= 3600 ? ` ${Math.floor(sec / 3600)}g${String(Math.floor((sec % 3600) / 60)).padStart(2, "0")}` : ` ${Math.ceil(sec / 60)}p`);
-    const buffs = (me.buffs ?? []).map((b) => `${BUFF_STATS[b.stat]?.name ?? b.stat} ${b.pct > 0 ? "+" : ""}${b.pct}%${left(b.left)}`);
-    $("statLine").textContent = `Công ${me.atk} · Thủ ${me.def}${buffs.length ? ` · ✦ ${buffs.join(", ")}` : ""}`;
+    const line = $("statLine");
+    line.replaceChildren(`Công ${me.atk} · Thủ ${me.def}`);
+    for (const b of me.buffs ?? []) {
+      const s = document.createElement("span"), img = new Image();
+      s.className = "buff";
+      s.title = BUFF_STATS[b.stat]?.name ?? b.stat;
+      img.src = `/xianxia/ui/ui_xianxia_${BUFF_ICON[b.stat] ?? "status_seal"}.png`;
+      img.alt = "";
+      s.append(img, `${b.pct > 0 ? "+" : ""}${b.pct}%${left(b.left)}`);
+      line.append(s);
+    }
     cls.skills.forEach((sk, i) => {
       const b = document.querySelector(`[data-skill="${i}"]`);
       b.querySelector(".nm").textContent = sk.name;
@@ -669,13 +680,14 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   }
 
   function drawBolt(p, b, now) {
-    // a flying sword: jade blade, gold guard, a fading trail of qi
-    const [, , x, y, vx, vy] = b, sx = x - camX, sy = y - camY - 30, a = Math.atan2(vy, vx), cx = Math.cos(a), cy = Math.sin(a);
+    // a flying sword: the thrower's own weapon, point first, a fading trail of qi behind it
+    const [, owner, x, y, vx, vy] = b, sx = x - camX, sy = y - camY - 30, a = Math.atan2(vy, vx), cx = Math.cos(a), cy = Math.sin(a);
     p.place(sx, sy, false);
-    for (let i = 3; i < 16; i++) p.dot(-cx * i * 1.2, -cy * i * 1.2, hex(JADE[i < 8 ? 4 : 2]), 1 - i / 16);
-    for (let i = -6; i <= 6; i++) p.px(cx * i, cy * i, i > 3 ? WHITE : i > -3 ? hex("#d8f0ff") : hex("#ecd27a"));
-    for (const k of [-1, 1]) p.px(-cx * 3 - cy * k * 2, -cy * 3 + cx * k * 2, hex("#ecd27a"));
-    p.glow(0, 0, 9, hex(JADE[4]), 0.6);
+    for (let i = 6; i < 26; i++) p.dot(-cx * i * 1.2, -cy * i * 1.2, hex(JADE[i < 12 ? 4 : 2]), 1 - i / 26);
+    const w = infos.get(owner)?.look?.weapon;
+    if (w !== undefined) drawWeapon(p, w, 0, 0, a);
+    else for (let i = -6; i <= 6; i++) p.px(cx * i, cy * i, i > 3 ? WHITE : hex("#d8f0ff"));
+    p.glow(0, 0, 12, hex(JADE[4]), 0.5);
   }
 
   function drawLabels(list, now) {

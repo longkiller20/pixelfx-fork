@@ -1,7 +1,7 @@
 // MariaDB: the pool, transactions, and the schema (created on start, safe to run every time).
 import mariadb from "mariadb";
 import { config } from "./config.js";
-import { COSMETICS_SEED } from "./cosmetics-seed.js";
+import { COSMETICS_SEED, WEAPONS_SEED, DEFAULT_WEAPON } from "./cosmetics-seed.js";
 import { seedConfig } from "./gameconfig.js";
 
 export const pool = mariadb.createPool({
@@ -146,6 +146,8 @@ const UPGRADES = [
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS gender CHAR(1) NOT NULL DEFAULT 'm' AFTER class",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS hair TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER gender",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS robe TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER hair",
+  // the weapon in hand (Xianxia Pixel Pack); everyone starts with the plain long sword
+  `ALTER TABLE characters ADD COLUMN IF NOT EXISTS weapon SMALLINT UNSIGNED NOT NULL DEFAULT ${DEFAULT_WEAPON} AFTER robe`,
 ];
 
 export async function migrate() {
@@ -155,13 +157,13 @@ export async function migrate() {
   // the first wardrobe; rows already there (and an admin's changes to them) are kept
   await pool.batch(
     "INSERT IGNORE INTO cosmetics (kind, gender, idx, name, price, starter, sort) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    COSMETICS_SEED.map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.idx]),
+    [...COSMETICS_SEED, ...WEAPONS_SEED].map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.idx]),
   );
   // whatever a character already wears is theirs to keep, even if it is now sold in the shop
-  for (const kind of ["hair", "robe"])
+  for (const kind of ["hair", "robe", "weapon"])
     await q(
       `INSERT IGNORE INTO owned_cosmetics (user_id, cosmetic_id, price)
-       SELECT ch.user_id, c.id, 0 FROM characters ch JOIN cosmetics c ON c.kind = ? AND c.gender = ch.gender AND c.idx = ch.${kind}
+       SELECT ch.user_id, c.id, 0 FROM characters ch JOIN cosmetics c ON c.kind = ? AND c.gender = ${kind === "weapon" ? "'a'" : "ch.gender"} AND c.idx = ch.${kind}
        WHERE c.starter = 0`,
       [kind],
     );

@@ -1,7 +1,9 @@
 // The side-view town, drawn at the characters' own pixel size: one art pixel is one world pixel. That lets buildings and trees
 // be as big as they really are beside a person: doors taller than you, houses three times your height, a temple and a pagoda
 // towering over the street, cherry trees above the roofs.
-//   terrain  Frogatto's old tile art (CC0): grass tufts, flowers and the signpost; earth and stone are painted per pixel
+//   ground   the Xianxia Pixel Pack (CC0): bamboo-forest earth, blue stone, cloud platforms; and its golden palace, gate and
+//            pagoda, and the far palaces and isles on the clouds
+//   terrain  Frogatto's old tile art (CC0): tall flowering plants and the signpost
 //   roofs    the Oriental Roof Tiles sheet (CC0): an end piece and a repeating middle, in four colours, for every roof
 //   the rest walls, doors, lattice windows, pillars, lanterns, cherry trees, bamboo, clouds, water and sky are painted here
 // Everything still is painted once into one picture of the whole map; the far scenery (sky, peaks, isles, cloud) slides behind
@@ -53,6 +55,21 @@ class Buf {
         if (c >>> 24 > 128) this.set(x + i, y + j, c | 0xff000000);
       }
   }
+}
+
+/** A picture at half size: each 2 x 2 block averaged (transparent if mostly empty). For far-away scenery. */
+function halve(img) {
+  const w = img.w >> 1, h = img.h >> 1, px = new Uint32Array(w * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0, n = 0;
+      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+        const c = img.px[(y * 2 + dy) * img.w + x * 2 + dx];
+        if (c >>> 24 > 128) (r += c & 255), (g += (c >>> 8) & 255), (b += (c >>> 16) & 255), n++;
+      }
+      if (n >= 2) px[y * w + x] = ((255 << 24) | (Math.round(b / n) << 16) | (Math.round(g / n) << 8) | Math.round(r / n)) >>> 0;
+    }
+  return { w, h, px };
 }
 
 async function loadPixels(src) {
@@ -320,17 +337,6 @@ const PROPS = {
   },
 };
 
-// a cloud you can stand on: flat white top, billows under it, a faint jade glow inside
-function cloudCell(B, x, y, leftEnd, rightEnd, seed) {
-  const W = C("#ffffff"), L = C("#eef4ff"), M = C("#cddcf4"), D = C("#9cb0dc");
-  for (let i = 0; i < 32; i++) {
-    const inL = leftEnd ? 8 - i : -1, inR = rightEnd ? i - 23 : -1, cut = Math.max(0, inL, inR);
-    const depth = 13 + Math.round(Math.sin(i * 0.5 + seed * 2.1) * 2.5) - cut;
-    for (let j = cut; j < depth; j++) B.set(x + i, y + j, j === cut ? W : j < cut + 4 ? L : j < depth - 3 ? M : D);
-  }
-  B.rect(x + 10 + (seed % 3) * 4, y + 6, 3, 2, P.jade[3]);
-}
-
 function bridgeCell(B, x, y, leftEnd, rightEnd) {
   for (let i = 0; i < 32; i++) {
     const c = i % 8 === 7 ? P.wood[0] : i % 8 === 0 ? P.wood[4] : P.wood[2];
@@ -382,106 +388,51 @@ const PINES = [[8, 164], [172, 296], [304, 424]], PINE_FOOT = 304; // the trunks
 const WATER = ["#0e3a6a", "#16548e", "#2274b4", "#3a98d4", "#8ad0f4", "#ffffff"].map(C);
 
 // ---------------------------------------------------------------- the whole scene
-// ---------------------------------------------------------------- the ground, painted per pixel so every edge joins up
-// Earth and stone are drawn from their neighbours, not stamped from tiles: a grass cap where the earth meets the sky
-// (rounded over the corners and hanging a little down the sides), silt under water, a dark rim and a lit edge on every open
-// side, strata that darken with depth, pebbles; stone as running-bond bricks with a coping on top. No repeating stamp, so no
-// stripes and no seams between cells.
-const vnoise = (x, y, s) => {
-  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
-  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-  const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-};
-const EARTH = ["#231710", "#33221a", "#432c1e", "#553823", "#6a472b", "#83593a"].map(C);
-const RIM = C("#160e09");
-const GRASS = ["#1f4a1f", "#2f6e2a", "#46923a", "#6ab84a", "#a2dc62"].map(C);
-const SILT = ["#4a4636", "#5e5a44", "#767052"].map(C);
-const PEBBLE = ["#3a3028", "#6a5c4c", "#8e806c"].map(C);
-const BRICK = ["#1e2030", "#3c4462", "#4d5778", "#5e6a8e", "#7380a6", "#96a2c4"].map(C);
-const COPING = ["#262a3c", "#7c86aa", "#a6b0d0", "#d0d8ee"].map(C);
-
-/** Grass thickness along the world x: 5 to 8 px, gently rolling. */
-const grassDepth = (wx) => 5 + Math.round(vnoise(wx / 9, 0, 41) * 3);
-
-function earthCell(S, M, cx, cy, T) {
-  const at = (x, y) => M.cell(x, y), solidC = (ch) => ch === "#" || ch === "s";
-  const up = at(cx, cy - 1), sky = !solidC(up) && up !== "w" && up !== "|", wet = up === "w";
-  const openL = !solidC(at(cx - 1, cy)), openR = !solidC(at(cx + 1, cy)), openD = !solidC(at(cx, cy + 1));
-  const x0 = cx * T, y0 = cy * T;
-  for (let j = 0; j < T; j++)
-    for (let i = 0; i < T; i++) {
-      const wx = x0 + i, wy = y0 + j;
-      // rounded corners where the top meets an open side
-      if (sky && ((openL && i + j < 2) || (openR && T - 1 - i + j < 2))) continue;
-      const g = grassDepth(wx);
-      let c;
-      const sideGrass = sky && ((openL && i < 2) || (openR && i > T - 3)) && j < g + 2 + Math.round(hash(wx, cy, 3) * 3);
-      if (sky && (j < g || sideGrass)) {
-        // grass: a bright lip, a body with lighter flecks, a dark underside
-        const fleck = vnoise(wx / 3, wy / 3, 7) + dith(wx, wy) * 0.35;
-        c = j === 0 ? GRASS[4] : j >= g - 1 && !sideGrass ? GRASS[1] : fleck > 0.95 ? GRASS[4] : fleck > 0.62 ? GRASS[3] : GRASS[2];
-        if (sideGrass && ((openL && i === 0) || (openR && i === T - 1))) c = GRASS[0];
-      } else if (sky && j === g && hash(wx, 0, 9) > 0.35) c = GRASS[0]; // ragged roots under the turf
-      else if (wet && j < 4) c = j === 0 ? SILT[2] : SILT[j < 2 ? 1 : 0];
-      else {
-        // earth: soft blotches and thin strata, quantised with an ordered dither, darker with depth
-        const n = vnoise(wx / 7, wy / 5, 1) * 0.65 + vnoise(wx / 2.5, wy / 2.5, 2) * 0.35 + Math.sin(wy * 0.55 + vnoise(wx / 12, 0, 5) * 4) * 0.08;
-        // darker the further below the town's floor (the spawn's level), the same in every column so cells never show seams
-        const deep = Math.max(0, Math.min(1, (wy - M.spawn.y) / (T * 4)));
-        const v = n * 3.2 + 1.8 - deep * 1.4 + (dith(wx, wy) - 0.5) * 0.9;
-        c = EARTH[Math.max(1, Math.min(4, Math.round(v)))];
-        // pebbles on an 8 px grid
-        const gx = wx >> 3, gy = wy >> 3, h = hash(gx, gy, 77);
-        if (h > 0.9) {
-          const px = (gx << 3) + 2 + Math.floor(hash(gx, gy, 78) * 3), py = (gy << 3) + 2 + Math.floor(hash(gx, gy, 79) * 3);
-          const dx = wx - px, dy = wy - py;
-          if (dx >= 0 && dx < 3 && dy >= 0 && dy < 2) c = dy === 0 ? PEBBLE[dx === 0 ? 1 : 2] : PEBBLE[1];
-          else if (dx >= -1 && dx <= 3 && dy >= -1 && dy <= 2 && !(Math.abs(dx - 1) === 2 && (dy === -1 || dy === 2))) c = PEBBLE[0];
-        }
-        if (sky && j === g + 1) c = EARTH[1];
-      }
-      // open sides: a dark rim, and just inside it a lit left face / shaded right face
-      if ((openL && i === 0) || (openR && i === T - 1) || (openD && j === T - 1)) c = RIM;
-      else if (!(sky && j < g) && openL && i === 1) c = EARTH[5];
-      else if (!(sky && j < g) && openR && i === T - 2) c = EARTH[0];
-      S.set(wx, wy, c);
-    }
-  // grass blades standing on the turf
-  if (sky)
-    for (let i = 0; i < T; i++) {
-      const wx = x0 + i, h = hash(wx, cy, 11);
-      if ((openL && i < 2) || (openR && i > T - 3)) continue;
-      const tall = h > 0.82 ? 3 : h > 0.62 ? 2 : h > 0.4 ? 1 : 0;
-      for (let k = 1; k <= tall; k++) S.set(wx, y0 - k, k === tall ? GRASS[4] : GRASS[3]);
-    }
+// ---------------------------------------------------------------- the ground: the Xianxia Pixel Pack's terrain sets (CC0)
+// 32 px tiles, one per map cell: bamboo-forest earth for "#", blue stone for "s", cloud for "=". Each cell picks the top or
+// body tile, and its left end, right end, lone or middle form from its neighbours; middles mix three variants at random.
+const XT = { sets: null, px: null, w: 0 };
+async function loadTerrain() {
+  if (XT.px) return XT;
+  const [meta, img] = await Promise.all([fetch("/xianxia/terrain.json").then((r) => r.json()), loadPixels("/xianxia/terrain.png")]);
+  XT.sets = meta.sets;
+  XT.tiles = Object.fromEntries(meta.tiles.map((t, i) => [t, i]));
+  XT.px = img.px;
+  XT.w = img.w;
+  return XT;
 }
-
-function stoneCell(S, M, cx, cy, T) {
-  const at = (x, y) => M.cell(x, y), solidC = (ch) => ch === "#" || ch === "s";
-  const top = !solidC(at(cx, cy - 1)), openL = !solidC(at(cx - 1, cy)), openR = !solidC(at(cx + 1, cy)), openD = !solidC(at(cx, cy + 1));
-  const x0 = cx * T, y0 = cy * T, CAP = 5;
-  for (let j = 0; j < T; j++)
-    for (let i = 0; i < T; i++) {
-      const wx = x0 + i, wy = y0 + j;
-      let c;
-      if (top && j < CAP) c = j === 0 ? COPING[3] : j === CAP - 1 ? COPING[0] : j === 1 ? COPING[2] : COPING[1];
-      else {
-        // running bond: 8 px courses, 16 px bricks, every other course shifted half a brick
-        const course = Math.floor(wy / 8), off = course & 1 ? 8 : 0, bx = Math.floor((wx + off) / 16);
-        const u = (wx + off) % 16, v = wy % 8, tone = 2 + Math.floor(hash(bx, course, 13) * 2.99);
-        if (v === 7 || u === 15) c = BRICK[0];
-        else if (v === 0 || u === 0) c = BRICK[Math.min(5, tone + 1)];
-        else if (v === 6) c = BRICK[tone - 1];
-        else c = dith(wx, wy) < 0.1 + hash(bx, course, 14) * 0.15 ? BRICK[tone - 1] : BRICK[tone];
-      }
-      if ((openL && i === 0) || (openR && i === T - 1) || (openD && j === T - 1)) c = BRICK[0];
-      S.set(wx, wy, c);
-    }
+function tile(S, set, name, x, y) {
+  const row = XT.sets.indexOf(set), col = XT.tiles[name];
+  if (row < 0 || col === undefined) return;
+  S.blit(XT.px, XT.w, col * 32, row * 32, 32, 32, x, y);
+}
+const middle = (base, cx, cy) => {
+  const h = hash(cx, cy, 71);
+  return `${base}_${h < 0.5 ? "M" : h < 0.75 ? "M2" : "M3"}`;
+};
+/** One solid cell from a set: the surface where open sky is above it, the body otherwise. */
+function groundCell(S, M, set, cx, cy, T) {
+  const at = (x, y) => M.cell(x, y), solid = (ch) => ch === "#" || ch === "s";
+  const up = at(cx, cy - 1), surface = up === "." || up === "=" || up === "b";
+  const L = !solid(at(cx - 1, cy)), R = !solid(at(cx + 1, cy));
+  const base = surface ? "ground_top" : "ground_body";
+  tile(S, set, L && R ? `${base}_S` : L ? `${base}_L` : R ? `${base}_R` : middle(base, cx, cy), cx * T, cy * T);
+}
+/** A cloud platform: its top on the cell, its billowing underside hanging into the cell below. */
+function cloudPlatform(S, M, cx, cy, T) {
+  const L = M.cell(cx - 1, cy) !== "=", R = M.cell(cx + 1, cy) !== "=";
+  const end = L && R ? "S" : L ? "L" : R ? "R" : null;
+  tile(S, "cloud", end ? `platform_top_${end}` : middle("platform_top", cx, cy), cx * T, cy * T);
+  if (M.cell(cx, cy + 1) === ".") tile(S, "cloud", `platform_under_${end ?? "M"}`, cx * T, (cy + 1) * T);
 }
 
 export async function buildScene(M) {
-  const [ts, rf, mt, pn] = await Promise.all([loadPixels(M.def.terrain), loadPixels(M.def.roof), loadPixels(M.def.mountains), loadPixels(M.def.pines)]);
+  const XB = (n) => loadPixels(`/xianxia/bg/${n}.png`);
+  const [ts, rf, mt, pn, , palace, tower, h1, h2, h3, h4] = await Promise.all([
+    loadPixels(M.def.terrain), loadPixels(M.def.roof), loadPixels(M.def.mountains), loadPixels(M.def.pines), loadTerrain(),
+    XB("bg_xianxia_mid_03_01"), XB("bg_xianxia_mid_04_07"),
+    XB("bg_xianxia_far_03_00"), XB("bg_xianxia_far_03_02"), XB("bg_xianxia_far_04_00"), XB("bg_xianxia_far_04_01"),
+  ]);
   const T = M.T, cols = M.cols, rows = M.rows, SW = M.w, SH = M.h, S = new Buf(SW, SH);
   const at = (cx, cy) => M.cell(cx, cy);
   const solid = (ch) => ch === "#" || ch === "s";
@@ -505,24 +456,20 @@ export async function buildScene(M) {
       const [a, b] = PINES[(o?.v ?? 0) % PINES.length];
       S.blit(pn.px, pn.w, a, 0, b - a, PINE_FOOT, Math.round(x * T - (b - a) / 2), row * T - PINE_FOOT + 2);
     }
+    else if (kind === "temple") {
+      // the golden palace (Xianxia Pixel Pack), on its own marble base, in the middle of the terrace
+      const cx = Math.round((x + (o?.w ?? 13) / 2) * T);
+      S.blit(palace.px, palace.w, 0, 0, palace.w, palace.h, cx - (palace.w >> 1), row * T - palace.h);
+    } else if (kind === "pagoda") S.blit(tower.px, tower.w, 0, 0, tower.w, tower.h, Math.round(x * T) - (tower.w >> 1), row * T - tower.h);
     else if (PROPS[kind]) PROPS[kind](S, Math.round(x * T), row * T, o ?? {}, roofs);
   }
   const water = [], falls = [];
   for (let cy = 0; cy < rows; cy++)
     for (let cx = 0; cx < cols; cx++) {
       const ch = at(cx, cy), x = cx * T, y = cy * T;
-      if (ch === "#") {
-        earthCell(S, M, cx, cy, T);
-        // the odd flowering tuft from the sheet on open turf (never under water)
-        if (!solid(at(cx, cy - 1)) && at(cx, cy - 1) === ".")
-          for (let i = 0; i < 2; i++) {
-            const h = hash(cx, i, 31);
-            if (h > 0.8 && !(i === 0 && !solid(at(cx - 1, cy))) && !(i === 1 && !solid(at(cx + 1, cy))))
-              sub([2, 3, 4, 5][Math.floor(h * 13) % 4], 1, x + i * 16, y - 16 + 4);
-            else if (h < 0.05) sub(6, 0, x + i * 16, y - 16 + 4);
-          }
-      } else if (ch === "s") stoneCell(S, M, cx, cy, T);
-      else if (ch === "=") cloudCell(S, x, y, at(cx - 1, cy) !== "=", at(cx + 1, cy) !== "=", cx);
+      if (ch === "#") groundCell(S, M, "bamboo", cx, cy, T);
+      else if (ch === "s") groundCell(S, M, "bluestone", cx, cy, T);
+      else if (ch === "=") cloudPlatform(S, M, cx, cy, T);
       else if (ch === "b") {
         bridgeCell(S, x, y, at(cx - 1, cy) !== "b", at(cx + 1, cy) !== "b");
         if (at(cx, cy + 1) === "w") water.push([cx, cy, true]);
@@ -533,6 +480,11 @@ export async function buildScene(M) {
   for (const [c, r, x, row] of M.def.deco ?? []) (sub(c, r - 1, Math.round(x * T), row * T - 32), sub(c, r, Math.round(x * T), row * T - 16));
 
   const LW = 640, LH = Math.ceil(SH / 2), far = layers(LW, LH);
+  const heaven = new Buf(2200, 220);
+  for (const [img, x, y] of [[h1, 40, 70], [h2, 520, 20], [h3, 1020, 60], [h4, 1620, 30]]) {
+    const half = halve(img);
+    heaven.blit(half.px, half.w, 0, 0, half.w, half.h, x, y);
+  }
   // the mountains' feet sit a little above the town's floor line, their peaks well up the sky
   const mtOff = mt.h - SH + 40;
   const lanterns = M.def.props.filter((p) => p[0] === "lantern").map(([, x, row]) => [x * T, row * T - 44]);
@@ -553,6 +505,11 @@ export async function buildScene(M) {
             const mx = (((Math.floor(camX * 0.15) + sx) % mt.w) + mt.w) % mt.w, my = sy + Math.floor(camY * 0.1) + mtOff;
             const v = my >= 0 && my < mt.h ? mt.px[my * mt.w + mx] : 0;
             if (v >>> 24 > 128) c = v | 0xff000000;
+          }
+          if (!c) {
+            // the heavens (Xianxia Pixel Pack): high up, slower than the mountains
+            const hx = (((Math.floor(camX * 0.07) + sx) % heaven.w) + heaven.w) % heaven.w, hy = sy + Math.floor(camY * 0.05) - 10;
+            c = hy >= 0 && hy < heaven.h ? heaven.px[hy * heaven.w + hx] : 0;
           }
           if (!c) {
             const cx = (((Math.floor((camX * 0.08 + sx) / 2) + Math.floor(t * 2)) % LW) + LW) % LW, cy = Math.floor((sy + camY * 0.05) / 2);

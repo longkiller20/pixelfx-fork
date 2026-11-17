@@ -163,3 +163,98 @@ export const COSMETICS_SEED = [
   { kind: "robe", g: "f", idx: 38, name: "Tử Tiên Y", price: 500, starter: false },
   { kind: "robe", g: "f", idx: 39, name: "Bạch Sa Y 2", price: 500, starter: false },
 ];
+
+// weapons (Xianxia Pixel Pack, CC0): for everyone (gender "a"); idx is the place in public/xianxia/weapons.json
+export const DEFAULT_WEAPON = 60;
+export const WEAPONS_SEED = [
+  { kind: "weapon", g: "a", idx: 0, name: "Khách Binh I", price: 120, starter: false }, // blade_01_00
+  { kind: "weapon", g: "a", idx: 1, name: "Khách Binh II", price: 120, starter: false }, // blade_01_01
+  { kind: "weapon", g: "a", idx: 2, name: "Khách Binh III", price: 120, starter: false }, // blade_01_02
+  { kind: "weapon", g: "a", idx: 3, name: "Khách Binh IV", price: 120, starter: false }, // blade_01_03
+  { kind: "weapon", g: "a", idx: 4, name: "Khách Binh V", price: 120, starter: false }, // blade_01_04
+  { kind: "weapon", g: "a", idx: 5, name: "Khách Binh VI", price: 120, starter: false }, // blade_01_05
+  { kind: "weapon", g: "a", idx: 6, name: "Ám Binh I", price: 150, starter: false }, // dark_01_00
+  { kind: "weapon", g: "a", idx: 7, name: "Ám Binh II", price: 150, starter: false }, // dark_01_01
+  { kind: "weapon", g: "a", idx: 8, name: "Ám Binh III", price: 150, starter: false }, // dark_01_02
+  { kind: "weapon", g: "a", idx: 9, name: "Ám Binh IV", price: 150, starter: false }, // dark_01_03
+  { kind: "weapon", g: "a", idx: 10, name: "Ám Binh V", price: 150, starter: false }, // dark_01_04
+  { kind: "weapon", g: "a", idx: 11, name: "Ám Binh VI", price: 150, starter: false }, // dark_01_05
+  { kind: "weapon", g: "a", idx: 12, name: "Mộc Thiền Trượng", price: 0, starter: true }, // evo_chanzhang_00
+  { kind: "weapon", g: "a", idx: 13, name: "Kim Liên Trượng", price: 400, starter: false }, // evo_chanzhang_01
+  { kind: "weapon", g: "a", idx: 14, name: "Pháp Luân Trượng", price: 800, starter: false }, // evo_chanzhang_02
+  { kind: "weapon", g: "a", idx: 15, name: "Đại Thừa Thiền Trượng", price: 1500, starter: false }, // evo_chanzhang_03
+  { kind: "weapon", g: "a", idx: 16, name: "Đoản Đao", price: 150, starter: false }, // evo_dao_00
+  { kind: "weapon", g: "a", idx: 17, name: "Huyết Lôi Đao", price: 400, starter: false }, // evo_dao_01
+  { kind: "weapon", g: "a", idx: 18, name: "Xích Diễm Đao", price: 800, starter: false }, // evo_dao_02
+  { kind: "weapon", g: "a", idx: 19, name: "Phượng Hoàng Đao", price: 1500, starter: false }, // evo_dao_03
+  { kind: "weapon", g: "a", idx: 20, name: "Phất Trần", price: 0, starter: true }, // evo_fuchen_00
+  { kind: "weapon", g: "a", idx: 21, name: "Kim Ti Phất Trần", price: 400, starter: false }, // evo_fuchen_01
+  { kind: "weapon", g: "a", idx: 22, name: "Kim Vân Phất Trần", price: 800, starter: false }, // evo_fuchen_02
+  { kind: "weapon", g: "a", idx: 23, name: "Thái Thanh Phất Trần", price: 1500, starter: false }, // evo_fuchen_03
+  { kind: "weapon", g: "a", idx: 24, name: "Đồng Kích", price: 150, starter: false }, // evo_ji_00
+  { kind: "weapon", g: "a", idx: 25, name: "Bạch Ngân Kích", price: 400, starter: false }, // evo_ji_01
+  { kind: "weapon", g: "a", idx: 26, name: "Kim Quang Kích", price: 800, starter: false }, // evo_ji_02
+  { kind: "weapon", g: "a", idx: 27, name: "Thái Dương Thần Kích", price: 1500, starter: false }, // evo_ji_03
+  { kind: "weapon", g: "a", idx: 28, name: "Thiết Kiếm", price: 150, starter: false }, // evo_jian_00
+  { kind: "weapon", g: "a", idx: 29, name: "Thanh Phong Kiếm", price: 400, starter: false }, // evo_jian_01
+  { kind: "weapon", g: "a", idx: 30, name: "Băng Phách Kiếm", price: 800, starter: false }, // evo_jian_02
+  { kind: "weapon", g: "a", idx: 31, name: "Thiên Lam Thần Kiếm", price: 1500, starter: false }, // evo_jian_03
+  { kind: "weapon", g: "a", idx: 32, name: "Mộc Thương", price: 150, starter: false }, // evo_qiang_00
+  { kind: "weapon", g: "a", idx: 33, name: "Tử Điện Thương", price: 400, starter: false }, // evo_qiang_01
+  { kind: "weapon", g: "a", idx: 34, name: "Lôi Linh Thương", price: 800, starter: false }, // evo_qiang_02
+  { kind: "weapon", g: "a", idx: 35, name: "Tử Tiêu Thần Thương", price: 1500, starter: false }, // evo_qiang_03
+  { kind: "weapon", g: "a", idx: 36, name: "Trọng Binh I", price: 150, starter: false }, // heavy_01_00
+  { kind: "weapon", g: "a", idx: 37, name: "Trọng Binh II", price: 150, starter: false }, // heavy_01_01
+  { kind: "weapon", g: "a", idx: 38, name: "Trọng Binh III", price: 150, starter: false }, // heavy_01_02
+  { kind: "weapon", g: "a", idx: 39, name: "Trọng Binh IV", price: 150, starter: false }, // heavy_01_03
+  { kind: "weapon", g: "a", idx: 40, name: "Trọng Binh V", price: 150, starter: false }, // heavy_01_04
+  { kind: "weapon", g: "a", idx: 41, name: "Trọng Binh VI", price: 150, starter: false }, // heavy_01_05
+  { kind: "weapon", g: "a", idx: 42, name: "Viễn Binh I", price: 200, starter: false }, // ranged_01_00
+  { kind: "weapon", g: "a", idx: 43, name: "Viễn Binh II", price: 200, starter: false }, // ranged_01_01
+  { kind: "weapon", g: "a", idx: 44, name: "Viễn Binh III", price: 200, starter: false }, // ranged_01_02
+  { kind: "weapon", g: "a", idx: 45, name: "Viễn Binh IV", price: 200, starter: false }, // ranged_01_03
+  { kind: "weapon", g: "a", idx: 46, name: "Viễn Binh V", price: 200, starter: false }, // ranged_01_04
+  { kind: "weapon", g: "a", idx: 47, name: "Viễn Binh VI", price: 200, starter: false }, // ranged_01_05
+  { kind: "weapon", g: "a", idx: 48, name: "Pháp Khí I", price: 250, starter: false }, // relic_01_00
+  { kind: "weapon", g: "a", idx: 49, name: "Pháp Khí II", price: 250, starter: false }, // relic_01_01
+  { kind: "weapon", g: "a", idx: 50, name: "Pháp Khí III", price: 250, starter: false }, // relic_01_02
+  { kind: "weapon", g: "a", idx: 51, name: "Pháp Khí IV", price: 250, starter: false }, // relic_01_03
+  { kind: "weapon", g: "a", idx: 52, name: "Pháp Khí V", price: 250, starter: false }, // relic_01_04
+  { kind: "weapon", g: "a", idx: 53, name: "Pháp Khí VI", price: 250, starter: false }, // relic_01_05
+  { kind: "weapon", g: "a", idx: 54, name: "Pháp Bảo I", price: 250, starter: false }, // relic_02_00
+  { kind: "weapon", g: "a", idx: 55, name: "Pháp Bảo II", price: 250, starter: false }, // relic_02_01
+  { kind: "weapon", g: "a", idx: 56, name: "Pháp Bảo III", price: 250, starter: false }, // relic_02_02
+  { kind: "weapon", g: "a", idx: 57, name: "Pháp Bảo IV", price: 250, starter: false }, // relic_02_03
+  { kind: "weapon", g: "a", idx: 58, name: "Pháp Bảo V", price: 250, starter: false }, // relic_02_04
+  { kind: "weapon", g: "a", idx: 59, name: "Pháp Bảo VI", price: 250, starter: false }, // relic_02_05
+  { kind: "weapon", g: "a", idx: 60, name: "Trường Kiếm", price: 0, starter: true }, // tier1_a_00
+  { kind: "weapon", g: "a", idx: 61, name: "Khảm Đao", price: 0, starter: true }, // tier1_a_01
+  { kind: "weapon", g: "a", idx: 62, name: "Hồng Anh Thương", price: 0, starter: true }, // tier1_a_02
+  { kind: "weapon", g: "a", idx: 63, name: "Phàm Binh IV", price: 100, starter: false }, // tier1_a_03
+  { kind: "weapon", g: "a", idx: 64, name: "Phàm Binh V", price: 100, starter: false }, // tier1_a_04
+  { kind: "weapon", g: "a", idx: 65, name: "Phàm Khí I", price: 100, starter: false }, // tier1_b_00
+  { kind: "weapon", g: "a", idx: 66, name: "Phàm Khí II", price: 100, starter: false }, // tier1_b_01
+  { kind: "weapon", g: "a", idx: 67, name: "Phàm Khí IV", price: 100, starter: false }, // tier1_b_03
+  { kind: "weapon", g: "a", idx: 68, name: "Phàm Khí V", price: 100, starter: false }, // tier1_b_04
+  { kind: "weapon", g: "a", idx: 69, name: "Phàm Khí VI", price: 100, starter: false }, // tier1_b_05
+  { kind: "weapon", g: "a", idx: 70, name: "Linh Binh I", price: 300, starter: false }, // tier2_a_00
+  { kind: "weapon", g: "a", idx: 71, name: "Linh Binh II", price: 300, starter: false }, // tier2_a_01
+  { kind: "weapon", g: "a", idx: 72, name: "Linh Binh III", price: 300, starter: false }, // tier2_a_02
+  { kind: "weapon", g: "a", idx: 73, name: "Linh Binh IV", price: 300, starter: false }, // tier2_a_03
+  { kind: "weapon", g: "a", idx: 74, name: "Linh Binh V", price: 300, starter: false }, // tier2_a_04
+  { kind: "weapon", g: "a", idx: 75, name: "Linh Khí I", price: 300, starter: false }, // tier2_b_00
+  { kind: "weapon", g: "a", idx: 76, name: "Linh Khí II", price: 300, starter: false }, // tier2_b_01
+  { kind: "weapon", g: "a", idx: 77, name: "Linh Khí IV", price: 300, starter: false }, // tier2_b_03
+  { kind: "weapon", g: "a", idx: 78, name: "Linh Khí V", price: 300, starter: false }, // tier2_b_04
+  { kind: "weapon", g: "a", idx: 79, name: "Linh Khí VI", price: 300, starter: false }, // tier2_b_05
+  { kind: "weapon", g: "a", idx: 80, name: "Tiên Binh I", price: 800, starter: false }, // tier3_a_00
+  { kind: "weapon", g: "a", idx: 81, name: "Tiên Binh II", price: 800, starter: false }, // tier3_a_01
+  { kind: "weapon", g: "a", idx: 82, name: "Tiên Binh III", price: 800, starter: false }, // tier3_a_02
+  { kind: "weapon", g: "a", idx: 83, name: "Tiên Binh IV", price: 800, starter: false }, // tier3_a_03
+  { kind: "weapon", g: "a", idx: 84, name: "Tiên Binh V", price: 800, starter: false }, // tier3_a_04
+  { kind: "weapon", g: "a", idx: 85, name: "Tiên Khí I", price: 800, starter: false }, // tier3_b_00
+  { kind: "weapon", g: "a", idx: 86, name: "Tiên Khí II", price: 800, starter: false }, // tier3_b_01
+  { kind: "weapon", g: "a", idx: 87, name: "Tiên Khí IV", price: 800, starter: false }, // tier3_b_03
+  { kind: "weapon", g: "a", idx: 88, name: "Tiên Khí V", price: 800, starter: false }, // tier3_b_04
+  { kind: "weapon", g: "a", idx: 89, name: "Tiên Khí VI", price: 800, starter: false }, // tier3_b_05
+];

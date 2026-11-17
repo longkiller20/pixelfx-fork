@@ -681,7 +681,8 @@ export class World {
         (p.dead ? 1 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128)]);
     for (const m of this.ents.values())
       if (m.kind === "m") M.push([m.id, MTYPES.indexOf(m.type), Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
-    for (const b of this.bolts) B.push([b.id, 0, Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy)]);
+    // the thrower's id: a flying sword is drawn as the weapon its owner holds
+    for (const b of this.bolts) B.push([b.id, b.owner.id, Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy)]);
     const msg = JSON.stringify({ t: "s", k: this.tick, P, M, B, E: this.events });
     this.events = [];
     for (const p of this.players.values()) sendRaw(p.ws, msg);
