@@ -14,7 +14,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -57,6 +57,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
         inv = m.inv;
         for (const p of m.players) infos.set(p.id, p);
         renderInv();
+        break;
+      case "config":
+        // an admin changed the numbers: fetch them, then redraw what shows them
+        refreshConfig?.().then(renderMe);
         break;
       case "pi":
         infos.set(m.id, m);
@@ -745,5 +749,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
       inv = v;
       renderInv();
     },
+    // any pill, including ones an admin added that have no button of their own on the HUD
+    use,
+    inventory: () => inv,
   };
 }

@@ -135,6 +135,20 @@ export class World {
     }
   }
 
+  /** An admin changed the game's numbers: monsters take their new stats, players their new levels, browsers the new set. */
+  onConfig() {
+    for (const m of this.ents.values())
+      if (m.kind === "m") {
+        const d = MONSTERS[m.type];
+        m.st = { maxHp: d.hp, atk: d.atk, def: d.def, spd: d.spd };
+      }
+    for (const p of this.players.values()) {
+      this.relevel(p);
+      this.sendMe(p);
+    }
+    this.broadcast({ t: "config" });
+  }
+
   /** The database changed under a connected player (a purchase, the daily gift, a new look): take its numbers. */
   refresh(uid, ch) {
     const p = this.players.get(uid);

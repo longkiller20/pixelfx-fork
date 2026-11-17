@@ -2,6 +2,7 @@
 import mariadb from "mariadb";
 import { config } from "./config.js";
 import { COSMETICS_SEED } from "./cosmetics-seed.js";
+import { seedConfig } from "./gameconfig.js";
 
 export const pool = mariadb.createPool({
   ...config.db,
@@ -136,6 +137,7 @@ const UPGRADES = [
 
 export async function migrate() {
   for (const s of SCHEMA) await q(s);
+  await seedConfig();
   for (const s of UPGRADES) await q(s);
   // the first wardrobe; rows already there (and an admin's changes to them) are kept
   await pool.batch(

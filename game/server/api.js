@@ -3,6 +3,7 @@ import express from "express";
 import { q, tx, isDup } from "./db.js";
 import { hashPassword, verifyPassword, dummyVerify, createSession, dropSession, requireAuth, rateLimit } from "./auth.js";
 import * as store from "./store.js";
+import { configJson } from "./gameconfig.js";
 import { GameError } from "./store.js";
 import { USER_RE } from "../shared/balance.js";
 
@@ -91,6 +92,11 @@ export function api(world) {
     const character = await store.claimDaily(req.userId);
     world.refresh(req.userId, character);
     res.json({ character });
+  }));
+
+  // the game's numbers (realms, pills, monsters, arts, settings) for the browser; they change when an admin edits them
+  r.get("/config", wrap(async (req, res) => {
+    res.set("cache-control", "no-cache").type("application/json").send(configJson());
   }));
 
   r.get("/leaderboard", rateLimit({ windowMs: 10_000, max: 20 }), wrap(async (req, res) => {

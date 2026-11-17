@@ -162,7 +162,7 @@ chủ thử, vì nó tạo vài tài khoản `t_...`.
 
 ## Cân bằng
 
-Mọi con số nằm trong `shared/balance.js`; máy chủ và trình duyệt dùng chung file này.
+Mọi con số nằm trong database (xem phần "Số liệu game" bên dưới). `shared/balance.js` chỉ giữ bộ số khởi đầu và cách tính, máy chủ và trình duyệt dùng chung.
 
 - **Mọi người cùng chỉ số và chiêu thức:** ngoại hình không ảnh hưởng sức mạnh. Ở cùng cảnh giới, hạ một đối thủ (khi trúng
   hết đòn) mất khoảng 10–15 giây.
@@ -262,6 +262,8 @@ game/
   public/avatar/         atlas thân gốc, 80 kiểu tóc, 80 bộ y phục (tạo bằng tools/avatar/build.py)
   tools/avatar/          ảnh gốc của họa sĩ và script cắt, thu nhỏ, canh tóc và áo vào thân
   tools/cosmetics.mjs    công cụ admin cho tóc và y phục (giá, tên, bán, tặng, thêm mới)
+  tools/admin.mjs        công cụ admin cho cảnh giới, đan dược, yêu thú, chiêu thức, cài đặt
+  server/gameconfig.js   đọc số liệu game từ database, kiểm tra, tự cập nhật khi admin sửa
   server/cosmetics-seed.js  danh sách tóc và y phục ban đầu, nạp vào bảng cosmetics lần đầu chạy
   test/race.mjs          kiểm tra tranh chấp, tường và lối ra
 ```
@@ -311,6 +313,58 @@ Hoặc dùng SQL trực tiếp, ví dụ `UPDATE cosmetics SET price = 800 WHERE
 3. Thêm một dòng vào bảng bằng lệnh `add` ở trên, với `idx` là vị trí mới.
 
 Nhân vật tạo trước bản cập nhật này vẫn giữ tên, tu vi và bộ đang mặc (được ghi là đã sở hữu).
+
+## Số liệu game: cảnh giới, đan dược, yêu thú, chiêu thức, cài đặt
+
+Các bảng trong database:
+
+| Bảng | Nội dung |
+| --- | --- |
+| `realms` | Cảnh giới theo thứ tự (`sort`), mỗi cảnh giới có `stages` tầng. Tổng số tầng là cấp tối đa. |
+| `items` | Đan dược bán ở Đan Các: giá, `heal` (phần sinh lực hồi, 0.4 = 40%), tu vi (`exp_base` + `exp_per_level` × cấp), thời gian hồi, còn bán hay không. |
+| `monsters` | Chỉ số yêu thú `dummy` (bù nhìn) và `ghost` (âm hồn): sinh lực, công, thủ, tốc, thưởng, tầm đánh… |
+| `skills` | 3 chiêu J/K/L: tên, thời gian hồi, hệ số sát thương, và số riêng của từng loại chiêu (`params`). |
+| `settings` | Các con số còn lại, mỗi dòng có ghi chú ý nghĩa: chỉ số gốc nhân vật, đường tu vi, quà mỗi ngày, quà tân thủ, tu luyện, thưởng PvP, thời gian hồi sinh… |
+
+Lần đầu chạy, máy chủ tự tạo bảng và điền số liệu hiện tại. Những lần sau không ghi đè chỉnh sửa của admin.
+
+**Sửa là có hiệu lực ngay, không cần khởi động lại:**
+- Máy chủ kiểm tra database khoảng 10 giây một lần.
+- Thấy số liệu mới thì áp dụng ngay và báo mọi người chơi đang online. Trình duyệt tự tải số liệu mới: tên cảnh giới, Đan Các, tên chiêu.
+- Nếu số liệu sai (sinh lực âm, cảnh giới 0 tầng, chiêu thiếu thông số…), máy chủ giữ nguyên bộ cũ và ghi lỗi vào log. Game không bao giờ sập vì một lần sửa nhầm.
+
+Công cụ cho admin. Lệnh nào cũng kiểm tra trước khi lưu, sai thì không lưu:
+
+```bash
+npm run admin -- show realms                          # cảnh giới, kèm khoảng cấp của từng cái
+npm run admin -- realm add "Tiên Nhân" 5              # thêm cảnh giới 5 tầng ở cuối
+npm run admin -- realm add "Bán Bộ Kim Đan" 2 --after 2   # chèn sau cảnh giới id 2
+npm run admin -- realm rename 3 "Kết Đan"
+npm run admin -- realm stages 9 9                     # Độ Kiếp có 9 tầng
+npm run admin -- realm move 5 --after 7               # đổi thứ tự (--first: lên đầu)
+npm run admin -- realm del 10
+
+npm run admin -- show settings                        # mọi cài đặt kèm ý nghĩa
+npm run admin -- set daily.stones 50                  # quà mỗi ngày 50 linh thạch
+npm run admin -- set exp.base 80                      # lên cấp khó hơn
+
+npm run admin -- item add longhuyet "Long Huyết Đan" 80
+npm run admin -- item set longhuyet heal 0.8
+npm run admin -- item set longhuyet desc "Hồi 80% sinh lực"
+npm run admin -- item set tukhi on_sale 0             # ngừng bán (người đã có vẫn dùng được)
+
+npm run admin -- monster set ghost hp 600
+npm run admin -- skill set 1 name "Vạn Kiếm Quy Tông"
+npm run admin -- skill set 1 speed 420                # tốc độ bay của Phi Kiếm
+```
+
+Dùng SQL trực tiếp cũng được, ví dụ `UPDATE settings SET v = 50 WHERE k = 'daily.stones';`. Máy chủ vẫn kiểm tra và áp dụng như trên.
+
+**Lưu ý:**
+- Đan mới hiện ở Đan Các, có nút "Dùng" ngay trong Đan Các. Hai nút dùng nhanh trên màn hình chơi vẫn dành cho Hồi Xuân Đan và Tụ Khí Đan.
+- Muốn bỏ một loại đan, hãy tắt bán (`on_sale 0`) thay vì xóa, để người chơi đã mua vẫn dùng được.
+- Thêm hoặc bớt cảnh giới sẽ đổi cấp tối đa. Tu vi của người chơi giữ nguyên; cấp và tên cảnh giới tự tính lại theo danh sách mới.
+- Loại yêu thú và loại chiêu (`melee`, `bolt`, `zone`) gắn với hình vẽ và cơ chế trong code. Admin đổi được mọi con số và tên, còn thêm loại mới thì cần sửa code.
 
 ## Mở rộng
 
