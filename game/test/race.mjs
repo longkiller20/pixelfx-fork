@@ -474,15 +474,24 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   let msg = null;
   for (let i = 0; i < 400 && !msg; i++) {
     await sleep(100);
-    msg = c.msgs.find((m) => m.t === "portal");
+    msg = c.msgs.filter((m) => m.t === "welcome")[1];
   }
   send(c, { t: "in", dx: 0, jump: false, down: false });
-  assert.ok(msg && /mở rộng sau/.test(msg.m), "the way out says the next map is coming");
-  await sleep(300);
-  p = at();
-  assert.ok(!M.portalAt(p[1], p[2]), "stepped back off the arrow");
+  // through the gate: a new welcome, on the forest map, just inside its gate back to the town; monsters there
+  const w2 = c.msgs.filter((m) => m.t === "welcome")[1];
+  assert.ok(w2 && w2.map === "bichlac", "the gate leads to Bích Lạc Lâm");
+  await sleep(400);
+  const F = (await import("../shared/maps/index.js")).mapInfo("bichlac");
+  p = c.snap.P.find((q) => q[0] === w2.id);
+  assert.ok(p && p[1] > F.portals[0].x && !F.portalAt(p[1], p[2]), `arrived beside the gate home, not on it (x ${p?.[1]})`);
+  assert.ok(new Set(c.snap.M.map((m) => m[1])).size >= 4, "the forest's frogs, snakes, birds and butterflies are there");
   c.ws.close();
-  ok("the gold arrow at the foot of the east stairs: 'map sẽ mở rộng sau', and you're stepped back off it");
+  await sleep(500);
+  // log in again: back in the forest, where they left
+  const c2 = await connect(P.token);
+  assert.equal(c2.msgs.find((m) => m.t === "welcome").map, "bichlac", "the map is remembered");
+  c2.ws.close();
+  ok("the gold arrow at the foot of the east stairs leads to Bích Lạc Lâm, its monsters there, the map remembered");
 }
 
 console.log(`${passed} checks passed`);

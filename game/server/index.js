@@ -6,7 +6,7 @@ import { WebSocketServer } from "ws";
 import { config, ROOT } from "./config.js";
 import { migrate, pool } from "./db.js";
 import { api } from "./api.js";
-import { World } from "./world.js";
+import { Universe } from "./world.js";
 import { loadConfig, watchConfig } from "./gameconfig.js";
 import { adminApp, adminMigrate } from "./admin.js";
 
@@ -18,7 +18,8 @@ try {
   console.error("config: database có số liệu không hợp lệ, tạm dùng số liệu mặc định:", e.message);
 }
 await adminMigrate();
-const world = new World();
+// every map's world, stepped together
+const world = new Universe();
 watchConfig(() => world.onConfig());
 const app = express();
 app.disable("x-powered-by");

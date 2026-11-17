@@ -341,6 +341,37 @@ const PROPS = {
     for (let j = 0; j < 22; j++) for (let i = -10; i < w + 10; i++) B.set(x + i, floor - 132 + j, j > 19 ? d : Math.floor((i + 40) / 14) % 2 ? m : l);
     for (let i = -10; i < w + 10; i += 14) for (let k = 0; k < 7; k++) B.rect(x + i + k, floor - 110, 14 - k * 2, 1, m), B.rect(x + i + 3, floor - 110 + 3, 8, 2, m);
   },
+  // a grave: v 0 an upright tablet on a plinth, v 1 an earth mound with its stele behind, v 2 an old slab leaning, cracked
+  tomb(B, cx, floor, o) {
+    const v = o.v ?? 0, S = [C("#1c1a26"), C("#34323f"), C("#4a4858"), C("#625f72"), C("#7e7a90")], moss = [C("#28331f"), C("#3c4a2a")];
+    const slab = (x, y, w, h, lean = 0) => {
+      for (let j = 0; j < h; j++) {
+        const dx = Math.round(lean * (h - j)), round = j < 3 ? 3 - j : 0;
+        for (let i = round; i < w - round; i++) B.set(x + i + dx, y + j, i === round || j === 0 ? S[4] : i >= w - round - 2 ? S[1] : j > h - 4 ? S[2] : S[3]);
+        B.set(x + round - 1 + dx, y + j, S[0]);
+        B.set(x + w - round + dx, y + j, S[0]);
+      }
+      for (let i = 3; i < w - 3; i++) B.set(x + i, y - 1, S[0]);
+      // carved lines, a little moss
+      for (let j = 6; j < h - 6; j += 4) for (let i = 4; i < w - 4; i++) if (hash(x + i, j, 3) > 0.35) B.set(x + i + Math.round(lean * (h - j)), y + j, S[1]);
+      for (let i = 0; i < w; i++) if (hash(x + i, y, 5) > 0.6) B.set(x + i, y + h - 1, moss[hash(i, y, 6) > 0.5 ? 1 : 0]);
+    };
+    if (v === 1) {
+      slab(cx - 7, floor - 34, 14, 26);
+      for (let i = -20; i <= 20; i++) {
+        const hgt = Math.round(Math.sqrt(1 - (i / 21) ** 2) * 14);
+        for (let j = 0; j < hgt; j++) B.set(cx + i, floor - j - 1, j === hgt - 1 ? moss[1] : j > hgt - 4 ? moss[0] : P.bark[j % 3 === 0 ? 0 : 1]);
+      }
+    } else if (v === 2) {
+      slab(cx - 9, floor - 24, 18, 22, 0.3);
+      for (let j = 6; j < 18; j++) B.set(cx - 2 + (j % 3) + Math.round(0.3 * (22 - j)), floor - 24 + j, S[0]);
+    } else {
+      B.rect(cx - 12, floor - 6, 24, 6, S[2]);
+      B.rect(cx - 12, floor - 6, 24, 1, S[4]);
+      B.rect(cx - 12, floor - 1, 24, 1, S[0]);
+      slab(cx - 8, floor - 34, 16, 28);
+    }
+  },
   spawnstone(B, cx, floor) {
     // a stele that brings travellers here: grey stone, a glowing jade rune, a tortoise plinth
     B.grad(cx - 40, floor - 22, 80, 22, P.stone[2], P.stone[0]);
@@ -370,8 +401,8 @@ function bridgeCell(B, x, y, leftEnd, rightEnd) {
 }
 
 // ---------------------------------------------------------------- the far scenery, layer by layer, at half size (it's far away)
-function layers(w, h) {
-  const top = [C("#24306a"), C("#3a58a0"), C("#6a94d0"), C("#a8c8ea"), C("#f2dcc4")];
+function layers(w, h, th) {
+  const top = th.sky.map(C);
   const skyA = new Uint32Array(h), skyB = new Uint32Array(h), skyK = new Float32Array(h);
   for (let y = 0; y < h; y++) {
     const u = Math.min(0.999, y / (h * 0.8)), i = Math.floor(u * 4), k = u * 4 - i, step = Math.floor(k * 4) / 4;
@@ -381,7 +412,7 @@ function layers(w, h) {
   }
   const mk = () => new Buf(w, h);
   const isles = mk(), cloud = mk();
-  for (let n = 0; n < 4; n++) {
+  for (let n = 0; n < (th.isles ? 4 : 0); n++) {
     const cx = Math.round((n + 0.3 + hash(n, 9) * 0.4) * (w / 4)), cy = Math.round(h * (0.2 + hash(n, 8) * 0.18)), r = 12 + Math.round(hash(n, 7) * 10);
     for (let x = -r; x <= r; x++) {
       const d = Math.round((1 - (x / r) ** 2) * r * 1.3);
@@ -393,9 +424,10 @@ function layers(w, h) {
     }
     for (let y = cy + 2; y < cy + r * 2.5; y++) isles.set(cx + r - 4, y, (y & 3) === 0 ? C("#ffffff") : C("#bfe4ff"));
   }
-  for (let n = 0; n < 9; n++) {
+  const [ca, cb] = (th.cloud ?? ["#ffffff", "#eef4ff"]).map(C);
+  for (let n = 0; n < (th.clouds === false ? 0 : 9); n++) {
     const cx = Math.round(hash(n, 11) * w), cy = Math.round(h * (0.08 + hash(n, 12) * 0.28)), s = 4 + Math.round(hash(n, 13) * 5);
-    for (let k = 0; k < 4; k++) cloud.disc(cx + (k - 1.5) * s * 1.4, cy - (k % 2) * s * 0.5, s, k % 2 ? C("#ffffff") : C("#eef4ff"));
+    for (let k = 0; k < 4; k++) cloud.disc(cx + (k - 1.5) * s * 1.4, cy - (k % 2) * s * 0.5, s, k % 2 ? ca : cb);
     for (let x = cx - s * 4; x < cx + s * 4; x++) for (let y = cy + s * 0.6; y < cy + s; y++) cloud.px[Math.round(y) * w + x] = 0;
   }
   return { sky: { a: skyA, b: skyB, k: skyK }, cloud, isles };
@@ -425,8 +457,9 @@ const _COPING = ["#262a3c", "#7c86aa", "#a6b0d0", "#d0d8ee"].map(C);
 /** Grass thickness along the world x: 5 to 8 px, gently rolling. */
 const grassDepth = (wx) => 5 + Math.round(vnoise(wx / 9, 0, 41) * 3);
 
-function earthCell(S, M, cx, cy, T) {
-  const at = (x, y) => M.cell(x, y), solidC = (ch) => ch === "#" || ch === "s";
+function earthCell(S, M, cx, cy, T, pal) {
+  const { earth: EARTH, grass: GRASS, rim: RIM } = pal;
+  const at = (x, y) => M.cell(x, y), solidC = (ch) => ch === "#" || ch === "s" || ch === "r";
   const up = at(cx, cy - 1), sky = !solidC(up) && up !== "w" && up !== "|", wet = up === "w";
   const openL = !solidC(at(cx - 1, cy)), openR = !solidC(at(cx + 1, cy)), openD = !solidC(at(cx, cy + 1));
   const x0 = cx * T, y0 = cy * T;
@@ -492,10 +525,12 @@ async function loadTerrain() {
   XT.w = img.w;
   return XT;
 }
+// the atlas as this map wants it: shaded for its light (night, fire) when the theme says so
+let TILEPX = null;
 function tile(S, set, name, x, y) {
   const row = XT.sets.indexOf(set), col = XT.tiles[name];
   if (row < 0 || col === undefined) return;
-  S.blit(XT.px, XT.w, col * 32, row * 32, 32, 32, x, y);
+  S.blit(TILEPX ?? XT.px, XT.w, col * 32, row * 32, 32, 32, x, y);
 }
 const middle = (base, cx, cy) => {
   const h = hash(cx, cy, 71);
@@ -503,15 +538,15 @@ const middle = (base, cx, cy) => {
 };
 // How far a set's surface tile is raised so its solid ground meets the floor line the physics stands on: the bamboo
 // earth has a 9 px fringe of dry grass above its soil, which would leave everything standing on grass tips.
-const LIFT = { bamboo: 6, bluestone: 0, cloud: 0 };
+const LIFT = { bamboo: 6, bluestone: 0, cloud: 0, redclay: 0 };
 /**
  * One solid cell from a set: the surface where open sky is above it, the body otherwise. An end tile (with its rounded,
  * see-through edge) only where the side is open air; against water, a waterfall or a bridge the middle tile, so no gap
  * shows between the earth and the water.
  */
 function groundCell(S, M, set, cx, cy, T) {
-  const at = (x, y) => M.cell(x, y), closed = (ch) => ch === "#" || ch === "s" || ch === "w" || ch === "|" || ch === "b";
-  const up = at(cx, cy - 1), surface = up === "." || up === "=";
+  const at = (x, y) => M.cell(x, y), closed = (ch) => ch === "#" || ch === "s" || ch === "r" || ch === "w" || ch === "|" || ch === "b" || ch === "l";
+  const up = at(cx, cy - 1), surface = up === "." || up === "=" || up === "k";
   const L = !closed(at(cx - 1, cy)), R = !closed(at(cx + 1, cy));
   const pick = (base) => (L && R ? `${base}_S` : L ? `${base}_L` : R ? `${base}_R` : middle(base, cx, cy));
   if (surface && LIFT[set]) {
@@ -520,21 +555,72 @@ function groundCell(S, M, set, cx, cy, T) {
     tile(S, set, pick("ground_top"), cx * T, cy * T - LIFT[set]);
   } else tile(S, set, pick(surface ? "ground_top" : "ground_body"), cx * T, cy * T);
 }
-/** A cloud platform: its top on the cell, its billowing underside hanging into the cell below. */
-function cloudPlatform(S, M, cx, cy, T) {
-  const L = M.cell(cx - 1, cy) !== "=", R = M.cell(cx + 1, cy) !== "=";
+/** A floating platform from a set (cloud for "=", the map's own for "k"): its top on the cell, its underside below. */
+function cloudPlatform(S, M, cx, cy, T, set = "cloud", ch = "=") {
+  const L = M.cell(cx - 1, cy) !== ch, R = M.cell(cx + 1, cy) !== ch;
   const end = L && R ? "S" : L ? "L" : R ? "R" : null;
-  tile(S, "cloud", end ? `platform_top_${end}` : middle("platform_top", cx, cy), cx * T, cy * T);
-  if (M.cell(cx, cy + 1) === ".") tile(S, "cloud", `platform_under_${end ?? "M"}`, cx * T, (cy + 1) * T);
+  tile(S, set, end ? `platform_top_${end}` : middle("platform_top", cx, cy), cx * T, cy * T);
+  if (M.cell(cx, cy + 1) === ".") tile(S, set, `platform_under_${end ?? "M"}`, cx * T, (cy + 1) * T);
+}
+
+// ---------------------------------------------------------------- each map's look: sky, far scenery, earth, liquids, motes
+// A map's def.theme overrides any of these; the starter town uses them as they are.
+const DEFAULT_THEME = {
+  sky: ["#24306a", "#3a58a0", "#6a94d0", "#a8c8ea", "#f2dcc4"], // top to horizon
+  isles: true, // the little floating isles far away
+  clouds: true,
+  cloud: ["#ffffff", "#eef4ff"],
+  // pictures high in the sky [name, x, y, { half (default true), tint, k }]: the palaces of the heavens
+  heaven: [["bg_xianxia_far_03_00", 40, 70], ["bg_xianxia_far_03_02", 520, 20], ["bg_xianxia_far_04_00", 1020, 60], ["bg_xianxia_far_04_01", 1620, 30]],
+  mountains: { tint: null, k: 0 }, // the misty peaks (Crisisworks), tinted towards `tint` by k; or { ridge: [far, near] } colours
+  earth: ["#1c140f", "#261b14", "#30231a", "#3a2b1f", "#463425", "#5a4430"],
+  grass: ["#1d3a22", "#2b5230", "#3b6a3a", "#547f45", "#7c9d5a"],
+  rim: "#160e09",
+  liquid: "water", // or "lava"
+  platform: "bluestone", // the set the "k" ledges are drawn from
+  motes: "petals", // what drifts in the air: petals, leaves, spores, embers, souls
+};
+const LAVA = ["#3a0604", "#7a1206", "#c02a0c", "#f05a14", "#ffa63a", "#fff0a0"].map(C);
+/** A picture shifted towards a colour (k 0..1) and darkened by d: night and fire tints for the far scenery. */
+function tinted(img, tint, k, d = 0) {
+  if (!tint || (!k && !d)) return img;
+  const t = C(tint), tr = t & 255, tg = (t >>> 8) & 255, tb = (t >>> 16) & 255, px = new Uint32Array(img.px.length);
+  for (let i = 0; i < px.length; i++) {
+    const c = img.px[i];
+    if (!(c >>> 24)) continue;
+    const f = 1 - d, r = ((c & 255) * (1 - k) + tr * k) * f, g = (((c >>> 8) & 255) * (1 - k) + tg * k) * f, b = (((c >>> 16) & 255) * (1 - k) + tb * k) * f;
+    px[i] = ((c >>> 24) << 24 | (b << 16) | (g << 8) | r) >>> 0;
+  }
+  return { w: img.w, h: img.h, px };
+}
+/** A far range of jagged peaks in two colours (back, front), for maps with no misty mountains: the abyss's black crags. */
+function ridge(w, h, back, front) {
+  const B = new Buf(w, h), b = C(back), f = C(front);
+  const line = (y0, amp, seed, c) => {
+    for (let x = 0; x < w; x++) {
+      const n = vnoise(x / 60, 0, seed) * 0.6 + vnoise(x / 17, 0, seed + 1) * 0.3 + vnoise(x / 5, 0, seed + 2) * 0.1;
+      const top = Math.round(y0 - n * amp);
+      for (let y = top; y < h; y++) B.set(x, y, c);
+    }
+  };
+  line(h * 0.75, h * 0.7, 3, b);
+  line(h * 0.95, h * 0.45, 9, f);
+  return B;
 }
 
 export async function buildScene(M) {
+  const th = { ...DEFAULT_THEME, ...(M.def.theme ?? {}) };
+  const pal = { earth: th.earth.map(C), grass: th.grass.map(C), rim: C(th.rim) };
   const XB = (n) => loadPixels(`/xianxia/bg/${n}.png`);
-  const [ts, rf, mt, pn, , palace, tower, h1, h2, h3, h4] = await Promise.all([
-    loadPixels(M.def.terrain), loadPixels(M.def.roof), loadPixels(M.def.mountains), loadPixels(M.def.pines), loadTerrain(),
+  const [ts, rf, mt0, pn, , palace, tower, ...sky] = await Promise.all([
+    loadPixels(M.def.terrain ?? "/maps/tiles/terrain.png"), loadPixels(M.def.roof ?? "/maps/tiles/roof.png"), loadPixels(M.def.mountains ?? "/maps/tiles/mountains.png"),
+    loadPixels(M.def.pines ?? "/maps/tiles/pines.png"), loadTerrain(),
     XB("bg_xianxia_mid_03_01"), XB("bg_xianxia_mid_04_07"),
-    XB("bg_xianxia_far_03_00"), XB("bg_xianxia_far_03_02"), XB("bg_xianxia_far_04_00"), XB("bg_xianxia_far_04_01"),
+    ...th.heaven.map(([n]) => XB(n)),
   ]);
+  const tt = th.tiles;
+  TILEPX = tt ? tinted({ w: XT.w, h: XT.px.length / XT.w, px: XT.px }, tt.tint, tt.k ?? 0, tt.d ?? 0).px : null;
+  const mt = th.mountains.ridge ? ridge(1400, 320, ...th.mountains.ridge) : tinted(mt0, th.mountains.tint, th.mountains.k ?? 0, th.mountains.dark ?? 0);
   const T = M.T, cols = M.cols, rows = M.rows, SW = M.w, SH = M.h, S = new Buf(SW, SH);
   const at = (cx, cy) => M.cell(cx, cy);
   const solid = (ch) => ch === "#" || ch === "s";
@@ -563,9 +649,10 @@ export async function buildScene(M) {
       const cx = Math.round((x + (o?.w ?? 13) / 2) * T);
       S.blit(palace.px, palace.w, 0, 0, palace.w, palace.h, cx - (palace.w >> 1), row * T - palace.h);
     } else if (kind === "xx") {
-      // a piece of scenery from the Xianxia Pixel Pack, shrunk by o.s, standing on the floor at x (its middle)
-      const img = shrunk(await loadPixels(`/xianxia/bg/${o.n}.png`), o.s ?? 1);
-      S.blit(img.px, img.w, 0, 0, img.w, img.h, Math.round(x * T) - (img.w >> 1), row * T - img.h + 2);
+      // a piece of scenery from the Xianxia Pixel Pack, shrunk by o.s, standing on the floor at x (its middle); o.f mirrors
+      // it, o.dy sinks it into the ground (or lifts it, negative), o.tint/o.k/o.d shade it for the map's light
+      const img = tinted(shrunk(await loadPixels(`/xianxia/bg/${o.n}.png`), o.s ?? 1), o.tint, o.k ?? 0, o.d ?? 0);
+      S.blit(img.px, img.w, 0, 0, img.w, img.h, Math.round(x * T) - (img.w >> 1), row * T - img.h + 2 + (o.dy ?? 0), !!o.f);
     } else if (kind === "pagoda") S.blit(tower.px, tower.w, 0, 0, tower.w, tower.h, Math.round(x * T) - (tower.w >> 1), row * T - tower.h);
     else if (PROPS[kind]) PROPS[kind](S, Math.round(x * T), row * T, o ?? {}, roofs);
   }
@@ -573,24 +660,28 @@ export async function buildScene(M) {
   for (let cy = 0; cy < rows; cy++)
     for (let cx = 0; cx < cols; cx++) {
       const ch = at(cx, cy), x = cx * T, y = cy * T;
-      if (ch === "#") earthCell(S, M, cx, cy, T);
+      if (ch === "#") earthCell(S, M, cx, cy, T, pal);
       else if (ch === "s") groundCell(S, M, "bluestone", cx, cy, T);
+      else if (ch === "r") groundCell(S, M, "redclay", cx, cy, T);
       else if (ch === "=") cloudPlatform(S, M, cx, cy, T);
+      else if (ch === "k") cloudPlatform(S, M, cx, cy, T, th.platform, "k");
       else if (ch === "b") {
         bridgeCell(S, x, y, at(cx - 1, cy) !== "b", at(cx + 1, cy) !== "b");
         if (at(cx, cy + 1) === "w") water.push([cx, cy, true]);
-      } else if (ch === "w") water.push([cx, cy, at(cx, cy - 1) !== "w" && at(cx, cy - 1) !== "b"]);
+      } else if (ch === "w" || ch === "l") water.push([cx, cy, at(cx, cy - 1) !== ch && at(cx, cy - 1) !== "b"]);
       else if (ch === "|") falls.push([cx, cy]);
     }
+  for (const w of water) w[3] = surf(w[0], w[1]);
   // tall flowering plants from the sheet: two tiles high
   for (const [c, r, x, row] of M.def.deco ?? []) (sub(c, r - 1, Math.round(x * T), row * T - 32), sub(c, r, Math.round(x * T), row * T - 16));
 
-  const LW = 640, LH = Math.ceil(SH / 2), far = layers(LW, LH);
+  const LW = 640, LH = Math.ceil(SH / 2), far = layers(LW, LH, th);
   const heaven = new Buf(2200, 220);
-  for (const [img, x, y] of [[h1, 40, 70], [h2, 520, 20], [h3, 1020, 60], [h4, 1620, 30]]) {
-    const half = halve(img);
-    heaven.blit(half.px, half.w, 0, 0, half.w, half.h, x, y);
-  }
+  th.heaven.forEach(([, x, y, o = {}], i) => {
+    const img = tinted(o.half === false ? sky[i] : halve(sky[i]), o.tint, o.k ?? 0, o.d ?? 0);
+    heaven.blit(img.px, img.w, 0, 0, img.w, img.h, x, y);
+  });
+  const LIQ = th.liquid === "lava" ? LAVA : WATER;
   // the mountains' feet sit a little above the town's floor line, their peaks well up the sky
   const mtOff = mt.h - SH + 40;
   const lanterns = M.def.props.filter((p) => p[0] === "lantern").map(([, x, row]) => [x * T, row * T - 44]);
@@ -632,18 +723,18 @@ export async function buildScene(M) {
       const sx = wx - camX, sy = wy - camY;
       if (sx >= 0 && sy >= 0 && sx < VW && sy < VH && !SPX[wy * SW + wx]) out[sy * VW + sx] = c;
     };
-    for (const [cx, cy, top] of water) {
+    for (const [cx, cy, top, sr] of water) {
       if (cx < x0 || cx > x1 || cy < y0 || cy > y1) continue;
       for (let y = 0; y < T; y++)
         for (let x = 0; x < T; x++) {
-          const wx = cx * T + x, wy = cy * T + y, depth = (cy - 15) * T + y;
+          const wx = cx * T + x, wy = cy * T + y, depth = (cy - sr) * T + y;
           // shallow light near the top fading to deep blue, dithered between bands, thin ripples drifting
           const band = depth / 18, d = dith(wx, wy);
           let k = 4 - Math.min(3, Math.floor(band + d * 0.9));
           if (top && y < 2) k = Math.sin(wx * 0.3 - t * 4) > 0.2 ? 5 : 4;
           if (Math.abs(Math.sin(wx * 0.07 + Math.sin(wy * 0.2 + t) * 2 - t * 1.5)) < 0.04 && depth > 4) k = Math.min(5, k + 1);
           if (hash(wx, wy, Math.floor(t * 4)) > 0.997) k = 5;
-          put(wx, wy, WATER[k]);
+          put(wx, wy, LIQ[k]);
         }
     }
     for (const [cx, cy] of falls) {
@@ -655,9 +746,17 @@ export async function buildScene(M) {
           let k = s > 0.82 ? 5 : s > 0.6 ? 4 : s > 0.25 ? 3 : 2;
           if ((L && x < 3) || (R && x > T - 4)) k = x === 0 || x === T - 1 ? 0 : 1;
           if (foot && y > T - 12 && hash(wx, wy, Math.floor(t * 12)) > 0.3) k = 5;
-          put(wx, wy, WATER[k]);
+          put(wx, wy, LIQ[k]);
         }
     }
   }
-  return { paint, lanterns };
+  // lights painted over the scene: lanterns' warm pools, and any "glow" the map places (lava, spirit fire, rune circles)
+  const glows = M.def.props.filter((p) => p[0] === "glow").map(([, x, row, o = {}]) => ({ x: x * T, y: row * T - (o.h ?? 0), r: o.r ?? 40, c: o.c ?? "#ffb84a", a: o.a ?? 0.3, f: o.f ?? 1 }));
+  // a pool's depth counts from its own surface, whatever row it lies at
+  function surf(cx, cy) {
+    let y = cy;
+    while (y > 0 && (at(cx, y - 1) === "w" || at(cx, y - 1) === "l" || at(cx, y - 1) === "b")) y--;
+    return y;
+  }
+  return { paint, lanterns, glows, theme: th };
 }

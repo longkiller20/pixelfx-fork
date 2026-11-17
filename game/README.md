@@ -68,9 +68,28 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Nước và thác có hoạt ảnh, đèn đá lập lòe, hoa anh đào bay.
   - Phía sau là núi, đảo bay và mây, mỗi lớp trượt chậm hơn tiền cảnh (parallax).
   - Ngồi thiền trên Thái Cực Đài để tu luyện; đĩa âm dương phía trên quay nhanh hơn khi có người tu luyện.
-  - Mũi tên vàng dưới chân bậc thang đá cuối thôn là lối ra. Hiện chưa mở; đi hoặc nhảy qua sẽ hiện "bản đồ sẽ mở rộng sau,
-    xin đạo hữu thông cảm".
-- **Sắp có:** bản đồ luyện cấp đánh yêu thú, và đấu trường PvP. Mã đã có sẵn, chỉ cần khai báo bản đồ.
+  - Mũi tên vàng dưới chân bậc thang đá cuối thôn là lối ra, sang Bích Lạc Lâm.
+- **Bốn bản đồ luyện cấp nối tiếp về phía đông.** Mỗi map có cổng ở hai đầu; qua cổng là sang map kế, đứng ngay cạnh cổng
+  quay về. Thoát game rồi vào lại thì xuất hiện ở map đang đứng.
+
+  | Bản đồ | Cảnh | Yêu thú |
+  | --- | --- | --- |
+  | **Bích Lạc Lâm** (rừng xanh) | Đồi cỏ, hồ sen có cầu ván, rừng tùng và trúc với lối đi trên cành, đồng hoa có đình nghỉ, dốc đá lên cổng chào | Độc Thiềm (ếch) quanh hồ, Thanh Xà (rắn) dưới tán rừng, Linh Điểu (chim) trên các lối đi trên cành, Huyễn Điệp (bướm) ở đồng hoa |
+  | **Linh Thủy Đàm** (hồ linh thủy) | Cầu ván nối các đảo, đảo nhỏ có chậu sen và đài phun nước, đảo lớn có đình và tùng, cầu ngọc, đầm lau, thác đổ từ vách núi | Ngư Yêu Quần (đàn cá) vọt trên mặt hồ, Thủy Mẫu Tinh (sứa) lơ lửng trên hồ, Nhuyễn Yêu (slime) trong đầm lau |
+  | **U Minh Cổ Mộ** (nghĩa địa cổ, đêm trăng tròn) | Mộ đất, bia đá, mộ nghiêng; quỷ hỏa trên mộ; lăng đá có sư tử đá, cổng trăng, cột rồng đen, tế đàn đầu lâu xanh; rừng cây chết; tháp canh | Âm Hồn giữa mộ, Quỷ Hỏa quanh lăng và rừng, Huyết Bức (dơi) trong rừng chết |
+  | **Huyết Diễm Ma Uyên** (vực lửa, huyết nguyệt) | Hang đất đỏ có thạch nhũ, ba dòng nham thạch qua bằng gờ đá, thác nham thạch, trụ lửa, lốc lửa, tế đàn phù văn có hư không cầu, cổng hắc diệu thạch | Phi Đầu Lâu và Ma Nhãn bắn từ xa |
+
+  - Mỗi map có trời, núi xa, màu đất và các hạt bay riêng: lá rơi trong rừng, bào tử trên hồ, hồn quang ở nghĩa địa, tàn
+    lửa ở vực.
+  - Cảnh vật dùng ảnh của Xianxia Pixel Pack (CC0), cộng hiệu ứng pixelfx chạy liên tục làm cảnh sống: gợn nước, đài
+    phun, quỷ hỏa, lửa ám, đầu lâu quanh lửa xanh, lò lửa, trụ lửa, lốc lửa, cổng và vòng phù văn.
+  - Rơi xuống nham thạch ở Huyết Diễm Ma Uyên bị bỏng: mỗi giây mất 18% sinh lực.
+  - Cổng cuối Ma Uyên còn phong ấn, cho vùng đất sau này.
+- **Nhiều bản đồ cùng chạy:** mỗi map một thế giới riêng (người chơi, yêu thú, đạn), cùng một nhịp 20 lần/giây, nên hồi
+  chiêu, buff và thời gian bảo vệ vẫn đúng khi đổi map. Trò chuyện thì mọi map đều thấy.
+  - Thêm map: viết file trong `shared/maps/` (dựng lưới bằng `shared/maps/build.js`), khai báo trong
+    `shared/maps/index.js`, nối cổng `to` hai chiều.
+- **Sắp có:** đấu trường PvP. Mã đã có sẵn, chỉ cần khai báo bản đồ.
 - **Tiến trình:** 9 cảnh giới × 5 tầng (Luyện Khí → Độ Kiếp), linh thạch, Đan Các (cửa hàng), quà mỗi ngày, Bảng Phong Thần.
 
 ## Cài lên VPS (Ubuntu/Debian)

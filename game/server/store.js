@@ -18,7 +18,7 @@ export class GameError extends Error {
   }
 }
 
-const COLS = "user_id, name, gender, hair, robe, weapon, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots";
+const COLS = "user_id, name, gender, hair, robe, weapon, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots, map_id";
 /** The bar as saved, or the starters for a character that never changed it; always ART_SLOTS long. */
 export function parseSlots(raw) {
   let a = null;
@@ -33,7 +33,13 @@ const shape = (r) => r && {
   kills: Number(r.kills), deaths: Number(r.deaths), level: levelFromExp(Number(r.exp)),
   medLeft: Math.max(0, MEDITATE.dailyCap - (r.med_today ? Number(r.med_exp) : 0)),
   slots: parseSlots(r.art_slots),
+  mapId: r.map_id ?? null,
 };
+
+/** The map a character is on, so they come back there. */
+export async function setMap(uid, mapId) {
+  await q("UPDATE characters SET map_id = ? WHERE user_id = ?", [mapId, uid]);
+}
 
 export async function loadCharacter(uid, conn = null) {
   const Q = conn ?? { query: q };
