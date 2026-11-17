@@ -271,4 +271,7 @@ export const SPECIAL_WEAPONS_SEED = [
   { idx: 95, name: "U Minh Liêm" }, // pixelfx scythe
   { idx: 96, name: "Huyết Lang Trảo" }, // pixelfx claw
   { idx: 97, name: "Lạc Nhật Cung" }, // pixelfx bow
+  { idx: 98, name: "Dị Giới Hỏa Thương" }, // pixelfx pistol: a firearm from another world of the multiverse
+  { idx: 99, name: "Phích Lịch Thần Pháo" }, // pixelfx rocket launcher
+  { idx: 100, name: "Phược Long Tiên" }, // pixelfx whip (handle and lash)
 ].map((w) => ({ kind: "weapon", g: "a", price: 0, starter: false, onSale: false, special: true, ...w }));

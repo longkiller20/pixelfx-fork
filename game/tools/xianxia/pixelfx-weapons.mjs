@@ -1,6 +1,7 @@
 // Render the weapons pixelfx draws in code (src/core/rig.js WEAPONS) flat, pointing right, at the game's weapon size,
 // and write them as pixel grids to pixelfx-weapons.json; build.py (or `build.py --pixelfx-only`) adds them to the
-// weapons atlas after the pack's 90. The pistol, rocket launcher and bare handle are left out: not for a cultivation world.
+// weapons atlas after the pack's 90. All of them, the pistol and the rocket launcher too: it is a multiverse. The whip's
+// handle comes with a lash drawn here (in pixelfx the lash is the effect's own).
 //
 //   node tools/xianxia/pixelfx-weapons.mjs
 import { writeFileSync } from "node:fs";
@@ -19,6 +20,9 @@ const PICK = {
   scythe: { s: 1.55 },
   claw: { s: 1.9 },
   bow: { s: 1.5, turn: true, long: true },
+  pistol: { s: 1.9 },
+  launcher: { s: 1.5 },
+  handle: { s: 1.8, lash: true, long: false }, // a whip hangs forward, it is not stood upright like a polearm
 };
 const INK = [24, 16, 20];
 const out = [];
@@ -36,6 +40,13 @@ for (const [name, o] of Object.entries(PICK)) {
     // the bow strings itself through pixelfx's own frame buffer, which isn't there outside a scene: string it here
   }
   if (name === "bow") for (let k = -17; k <= 17; k += 0.4) put(-1, k, 0xffe8edf6);
+  // the whip's lash: a leather cord from the handle's end, sagging and thinning towards a pale tip
+  if (o.lash)
+    for (let i = 6.8; i <= 34; i += 0.25) {
+      const u = (i - 6.8) / 27.2, k = 7 * u * u - 1.5 * Math.sin(u * Math.PI);
+      put(i, k, u > 0.88 ? 0xffd8e4f0 : 0xff2a4a7a);
+      if (u < 0.5) put(i, k + 0.6, 0xff18305a);
+    }
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const key of pts.keys()) {
     const [x, y] = key.split(",").map(Number);
@@ -53,7 +64,7 @@ for (const [name, o] of Object.entries(PICK)) {
   const rows = px.map((r) => r.map((c) => (c === "ink" ? INK : c)));
   // the grip: pixelfx's fist sits at (0, 0)
   const [gx, gy] = [-x0 + 1, -y0 + 1];
-  out.push({ name: "pixelfx_" + name, w, h, gx, gy, long: !!o.long, px: rows.map((r) => r.map((c) => (c ? c.map((v) => v.toString(16).padStart(2, "0")).join("") : "")).join(" ")) });
+  out.push({ name: "pixelfx_" + name, w, h, gx, gy, long: o.long, px: rows.map((r) => r.map((c) => (c ? c.map((v) => v.toString(16).padStart(2, "0")).join("") : "")).join(" ")) });
   console.log(name, w, "x", h, "grip", gx, gy);
 }
 writeFileSync(join(HERE, "pixelfx-weapons.json"), JSON.stringify(out, null, 0));
