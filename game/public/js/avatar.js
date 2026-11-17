@@ -1,9 +1,9 @@
 // The players' look: one base figure dressed in a hair style and a robe chosen when the character is made (40 of each,
 // for men and for women). The parts come from atlases in /avatar/ that tools/avatar/build.py cut from the artist's sheets
 // and fitted to the base; here they are split into a rig and moved:
-//   back hair → robe (torso, two sleeves, skirt, two boots) → head → front hair → face
+//   back hair → robe (torso, the front sleeve, skirt, two boots) → head → front hair → face
 // Every part is a list of pixels in the base figure's own grid (29 x 63, feet at the bottom middle), so a pose is just
-// offsets: the upper body breathes and bobs, the sleeves turn about the shoulders, the skirt and the hair sway, the boots
+// offsets: the upper body breathes and bobs, the front sleeve turns about its shoulder when casting, the skirt and the hair sway, the boots
 // step. Nothing here is a canned frame: it all follows the character's state.
 import { WHITE, mix, hex } from "/pixelfx/core/index.js";
 
@@ -11,9 +11,9 @@ export const GENDERS = ["m", "f"];
 export const N_HAIR = 40, N_ROBE = 40;
 const BW = 29, BH = 63, OX = 15; // the base grid, and the x of the line between the feet
 // where the body is cut: shoulders (sleeve pivots), the waist, the boots
-const SH_F = [22, 27], SH_B = [8, 27], ARM_Y0 = 24, ARM_Y1 = 43, SKIRT_Y = 44, FEET_Y = 57, BACK_HAIR_Y = 22;
-// parts: 0 torso, 1 front sleeve, 2 back sleeve, 3 skirt, 4 front boot, 5 back boot
-const TORSO = 0, ARM_F = 1, ARM_B = 2, SKIRT = 3, FOOT_F = 4, FOOT_B = 5;
+const SH_F = [22, 27], ARM_Y0 = 24, ARM_Y1 = 43, SKIRT_Y = 44, FEET_Y = 57, BACK_HAIR_Y = 22;
+// parts: 0 torso, 1 front sleeve, 3 skirt (the back sleeve stays with the torso: on most robes it is the cape or the back hem), 4 front boot, 5 back boot
+const TORSO = 0, ARM_F = 1, SKIRT = 3, FOOT_F = 4, FOOT_B = 5;
 
 let meta = null, sheets = null, ready = null;
 const cache = new Map();
@@ -76,14 +76,15 @@ function rigFor(g, hair, robe) {
       let part = TORSO;
       if (y >= FEET_Y) part = x < OX ? FOOT_B : FOOT_F;
       else if (y >= ARM_Y0 && y <= ARM_Y1 && x >= 21) part = ARM_F;
-      else if (y >= ARM_Y0 && y <= ARM_Y1 && x <= 9) part = ARM_B;
       else if (y >= SKIRT_Y) part = SKIRT;
       return [x, y, c, part];
     }),
   };
   r.at = new Map(r.robe.map(([x, y, c]) => [y * 256 + x, c]));
+  // the hem's right edge at the waist line, where the robe's body under the sleeve ends
+  r.hemR = Math.max(21, ...r.robe.filter(([, y, , part]) => y === SKIRT_Y && part === SKIRT).map(([x]) => x));
   // the sleeves as lookup grids, for drawing them turned
-  for (const [name, part, piv] of [["armF", ARM_F, SH_F], ["armB", ARM_B, SH_B]]) {
+  for (const [name, part, piv] of [["armF", ARM_F, SH_F]]) {
     const px = r.robe.filter((p) => p[3] === part);
     const m = new Map(px.map(([x, y, c]) => [y * 256 + x, c]));
     let R = 0;
@@ -105,10 +106,8 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 export function poseOf(st) {
   // every offset here is either a rigid shift of a whole part or a shear that grows steadily along the body, so neighbouring
   // rows never move apart by more than a pixel: the cloth bends but never tears
-  const t = st.t, P = { bob: 0, lean: 0, armF: 0, armB: 0, swingF: 0, swingB: 0, skirt: 0, sway: 0, wind: 0, lift: 0, footF: [0, 0], footB: [0, 0] };
+  const t = st.t, P = { bob: 0, lean: 0, armF: 0, swingF: 0, skirt: 0, sway: 0, wind: 0, lift: 0, footF: [0, 0], footB: [0, 0] };
   if (st.air) {
-    P.armF = -0.35;
-    P.armB = 0.3;
     P.lift = 2;
     P.wind = 0.5;
     P.skirt = -1;
@@ -120,8 +119,6 @@ export function poseOf(st) {
     P.footF = [Math.round(s), c > 0.3 ? -1 : 0];
     P.footB = [-Math.round(s), c < -0.3 ? -1 : 0];
     P.bob = Math.abs(c) < 0.5 ? 1 : 0;
-    P.swingF = -s * 1.6;
-    P.swingB = s * 1.6;
     P.lean = 1;
     P.skirt = -s * 1.2;
     P.sway = Math.sin(ph * 0.5) * 0.6;
@@ -132,12 +129,10 @@ export function poseOf(st) {
     P.sway = Math.sin(t * 1.7) * 0.8;
     P.skirt = Math.sin(t * 1.3) * 0.6;
   }
-  if (st.meditating) P.swingF = P.swingB = 0;
   const c = st.cast;
   if (st.busy) P.armF = -1.5;
   else if (c && c.age < 0.5) {
     const u = c.age / 0.5;
-    P.swingF = 0;
     if (c.type === "melee") {
       // raise the sword arm high in front, cut down through the target, let it fall back
       P.armF = u < 0.2 ? -2.6 * (u / 0.2) : u < 0.45 ? -2.6 + 2.1 * ((u - 0.2) / 0.25) : -0.5 * (1 - (u - 0.45) / 0.55);
@@ -145,7 +140,6 @@ export function poseOf(st) {
     } else {
       // a palm thrust straight ahead, held, then lowered
       P.armF = -1.45 * (u < 0.15 ? u / 0.15 : u > 0.7 ? 1 - (u - 0.7) / 0.3 : 1);
-      P.armB = 0.3 * (1 - u);
       P.lean = u < 0.3 ? -1 : 1;
     }
     P.wind += 0.6;
@@ -179,11 +173,13 @@ export function drawAvatar(p, look, st) {
   for (const [x, y, c] of r.hairBack) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(shade(c, 0.85)));
   // robe: torso and skirt, then the boots; the sleeves are drawn on their own (nothing left behind where they were)
   for (const [x, y, c, part] of r.robe) {
-    if (part === ARM_F || part === ARM_B) {
+    if (part === ARM_F) {
       // a sleeve lifted away uncovers the robe's side: carry the body's edge a few pixels out under it, no further
-      const a = part === ARM_F ? P.armF : P.armB, inner = part === ARM_F ? 20 : 10;
-      if (Math.abs(a) >= 0.05 && Math.abs(x - inner) <= 3) {
-        const under = r.at.get(y * 256 + inner);
+      // and lower down, the body widens from the waist towards the hem's own edge: fill only that, not the hanging cuff
+      const inner = 20;
+      const body = y >= 36 ? x <= Math.round(21 + (r.hemR - 21) * ((y - 36) / (SKIRT_Y - 36))) : Math.abs(x - inner) <= 3;
+      if (Math.abs(P.armF) >= 0.05 && body) {
+        const under = (y >= 36 && r.at.get(SKIRT_Y * 256 + x)) || r.at.get(y * 256 + inner);
         if (under) p.px(X(x + lean(y)), Y(y + bob(y)), tint(shade(under, 0.82)));
       }
       continue;
@@ -194,7 +190,6 @@ export function drawAvatar(p, look, st) {
     else if (part === FOOT_B) [dx, dy] = P.footB;
     p.px(X(x + dx), Y(y + dy), tint(c));
   }
-  drawArm(p, r.armB, P.armB, P.swingB, lean, bob, tint, X, Y);
   for (const [x, y, c] of r.head) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
   for (const [x, y, c] of r.hairFront) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(c));
   for (const [x, y, c] of r.face) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
