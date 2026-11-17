@@ -120,6 +120,9 @@ Có HTTPS thì game tự dùng `wss://`.
   - Vòng trong: Phi Kiếm (K) bên trái, Lôi Ấn Trận (L) chéo trên, Nhảy ngay phía trên.
   - Vòng ngoài: 2 nút đan dược nhỏ.
   - Icon chiêu lấy từ hiệu ứng của Xianxia Pixel Pack (CC0): trăng khuyết, vòng phi kiếm, sét thiên kiếp, hạc bay.
+  - Khung tròn của các nút (vàng gắn ngọc bích cho nút đánh, vàng gắn lam/tím ngọc cho 2 chiêu, bạc cho nhảy, ngọc bích cho đan dược) là pixel art vẽ theo phong cách của pack bằng `tools/xianxia/rings.py`.
+  - Hai nút đan dược là nút phụ: nhỏ, xếp ngang hàng ở dưới, bên trái cụm chiêu.
+- Màn tạo nhân vật luôn vừa một màn hình, không có thanh cuộn: trên điện thoại cầm ngang dùng bố cục gọn, cầm dọc thì trang tự xoay ngang như trong game, và nếu màn quá nhỏ thì cả khung được thu lại cho vừa.
   - Màn hình thấp (điện thoại ngang) thì cả cụm thu nhỏ đều lại, không đè lên nhau.
 
 ## Máy tính
