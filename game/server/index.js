@@ -7,9 +7,17 @@ import { config, ROOT } from "./config.js";
 import { migrate, pool } from "./db.js";
 import { api } from "./api.js";
 import { World } from "./world.js";
+import { loadConfig, watchConfig } from "./gameconfig.js";
 
 await migrate();
+// the game's numbers from the database; if they're broken at start, run on the built-in defaults and say why
+try {
+  await loadConfig();
+} catch (e) {
+  console.error("config: database có số liệu không hợp lệ, tạm dùng số liệu mặc định:", e.message);
+}
 const world = new World();
+watchConfig(() => world.onConfig());
 const app = express();
 app.disable("x-powered-by");
 if (config.trustProxy) app.set("trust proxy", 1);

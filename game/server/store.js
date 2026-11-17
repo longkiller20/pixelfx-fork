@@ -8,7 +8,7 @@
 //     that happened in between is never overwritten.
 import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
-import { CLASS, validLook, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, NAME_RE, levelFromExp } from "../shared/balance.js";
+import { CLASS, validLook, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, START, NAME_RE, levelFromExp } from "../shared/balance.js";
 
 export class GameError extends Error {
   constructor(message, status = 400) {
@@ -52,13 +52,13 @@ export function createCharacter(uid, name, look) {
     );
     if (free.length !== 2) throw new GameError("Ngoại hình này chưa mở, hãy chọn kiểu khởi đầu.");
     try {
-      await c.query("INSERT INTO characters (user_id, name, class, gender, hair, robe, stones) VALUES (?, ?, ?, ?, ?, ?, 20)", [uid, name, CLASS, g, hair, robe]);
+      await c.query("INSERT INTO characters (user_id, name, class, gender, hair, robe, stones) VALUES (?, ?, ?, ?, ?, ?, ?)", [uid, name, CLASS, g, hair, robe, START.stones]);
     } catch (e) {
       if (isDup(e)) throw new GameError(/uq_name/.test(e.message) ? "Đạo hiệu này đã có người dùng." : "Tài khoản đã có nhân vật.", 409);
       throw e;
     }
-    // a starter gift
-    await c.query("INSERT INTO inventory (user_id, item, qty) VALUES (?, 'hoixuan', 2)", [uid]);
+    // a starter gift (settings start.stones and start.hoixuan)
+    if (START.hoixuan > 0) await c.query("INSERT INTO inventory (user_id, item, qty) VALUES (?, 'hoixuan', ?)", [uid, START.hoixuan]);
     return loadCharacter(uid, c);
   }));
 }
@@ -89,6 +89,7 @@ export function buy(uid, item, qty, requestId) {
   const it = ITEMS[item];
   qty = Number(qty);
   if (!it) throw new GameError("Vật phẩm không tồn tại.");
+  if (!it.onSale) throw new GameError("Vật phẩm này đã ngừng bán.");
   if (!Number.isInteger(qty) || qty < 1 || qty > BUY_MAX) throw new GameError(`Mỗi lần mua 1-${BUY_MAX} viên.`);
   if (typeof requestId !== "string" || !/^[0-9a-f-]{36}$/i.test(requestId)) throw new GameError("Thiếu mã giao dịch.");
   const cost = it.price * qty;

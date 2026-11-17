@@ -1,5 +1,10 @@
-// Đa vũ trụ tu tiên: every number the game is balanced on, in one file the server and the browser both import.
-// The server is the only one that acts on these; the browser uses them to draw cooldowns, bars and tooltips.
+// Đa vũ trụ tu tiên: every number the game is balanced on. The server and the browser both import this file.
+//
+// The numbers themselves live in the database (tables realms, items, monsters, skills, settings), so an admin can add a
+// realm, a pill or retune a skill without touching code: the server reads them at start and every few seconds, then
+// pushes them to every browser. DEFAULTS below is only the first content a fresh database is filled with. applyConfig()
+// takes a config (from the database, or DEFAULTS) and rebuilds every export in place, so code that imported REALMS,
+// ITEMS, MONSTERS, CLASSES, PVP... keeps seeing the current numbers.
 //
 // How balance works:
 //  - Everyone has the same stats and arts; the sword cut at close range out-damages the flying sword over time,
@@ -12,12 +17,176 @@ export const TICK_HZ = 20;
 // Maps (size, walls, spawn, the spirit vein, the ways out) live in shared/maps/.
 export const PLAYER_R = 14; // body radius on the ground plane
 
-export const REALMS = ["Luyện Khí", "Trúc Cơ", "Kim Đan", "Nguyên Anh", "Hóa Thần", "Luyện Hư", "Hợp Thể", "Đại Thừa", "Độ Kiếp"];
-export const MAX_LEVEL = REALMS.length * 5;
+export const NAME_RE = /^[\p{L}\p{N}_ ]{3,16}$/u;
+export const USER_RE = /^[a-zA-Z0-9_]{3,16}$/;
+
+// A character's look: a gender, a hair style and a robe. Which styles exist, what they cost and which are free at
+// creation lives in the cosmetics table; idx is the part's place in its atlas in public/avatar/.
+export const GENDERS = ["m", "f"];
+export const COSMETIC_KINDS = ["hair", "robe"];
+const idxOk = (v) => Number.isInteger(v) && v >= 0 && v < 1000;
+export const validLook = (g, hair, robe) => GENDERS.includes(g) && idxOk(hair) && idxOk(robe);
+
+/** Damage taken after defense. */
+export const mitigate = (def) => 100 / (100 + def);
+
+// ---------------------------------------------------------------- the first content of a fresh database
+// Skill types the server knows: melee (an arc in front: range, arc), bolt (a projectile: range, speed, r), zone (an area
+// some way ahead that hits after a beat and slows: dist, r, delay, slow, slowDur). cd in seconds, mult x attack, px.
+export const SKILL_PARAMS = { melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur"] };
+// the monster types the game can draw; their numbers are free to change
+export const MONSTER_TYPES = ["dummy", "ghost"];
+
+export const DEFAULTS = {
+  realms: ["Luyện Khí", "Trúc Cơ", "Kim Đan", "Nguyên Anh", "Hóa Thần", "Luyện Hư", "Hợp Thể", "Đại Thừa", "Độ Kiếp"].map((name) => ({ name, stages: 5 })),
+  skills: [
+    { slot: 0, name: "Kiếm Khí Trảm", type: "melee", cd: 0.6, mult: 0.85, params: { range: 54, arc: 1.4 } },
+    { slot: 1, name: "Phi Kiếm", type: "bolt", cd: 2.5, mult: 1.5, params: { range: 240, speed: 360, r: 10 } },
+    { slot: 2, name: "Lôi Ấn Trận", type: "zone", cd: 9, mult: 1.4, params: { dist: 110, r: 60, delay: 0.35, slow: 0.5, slowDur: 2.5 } },
+  ],
+  items: [
+    { key: "hoixuan", name: "Hồi Xuân Đan", desc: "Hồi 40% sinh lực. Không dùng được trong đấu trường", price: 12, heal: 0.4, expBase: 0, expPerLevel: 0, cd: 15, onSale: true, sort: 1 },
+    { key: "tukhi", name: "Tụ Khí Đan", desc: "Tăng tu vi ngay lập tức", price: 40, heal: 0, expBase: 150, expPerLevel: 30, cd: 1, onSale: true, sort: 2 },
+  ],
+  monsters: [
+    { type: "dummy", name: "Bù Nhìn Rơm", hp: 500, atk: 0, def: 10, spd: 0, respawn: 5, expBase: 10, expPerLevel: 2, stones: 1, aggro: 0, reach: 0, cd: 0, mult: 0 },
+    { type: "ghost", name: "Âm Hồn", hp: 420, atk: 30, def: 12, spd: 62, respawn: 8, expBase: 30, expPerLevel: 4, stones: 2, aggro: 150, reach: 34, cd: 1.2, mult: 1 },
+  ],
+  // [value, what it means] — the meaning is stored beside the value for whoever edits it
+  settings: {
+    "class.hp": [1000, "Sinh lực gốc của nhân vật (cấp 1)"],
+    "class.atk": [60, "Công gốc"],
+    "class.def": [28, "Thủ gốc"],
+    "class.spd": [96, "Tốc độ gốc (px/giây trước hệ số chạy)"],
+    "exp.base": [60, "Tu vi để lên 1 tầng = exp.base × cấp ^ exp.power"],
+    "exp.power": [1.7, "Số mũ của đường tu vi (lớn hơn = các tầng cao khó hơn nhiều)"],
+    "level.world_bonus": [0.025, "Mỗi cấp mạnh thêm bao nhiêu ngoài thế giới (0.025 = 2,5%)"],
+    "arena.max_bonus": [0.1, "Ở đấu trường, cấp cao nhất chỉ mạnh hơn cấp 1 tối đa bấy nhiêu (0.1 = 10%)"],
+    "start.stones": [20, "Linh thạch khi tạo nhân vật"],
+    "start.hoixuan": [2, "Số Hồi Xuân Đan tặng khi tạo nhân vật"],
+    "daily.stones": [30, "Linh thạch của quà mỗi ngày"],
+    "shop.buy_max": [10, "Mỗi lần mua tối đa bao nhiêu viên"],
+    "meditate.base": [3, "Tu vi mỗi giây khi ngồi thiền ở Thái Cực Đài"],
+    "meditate.levels_per_bonus": [3, "Cứ bấy nhiêu cấp thì tu luyện thêm 1 tu vi/giây"],
+    "meditate.daily_cap": [8000, "Tu vi tối đa nhận từ ngồi thiền mỗi ngày"],
+    "meditate.calm_after_hit": [3, "Giây phải yên sau khi bị đánh mới ngồi thiền được"],
+    "pvp.exp_base": [40, "Tu vi khi hạ người chơi: pvp.exp_base + pvp.exp_per_level × cấp"],
+    "pvp.exp_per_level": [3, "Phần tu vi PvP tăng theo cấp"],
+    "pvp.stones": [5, "Linh thạch khi hạ người chơi"],
+    "pvp.rank_win": [15, "Điểm đấu trường được khi thắng"],
+    "pvp.rank_lose": [10, "Điểm đấu trường mất khi thua"],
+    "pvp.repeat_cooldown": [120, "Giây trước khi hạ lại cùng một người mới có thưởng"],
+    "pvp.spawn_protect": [2, "Giây miễn sát thương sau khi hồi sinh"],
+    "pvp.respawn": [3, "Giây chờ hồi sinh ở đấu trường"],
+    "respawn.world": [4, "Giây chờ hồi sinh ngoài thế giới"],
+  },
+};
+
+// ---------------------------------------------------------------- the live numbers, rebuilt by applyConfig
+export const REALMS = []; // [{ name, stages }]
+export let MAX_LEVEL = 1;
+export const CLASS = "tu";
+export const CLASSES = { tu: { name: "Tu Sĩ", hp: 0, atk: 0, def: 0, spd: 0, skills: [] } };
+export const ITEMS = {}; // key -> { name, desc, price, heal, cd, onSale, sort, exp(L) }
+export const MONSTERS = {}; // type -> { name, hp, atk, def, spd, respawn, stones, aggro, reach, cd, mult, exp(L) }
+export const PVP = {};
+export const MEDITATE = {};
+export const START = {};
+export let RESPAWN_WORLD = 4, DAILY_STONES = 30, BUY_MAX = 10;
+let SET = {}, TOTAL = [0, 0], LEVELS = [[0, 1]];
+
+const num = (v, what, min = 0, max = 1e9) => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < min || n > max) throw new Error(`${what}: ${v} không hợp lệ (cần từ ${min} đến ${max})`);
+  return n;
+};
+const str = (v, what, max = 40) => {
+  const s = String(v ?? "").trim();
+  if (!s || s.length > max) throw new Error(`${what}: cần chữ, dài 1-${max} ký tự`);
+  return s;
+};
+
+/**
+ * Check a whole config and turn it into the game's numbers. Throws (and changes nothing) if any of it is wrong, so a bad
+ * edit in the database can never take the live game down. c: { realms, skills, items, monsters, settings } as in DEFAULTS
+ * (settings values may be plain numbers).
+ */
+export function checkConfig(c) {
+  const S = {};
+  for (const [k, d] of Object.entries(DEFAULTS.settings)) {
+    const v = c.settings?.[k];
+    S[k] = num(Array.isArray(v) ? v[0] : v ?? d[0], `settings ${k}`, k === "exp.power" ? 0.5 : 0, k === "exp.power" ? 4 : 1e9);
+  }
+  if (!Array.isArray(c.realms) || !c.realms.length) throw new Error("Cần ít nhất một cảnh giới");
+  const realms = c.realms.map((r, i) => ({ name: str(r.name, `cảnh giới ${i + 1}`, 32), stages: num(r.stages, `số tầng của ${r.name}`, 1, 20) | 0 }));
+  if (realms.reduce((a, r) => a + r.stages, 0) > 500) throw new Error("Tổng số tầng tối đa 500");
+  const skills = [0, 1, 2].map((slot) => {
+    const s = c.skills?.find((x) => Number(x.slot) === slot);
+    if (!s) throw new Error(`Thiếu chiêu ô ${slot}`);
+    if (!SKILL_PARAMS[s.type]) throw new Error(`Chiêu ${slot}: loại "${s.type}" không có (melee, bolt, zone)`);
+    const params = typeof s.params === "string" ? JSON.parse(s.params) : s.params ?? {};
+    const out = { key: `s${slot + 1}`, name: str(s.name, `tên chiêu ${slot}`), type: s.type, cd: num(s.cd, `hồi chiêu ${slot}`, 0.1, 600), mult: num(s.mult, `hệ số chiêu ${slot}`, 0, 50) };
+    for (const p of SKILL_PARAMS[s.type]) out[p] = num(params[p], `chiêu ${slot} ${p}`, 0, 5000);
+    return out;
+  });
+  const items = {};
+  for (const it of c.items ?? []) {
+    const key = str(it.key, "mã vật phẩm", 32);
+    if (!/^[a-z0-9_]+$/.test(key)) throw new Error(`Mã vật phẩm "${key}": chỉ chữ thường không dấu, số, _`);
+    items[key] = {
+      name: str(it.name, `tên ${key}`), desc: String(it.desc ?? "").slice(0, 200), price: num(it.price, `giá ${key}`) | 0,
+      heal: num(it.heal ?? 0, `hồi máu ${key}`, 0, 1), expBase: num(it.expBase ?? 0, `tu vi ${key}`) | 0, expPerLevel: num(it.expPerLevel ?? 0, `tu vi/cấp ${key}`) | 0,
+      cd: num(it.cd ?? 1, `hồi ${key}`, 0.2, 3600), onSale: it.onSale !== false && it.onSale !== 0, sort: Number(it.sort) || 0,
+    };
+  }
+  const monsters = {};
+  for (const m of c.monsters ?? []) {
+    if (!MONSTER_TYPES.includes(m.type)) continue;
+    monsters[m.type] = {
+      name: str(m.name, `tên ${m.type}`), hp: num(m.hp, `${m.type} hp`, 1), atk: num(m.atk, `${m.type} atk`), def: num(m.def, `${m.type} def`),
+      spd: num(m.spd, `${m.type} spd`, 0, 1000), respawn: num(m.respawn, `${m.type} respawn`, 0.5, 3600), expBase: num(m.expBase, `${m.type} exp`) | 0,
+      expPerLevel: num(m.expPerLevel, `${m.type} exp/cấp`) | 0, stones: num(m.stones, `${m.type} linh thạch`) | 0, aggro: num(m.aggro ?? 0, `${m.type} aggro`, 0, 2000),
+      reach: num(m.reach ?? 0, `${m.type} reach`, 0, 500), cd: num(m.cd ?? 0, `${m.type} cd`, 0, 60), mult: num(m.mult ?? 0, `${m.type} mult`, 0, 50),
+    };
+  }
+  for (const t of MONSTER_TYPES) if (!monsters[t]) throw new Error(`Thiếu yêu thú ${t}`);
+  return { realms, skills, items, monsters, settings: S };
+}
+
+/** Make c the live numbers (checks it first; on error nothing changes and the error is thrown). Returns the checked c. */
+export function applyConfig(c) {
+  const k = checkConfig(c), S = k.settings;
+  SET = S;
+  REALMS.splice(0, REALMS.length, ...k.realms);
+  LEVELS = [[0, 1]];
+  k.realms.forEach((r, i) => {
+    for (let s = 1; s <= r.stages; s++) LEVELS.push([i, s]);
+  });
+  MAX_LEVEL = LEVELS.length - 1;
+  TOTAL = [0, 0];
+  for (let L = 1; L <= MAX_LEVEL; L++) TOTAL[L + 1] = TOTAL[L] + expStep(L);
+  Object.assign(CLASSES.tu, { hp: S["class.hp"], atk: S["class.atk"], def: S["class.def"], spd: S["class.spd"], skills: k.skills });
+  for (const key of Object.keys(ITEMS)) if (!k.items[key]) delete ITEMS[key];
+  for (const [key, it] of Object.entries(k.items))
+    ITEMS[key] = Object.assign(ITEMS[key] ?? {}, it, { exp: it.expBase || it.expPerLevel ? (L) => it.expBase + it.expPerLevel * L : undefined });
+  for (const [t, m] of Object.entries(k.monsters)) MONSTERS[t] = Object.assign(MONSTERS[t] ?? {}, m, { exp: (L) => m.expBase + m.expPerLevel * L });
+  Object.assign(PVP, {
+    exp: (L) => S["pvp.exp_base"] + S["pvp.exp_per_level"] * L, stones: S["pvp.stones"], rankWin: S["pvp.rank_win"], rankLose: S["pvp.rank_lose"],
+    repeatCooldown: S["pvp.repeat_cooldown"], spawnProtect: S["pvp.spawn_protect"], respawn: S["pvp.respawn"],
+  });
+  Object.assign(MEDITATE, {
+    perSec: (L) => S["meditate.base"] + Math.floor(L / Math.max(1, S["meditate.levels_per_bonus"])),
+    dailyCap: S["meditate.daily_cap"] | 0, calmAfterHit: S["meditate.calm_after_hit"],
+  });
+  Object.assign(START, { stones: S["start.stones"] | 0, hoixuan: S["start.hoixuan"] | 0 });
+  RESPAWN_WORLD = S["respawn.world"];
+  DAILY_STONES = S["daily.stones"] | 0;
+  BUY_MAX = Math.max(1, S["shop.buy_max"] | 0);
+  return k;
+}
+
 /** Exp to go from level L to L + 1. */
-export const expStep = (L) => Math.round(60 * Math.pow(L, 1.7));
-const TOTAL = [0, 0];
-for (let L = 1; L <= MAX_LEVEL; L++) TOTAL[L + 1] = TOTAL[L] + expStep(L);
+export const expStep = (L) => Math.round(SET["exp.base"] * Math.pow(L, SET["exp.power"]));
 /** Total exp needed to reach level L. */
 export const expForLevel = (L) => TOTAL[Math.max(1, Math.min(MAX_LEVEL, L))];
 export function levelFromExp(exp) {
@@ -25,53 +194,12 @@ export function levelFromExp(exp) {
   while (L < MAX_LEVEL && exp >= TOTAL[L + 1]) L++;
   return L;
 }
-export const realmName = (L) => `${REALMS[Math.floor((L - 1) / 5)]} tầng ${((L - 1) % 5) + 1}`;
+export function realmName(L) {
+  const [i, s] = LEVELS[Math.max(1, Math.min(MAX_LEVEL, L))];
+  return `${REALMS[i].name} tầng ${s}`;
+}
 /** Stat multiplier by level: open world, and squeezed for the arena. */
-export const worldMult = (L) => 1 + 0.025 * (L - 1);
-export const arenaMult = (L) => 1 + (0.1 * (L - 1)) / (MAX_LEVEL - 1);
-/** Damage taken after defense. */
-export const mitigate = (def) => 100 / (100 + def);
+export const worldMult = (L) => 1 + SET["level.world_bonus"] * (L - 1);
+export const arenaMult = (L) => 1 + (SET["arena.max_bonus"] * (L - 1)) / Math.max(1, MAX_LEVEL - 1);
 
-// Everyone walks the same road: one stat line and one set of three arts, so a fight is decided by play, not by a
-// pick at sign-up. What sets characters apart is how they look. Skill types the server knows: melee (an arc
-// in front), bolt (a projectile), zone (an area some way ahead that hits after a beat and slows). cd in seconds,
-// mult x attack, ranges in px.
-export const CLASSES = {
-  tu: {
-    name: "Tu Sĩ",
-    hp: 1000, atk: 60, def: 28, spd: 96,
-    skills: [
-      { key: "s1", name: "Kiếm Khí Trảm", type: "melee", cd: 0.6, mult: 0.85, range: 54, arc: 1.4 },
-      { key: "s2", name: "Phi Kiếm", type: "bolt", cd: 2.5, mult: 1.5, range: 240, speed: 360, r: 10 },
-      { key: "s3", name: "Lôi Ấn Trận", type: "zone", cd: 9, mult: 1.4, dist: 110, r: 60, delay: 0.35, slow: 0.5, slowDur: 2.5 },
-    ],
-  },
-};
-export const CLASS = "tu";
-
-// A character's look: a gender, a hair style and a robe. Which styles exist, what they cost and which are free at
-// creation lives in the database (the cosmetics table, see server/cosmetics.js), so an admin can add or price them
-// without a code change. idx is the part's place in its atlas in public/avatar/.
-export const GENDERS = ["m", "f"];
-export const COSMETIC_KINDS = ["hair", "robe"];
-const idxOk = (v) => Number.isInteger(v) && v >= 0 && v < 1000;
-export const validLook = (g, hair, robe) => GENDERS.includes(g) && idxOk(hair) && idxOk(robe);
-
-export const MONSTERS = {
-  dummy: { name: "Bù Nhìn Rơm", hp: 500, atk: 0, def: 10, spd: 0, respawn: 5, exp: (L) => 10 + 2 * L, stones: 1 },
-  ghost: { name: "Âm Hồn", hp: 420, atk: 30, def: 12, spd: 62, respawn: 8, exp: (L) => 30 + 4 * L, stones: 2, aggro: 150, reach: 34, cd: 1.2, mult: 1.0 },
-};
-
-export const PVP = { exp: (L) => 40 + 3 * L, stones: 5, rankWin: 15, rankLose: 10, repeatCooldown: 120, spawnProtect: 2, respawn: 3 };
-export const RESPAWN_WORLD = 4;
-export const MEDITATE = { perSec: (L) => 3 + Math.floor(L / 3), dailyCap: 8000, calmAfterHit: 3 };
-export const DAILY_STONES = 30;
-
-export const ITEMS = {
-  tukhi: { name: "Tụ Khí Đan", price: 40, desc: "Tăng tu vi ngay lập tức", exp: (L) => 150 + 30 * L },
-  hoixuan: { name: "Hồi Xuân Đan", price: 12, desc: "Hồi 40% sinh lực. Không dùng được trong đấu trường", heal: 0.4, cd: 15 },
-};
-export const BUY_MAX = 10;
-
-export const NAME_RE = /^[\p{L}\p{N}_ ]{3,16}$/u;
-export const USER_RE = /^[a-zA-Z0-9_]{3,16}$/;
+applyConfig(DEFAULTS);

@@ -1,6 +1,6 @@
 // Screens: log in, make a character, play. Plus the shop, the leaderboard and the daily gift.
 import { createFrame, clearFrame, composite, painterFor } from "/pixelfx/core/index.js";
-import { ITEMS, DAILY_STONES, realmName } from "/shared/balance.js";
+import { ITEMS, DAILY_STONES, realmName, applyConfig } from "/shared/balance.js";
 import { loadAvatars, drawAvatar, partCanvas } from "./avatar.js";
 import { startGame } from "./game.js";
 
@@ -208,7 +208,7 @@ function play() {
   fitOrientation();
   $("dailyBtn").classList.toggle("ready", !state.dailyClaimed);
   game = startGame({
-    token, character: state.character, inventory: state.inventory, touch,
+    token, character: state.character, inventory: state.inventory, touch, refreshConfig,
     onFatal: (msg, relog) => {
       game = null;
       $("fatalMsg").textContent = msg;
@@ -236,7 +236,7 @@ $("shopBtn").addEventListener("click", async () => {
   bal.className = "bal";
   bal.textContent = `Linh thạch: ${me.character.stones}`;
   wrap.append(bal);
-  for (const [id, it] of Object.entries(ITEMS)) {
+  for (const [id, it] of Object.entries(ITEMS).filter(([, it]) => it.onSale).sort((a, b) => a[1].sort - b[1].sort)) {
     const row = document.createElement("div");
     row.className = "item";
     const info = document.createElement("div");
@@ -264,6 +264,13 @@ $("shopBtn").addEventListener("click", async () => {
       });
       btns.append(b);
     }
+    const ub = document.createElement("button");
+    ub.textContent = "Dùng";
+    ub.addEventListener("click", () => {
+      game?.use(id);
+      setTimeout(() => (d.textContent = `${it.desc}. Đang có: ${game?.inventory()[id] ?? 0}`), 700);
+    });
+    btns.append(ub);
     row.append(info, btns);
     wrap.append(row);
   }
@@ -431,6 +438,15 @@ function flash(m) {
 }
 
 // ---------------------------------------------------------------- start
+// the game's numbers (realms, pills, arts...) come from the server's database; until they arrive the built-in ones stand
+async function refreshConfig() {
+  try {
+    applyConfig(await (await fetch("/api/config", { cache: "no-store" })).json());
+  } catch (e) {
+    console.warn("config", e);
+  }
+}
+await refreshConfig();
 if (token) {
   // a saved session goes straight in; phones still need one tap to go full screen
   enter().catch(() => show("auth"));

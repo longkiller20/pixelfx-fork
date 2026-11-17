@@ -88,7 +88,7 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   const her = items.find((i) => i.g === "f" && !i.starter);
   assert.equal((await call("/cosmetics/buy", { token: p.token, method: "POST", body: { id: her.id } })).status, 400, "not for this gender");
   // give them stones straight in the database (an admin's gift) and spend them in a burst
-  const { q, pool } = await import("../server/db.js");
+  const { q } = await import("../server/db.js");
   const [row] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [p.name]);
   await q("UPDATE characters SET stones = ? WHERE user_id = ?", [cheap.price + 5, row.id]);
   const res = await Promise.all(Array.from({ length: 10 }, () => call("/cosmetics/buy", { token: p.token, method: "POST", body: { id: cheap.id, wear: true } })));
@@ -100,7 +100,6 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   const free = items.find((i) => i.g === "m" && i.starter && i.kind === cheap.kind && i.idx !== cheap.idx);
   assert.equal((await call("/cosmetics/wear", { token: p.token, method: "POST", body: { id: free.id } })).status, 200);
   assert.equal((await me(p.token)).character.look[free.kind], free.idx);
-  await pool.end();
   ok("Y Các: 10 buys at once charge once and wear it; can't wear unbought, other-gender or unaffordable items");
 }
 
@@ -150,6 +149,36 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   assert.equal((await me(p.token)).inventory.hoixuan, 1);
   b.ws.close();
   ok("a second login replaces the first; 10 pill taps use one pill");
+}
+
+{
+  // the game's numbers live in the database: a valid change reaches the running server (and its /api/config) in seconds,
+  // a broken one is refused and the game keeps the last good numbers
+  const { q } = await import("../server/db.js");
+  const config = async () => (await fetch(BASE + "/api/config")).json();
+  const waitFor = async (pred) => {
+    for (let i = 0; i < 30; i++) {
+      if (pred(await config())) return true;
+      await sleep(500);
+    }
+    return false;
+  };
+  const before = (await config()).settings["daily.stones"];
+  try {
+    await q("UPDATE settings SET v = 45 WHERE k = 'daily.stones'");
+    assert.ok(await waitFor((c) => c.settings["daily.stones"] === 45), "the new gift size reached the server");
+    const p = await player();
+    assert.equal((await call("/daily", { token: p.token, method: "POST" })).data.character.stones, 20 + 45);
+    // a negative max hp is nonsense: refused, the numbers stay as they were
+    await q("UPDATE settings SET v = -1 WHERE k = 'class.hp'");
+    await sleep(11_000);
+    assert.equal((await config()).settings["class.hp"], 1000, "a broken edit is not applied");
+  } finally {
+    await q("UPDATE settings SET v = 1000 WHERE k = 'class.hp'");
+    await q("UPDATE settings SET v = ? WHERE k = 'daily.stones'", [before]);
+  }
+  assert.ok(await waitFor((c) => c.settings["daily.stones"] === before && c.settings["class.hp"] === 1000));
+  ok("settings in the database: a good change applies live, a broken one is refused");
 }
 
 {
