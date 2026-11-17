@@ -34,6 +34,10 @@ BG = [
     "bg_xianxia_far_03_02",  # floating isle with a waterfall
     "bg_xianxia_far_04_00",  # gate of heaven on clouds
     "bg_xianxia_far_04_01",  # white pagoda on clouds
+    "bg_xianxia_mid_04_06",  # immortal peach tree, by the market
+    "bg_mid_02_04",  # scholar's rock
+    "bg_xianxia_deco_01_01",  # orchids
+    "bg_xianxia_deco_01_00",  # lingzhi mushrooms
 ]
 UI = [
     "ui_xianxia_panel_01_ink", "ui_xianxia_panel_01_jade", "ui_xianxia_panel_01_silk", "ui_xianxia_panel_01_rosewood",
