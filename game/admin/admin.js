@@ -364,7 +364,8 @@ const VIEWS = {
       { k: "mult", label: "Hệ số sát thương (× công)", type: "number" },
       { k: "params", label: "Thông số (JSON)", wide: true, hint: "Theo loại: cận chiến {range, arc}; phóng {range, speed, r}; vùng {dist, r, delay, slow, slowDur}; quanh thân {r, delay, slow, slowDur}; lướt {dist, r}; hồi {pct}; tăng {stat: atk|def|spd, pct, dur}" },
       { k: "fx", label: "Hiệu ứng pixelfx", hint: "vd fire/fireball; để trống = ném vũ khí đang cầm" }, { k: "fx_at", label: "Hiệu ứng vẽ ở", type: "select", options: ART_AT },
-      { k: "fx_life", label: "Dừng hiệu ứng lặp sau (giây, 0 = mặc định)", type: "number" }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
+      { k: "fx_life", label: "Dừng hiệu ứng lặp sau (giây, 0 = mặc định)", type: "number" },
+      { k: "fx_scale", label: "Phóng to hiệu ứng (0 = tự động)", type: "number", step: 0.05, hint: "tự động: 1.65 trên người / trước mặt, 1.2-1.4 vùng xa, 1.3 đạn bay" }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
       { k: "starter", label: "Ai cũng biết sẵn (không cần vật phẩm)", type: "bool" }, { k: "enabled", label: "Đang mở", type: "bool" },
       { k: "description", label: "Mô tả", type: "textarea", wide: true },
     ];

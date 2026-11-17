@@ -602,7 +602,7 @@ $("helpBtn").addEventListener("click", () => {
   const d = document.createElement("div");
   d.className = "help";
   d.innerHTML = `<p><b>Máy tính:</b> A/D hoặc ←/→ để đi, W/↑/Space để nhảy, S + nhảy để xuống khỏi ván gỗ. Chuột để ngắm. J (hoặc chuột trái) đánh thường; K/L/U/I/O (hoặc 1-5, chuột phải cho ô 1) dùng 5 công pháp trên thanh. Z: Hồi Xuân Đan, X: Tụ Khí Đan. Enter để trò chuyện.</p>
-  <p><b>Điện thoại:</b> kéo ngón tay trái/phải bên trái màn hình để đi; góc phải là cụm nút kiểu MOBA: nút to ở góc là Kiếm Khí Trảm (đánh thường), vòng trong là 2 công pháp đầu và Nhảy (hình hạc), vòng ngoài là 3 công pháp còn lại, hàng dưới là 2 đan dược. Ô trống có dấu +: chạm vào để gán công pháp.</p>
+  <p><b>Điện thoại:</b> kéo ngón tay trái/phải bên trái màn hình để đi; góc phải là cụm nút kiểu MOBA: nút to ở góc là Kiếm Khí Trảm (đánh thường), 5 công pháp xếp thành một vòng cung quanh nó, bên trái là 2 đan dược và nút Nhảy (mũi tên lên) ở ngay trên. Ô trống có dấu +: chạm vào để gán công pháp.</p>
   <p><b>Công Pháp (nút 📜):</b> hơn 200 công pháp, mỗi môn cần bí kíp riêng và tinh thạch theo hệ (môn cao cần thêm Linh Tủy), đều rơi ngẫu nhiên khi hạ yêu thú. Đủ vật phẩm thì bấm Lĩnh ngộ; gán tối đa 5 môn lên thanh, đổi lúc nào cũng được. Giữ nút Nhảy rồi vuốt xuống để rơi xuyên ván gỗ hoặc đài mây; chiêu tự nhắm kẻ địch gần nhất.</p>
   <p><b>Y Các (👘):</b> thử và mua kiểu tóc, y phục mới bằng linh thạch; đồ đã mua mặc lại lúc nào cũng được.</p>
   <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (bệ đá dưới đĩa âm dương xoay, trước điện thờ) để tăng tu vi, tối đa mỗi ngày có hạn.</p>
