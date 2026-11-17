@@ -304,6 +304,18 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   }
 
   // ---------------------------------------------------------------- HUD
+  // the "?" by the counters: what each icon means, for whoever is new
+  const legend = $("legend"), legendBtn = $("legendBtn");
+  legendBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    legend.hidden = !legend.hidden;
+    legendBtn.setAttribute("aria-expanded", String(!legend.hidden));
+  });
+  for (const ev of ["pointerdown", "keydown"])
+    addEventListener(ev, (e) => {
+      if (!legend.hidden && !legend.contains(e.target) && e.target !== legendBtn) (legend.hidden = true), legendBtn.setAttribute("aria-expanded", "false");
+    });
+
   const myInfo = () => infos.get(myId);
   function renderMe() {
     const info = myInfo();

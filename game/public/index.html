@@ -70,6 +70,8 @@
     <canvas id="view"></canvas>
     <canvas id="labels"></canvas>
     <div id="hud">
+      <!-- the character panel and the counters: one column on small screens, so they never overlap -->
+      <div class="hudl">
       <div class="me">
         <div class="nm"><b id="myName"></b> <span id="realm"></span></div>
         <div class="bar hp"><i id="hpFill"></i><span id="hpText"></span></div>
@@ -82,6 +84,17 @@
         <span title="Hạ / Bại"><img class="ico" src="/xianxia/ui/ui_xianxia_status_bleed.png" alt=""> <b id="kd">0/0</b></span>
         <span title="Tu luyện còn lại hôm nay"><img class="ico" src="/xianxia/ui/ui_xianxia_item_lingzhi.png" alt=""> <b id="medLeft">0</b></span>
         <span id="ping" class="dim"></span>
+        <button id="legendBtn" class="legendBtn" type="button" title="Các biểu tượng là gì?" aria-label="Chú thích biểu tượng" aria-expanded="false">?</button>
+      </div>
+      <div id="legend" class="legend" hidden role="dialog" aria-label="Chú thích biểu tượng">
+        <b>Chú thích</b>
+        <p><img class="ico" src="/xianxia/ui/ui_xianxia_item_spirit_stone.png" alt=""> <span><b>Linh thạch</b>: tiền trong game. Nhận từ quà mỗi ngày, hạ yêu thú, thắng tỷ thí; tiêu ở Đan Các và Y Các.</span></p>
+        <p><img class="ico" src="/xianxia/ui/ui_xianxia_item_token.png" alt=""> <span><b>Điểm đấu trường</b>: tăng khi thắng, giảm khi thua tỷ thí; xếp hạng ở Bảng Phong Thần.</span></p>
+        <p><img class="ico" src="/xianxia/ui/ui_xianxia_status_bleed.png" alt=""> <span><b>Hạ / Bại</b>: số lần hạ người khác / bị hạ trong tỷ thí.</span></p>
+        <p><img class="ico" src="/xianxia/ui/ui_xianxia_item_lingzhi.png" alt=""> <span><b>Tu luyện còn lại hôm nay</b>: tu vi còn nhận được từ ngồi thiền ở Thái Cực Đài trong ngày.</span></p>
+        <p><span class="sw hp"></span> <span><b>Thanh đỏ</b>: sinh lực. <span class="sw exp"></span> <b>Thanh xanh</b>: tu vi tới tầng kế tiếp.</span></p>
+        <p class="dim">Biểu tượng nhỏ cạnh "Công · Thủ" là buff đang có, kèm thời gian còn lại.</p>
+      </div>
       </div>
       <div class="menu">
         <button id="dailyBtn" title="Quà mỗi ngày">🎁</button>
