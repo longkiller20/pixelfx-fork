@@ -114,11 +114,12 @@ function record({ title, sub, fields, row = {}, onSave, onDelete, extra, isNew =
 let atlas = null;
 async function loadAtlas() {
   if (atlas) return atlas;
-  const meta = await (await fetch("/avatar/avatar.json")).json();
+  const [meta, wm] = await Promise.all([fetch("/avatar/avatar.json").then((r) => r.json()), fetch("/xianxia/weapons.json").then((r) => r.json())]);
+  meta.weapon_a = wm.map((w) => [w.x, w.y, w.w, w.h]);
   const imgs = {};
-  await Promise.all(["hair_m", "hair_f", "robe_m", "robe_f"].map(async (k) => {
+  await Promise.all([["hair_m", "/avatar/hair_m.png"], ["hair_f", "/avatar/hair_f.png"], ["robe_m", "/avatar/robe_m.png"], ["robe_f", "/avatar/robe_f.png"], ["weapon_a", "/xianxia/weapons.png"]].map(async ([k, src]) => {
     const i = new Image();
-    i.src = `/avatar/${k}.png`;
+    i.src = src;
     await i.decode();
     imgs[k] = i;
   }));
@@ -398,7 +399,7 @@ const VIEWS = {
   async cosmetics() {
     await loadAtlas();
     const rows = await api("/t/cosmetics");
-    const kind = el("select", {}, [["hair", "Tóc"], ["robe", "Y phục"]].map(([v, l]) => el("option", { value: v }, l)));
+    const kind = el("select", {}, [["hair", "Tóc"], ["robe", "Y phục"], ["weapon", "Vũ khí"]].map(([v, l]) => el("option", { value: v }, l)));
     const g = el("select", {}, [["m", "Nam"], ["f", "Nữ"]].map(([v, l]) => el("option", { value: v }, l)));
     const state = el("select", {}, [["all", "Tất cả"], ["starter", "Miễn phí (khởi đầu)"], ["sale", "Đang bán"], ["off", "Ngừng bán"]].map(([v, l]) => el("option", { value: v }, l)));
     const q = el("input", { placeholder: "Tìm theo tên...", type: "search" });
@@ -408,17 +409,19 @@ const VIEWS = {
       { k: "starter", label: "Miễn phí khi tạo nhân vật", type: "bool" }, { k: "on_sale", label: "Đang bán", type: "bool" },
     ];
     const draw = () => {
-      const list = rows.filter((r) => r.kind === kind.value && r.gender === g.value &&
+      const gv = kind.value === "weapon" ? "a" : g.value;
+      g.disabled = kind.value === "weapon";
+      const list = rows.filter((r) => r.kind === kind.value && r.gender === gv &&
         (state.value === "all" || (state.value === "starter" && r.starter) || (state.value === "sale" && r.on_sale && !r.starter) || (state.value === "off" && !r.on_sale)) &&
         r.name.toLowerCase().includes(q.value.trim().toLowerCase()));
-      const used = new Set(rows.filter((r) => r.kind === kind.value && r.gender === g.value).map((r) => r.idx));
-      const total = atlas.meta[`${kind.value}_${g.value}`].length;
+      const used = new Set(rows.filter((r) => r.kind === kind.value && r.gender === gv).map((r) => r.idx));
+      const total = atlas.meta[`${kind.value}_${gv}`].length;
       const free = [...Array(total).keys()].filter((i) => !used.has(i));
       const add = record({
         title: "Thêm món", sub: free.length ? `ô trống trong atlas: ${free.join(", ")}` : "atlas đã dùng hết; vẽ thêm vào sheet rồi chạy tools/avatar/build.py",
         isNew: true, row: { idx: free[0] ?? "", price: 150, starter: 0, on_sale: 1, sort: 0 },
         fields: [{ k: "idx", label: `Vị trí trong atlas (0-${total - 1})`, type: "number", step: 1 }, ...F],
-        onSave: async (c) => (await guard(() => api("/t/cosmetics", { method: "POST", body: { ...c, kind: kind.value, gender: g.value } }), "Đã thêm.")) && (await refresh()),
+        onSave: async (c) => (await guard(() => api("/t/cosmetics", { method: "POST", body: { ...c, kind: kind.value, gender: gv } }), "Đã thêm.")) && (await refresh()),
       });
       grid.replaceChildren(add, ...list.map((r) => {
         const card = record({
@@ -438,7 +441,7 @@ const VIEWS = {
     for (const s of [kind, g, state]) s.addEventListener("change", draw);
     q.addEventListener("input", draw);
     draw();
-    return [el("h2", {}, "Tóc & Y phục"), el("p", { class: "dim" }, "Món \"Miễn phí\" được chọn lúc tạo nhân vật; còn lại bán ở Y Các trong game."), el("div", { class: "bar" }, kind, g, state, q), grid];
+    return [el("h2", {}, "Tóc, Y phục & Vũ khí"), el("p", { class: "dim" }, "Tóc và áo \"Miễn phí\" được chọn lúc tạo nhân vật; vũ khí miễn phí ai cũng dùng được trong Y Các. Còn lại bán ở Y Các trong game. Vũ khí dùng chung cho nam và nữ."), el("div", { class: "bar" }, kind, g, state, q), grid];
   },
 
   async admins() {
@@ -596,22 +599,22 @@ async function playerView(id) {
       const nm = el("input", { value: p.name });
       const gsel = el("select", {}, [["m", "Nam"], ["f", "Nữ"]].map(([v, l]) => el("option", { value: v, selected: v === p.gender }, l)));
       const pickBox = el("div");
-      const choice = { hair: p.hair, robe: p.robe };
+      const choice = { hair: p.hair, robe: p.robe, weapon: p.weapon };
       const drawPicks = () => {
         const g = gsel.value;
-        pickBox.replaceChildren(...["hair", "robe"].map((kind) => {
-          const n = atlas.meta[`${kind}_${g}`].length;
+        pickBox.replaceChildren(...["hair", "robe", "weapon"].map((kind) => {
+          const gk = kind === "weapon" ? "a" : g, n = atlas.meta[`${kind}_${gk}`].length;
           if (choice[kind] >= n) choice[kind] = 0;
           const grid = el("div", { class: "pickgrid" });
           for (let i = 0; i < n; i++) {
-            const c = cos.find((x) => x.kind === kind && x.gender === g && x.idx === i);
+            const c = cos.find((x) => x.kind === kind && x.gender === gk && x.idx === i);
             grid.append(el("button", { type: "button", class: `pick ${choice[kind] === i ? "on" : ""}`, title: c ? `${c.name}${c.starter ? " (miễn phí)" : ` (${c.price})`}` : `ô ${i}`,
               onclick: (e) => {
                 choice[kind] = i;
                 for (const b of grid.children) b.classList.toggle("on", b === e.currentTarget);
-              } }, thumb(kind, g, i, "")));
+              } }, thumb(kind, gk, i, "")));
           }
-          return el("div", {}, el("h4", {}, kind === "hair" ? "Tóc" : "Y phục"), grid);
+          return el("div", {}, el("h4", {}, { hair: "Tóc", robe: "Y phục", weapon: "Vũ khí" }[kind]), grid);
         }));
       };
       gsel.addEventListener("change", drawPicks);
@@ -626,13 +629,14 @@ async function playerView(id) {
           if (gsel.value !== p.gender) body.gender = gsel.value;
           if (choice.hair !== p.hair || body.gender) body.hair = choice.hair;
           if (choice.robe !== p.robe || body.gender) body.robe = choice.robe;
+          if (choice.weapon !== p.weapon) body.weapon = choice.weapon;
           if (!Object.keys(body).length) return toast("Chưa có thay đổi.");
           act(() => api(`/players/${p.id}/look`, { method: "PATCH", body }), "Đã đổi tên/ngoại hình.");
         } }, "Lưu tên & ngoại hình"))));
 
       // ---- hair and robes owned
       const mine = new Set(p.owned.map((o) => o.id));
-      const pick = el("select", {}, cos.filter((c) => c.gender === p.gender && !c.starter && !mine.has(c.id)).map((c) => el("option", { value: c.id }, `${c.kind === "hair" ? "Tóc" : "Áo"} · ${c.name} (${c.price})`)));
+      const pick = el("select", {}, cos.filter((c) => (c.gender === p.gender || c.gender === "a") && !c.starter && !mine.has(c.id)).map((c) => el("option", { value: c.id }, `${{ hair: "Tóc", robe: "Áo", weapon: "Vũ khí" }[c.kind]} · ${c.name} (${c.price})`)));
       parts.push(el("div", { class: "card" }, el("h3", {}, `Tóc & y phục đã mua (${p.owned.length})`),
         el("div", { class: "chips" }, p.owned.length ? p.owned.map((o) => el("span", { class: "chip" }, thumb(o.kind, o.gender, o.idx, ""), el("span", {}, o.name, el("small", { class: "dim" }, ` · trả ${fmt(o.paid)}`)),
           el("button", { class: "small danger", title: "Lấy lại", onclick: () => confirm(`Lấy lại ${o.name} của người này?`) && act(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: o.id, own: false } }), "Đã lấy lại.") }, "✕")))

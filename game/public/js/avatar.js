@@ -11,6 +11,8 @@ export const GENDERS = ["m", "f"];
 export const N_HAIR = 40, N_ROBE = 40;
 const BW = 29, BH = 63, OX = 15; // the base grid, and the x of the line between the feet
 // where the body is cut: shoulders (sleeve pivots), the waist, the boots
+// the front hand, from the shoulder with the arm hanging; and how a weapon sits in it at rest: pointing forward and down
+const HAND = [2, 15], WEAPON_REST = 0.38, WEAPON_REST_LONG = -1.3;
 const SH_F = [22, 27], ARM_Y0 = 24, ARM_Y1 = 43, SKIRT_Y = 44, FEET_Y = 57, BACK_HAIR_Y = 22;
 // parts: 0 torso, 1 front sleeve, 3 skirt (the back sleeve stays with the torso: on most robes it is the cape or the back hem), 4 front boot, 5 back boot
 const TORSO = 0, ARM_F = 1, SKIRT = 3, FOOT_F = 4, FOOT_B = 5;
@@ -21,10 +23,13 @@ const cache = new Map();
 /** Load the atlases once; resolves when characters can be drawn. */
 export function loadAvatars() {
   ready ??= (async () => {
-    const m = await (await fetch("/avatar/avatar.json")).json();
+    const [m, wm] = await Promise.all([fetch("/avatar/avatar.json").then((r) => r.json()), fetch("/xianxia/weapons.json").then((r) => r.json())]);
     const names = ["base", "hair_m", "hair_f", "robe_m", "robe_f"];
-    const imgs = await Promise.all(names.map((n) => pixels(`/avatar/${n}.png`)));
+    const imgs = await Promise.all([...names.map((n) => pixels(`/avatar/${n}.png`)), pixels("/xianxia/weapons.png")]);
     sheets = Object.fromEntries(names.map((n, i) => [n, imgs[i]]));
+    // weapons (Xianxia Pixel Pack): for everyone, drawn pointing right with the hand's grip at (gx, gy)
+    sheets.weapon_a = imgs[names.length];
+    m.weapon_a = wm.map((w) => [w.x, w.y, w.w, w.h, w.gx, w.gy]);
     meta = m;
   })();
   return ready;
@@ -193,6 +198,14 @@ export function drawAvatar(p, look, st) {
   for (const [x, y, c] of r.head) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
   for (const [x, y, c] of r.hairFront) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(c));
   for (const [x, y, c] of r.face) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
+  // the weapon, in the front hand: it turns with the arm about the shoulder, the fist drawn over its grip
+  if (look.weapon !== undefined && look.weapon !== null) {
+    const a = P.armF, [sx, sy] = SH_F, hx = HAND[0], hy = HAND[1];
+    const handX = sx + hx * Math.cos(a) - hy * Math.sin(a), handY = sy + hx * Math.sin(a) + hy * Math.cos(a);
+    // long arms (spears, halberds, staves) stand upright at rest; swords and the like point forward, clear of the ground
+    const long = (meta.weapon_a[look.weapon]?.[2] ?? 0) > 62;
+    drawWeapon(p, look.weapon, X(handX + lean(sy)) + 0.5, Y(handY + bob(sy)) + 0.5, (long ? WEAPON_REST_LONG : WEAPON_REST) + a, tint, true);
+  }
   drawArm(p, r.armF, P.armF, P.swingF, lean, bob, tint, X, Y);
   return true;
 }
@@ -216,6 +229,26 @@ function drawArm(p, arm, a, swing, lean, bob, tint, X, Y) {
       const sx = Math.round(px0 + tx * cs + ty * sn), sy = Math.round(py0 - tx * sn + ty * cs);
       const c = arm.m.get(sy * 256 + sx);
       if (c) p.px(X(px0 + tx + ox), Y(py0 + ty + oy), tint(c));
+    }
+}
+
+/**
+ * One weapon from the atlas, turned by `angle` (radians, 0 = pointing right, growing clockwise on screen) about its grip,
+ * the grip at (x, y) in the painter's space; or about its middle when grip is false (a flying sword).
+ */
+export function drawWeapon(p, i, x, y, angle, tint = (c) => c, grip = false) {
+  const m = meta?.weapon_a?.[i];
+  if (!m) return;
+  const [wx, wy, w, h, gx, gy] = m, sh = sheets.weapon_a, ax = grip ? gx : w / 2, ay = grip ? gy : h / 2;
+  const cs = Math.cos(angle), sn = Math.sin(angle), R = Math.ceil(Math.hypot(Math.max(ax, w - ax), Math.max(ay, h - ay))) + 1;
+  const ox = Math.floor(x), oy = Math.floor(y);
+  for (let ty = -R; ty <= R; ty++)
+    for (let tx = -R; tx <= R; tx++) {
+      // where this screen pixel comes from in the unturned weapon
+      const u = Math.round(ax + tx * cs + ty * sn), v = Math.round(ay - tx * sn + ty * cs);
+      if (u < 0 || v < 0 || u >= w || v >= h) continue;
+      const c = sh.px[(wy + v) * sh.w + wx + u];
+      if (c >>> 24 > 128) p.px(ox + tx, oy + ty, tint((c | 0xff000000) >>> 0));
     }
 }
 

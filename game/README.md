@@ -4,6 +4,8 @@ Game web nhiều người chơi, nơi tu sĩ từ khắp các vũ trụ gặp nh
 tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay trong repo này. Chơi được trên máy tính lẫn điện thoại.
 
 - **Máy chủ:** Node.js + Express, WebSocket (`ws`) cho thế giới chung, MariaDB lưu dữ liệu, mặc định chạy ở cổng **5886**. Trang admin ở cổng riêng **5885** (xem phần "Trang admin").
+- **Vũ khí:** nhân vật cầm vũ khí trên tay; vũ khí vung theo đòn chém, và Phi Kiếm bay ra đúng vũ khí đang cầm. Có 90 món
+  (5 miễn phí, còn lại bán ở Y Các), nam nữ dùng chung.
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật cử động: đứng, đi, nhảy, xuất chiêu.
 - **Y Các (nút 👘 trong game):** bán 35 kiểu tóc và 35 bộ y phục còn lại của mỗi giới, giá 150 / 300 / 500 linh thạch tùy độ cầu
@@ -230,7 +232,14 @@ thật bên cạnh người:
 - Cây anh đào và khóm trúc cao hơn mái nhà.
 
 Nguồn tài nguyên:
-- **Đất, cỏ, đá xây, cây hoa:** *old frogatto tile art* (OpenGameArt), giấy phép **CC0**. Mình đã bỏ nền và đổi màu đất sang nâu.
+- **Xianxia Pixel Pack v2.1** (giấy phép **CC0**), chép phần dùng tới vào `public/xianxia/` bằng `tools/xianxia/build.py`:
+  - **Địa hình:** bộ đất rừng trúc (mặt đất), đá xanh (sân điện, bậc thang, tường), mây (đài mây). Tile 32 px, khớp đúng ô bản đồ.
+  - **Công trình:** cung điện vàng trên sân điện, bảo tháp 7 tầng trên đồi.
+  - **Phía xa:** cung điện, cổng trời, tháp trắng và đảo bay trên mây.
+  - **Vũ khí:** 90 món (kiếm, đao, thương, kích, phất trần, thiền trượng, pháp bảo…), thu nhỏ còn 45% cho vừa nhân vật.
+  - **Giao diện:** khung mực có góc mây vàng, nút lụa đỏ và ngọc bích, thanh sinh lực và tu vi, icon vật phẩm và trạng thái, con
+    trỏ hình kiếm.
+- **Cây hoa cao, biển chỉ đường:** *old frogatto tile art* (OpenGameArt), giấy phép **CC0**.
 - **Mái ngói cong:** *Oriental Roof Tiles* (OpenGameArt), giấy phép **CC0**. Mình cắt thành đầu mái và đoạn giữa lặp lại, phối 4
   màu (xám, lam, đỏ gạch, ngọc).
 - **Núi sương và rừng thông phía xa:** *Asian Mountain Forest BG* của **Crisisworks** (OpenGameArt), giấy phép **CC-BY 4.0**.
@@ -241,8 +250,7 @@ Nguồn tài nguyên:
 - **Lưu ý giấy phép CC-BY:** dùng tự do kể cả thương mại, nhưng **phải ghi tên tác giả**. Giữ nguyên phần ghi công này và file
   `public/maps/tiles/CREDITS.md`; nếu game có màn hình giới thiệu (credits), nên ghi thêm "Crisisworks (OpenGameArt)".
 - **Ghi công đầy đủ:** `public/maps/tiles/CREDITS.md`.
-- **Vẽ bằng code** trong `public/js/scenery.js`: tường, cửa, cửa sổ song gỗ, cột đỏ, điện thờ, cổng, bảo tháp, đèn đá, cây anh đào,
-  trúc, đài mây, cầu, nước, thác, bầu trời và núi.
+- **Vẽ bằng code** trong `public/js/scenery.js`: nhà, cổng chào, đèn đá, cây anh đào, trúc, cầu, nước, thác, bầu trời.
 
 ## Cấu trúc
 

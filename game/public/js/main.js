@@ -157,7 +157,10 @@ const pickRandom = (kind) => {
 async function showCreate() {
   show("create");
   await loadAvatars();
-  catalog = (await call("/cosmetics")).items;
+  const w = await call("/cosmetics");
+  catalog = w.items;
+  // everyone starts with the same weapon in hand (changed later at the Y Các)
+  look.weapon = w.defaultWeapon;
   pickRandom("hair");
   pickRandom("robe");
   fillPicks();
@@ -239,6 +242,11 @@ $("shopBtn").addEventListener("click", async () => {
   for (const [id, it] of Object.entries(ITEMS).filter(([, it]) => it.onSale).sort((a, b) => a[1].sort - b[1].sort)) {
     const row = document.createElement("div");
     row.className = "item";
+    const ic = new Image();
+    ic.className = "ic";
+    ic.alt = "";
+    ic.src = `/xianxia/ui/ui_xianxia_item_${{ hoixuan: "pill_bottle", tukhi: "furnace" }[id] ?? (it.heal ? "peach" : "gourd")}.png`;
+    row.append(ic);
     const info = document.createElement("div");
     const h = document.createElement("b");
     h.textContent = `${it.name} · ${it.price} linh thạch`;
@@ -299,12 +307,12 @@ $("wardBtn").addEventListener("click", async () => {
     <button type="button" data-anim="jump">Nhảy</button><button type="button" data-anim="cast">Chiêu</button></div>
     <div class="sel"><b class="nm"></b><span class="st dim"></span><button type="button" class="primary act"></button></div></div>
     <div class="choices"><div class="row"><div class="seg"><button type="button" data-k="hair" class="on">Tóc</button>
-    <button type="button" data-k="robe">Y phục</button></div><span class="bal"></span></div><div class="picks big"></div></div>`;
+    <button type="button" data-k="robe">Y phục</button><button type="button" data-k="weapon">Vũ khí</button></div><span class="bal"></span></div><div class="picks big"></div></div>`;
   const $$ = (s) => wrap.querySelector(s);
   const bal = () => ($$(".bal").textContent = `💎 ${me.character.stones} linh thạch`);
   const grid = () => {
     // free and owned first, then the shop from cheapest
-    const items = w.items.filter((it) => it.kind === kind && it.g === g && (it.onSale || has(it)));
+    const items = w.items.filter((it) => it.kind === kind && (it.g === g || it.g === "a") && (it.onSale || has(it)));
     items.sort((a, b) => has(b) - has(a) || a.price - b.price || a.idx - b.idx);
     partGrid($$(".picks"), items, (it) => sel?.id === it.id, (it) => {
       sel = it;

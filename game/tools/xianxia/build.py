@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Take what the game uses from the Xianxia Pixel Pack v2.1 (CC0) and put it in public/xianxia/.
+
+  python3 tools/xianxia/build.py /path/to/Xianxia_Pixel_Pack        (needs Pillow and numpy)
+
+  terrain.png + terrain.json   the bamboo (earth), bluestone (stone) and cloud (cloud platforms) sets, 32 px tiles,
+                               one row per set, in the order of TILES below
+  weapons.png + weapons.json   all 90 weapons, scaled to the characters' size, with where the hand holds each
+  bg/, ui/                     the buildings, far scenery and interface pieces the game uses, copied as they are
+"""
+import json
+import os
+import shutil
+import sys
+
+import numpy as np
+from PIL import Image
+
+PACK = sys.argv[1] if len(sys.argv) > 1 else "Xianxia_Pixel_Pack"
+OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "public", "xianxia"))
+SETS = ["bamboo", "bluestone", "cloud"]
+TILES = [
+    "ground_top_L", "ground_top_M", "ground_top_M2", "ground_top_M3", "ground_top_R", "ground_top_S",
+    "ground_body_L", "ground_body_M", "ground_body_M2", "ground_body_M3", "ground_body_R", "ground_body_S",
+    "platform_top_L", "platform_top_M", "platform_top_M2", "platform_top_M3", "platform_top_R", "platform_top_S",
+    "platform_under_L", "platform_under_M", "platform_under_R", "platform_under_S",
+    "backwall_M", "backwall_M2", "backwall_M3",
+]
+BG = [
+    "bg_xianxia_mid_03_01",  # golden palace: the temple on the terrace
+    "bg_xianxia_mid_03_05",  # golden gate
+    "bg_xianxia_mid_04_07",  # pagoda on the hill
+    "bg_xianxia_far_03_00",  # palace on the clouds, far away
+    "bg_xianxia_far_03_02",  # floating isle with a waterfall
+    "bg_xianxia_far_04_00",  # gate of heaven on clouds
+    "bg_xianxia_far_04_01",  # white pagoda on clouds
+]
+UI = [
+    "ui_xianxia_panel_01_ink", "ui_xianxia_panel_01_jade", "ui_xianxia_panel_01_silk", "ui_xianxia_panel_01_rosewood",
+    "ui_xianxia_button_01_jade_normal", "ui_xianxia_button_01_jade_hover", "ui_xianxia_button_01_jade_pressed",
+    "ui_xianxia_button_01_silk_normal", "ui_xianxia_button_01_silk_hover", "ui_xianxia_button_01_silk_pressed",
+    "ui_xianxia_bar_01_frame", "ui_xianxia_bar_01_hp", "ui_xianxia_bar_01_mp", "ui_xianxia_bar_01_spirit",
+    "ui_xianxia_01_corner_tl", "ui_xianxia_01_corner_tr", "ui_xianxia_01_corner_bl", "ui_xianxia_01_corner_br",
+    "ui_xianxia_01_divider_cloud", "ui_xianxia_01_divider_jade", "ui_xianxia_01_cursor_sword",
+    "ui_xianxia_item_pill_bottle", "ui_xianxia_item_spirit_stone", "ui_xianxia_item_gourd", "ui_xianxia_item_peach",
+    "ui_xianxia_item_lingzhi", "ui_xianxia_item_token", "ui_xianxia_item_jade_slip", "ui_xianxia_item_furnace",
+    "ui_xianxia_item_lantern", "ui_xianxia_item_compass", "ui_xianxia_item_talisman",
+    "ui_xianxia_status_swift", "ui_xianxia_status_golden_shield", "ui_xianxia_status_burn", "ui_xianxia_status_freeze",
+    "ui_xianxia_status_seal", "ui_xianxia_status_poison", "ui_xianxia_status_paralyze", "ui_xianxia_status_bleed",
+]
+WEAPON_SCALE = 0.45
+
+
+def shrink(a, s):
+    """Box-filter down by s: solid where about half the block is, coloured by its solid pixels; the rim darkened back
+    into an outline so the thin ink lines don't wash out."""
+    H, W = a.shape[:2]
+    oh, ow = int(np.ceil(H * s)), int(np.ceil(W * s))
+    al = (a[..., 3] > 128).astype(np.float32)
+    rgb = a[..., :3].astype(np.float32) * al[..., None]
+    ys = np.repeat((np.arange(H) * s).astype(int)[:, None], W, 1)
+    xs = np.repeat((np.arange(W) * s).astype(int)[None, :], H, 0)
+    cnt, cov, col = np.zeros((oh, ow)), np.zeros((oh, ow)), np.zeros((oh, ow, 3))
+    np.add.at(cnt, (ys, xs), 1)
+    np.add.at(cov, (ys, xs), al)
+    np.add.at(col, (ys, xs), rgb)
+    m = cov / np.maximum(cnt, 1) > 0.4
+    out = np.zeros((oh, ow, 4), np.float32)
+    out[..., :3] = col / np.maximum(cov, 1)[..., None]
+    out[..., 3] = m * 255
+    pad = np.pad(m, 1)
+    rim = m & ~(pad[:-2, 1:-1] & pad[2:, 1:-1] & pad[1:-1, :-2] & pad[1:-1, 2:])
+    out[rim, :3] = out[rim, :3] * 0.5 + np.array([24, 16, 20]) * 0.5
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def main():
+    os.makedirs(os.path.join(OUT, "bg"), exist_ok=True)
+    os.makedirs(os.path.join(OUT, "ui"), exist_ok=True)
+    # terrain: one row per set
+    atlas = Image.new("RGBA", (32 * len(TILES), 32 * len(SETS)))
+    for j, s in enumerate(SETS):
+        for i, t in enumerate(TILES):
+            atlas.paste(Image.open(os.path.join(PACK, "terrain", f"tr_xianxia_set_{s}_{t}.png")).convert("RGBA"), (i * 32, j * 32))
+    atlas.save(os.path.join(OUT, "terrain.png"), optimize=True)
+    with open(os.path.join(OUT, "terrain.json"), "w") as f:
+        json.dump({"size": 32, "sets": SETS, "tiles": TILES}, f)
+    # weapons: scaled, packed in rows, each with its grip (the hand's place: a fifth of the way along the shaft)
+    names = sorted(n[:-4] for n in os.listdir(os.path.join(PACK, "weapons")) if n.endswith(".png"))
+    parts = [shrink(np.array(Image.open(os.path.join(PACK, "weapons", n + ".png")).convert("RGBA")), WEAPON_SCALE) for n in names]
+    cw, ch = max(p.shape[1] for p in parts), max(p.shape[0] for p in parts)
+    cols = 10
+    rows = (len(parts) + cols - 1) // cols
+    sheet = np.zeros((rows * ch, cols * cw, 4), np.uint8)
+    items = []
+    for k, (n, p) in enumerate(zip(names, parts)):
+        h, w = p.shape[:2]
+        x0, y0 = (k % cols) * cw, (k // cols) * ch
+        sheet[y0 : y0 + h, x0 : x0 + w] = p
+        # the grip: on the handle end, at the height the shaft runs through there
+        gx = max(2, round(w * 0.2))
+        col = np.nonzero(p[:, gx, 3])[0]
+        gy = int(col.mean()) if len(col) else h // 2
+        items.append({"name": n, "x": x0, "y": y0, "w": w, "h": h, "gx": gx, "gy": gy})
+    Image.fromarray(sheet).save(os.path.join(OUT, "weapons.png"), optimize=True)
+    with open(os.path.join(OUT, "weapons.json"), "w") as f:
+        json.dump(items, f, separators=(",", ":"))
+    for n in BG:
+        shutil.copy(os.path.join(PACK, "backgrounds", n + ".png"), os.path.join(OUT, "bg", n + ".png"))
+    for n in UI:
+        shutil.copy(os.path.join(PACK, "ui", n + ".png"), os.path.join(OUT, "ui", n + ".png"))
+    shutil.copy(os.path.join(PACK, "LICENSE.txt"), os.path.join(OUT, "LICENSE.txt"))
+    print("terrain", atlas.size, "weapons", sheet.shape[1], "x", sheet.shape[0], len(items), "items")
+
+
+if __name__ == "__main__":
+    main()

@@ -157,10 +157,10 @@ body.touch #log { max-height: 80px; font-size: 11px; }
   .skills .sk { width: 56px; height: 56px; }
   .skills .sk.s1 { width: 70px; height: 70px; }
   .skills .item { width: 40px; height: 40px; }
-  .top { font-size: 11px; gap: 8px; padding: 3px 10px; left: 10px; transform: none; top: 92px; }
+  .top { font-size: 11px; gap: 8px; padding: 3px 10px; left: 10px; transform: none; top: 98px; }
   .menu button { width: 32px; height: 32px; font-size: 14px; }
   .me { padding: 4px 6px; }
-  body.touch .chat { top: 122px; }
+  body.touch .chat { top: 150px; }
   .maker { padding: 10px 12px; }
   .maker h2 { display: none; }
   .maker-grid { grid-template-columns: 150px 1fr; gap: 10px; }
@@ -170,10 +170,10 @@ body.touch #log { max-height: 80px; font-size: 11px; }
 body.rotated .skills .sk { width: 56px; height: 56px; }
 body.rotated .skills .sk.s1 { width: 70px; height: 70px; }
 body.rotated .skills .item { width: 40px; height: 40px; }
-body.rotated .top { font-size: 11px; gap: 8px; padding: 3px 10px; left: 10px; transform: none; top: 92px; }
+body.rotated .top { font-size: 11px; gap: 8px; padding: 3px 10px; left: 10px; transform: none; top: 98px; }
 body.rotated .menu button { width: 32px; height: 32px; font-size: 14px; }
 body.rotated .me { padding: 4px 6px; }
-body.rotated.touch .chat { top: 122px; }
+body.rotated.touch .chat { top: 150px; }
 @media (max-width: 760px) and (orientation: portrait) {
   .maker-grid { grid-template-columns: 1fr; }
   .preview { position: static; flex-direction: row; align-items: center; }
@@ -205,3 +205,57 @@ body.rotated.touch .chat { top: 122px; }
   .ward { grid-template-columns: 1fr; }
 }
 body.rotated .ward { grid-template-columns: 140px 1fr; gap: 8px; }
+
+/* ================================================================ the Xianxia Pixel Pack look (CC0)
+   Ink panels with gold cloud corners for every box, red silk buttons, jade buttons for the menu, the pack's bars for
+   hp and cultivation, and its item and status icons. All of it stretched with border-image, kept crisp. */
+.box, .pbox, .me, #panel .pbox {
+  background: none; border-radius: 0; box-shadow: 0 18px 50px #0009;
+  border: 24px solid transparent; border-image: url(/xianxia/ui/ui_xianxia_panel_01_ink.png) 24 fill / 24px stretch;
+  image-rendering: pixelated;
+}
+.box { padding: 2px 4px; }
+.pbox { padding: 0; }
+.me { padding: 0 2px; border-width: 12px; border-image-width: 12px; }
+.box h2, .pbox h3 { color: var(--gold2); }
+.box h2::after, .pbox header h3::after {
+  content: ""; display: block; height: 16px; margin: 4px auto 0; width: 150px; max-width: 70%;
+  background: url(/xianxia/ui/ui_xianxia_01_divider_cloud.png) center / contain no-repeat; image-rendering: pixelated;
+}
+.pbox header h3::after { margin-left: 0; }
+.primary {
+  background: none; border-radius: 0; color: #ffe8c8; text-shadow: 0 1px 0 #4a0010; letter-spacing: 0.02em;
+  border: 10px solid transparent; border-image: url(/xianxia/ui/ui_xianxia_button_01_silk_normal.png) 14 fill / 10px stretch;
+  padding: 3px 12px; image-rendering: pixelated;
+}
+.primary:hover { border-image-source: url(/xianxia/ui/ui_xianxia_button_01_silk_hover.png); }
+.primary:active { border-image-source: url(/xianxia/ui/ui_xianxia_button_01_silk_pressed.png); }
+.menu button {
+  background: none; border-radius: 0; border: 8px solid transparent; image-rendering: pixelated;
+  border-image: url(/xianxia/ui/ui_xianxia_button_01_jade_normal.png) 12 fill / 8px stretch; color: #12301e;
+}
+.menu button:hover { border-image-source: url(/xianxia/ui/ui_xianxia_button_01_jade_hover.png); }
+.menu button:active { border-image-source: url(/xianxia/ui/ui_xianxia_button_01_jade_pressed.png); }
+.menu button svg { stroke: #1e4a30; }
+#logoutBtn svg { stroke: #8a1a2a; }
+.menu button.ready { box-shadow: 0 0 14px #f0c050; }
+/* the bars: the pack's frame, its red and jade fills */
+.bar { height: 13px; border-radius: 0; background: url(/xianxia/ui/ui_xianxia_bar_01_frame.png) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
+.bar i { inset: 2px auto 2px 2px; max-width: calc(100% - 4px); background-size: 100% 100%; image-rendering: pixelated; }
+.bar.hp i { background: url(/xianxia/ui/ui_xianxia_bar_01_hp.png) 0 0 / 100% 100%; }
+.bar.exp { height: 10px; }
+.bar.exp i { background: url(/xianxia/ui/ui_xianxia_bar_01_spirit.png) 0 0 / 100% 100%; }
+.bar span { line-height: 13px; }
+.bar.exp span { line-height: 10px; }
+.top { border-radius: 0; background: none; border: 10px solid transparent; padding: 0 6px; image-rendering: pixelated;
+  border-image: url(/xianxia/ui/ui_xianxia_panel_01_ink.png) 24 fill / 10px stretch; align-items: center; }
+.ico { width: 18px; height: 18px; image-rendering: pixelated; vertical-align: -4px; }
+.skills .item .ic img { width: 28px; height: 28px; image-rendering: pixelated; display: block; }
+.skills .item .qty { position: absolute; right: 2px; bottom: 0; font-size: 11px; font-weight: 800; text-shadow: 0 0 3px #000; }
+/* buffs shown as their status icons */
+#statLine .buff { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; color: #c8ffd8; }
+#statLine .buff img { width: 14px; height: 14px; image-rendering: pixelated; }
+/* a sword for the mouse over the world */
+@media (pointer: fine) { #view, #labels { cursor: url(/xianxia/ui/ui_xianxia_01_cursor_sword.png) 4 4, crosshair; } }
+.shop .item .ic { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
+.shop .item > div:not(:last-child) { flex: 1; }

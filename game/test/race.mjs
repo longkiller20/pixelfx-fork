@@ -70,7 +70,8 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   for (const look of [{ g: "x", hair: 8, robe: 16 }, { g: "m", hair: 1.5, robe: 16 }, { g: "f", hair: 24, robe: -1 }, null, { g: "m", hair: 0, robe: 16 }, { g: "f", hair: 8, robe: 2 }])
     assert.equal((await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } })).status, 400, JSON.stringify(look));
   const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: { g: "f", hair: 34, robe: 21 } } });
-  assert.deepEqual(c.data.character.look, { g: "f", hair: 34, robe: 21 });
+  assert.deepEqual({ ...c.data.character.look, weapon: undefined }, { g: "f", hair: 34, robe: 21, weapon: undefined });
+  assert.ok(Number.isInteger(c.data.character.look.weapon), "and a weapon in hand");
   const w = (await call("/cosmetics", { token: data.token })).data;
   for (const [k, g] of [["hair", "m"], ["hair", "f"], ["robe", "m"], ["robe", "f"]])
     assert.equal(w.items.filter((i) => i.kind === k && i.g === g && i.starter).length, 5, `5 free ${k} for ${g}`);

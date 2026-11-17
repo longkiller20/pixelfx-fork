@@ -8,6 +8,7 @@
 //     that happened in between is never overwritten.
 import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
+import { DEFAULT_WEAPON } from "./cosmetics-seed.js";
 import { CLASS, validLook, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, START, NAME_RE, levelFromExp } from "../shared/balance.js";
 
 export class GameError extends Error {
@@ -17,9 +18,9 @@ export class GameError extends Error {
   }
 }
 
-const COLS = "user_id, name, gender, hair, robe, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp";
+const COLS = "user_id, name, gender, hair, robe, weapon, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp";
 const shape = (r) => r && {
-  userId: r.user_id, name: r.name, cls: CLASS, look: { g: r.gender === "f" ? "f" : "m", hair: Number(r.hair), robe: Number(r.robe) }, exp: Number(r.exp), stones: Number(r.stones), rank: Number(r.rank_points),
+  userId: r.user_id, name: r.name, cls: CLASS, look: { g: r.gender === "f" ? "f" : "m", hair: Number(r.hair), robe: Number(r.robe), weapon: Number(r.weapon) }, exp: Number(r.exp), stones: Number(r.stones), rank: Number(r.rank_points),
   kills: Number(r.kills), deaths: Number(r.deaths), level: levelFromExp(Number(r.exp)),
   medLeft: Math.max(0, MEDITATE.dailyCap - (r.med_today ? Number(r.med_exp) : 0)),
 };
@@ -137,6 +138,7 @@ export function useItem(uid, item, level) {
 }
 
 // ---------------------------------------------------------------- the wardrobe (Y Các)
+const SLOT = { hair: "hair", robe: "robe", weapon: "weapon" };
 const ITEM_COLS = "id, kind, gender, idx, name, price, starter, on_sale";
 const shapeItem = (r) => ({ id: r.id, kind: r.kind, g: r.gender, idx: r.idx, name: r.name, price: r.price, starter: !!r.starter, onSale: !!r.on_sale });
 
@@ -148,7 +150,7 @@ export async function wardrobe(uid) {
      ORDER BY kind, gender, starter DESC, sort, idx`,
     [uid],
   );
-  return { items: rows.map(shapeItem), owned };
+  return { items: rows.map(shapeItem), owned, defaultWeapon: DEFAULT_WEAPON };
 }
 
 const itemId = (id) => {
@@ -168,7 +170,7 @@ export function buyCosmetic(uid, id, wear) {
     if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
     const [it] = await c.query(`SELECT ${ITEM_COLS} FROM cosmetics WHERE id = ?`, [id]);
     if (!it) throw new GameError("Món đồ không tồn tại.");
-    if (it.gender !== ch.gender) throw new GameError("Món này dành cho giới tính khác.");
+    if (it.gender !== ch.gender && it.gender !== "a") throw new GameError("Món này dành cho giới tính khác.");
     if (it.starter) throw new GameError("Món này miễn phí, cứ mặc thôi.");
     if (!it.on_sale) throw new GameError("Món này đã ngừng bán.");
     try {
@@ -179,7 +181,7 @@ export function buyCosmetic(uid, id, wear) {
     }
     const r = await c.query("UPDATE characters SET stones = stones - ? WHERE user_id = ? AND stones >= ?", [it.price, uid, it.price]);
     if (r.affectedRows !== 1) throw new GameError("Không đủ linh thạch.", 409);
-    if (wear) await c.query(`UPDATE characters SET ${it.kind === "hair" ? "hair" : "robe"} = ? WHERE user_id = ?`, [it.idx, uid]);
+    if (wear) await c.query(`UPDATE characters SET ${SLOT[it.kind]} = ? WHERE user_id = ?`, [it.idx, uid]);
     return loadCharacter(uid, c);
   }));
 }
@@ -195,9 +197,9 @@ export function wearCosmetic(uid, id) {
       [uid, id],
     );
     if (!it) throw new GameError("Món đồ không tồn tại.");
-    if (it.gender !== ch.gender) throw new GameError("Món này dành cho giới tính khác.");
+    if (it.gender !== ch.gender && it.gender !== "a") throw new GameError("Món này dành cho giới tính khác.");
     if (!it.starter && !it.mine) throw new GameError("Đạo hữu chưa có món này.", 403);
-    await c.query(`UPDATE characters SET ${it.kind === "hair" ? "hair" : "robe"} = ? WHERE user_id = ?`, [it.idx, uid]);
+    await c.query(`UPDATE characters SET ${SLOT[it.kind]} = ? WHERE user_id = ?`, [it.idx, uid]);
     return loadCharacter(uid, c);
   }));
 }
