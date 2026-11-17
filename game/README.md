@@ -71,6 +71,10 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Mũi tên vàng dưới chân bậc thang đá cuối thôn là lối ra, sang Bích Lạc Lâm.
 - **Bốn bản đồ luyện cấp nối tiếp về phía đông.** Mỗi map có cổng ở hai đầu; qua cổng là sang map kế, đứng ngay cạnh cổng
   quay về. Thoát game rồi vào lại thì xuất hiện ở map đang đứng.
+  - Hiệu ứng dịch chuyển (pixelfx): người chơi tan thành ánh sáng vàng tại cổng (`arcane/blink-out`), màn hình của họ khép
+    lại bằng ngôi sao vàng xoay (`transitions/star-iris`) và giữ kín trong lúc tải map mới, rồi mở ra. Ở map bên kia, một
+    cột sáng giáng xuống đưa họ tới (`spawn/respawn-beam`). Người xung quanh ở cả hai map đều thấy. Trong 0,9 giây dịch
+    chuyển không đi được, không ra chiêu được.
 
   | Bản đồ | Cảnh | Yêu thú |
   | --- | --- | --- |
