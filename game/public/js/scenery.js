@@ -538,7 +538,9 @@ const middle = (base, cx, cy) => {
 };
 // How far a set's surface tile is raised so its solid ground meets the floor line the physics stands on: the bamboo
 // earth has a 9 px fringe of dry grass above its soil, which would leave everything standing on grass tips.
-const LIFT = { bamboo: 6, bluestone: 0, cloud: 0, redclay: 0 };
+const LIFT = { bamboo: 6, bluestone: 0, cloud: 0, redclay: 12 };
+// the same for the floating ledges' tops: the red clay ones have a fringe of dry grass over their rock
+const PLIFT = { bamboo: 5, bluestone: 0, cloud: 0, redclay: 11 };
 /**
  * One solid cell from a set: the surface where open sky is above it, the body otherwise. An end tile (with its rounded,
  * see-through edge) only where the side is open air; against water, a waterfall or a bridge the middle tile, so no gap
@@ -559,8 +561,9 @@ function groundCell(S, M, set, cx, cy, T) {
 function cloudPlatform(S, M, cx, cy, T, set = "cloud", ch = "=") {
   const L = M.cell(cx - 1, cy) !== ch, R = M.cell(cx + 1, cy) !== ch;
   const end = L && R ? "S" : L ? "L" : R ? "R" : null;
-  tile(S, set, end ? `platform_top_${end}` : middle("platform_top", cx, cy), cx * T, cy * T);
-  if (M.cell(cx, cy + 1) === ".") tile(S, set, `platform_under_${end ?? "M"}`, cx * T, (cy + 1) * T);
+  const lift = PLIFT[set] ?? 0;
+  if (M.cell(cx, cy + 1) === ".") tile(S, set, `platform_under_${end ?? "M"}`, cx * T, (cy + 1) * T - lift);
+  tile(S, set, end ? `platform_top_${end}` : middle("platform_top", cx, cy), cx * T, cy * T - lift);
 }
 
 // ---------------------------------------------------------------- each map's look: sky, far scenery, earth, liquids, motes
@@ -652,7 +655,10 @@ export async function buildScene(M) {
       // a piece of scenery from the Xianxia Pixel Pack, shrunk by o.s, standing on the floor at x (its middle); o.f mirrors
       // it, o.dy sinks it into the ground (or lifts it, negative), o.tint/o.k/o.d shade it for the map's light
       const img = tinted(shrunk(await loadPixels(`/xianxia/bg/${o.n}.png`), o.s ?? 1), o.tint, o.k ?? 0, o.d ?? 0);
-      S.blit(img.px, img.w, 0, 0, img.w, img.h, Math.round(x * T) - (img.w >> 1), row * T - img.h + 2 + (o.dy ?? 0), !!o.f);
+      // stand it on its lowest drawn pixel, not on the bottom of its picture: many have empty rows under them
+      let foot = img.h - 1;
+      while (foot > 0 && !img.px.subarray(foot * img.w, (foot + 1) * img.w).some((c) => c >>> 24 > 128)) foot--;
+      S.blit(img.px, img.w, 0, 0, img.w, img.h, Math.round(x * T) - (img.w >> 1), row * T - foot + 1 + (o.dy ?? 0), !!o.f);
     } else if (kind === "pagoda") S.blit(tower.px, tower.w, 0, 0, tower.w, tower.h, Math.round(x * T) - (tower.w >> 1), row * T - tower.h);
     else if (PROPS[kind]) PROPS[kind](S, Math.round(x * T), row * T, o ?? {}, roofs);
   }
@@ -682,6 +688,9 @@ export async function buildScene(M) {
     heaven.blit(img.px, img.w, 0, 0, img.w, img.h, x, y);
   });
   const LIQ = th.liquid === "lava" ? LAVA : WATER;
+  // the mist on the peaks is see-through; a map with a moon behind them makes it solid, so the moon doesn't show through
+  // the mist in stripes
+  const mtCut = th.mountains.solid ? 8 : 128, mtDrop = th.mountains.drop ?? 0;
   // the mountains' feet sit a little above the town's floor line, their peaks well up the sky
   const mtOff = mt.h - SH + 40;
   const lanterns = M.def.props.filter((p) => p[0] === "lantern").map(([, x, row]) => [x * T, row * T - 44]);
@@ -699,9 +708,9 @@ export async function buildScene(M) {
           const ix = (((Math.floor((camX * 0.25 + sx) / 2)) % LW) + LW) % LW, iy = Math.floor((sy + camY * 0.15 - 30) / 2);
           c = iy >= 0 && iy < LH ? far.isles.px[iy * LW + ix] : 0;
           if (!c) {
-            const mx = (((Math.floor(camX * 0.15) + sx) % mt.w) + mt.w) % mt.w, my = sy + Math.floor(camY * 0.1) + mtOff;
+            const mx = (((Math.floor(camX * 0.15) + sx) % mt.w) + mt.w) % mt.w, my = sy + Math.floor(camY * 0.1) + mtOff - mtDrop;
             const v = my >= 0 && my < mt.h ? mt.px[my * mt.w + mx] : 0;
-            if (v >>> 24 > 128) c = v | 0xff000000;
+            if (v >>> 24 > mtCut) c = v | 0xff000000;
           }
           if (!c) {
             // the heavens (Xianxia Pixel Pack): high up, slower than the mountains

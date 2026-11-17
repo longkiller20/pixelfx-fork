@@ -26,19 +26,20 @@ box(g, 116, 127, 15, 17, "l");
 box(g, 117, 119, 13, 13, "k");
 box(g, 123, 125, 13, 13, "k");
 // a fall of lava from the roof into the third pool
+box(g, 119, 122, 0, 3, "r");
 box(g, 120, 121, 4, 14, "|");
 // the rune altar on its raised floor
 ground(g, 88, 108, 13, "r");
-box(g, 86, 87, 14, 14, "s");
-box(g, 109, 110, 14, 14, "s");
+ground(g, 86, 87, 14, "r");
+ground(g, 109, 110, 14, "r");
 // up to the obsidian gate
 ground(g, 140, 169, 13, "r");
 ground(g, 150, 169, 11, "r");
-box(g, 139, 139, 14, 14, "s");
-box(g, 149, 149, 12, 12, "s");
+ground(g, 139, 139, 14, "r");
+ground(g, 148, 149, 12, "r");
 
 const XX = (n, x, row, s, o = {}) => ["xx", x, row, { n, s, ...o }];
-const RED = { tint: "#5a0a08", k: 0.45, d: 0.15 };
+const RED = { tint: "#4a0806", k: 0.55, d: 0.35 };
 const LAVA = (x) => ["glow", x, 15, { h: 4, r: 110, c: "#ff5a14", a: 0.32, f: 0.6 }];
 const BRAZIER = (x, row) => ["fx", x, row, { id: "fire/brazier", h: 0, k: 0.8 }];
 export const MAVUC = {
@@ -81,8 +82,8 @@ export const MAVUC = {
     XX("bg_xianxia_mid_04_05", 46, 15, 3, RED), XX("bg_xianxia_near_03_03", 55, 15, 2), XX("bg_xianxia_near_03_03", 64, 15, 2, { f: 1 }), BRAZIER(59.5, 15),
     // the second pool, with a fire tornado turning over it
     LAVA(76), ["fx", 77, 15, { id: "fire/fire-tornado", h: 10, k: 1.1 }], XX("bg_near_01_02", 86, 15, 4, RED),
-    // the rune altar: the circle, a void orb turning above it, dragon pillars with braziers, an altar table
-    XX("bg_xianxia_mid_04_02", 98, 13, 2, { dy: 46 }), ["fx", 98, 13, { id: "shadow/void-orb", h: 70, k: 1 }], ["glow", 98, 13, { h: 70, r: 90, c: "#b060ff", a: 0.3 }],
+    // the rune altar: the circle burning on the floor, a void orb turning above it, dragon pillars with braziers, an altar table
+    ["fx", 98, 13, { id: "shadow/void-orb", h: 70, k: 1 }], ["glow", 98, 13, { h: 70, r: 90, c: "#b060ff", a: 0.3 }],
     XX("bg_xianxia_near_03_03", 90, 13, 2), XX("bg_xianxia_near_03_03", 106, 13, 2, { f: 1 }), BRAZIER(92.5, 13), BRAZIER(103.5, 13),
     XX("bg_xianxia_near_03_04", 98, 13, 3), ["fx", 98, 13, { id: "arcane/rune-circle", h: -6, k: 1.4 }],
     // the third pool under the lava fall

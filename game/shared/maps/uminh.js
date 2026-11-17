@@ -23,11 +23,10 @@ box(g, 120, 126, 9, 9, "b");
 // the rise to the watchtower and the stair down to the abyss
 ground(g, 132, 159, 14);
 ground(g, 137, 159, 12);
-box(g, 135, 136, 13, 13, "s");
-box(g, 137, 137, 12, 12, "s");
+ground(g, 135, 136, 13);
 
 const XX = (n, x, row, s, o = {}) => ["xx", x, row, { n, s, ...o }];
-const NIGHT = { tint: "#1a1838", k: 0.35, d: 0.25 };
+const NIGHT = { tint: "#1a1838", k: 0.5, d: 0.45 };
 const FIRE = (x, row) => ["fx", x, row, { id: "fire/spirit-flame", h: 4, k: 0.8 }];
 const PALE = (x, row) => ["glow", x, row, { h: 30, r: 46, c: "#7ff0ff", a: 0.22, f: 2 }];
 export const UMINH = {
@@ -41,7 +40,7 @@ export const UMINH = {
     isles: false,
     cloud: ["#3a3658", "#2a2848"],
     heaven: [["bg_far_01_03", 260, 14, { tint: "#d8e0ff", k: 0.2 }], ["bg_far_01_03", 1360, 24, { tint: "#d8e0ff", k: 0.2 }]],
-    mountains: { tint: "#14122e", k: 0.75, dark: 0.35 },
+    mountains: { tint: "#14122e", k: 0.75, dark: 0.35, solid: true, drop: 190 },
     earth: ["#100d12", "#171318", "#1e191f", "#262027", "#2f2831", "#3d343f"],
     grass: ["#181d18", "#232a22", "#30362b", "#434734", "#5e6046"],
     rim: "#08060a",
@@ -65,7 +64,7 @@ export const UMINH = {
     // the graveyard: mounds with steles, tablets, leaning slabs; spirit fire over some; dead trees, steles
     ["tomb", 12.5, 15, { v: 0 }], ["tomb", 23, 14, { v: 1 }], ["tomb", 28, 15, { v: 2 }], ["tomb", 31.5, 15, { v: 0 }], ["tomb", 39, 15, { v: 2 }],
     ["tomb", 47, 14, { v: 1 }], ["tomb", 52.5, 15, { v: 0 }], ["tomb", 56, 15, { v: 2 }], ["tomb", 35, 15, { v: 1 }],
-    XX("bg_near_01_00", 26, 15, 2), XX("bg_near_02_02", 42, 15, 3), XX("bg_near_01_00", 58, 15, 2, { f: 1 }), XX("bg_near_02_00", 37, 15, 3), PALE(36.4, 13),
+    XX("bg_xianxia_near_03_02", 27.5, 15, 2), XX("bg_near_02_02", 42, 15, 3), XX("bg_xianxia_near_03_02", 58, 15, 2, { f: 1 }), XX("bg_near_02_00", 37, 15, 3), PALE(36.4, 13),
     FIRE(23, 14), FIRE(31.5, 15), FIRE(47, 14), FIRE(56, 15),
     // the mausoleum: lions at the stair, pillars, the moon gate, the altar with skulls circling green flame, a cauldron
     XX("bg_near_02_01", 64, 13, 3), XX("bg_near_02_01", 88, 13, 3, { f: 1 }), XX("bg_xianxia_near_03_03", 70.5, 11, 3), XX("bg_xianxia_near_03_03", 83.5, 11, 3, { f: 1 }),
@@ -73,7 +72,7 @@ export const UMINH = {
     ["fx", 77, 11, { id: "shadow/necro-skulls", h: 46, k: 1.1 }], ["glow", 77, 11, { h: 60, r: 70, c: "#6aff8a", a: 0.25 }],
     ["fx", 66.5, 13, { id: "shadow/shadow-flames", h: 40, k: 0.7 }],
     // the dead wood: black trees, a boulder, reeds
-    XX("bg_near_01_00", 97, 15, 2), XX("bg_xianxia_near_03_02", 109, 14, 2), XX("bg_near_01_00", 123, 15, 2, { f: 1 }), XX("bg_near_01_02", 115.5, 13, 4),
+    XX("bg_xianxia_near_03_02", 97, 15, 2), XX("bg_xianxia_near_03_02", 107.5, 14, 2, { f: 1 }), XX("bg_xianxia_near_03_02", 123, 15, 2), XX("bg_near_01_02", 115.5, 13, 4),
     XX("bg_near_01_04", 103, 14, 3), XX("bg_near_01_04", 129, 15, 3, { f: 1 }),
     // the rise: the watchtower against the moon, a stele, lanterns down to the abyss
     XX("bg_mid_02_01", 145, 12, 2, NIGHT), XX("bg_near_02_02", 139.5, 12, 3), XX("bg_near_02_00", 153, 12, 3), PALE(152.4, 10), ["sign", 158.5, 12],
