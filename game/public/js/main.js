@@ -322,7 +322,8 @@ function artsPanel(startSlot = -1) {
   bag.className = "bag";
   const st = () => game.arts(), inv = () => game.inventory();
   const known = (a) => a.starter || st().learned.includes(a.key);
-  const can = (a) => a.reqs.every((r) => (inv()[r.item] ?? 0) >= r.qty);
+  const ev = (a) => a.source === "event";
+  const can = (a) => !ev(a) && a.reqs.every((r) => (inv()[r.item] ?? 0) >= r.qty);
   const icon = (key, img) => artIcon(key, (url) => url && (img.src = url));
 
   const save = async (slots) => {
@@ -375,7 +376,7 @@ function artsPanel(startSlot = -1) {
 
   // filters: which arts, which element, a name
   const showSel = document.createElement("select"), elemSel = document.createElement("select"), search = document.createElement("input");
-  for (const [v, l] of [["all", "Tất cả"], ["known", "Đã lĩnh ngộ"], ["ready", "Đủ vật phẩm"], ["locked", "Chưa lĩnh ngộ"]]) showSel.append(new Option(l, v));
+  for (const [v, l] of [["all", "Tất cả"], ["known", "Đã có"], ["ready", "Đủ vật phẩm"], ["locked", "Chưa có"], ["event", "Sự kiện"]]) showSel.append(new Option(l, v));
   elemSel.append(new Option("Mọi hệ", ""));
   for (const [k, e] of Object.entries(ELEMENTS)) elemSel.append(new Option(e.name, k));
   search.placeholder = "Tìm công pháp...";
@@ -397,8 +398,9 @@ function artsPanel(startSlot = -1) {
   function drawList() {
     list.replaceChildren();
     const arts = ART_LIST.filter((a) => (!elem || a.element === elem) && (!text || a.name.toLowerCase().includes(text)) &&
-      (show === "all" || (show === "known" && known(a)) || (show === "ready" && !known(a) && can(a)) || (show === "locked" && !known(a))));
-    arts.sort((a, b) => known(b) - known(a) || can(b) - can(a) || a.tier - b.tier || a.sort - b.sort);
+      (show === "all" || (show === "known" && known(a)) || (show === "ready" && !known(a) && can(a)) || (show === "locked" && !known(a)) || (show === "event" && ev(a))));
+    // what they have, what they can learn now, then by tier; the event-only ones they lack go last
+    arts.sort((a, b) => known(b) - known(a) || (ev(a) && !known(a)) - (ev(b) && !known(b)) || can(b) - can(a) || a.tier - b.tier || a.sort - b.sort);
     for (const a of arts) {
       const card = document.createElement("div"), k = known(a), on = st().slots.indexOf(a.key);
       card.className = "card" + (k ? " known" : "");
@@ -409,10 +411,16 @@ function artsPanel(startSlot = -1) {
       const body = document.createElement("div");
       const h = document.createElement("h4");
       h.innerHTML = `${a.name} <small>· ${elementName(a.element)} · bậc ${a.tier}</small>`;
+      if (ev(a)) h.append(Object.assign(document.createElement("span"), { className: "evtag", textContent: "★ Sự kiện" }));
       const line = document.createElement("p");
       line.textContent = artLine(a) + (a.desc ? `. ${a.desc}` : "");
       body.append(h, line);
-      if (!k) {
+      if (!k && ev(a)) {
+        const note = document.createElement("p");
+        note.className = "evnote";
+        note.textContent = `Chỉ nhận được qua ${a.sourceNote || "hoạt động, sự kiện, đấu giá"}.`;
+        body.append(note);
+      } else if (!k) {
         const req = document.createElement("div");
         req.className = "req";
         for (const r of a.reqs) {
@@ -430,6 +438,9 @@ function artsPanel(startSlot = -1) {
         b.textContent = on >= 0 ? `Ở ô ${on + 1}${sel >= 0 && sel !== on ? ` → ô ${sel + 1}` : ""}` : sel >= 0 ? `Gán vào ô ${sel + 1}` : "Gán";
         b.disabled = on >= 0 && (sel < 0 || sel === on);
         b.addEventListener("click", () => put(a.key));
+      } else if (ev(a)) {
+        b.textContent = "Chỉ qua sự kiện";
+        b.disabled = true;
       } else {
         b.textContent = "Lĩnh ngộ";
         b.disabled = !can(a);

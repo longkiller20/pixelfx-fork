@@ -223,6 +223,7 @@ const ART_PARAM_HINT = {
   nova: '{"r": 90, "delay": 0.2, "slow": 0, "slowDur": 0}', dash: '{"dist": 140, "r": 26}', heal: '{"pct": 0.2}', buff: '{"stat": "atk", "pct": 20, "dur": 8}',
 };
 const ELEMENTS = [["kim", "Kim"], ["hoa", "Hỏa"], ["thuy", "Thủy"], ["bang", "Băng"], ["loi", "Lôi"], ["moc", "Mộc"], ["tho", "Thổ"], ["quang", "Quang"], ["am", "Ám"], ["huyen", "Huyền"], ["phong", "Phong"], ["di", "Dị Giới"], ["bao", "Bạo"], ["thu", "Ngự Thú"]];
+const ART_SOURCE = [["learn", "Lĩnh ngộ bằng vật phẩm"], ["event", "Chỉ qua hoạt động / sự kiện / đấu giá (admin phát)"]];
 const ITEM_KIND = [["pill", "Đan dược (dùng được)"], ["book", "Bí kíp"], ["material", "Nguyên liệu"]];
 /** Show a long list a page at a time: the first `n`, then a button for the next `n`. */
 function paged(list, render, n = 24) {
@@ -366,6 +367,8 @@ const VIEWS = {
       { k: "fx", label: "Hiệu ứng pixelfx", hint: "vd fire/fireball; để trống = ném vũ khí đang cầm" }, { k: "fx_at", label: "Hiệu ứng vẽ ở", type: "select", options: ART_AT },
       { k: "fx_life", label: "Dừng hiệu ứng lặp sau (giây, 0 = mặc định)", type: "number" },
       { k: "fx_scale", label: "Phóng to hiệu ứng (0 = tự động)", type: "number", step: 0.05, hint: "tự động: 1.65 trên người / trước mặt, 1.2-1.4 vùng xa, 1.3 đạn bay" }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
+      { k: "source", label: "Cách có được", type: "select", options: ART_SOURCE },
+      { k: "source_note", label: "Nhận ở đâu (người chơi thấy)", hint: "vd: Sự kiện Trung Thu, Đấu giá, Hoạt động Tông môn" },
       { k: "starter", label: "Ai cũng biết sẵn (không cần vật phẩm)", type: "bool" }, { k: "enabled", label: "Đang mở", type: "bool" },
       { k: "description", label: "Mô tả", type: "textarea", wide: true },
     ];
@@ -401,30 +404,44 @@ const VIEWS = {
       fields: [{ k: "art_key", label: "Mã (chữ thường, không dấu)", hint: "vd: thanh_long_tram" }, ...F],
       onSave: save(null),
     });
+    // hand an art out: to everyone, everyone online, or some players by đạo hiệu (an event's reward, an auction's prize)
+    const grantBox = (r) => {
+      const to = el("select", {}, [["names", "Theo đạo hiệu"], ["online", "Mọi người đang online"], ["all", "Mọi nhân vật"]].map(([v, l]) => el("option", { value: v }, l)));
+      const names = el("input", { placeholder: "Đạo hiệu, cách nhau bằng dấu phẩy" });
+      to.addEventListener("change", () => (names.hidden = to.value !== "names"));
+      return el("div", { class: "reqs" }, el("b", {}, r.source === "event" ? "Phát công pháp (thưởng sự kiện, đấu giá...)" : "Truyền thẳng (không tiêu vật phẩm)"),
+        el("div", { class: "bar" }, to, names, el("button", { class: "small", type: "button", onclick: async () => {
+          if (to.value !== "names" && !confirm(`Phát ${r.name} cho ${to.value === "all" ? "MỌI nhân vật" : "mọi người đang online"}?`)) return;
+          const out = await guard(() => api(`/arts/${r.art_key}/grant`, { method: "POST", body: { to: to.value, names: names.value } }));
+          if (out) toast(`Đã phát cho ${out.count} người (ai có rồi thì giữ nguyên).`);
+        } }, "Phát")));
+    };
+    const src = el("select", {}, [["", "Mọi nguồn"], ...ART_SOURCE].map(([v, l]) => el("option", { value: v }, l)));
     const type = el("select", {}, [["", "Mọi loại"], ...ART_TYPE].map(([v, l]) => el("option", { value: v }, l)));
     const elem = el("select", {}, [["", "Mọi hệ"], ...ELEMENTS].map(([v, l]) => el("option", { value: v }, l)));
     const q = el("input", { type: "search", placeholder: "Tìm theo tên, mã hoặc hiệu ứng..." });
     const out = el("div");
     const draw = () => {
       const t = q.value.trim().toLowerCase();
-      const list = rows.filter((r) => (!type.value || r.type === type.value) && (!elem.value || r.element === elem.value) && (!t || r.name.toLowerCase().includes(t) || r.art_key.includes(t) || r.fx.includes(t)));
+      const list = rows.filter((r) => (!src.value || r.source === src.value) && (!type.value || r.type === type.value) && (!elem.value || r.element === elem.value) && (!t || r.name.toLowerCase().includes(t) || r.art_key.includes(t) || r.fx.includes(t)));
       out.replaceChildren(...paged(list, (r) => {
         const card = record({
           title: r.name, sub: `${r.art_key} · ${ELEMENTS.find((e) => e[0] === r.element)?.[1] ?? r.element} · bậc ${r.tier}`, row: r, fields: F,
-          extra: el("span", {}, r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết") : null, " ", r.enabled ? null : el("span", { class: "tag red" }, "Đang khóa")),
+          extra: el("span", {}, r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết") : r.source === "event" ? el("span", { class: "tag gold" }, `★ ${r.source_note || "Sự kiện"}`) : null, " ", r.enabled ? null : el("span", { class: "tag red" }, "Đang khóa")),
           onSave: save(r.art_key),
           onDelete: async () => confirm(`Xóa hẳn ${r.name}? Người đã lĩnh ngộ sẽ không dùng được nữa. Muốn tạm ẩn thì bỏ chọn "Đang mở".`) && (await guard(() => api(`/t/arts/${r.art_key}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
         });
-        if (!r.starter) card.insertBefore(reqBox(r.art_key), card.querySelector(".actions"));
+        if (!r.starter && r.source !== "event") card.insertBefore(reqBox(r.art_key), card.querySelector(".actions"));
+        if (!r.starter) card.insertBefore(grantBox(r), card.querySelector(".actions"));
         return card;
       }, 12));
     };
-    for (const s of [type, elem]) s.addEventListener("change", draw);
+    for (const s of [src, type, elem]) s.addEventListener("change", draw);
     q.addEventListener("input", draw);
     draw();
     return [el("h2", {}, `Công pháp (${rows.length})`),
-      el("p", { class: "dim" }, "Mỗi công pháp dùng một hiệu ứng của pixelfx. Người chơi lĩnh ngộ bằng cách tiêu hao các vật phẩm yêu cầu (bí kíp, nguyên liệu: rơi từ yêu thú), rồi gán tối đa 5 môn lên thanh nút. Số sai sẽ bị từ chối, game không bị ảnh hưởng."),
-      el("div", { class: "grid" }, add), el("div", { class: "bar" }, type, elem, q), out];
+      el("p", { class: "dim" }, "Mỗi công pháp dùng một hiệu ứng của pixelfx. Môn \"Lĩnh ngộ\": người chơi tiêu hao các vật phẩm yêu cầu (bí kíp, nguyên liệu: rơi từ yêu thú). Môn \"Chỉ qua hoạt động / sự kiện\": không học được, chỉ có khi admin phát (cho mọi người, người đang online, hoặc theo đạo hiệu), ghi chú \"Nhận ở đâu\" hiện cho người chơi. Mỗi người gán tối đa 5 môn lên thanh nút. Số sai sẽ bị từ chối, game không bị ảnh hưởng."),
+      el("div", { class: "grid" }, add), el("div", { class: "bar" }, src, type, elem, q), out];
   },
 
   async drops() {
@@ -623,7 +640,7 @@ const VIEWS = {
 
 const ACTIONS = {
   login: "đăng nhập", password: "đổi mật khẩu", "admin.add": "thêm admin", "admin.del": "xóa admin", "player.edit": "sửa người chơi", "player.item": "sửa túi đồ",
-  "player.teach": "truyền công pháp", "player.unteach": "lấy lại công pháp", "player.give": "tặng tóc/áo/vũ khí", "player.take": "lấy lại tóc/áo/vũ khí", "player.ban": "khóa tài khoản", "player.unban": "mở khóa", "player.kick": "mời ra khỏi game",
+  "arts.grant": "phát công pháp", "player.teach": "truyền công pháp", "player.unteach": "lấy lại công pháp", "player.give": "tặng tóc/áo/vũ khí", "player.take": "lấy lại tóc/áo/vũ khí", "player.ban": "khóa tài khoản", "player.unban": "mở khóa", "player.kick": "mời ra khỏi game",
   "player.password": "đặt lại mật khẩu người chơi", "player.delete": "xóa tài khoản", "player.adjust": "chỉnh chỉ số", "player.level": "đặt cảnh giới",
   "player.meditation": "làm mới lượt tu luyện", "player.look": "đổi tên/ngoại hình", "player.buff": "thêm buff", "player.unbuff": "gỡ buff", "player.live": "thao tác trực tiếp",
 };

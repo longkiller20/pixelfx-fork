@@ -163,6 +163,7 @@ export function learnArt(uid, key) {
   const art = ARTS[String(key ?? "")];
   if (!art || !art.enabled) throw new GameError("Công pháp không tồn tại.");
   if (art.starter) throw new GameError("Công pháp này ai cũng đã biết.");
+  if (art.source === "event") throw new GameError(`${art.name} không lĩnh ngộ được: chỉ có qua ${art.sourceNote || "hoạt động, sự kiện"}.`, 403);
   return userLock.run(uid, () => tx(async (c) => {
     const ch = await loadCharacter(uid, c);
     if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
@@ -211,6 +212,20 @@ export function grantItems(uid, items) {
   return userLock.run(uid, () => tx(async (c) => {
     for (const [k, n] of list) await c.query("INSERT INTO inventory (user_id, item, qty) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qty = qty + VALUES(qty)", [uid, k, n]);
   }));
+}
+
+/**
+ * Give an art to many at once (an event's reward): everyone with a character, or the given user ids. One INSERT IGNORE,
+ * so it can run while they play or learn: whoever already has it keeps their one row. Returns the user ids that got it.
+ */
+export async function grantArtMany(key, uids = null) {
+  const art = ARTS[String(key ?? "")];
+  if (!art) throw new GameError("Công pháp không tồn tại.");
+  if (art.starter) throw new GameError("Công pháp này ai cũng đã biết.");
+  const who = uids ? await q("SELECT user_id FROM characters WHERE user_id IN (?)", [uids.length ? uids : [0]]) : await q("SELECT user_id FROM characters");
+  const ids = who.map((r) => r.user_id);
+  if (ids.length) await q(`INSERT IGNORE INTO learned_arts (user_id, art_key) VALUES ${ids.map(() => "(?, ?)").join(", ")}`, ids.flatMap((id) => [id, art.key]));
+  return ids;
 }
 
 /** An admin teaches or takes back an art (no items spent). Taking it back also clears it from the bar. */

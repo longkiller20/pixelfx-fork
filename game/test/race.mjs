@@ -298,6 +298,23 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
       // an admin takes it back: it leaves the bar too
       await adm(`/players/${pu.id}/arts`, { token, method: "POST", body: { key: "fire_fireball", learn: false } });
       assert.equal((await me(P.token)).character.slots[0], null);
+      // an art only events give: learning it is refused even with every item in the bag; the admin hands it out by
+      // đạo hiệu (twice at once: one row), and the player online has it straight away
+      assert.equal((await adm("/t/arts/fire_meteor", { token, method: "PATCH", body: { source: "event", source_note: "Sự kiện thử" } })).status, 200);
+      try {
+        for (const r of (await adm("/t/art_reqs", { token })).data.filter((x) => x.art_key === "fire_meteor"))
+          await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: r.item_key, op: "add", value: r.qty } });
+        assert.equal((await call("/arts/learn", { token: P.token, method: "POST", body: { key: "fire_meteor" } })).status, 403, "event-only: can't be learned");
+        const g = await Promise.all([1, 2].map(() => adm("/arts/fire_meteor/grant", { token, method: "POST", body: { to: "names", names: P.name } })));
+        assert.ok(g.every((x) => x.status === 200), "given by đạo hiệu");
+        await sleep(200);
+        assert.ok(c3.msgs.filter((m) => m.t === "arts").pop().learned.includes("fire_meteor"), "the online player has it at once");
+        assert.equal(Number((await q("SELECT COUNT(*) AS n FROM learned_arts WHERE user_id = ? AND art_key = 'fire_meteor'", [pu.id]))[0].n), 1, "one row");
+        assert.equal((await me(P.token)).inventory.bk_fire_meteor, 1, "and its items were not spent");
+      } finally {
+        await adm("/t/arts/fire_meteor", { token, method: "PATCH", body: { source: "learn", source_note: "" } });
+      }
+
       // drops: a dummy set to always drop two Huyền Thiết Tinh; break it and they are in the bag
       const row = (await adm("/t/monster_drops", { token, method: "POST", body: { monster: "dummy", item_key: "mat_kim", chance: 1, min_qty: 2, max_qty: 2 } })).data;
       try {
@@ -328,7 +345,7 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   } finally {
     await q("DELETE FROM admins WHERE username = ?", [name]);
   }
-  ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs, bảo vật gifts, công pháp (learn once, 5-slot bar, drops) and bans take effect");
+  ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs, bảo vật gifts, công pháp (learn once, 5-slot bar, event-only arts, drops) and bans take effect");
 }
 
 {

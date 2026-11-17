@@ -36,6 +36,10 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Hào quang tăng chỉ số kéo dài đúng bằng thời gian buff. Lửa trại, suối hay thời tiết đứng yên ở chỗ gọi ra, không
     đi theo người.
   - Admin sửa được công pháp, vật phẩm yêu cầu, vật phẩm và tỉ lệ rơi; truyền hoặc lấy lại công pháp của từng người.
+  - **Công pháp sự kiện:** ở tab Công pháp, admin đổi "Cách có được" của một môn thành "Chỉ qua hoạt động / sự kiện /
+    đấu giá" và ghi "Nhận ở đâu" (vd "Sự kiện Trung Thu"). Môn đó không lĩnh ngộ được kể cả khi đủ vật phẩm. Người chơi
+    thấy dấu ★ Sự kiện và dòng "Chỉ nhận được qua ...". Admin phát môn đó cho mọi nhân vật, mọi người đang online, hoặc
+    theo danh sách đạo hiệu. Ai có rồi thì giữ nguyên; ai đang online thì dùng được ngay.
 - **Góc nhìn đi ngang** (side-scroller), khớp với cách pixelfx vẽ nhân vật và hiệu ứng: đi trái/phải, nhảy, đứng trên đài
   mây, rơi theo trọng lực.
 - **Bản đồ hiện có: Tân Thủ Thôn,** thôn khởi đầu dài 128 ô (mỗi ô 32 px). Đi từ tây sang đông:
@@ -441,7 +445,7 @@ Các bảng trong database:
 | `monsters` | Chỉ số yêu thú `dummy` (bù nhìn) và `ghost` (âm hồn): sinh lực, công, thủ, tốc, thưởng, tầm đánh… |
 | `items` (tiếp) | Cột `kind`: `pill` (đan dược, dùng được), `book` (bí kíp), `material` (nguyên liệu). |
 | `skills` | Đánh thường (J): tên, thời gian hồi, hệ số sát thương, tầm (`params`). |
-| `arts` | Công pháp: tên, hệ, bậc, loại (`melee`, `bolt`, `zone`, `nova`, `dash`, `heal`, `buff`), hồi chiêu, hệ số, `params` (JSON, theo loại), hiệu ứng pixelfx (`fx`) và chỗ vẽ (`fx_at`: `front`, `self`, `target`, `bolt`), `starter` (ai cũng biết), `enabled`. Danh sách đầu nằm ở `shared/arts-seed.js`. |
+| `arts` | Công pháp: `source` (`learn`: lĩnh ngộ bằng vật phẩm; `event`: chỉ admin phát, cho hoạt động, sự kiện, đấu giá) và `source_note` (nhận ở đâu); tên, hệ, bậc, loại (`melee`, `bolt`, `zone`, `nova`, `dash`, `heal`, `buff`), hồi chiêu, hệ số, `params` (JSON, theo loại), hiệu ứng pixelfx (`fx`) và chỗ vẽ (`fx_at`: `front`, `self`, `target`, `bolt`), `starter` (ai cũng biết), `enabled`. Danh sách đầu nằm ở `shared/arts-seed.js`. |
 | `art_reqs` | Mỗi dòng là một vật phẩm (và số lượng) cần để lĩnh ngộ một công pháp. |
 | `monster_drops` | Rơi đồ: `monster` (hoặc `*` cho mọi yêu thú có `common_drops`), vật phẩm, `chance` (0-1), `min_qty`, `max_qty`. |
 | `learned_arts`, `characters.art_slots` | Công pháp người chơi đã lĩnh ngộ, và 5 ô trên thanh (JSON). |

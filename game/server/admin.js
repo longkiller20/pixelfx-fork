@@ -12,7 +12,7 @@ import { ROOT, config } from "./config.js";
 import { hashPassword, verifyPassword, dummyVerify, rateLimit } from "./auth.js";
 import { readConfig, loadConfig } from "./gameconfig.js";
 import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS } from "../shared/balance.js";
-import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem, adminArt, loadCharacter } from "./store.js";
+import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem, adminArt, loadCharacter, grantArtMany } from "./store.js";
 import { userLock } from "./lock.js";
 
 const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
@@ -76,7 +76,7 @@ const T = {
     pk: "art_key", pkType: "key", order: "sort, art_key", config: true, add: true, del: true,
     cols: {
       name: "str:30", description: "str:200", element: "str:8", tier: "uint", type: "enum:melee|bolt|zone|nova|dash|heal|buff", cd: "num", mult: "num",
-      params: "json", fx: "str:48", fx_at: "enum:front|self|target|bolt", fx_life: "num", fx_scale: "num", starter: "bool", enabled: "bool", sort: "int",
+      params: "json", fx: "str:48", fx_at: "enum:front|self|target|bolt", fx_life: "num", fx_scale: "num", starter: "bool", source: "enum:learn|event", source_note: "str:100", enabled: "bool", sort: "int",
     },
   },
   art_reqs: { pk: "id", order: "art_key, id", config: true, add: true, del: true, cols: { art_key: "str:32", item_key: "str:32", qty: "uint" } },
@@ -92,7 +92,7 @@ const T = {
 function value(type, v, col) {
   if (type.startsWith("str:")) {
     const s = String(v ?? "").trim();
-    if (!s && col !== "description" && col !== "fx") throw bad(`${col}: không được để trống`);
+    if (!s && !["description", "fx", "source_note"].includes(col)) throw bad(`${col}: không được để trống`);
     if (s.length > Number(type.slice(4))) throw bad(`${col}: tối đa ${type.slice(4)} ký tự`);
     return s;
   }
@@ -405,6 +405,25 @@ export function adminApp(world) {
     await world.sendInv(id);
     res.json(await playerDetail(id));
   }));
+  // an event's reward: give an art to everyone, everyone online, or a list of đạo hiệu; who is online gets it at once
+  r.post("/arts/:key/grant", wrap(async (req, res) => {
+    const key = String(req.params.key), to = String(req.body?.to ?? "");
+    let uids = null;
+    if (to === "online") uids = [...world.players.keys()];
+    else if (to !== "all") {
+      const names = String(req.body?.names ?? "").split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+      if (!names.length) throw bad("Nhập đạo hiệu, cách nhau bằng dấu phẩy.");
+      const rows = await q("SELECT user_id, name FROM characters WHERE name IN (?)", [names]);
+      const miss = names.filter((n) => !rows.some((r) => r.name.toLowerCase() === n.toLowerCase()));
+      if (miss.length) throw bad(`Không có nhân vật: ${miss.join(", ")}`);
+      uids = rows.map((r) => r.user_id);
+    }
+    const ids = await grantArtMany(key, uids);
+    for (const id of ids) if (world.players.has(id)) world.refresh(id, await loadCharacter(id));
+    await log(req.admin, "arts.grant", key, { to: to === "all" || to === "online" ? to : req.body?.names, count: ids.length });
+    res.json({ ok: true, count: ids.length });
+  }));
+
   // teach an art without spending anything, or take one back (it leaves the bar too); an online player gets it at once
   r.post("/players/:id/arts", wrap(async (req, res) => {
     const id = playerId(req.params.id), key = String(req.body?.key ?? ""), learn = req.body?.learn === true;
