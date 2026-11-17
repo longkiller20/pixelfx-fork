@@ -60,7 +60,7 @@ export const DEFAULTS = {
     { key: "tukhi", name: "Tụ Khí Đan", desc: "Tăng tu vi ngay lập tức", price: 40, heal: 0, expBase: 150, expPerLevel: 30, cd: 1, onSale: true, sort: 2 },
   ],
   monsters: [
-    { type: "dummy", name: "Bù Nhìn Rơm", hp: 500, atk: 0, def: 10, spd: 0, respawn: 5, expBase: 10, expPerLevel: 2, stones: 1, aggro: 0, reach: 0, cd: 0, mult: 0 },
+    { type: "dummy", name: "Bù Nhìn Rơm", hp: 500, atk: 0, def: 10, spd: 0, respawn: 5, expBase: 2, expPerLevel: 0, stones: 0, aggro: 0, reach: 0, cd: 0, mult: 0 },
     { type: "ghost", name: "Âm Hồn", hp: 420, atk: 30, def: 12, spd: 62, respawn: 8, expBase: 30, expPerLevel: 4, stones: 2, aggro: 150, reach: 34, cd: 1.2, mult: 1 },
   ],
   // [value, what it means] — the meaning is stored beside the value for whoever edits it

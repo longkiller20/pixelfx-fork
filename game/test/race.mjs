@@ -19,7 +19,13 @@ async function call(path, { token, method = "GET", body } = {}) {
 }
 async function player(look = { g: "m", hair: 8, robe: 16 }) {
   const u = "t_" + uid();
-  const { data } = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
+  // sign-ups are limited per address (12 a minute): wait out the window when the suite runs into it
+  let r = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
+  while (r.status === 429) {
+    await sleep(5000);
+    r = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
+  }
+  const { data } = r;
   const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } });
   assert.equal(c.status, 200, JSON.stringify(c.data));
   return { token: data.token, name: c.data.character.name };
@@ -241,6 +247,33 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
     await q("DELETE FROM admins WHERE username = ?", [name]);
   }
   ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs and bans take effect");
+}
+
+{
+  // the two straw dummies by the market: a cut lands, shows its damage, and leaves the dummy standing with less hp
+  const { mapInfo, START_MAP } = await import("../shared/maps/index.js");
+  const M = mapInfo(START_MAP);
+  assert.equal(M.mobs.filter((m) => m.type === "dummy").length, 2);
+  const P = await player(), c = await connect(P.token);
+  await sleep(300);
+  const d = c.snap.M.find((m) => m[1] === 0);
+  // walk to just right of the dummy, face it and cut
+  for (let i = 0; i < 80; i++) {
+    const me = c.snap.P.find((q) => q[0] === c.id), dx = d[2] + 30 - me[1];
+    if (Math.abs(dx) < 6) break;
+    send(c, { t: "in", dx: Math.sign(dx), jump: false, down: false });
+    await sleep(50);
+  }
+  send(c, { t: "in", dx: 0, jump: false, down: false });
+  await sleep(200);
+  send(c, { t: "cast", s: 0, ax: -1, ay: 0 });
+  await sleep(400);
+  const hit = c.msgs.filter((m) => m.t === "s").flatMap((m) => m.E).find((e) => e.e === "hit" && e.id === d[0]);
+  assert.ok(hit && hit.d > 0, "the cut hit the dummy for some damage");
+  const after = c.snap.M.find((m) => m[0] === d[0]);
+  assert.ok(after[5] < 1000 && !(after[6] & 1), "the dummy lost hp and still stands");
+  c.ws.close();
+  ok(`two straw dummies by the market: a cut deals ${hit.d} damage`);
 }
 
 {
