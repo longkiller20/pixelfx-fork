@@ -658,7 +658,13 @@ export async function buildScene(M) {
       // stand it on its lowest drawn pixel, not on the bottom of its picture: many have empty rows under them
       let foot = img.h - 1;
       while (foot > 0 && !img.px.subarray(foot * img.w, (foot + 1) * img.w).some((c) => c >>> 24 > 128)) foot--;
-      S.blit(img.px, img.w, 0, 0, img.w, img.h, Math.round(x * T) - (img.w >> 1), row * T - foot + 1 + (o.dy ?? 0), !!o.f);
+      // ...and at x put its foot (a tree's trunk, a lantern's post), not the middle of its picture: a leaning pine's
+      // trunk is far from the middle, which left trees hanging off ledges. The foot: the drawn pixels of its lowest rows.
+      let sum = 0, n = 0;
+      for (let y = Math.max(0, foot - 5); y <= foot; y++)
+        for (let i = 0; i < img.w; i++) if (img.px[y * img.w + i] >>> 24 > 128) (sum += i), n++;
+      const fx = n ? sum / n : img.w / 2, ax = o.f ? img.w - 1 - fx : fx;
+      S.blit(img.px, img.w, 0, 0, img.w, img.h, Math.round(x * T - ax), row * T - foot + 1 + (o.dy ?? 0), !!o.f);
     } else if (kind === "pagoda") S.blit(tower.px, tower.w, 0, 0, tower.w, tower.h, Math.round(x * T) - (tower.w >> 1), row * T - tower.h);
     else if (PROPS[kind]) PROPS[kind](S, Math.round(x * T), row * T, o ?? {}, roofs);
   }

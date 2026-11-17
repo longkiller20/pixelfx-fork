@@ -59,6 +59,7 @@ export class World {
   /** Put a player on this map (logging in, or walking in through a gate) and tell their browser where they are. */
   enter(p, inv, at = null) {
     p.world = this;
+    p.safe = null;
     if (at) Object.assign(p, { x: at.x, y: at.y, vx: 0, vy: 0, ground: false });
     this.players.set(p.userId, p);
     this.ents.set(p.id, p);
@@ -603,12 +604,15 @@ export class World {
     stepBody(p, { ...inp, jump: inp.jump || p.jumpUntil > t }, st.spd * PHYS.RUN, DT, this.map, t);
     if (wasGround && !p.ground) p.jumpUntil = 0;
     if (p.moving && p.busyUntil <= t) p.face = inp.dx > 0 ? 1 : -1;
-    // a map's burning ground (the abyss's lava): standing in it costs a share of sinh lực each second, and can kill
-    const hurt = this.map.def.hurt;
-    if (hurt && this.map.cell(Math.floor(p.x / this.map.T), Math.floor((p.y - 6) / this.map.T)) === hurt.cell && p.protectUntil <= t) {
-      p.hpFrac -= hurt.perSec * DT;
+    // a map's burning ground (the abyss's lava): touching it sears off a share of sinh lực and throws the player back out
+    // onto the last solid ground they stood on, as a platformer does; nobody wades about at the bottom of a lava pool
+    const hurt = this.map.def.hurt, T = this.map.T;
+    const under = (y) => this.map.cell(Math.floor(p.x / T), Math.floor(y / T));
+    if (hurt && under(p.y - 6) === hurt.cell && t >= (p.burnSafe ?? 0)) {
+      p.hpFrac -= hurt.hit;
       p.lastHurt = t;
-      if (this.tick % 10 === 0) this.ev({ e: "burn", id: p.id });
+      this.ev({ e: "burn", id: p.id });
+      send(p.ws, { t: "toast", m: "Bị nham thạch thiêu đốt!" });
       if (p.hpFrac <= 0) {
         p.dead = true;
         p.hpFrac = 0;
@@ -618,6 +622,14 @@ export class World {
         this.sendMe(p);
         return;
       }
+      Object.assign(p, p.safe ?? this.spawnPoint(), { vx: 0, vy: 0, ground: false, jumpUntil: 0 });
+      p.slowUntil = t + 1;
+      p.burnSafe = t + 1;
+      this.sendMe(p);
+    } else if (hurt && p.ground && fits(p.x, p.y, this.map)) {
+      // a safe spot is solid ground with no lava within a tile and a half either side
+      const row = Math.floor((p.y + 2) / T), near = [-1.5, -0.75, 0, 0.75, 1.5].some((k) => this.map.cell(Math.floor((p.x + k * T) / T), row) === hurt.cell);
+      if (!near) p.safe = { x: p.x, y: p.y };
     }
     // fell out of the world somehow: back to the spawn
     if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint());

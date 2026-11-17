@@ -45,11 +45,11 @@ const BRAZIER = (x, row) => ["fx", x, row, { id: "fire/brazier", h: 0, k: 0.8 }]
 export const MAVUC = {
   id: "mavuc",
   name: "Huyết Diễm Ma Uyên",
-  sub: "Vực lửa dưới lòng cổ mộ, dưới vầng huyết nguyệt. Phi đầu lâu và ma nhãn canh giữ, bắn từ xa. Rơi xuống dòng nham thạch sẽ bị bỏng.",
+  sub: "Vực lửa dưới lòng cổ mộ, dưới vầng huyết nguyệt. Phi đầu lâu và ma nhãn canh giữ, bắn từ xa. Chạm vào nham thạch sẽ bị bỏng và hất trở lại bờ.",
   cell: 32,
   pvp: false,
-  // standing in lava burns: this share of sinh lực each second
-  hurt: { cell: "l", perSec: 0.18 },
+  // touching the lava burns off this share of sinh lực and throws you back onto the last ground you stood on
+  hurt: { cell: "l", hit: 0.2 },
   theme: {
     sky: ["#0a0204", "#240508", "#4e0c0c", "#7e1a10", "#c0441a"],
     isles: false,
