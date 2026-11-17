@@ -133,3 +133,8 @@ details summary { cursor: pointer; padding: 6px 0; }
   .livebox .actions { display: grid; grid-template-columns: 1fr 1fr; }
   .buff .grow { display: none; }
 }
+/* an art's requirements, inside its card */
+.reqs { display: flex; flex-direction: column; gap: 6px; padding: 8px; margin: 6px 0; border: 1px dashed var(--line, #3a3150); border-radius: 8px; }
+.reqs .bar { margin: 0; }
+.reqs .bar select { flex: 1; min-width: 0; }
+.reqs .bar input { width: 80px; }

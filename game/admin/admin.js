@@ -215,6 +215,32 @@ const SKILL_PARAMS = { melee: ["range", "arc"], bolt: ["range", "speed", "r"], z
 const PARAM_LABEL = { range: "Tầm (px)", arc: "Góc chém (radian)", speed: "Tốc độ bay (px/giây)", r: "Bán kính (px)", dist: "Khoảng cách (px)", delay: "Trễ trước khi nổ (giây)", slow: "Làm chậm (0-1)", slowDur: "Thời gian chậm (giây)" };
 const SKILL_TYPE = [["melee", "Cận chiến"], ["bolt", "Phóng (đạn bay)"], ["zone", "Trận pháp (vùng)"]];
 
+// công pháp
+const ART_TYPE = [["melee", "Cận chiến (cung chém trước mặt)"], ["bolt", "Phóng xa (đạn bay)"], ["zone", "Vùng phía trước"], ["nova", "Vùng quanh thân"], ["dash", "Lướt tới"], ["heal", "Hồi sinh lực"], ["buff", "Tăng chỉ số tạm thời"]];
+const ART_AT = [["front", "Trước mặt"], ["self", "Trên người (đi theo)"], ["target", "Nơi chiêu rơi xuống"], ["bolt", "Bay theo viên đạn"]];
+const ART_PARAM_HINT = {
+  melee: '{"range": 64, "arc": 1.4}', bolt: '{"range": 300, "speed": 380, "r": 12}', zone: '{"dist": 120, "r": 60, "delay": 0.5, "slow": 0, "slowDur": 0}',
+  nova: '{"r": 90, "delay": 0.2, "slow": 0, "slowDur": 0}', dash: '{"dist": 140, "r": 26}', heal: '{"pct": 0.2}', buff: '{"stat": "atk", "pct": 20, "dur": 8}',
+};
+const ELEMENTS = [["kim", "Kim"], ["hoa", "Hỏa"], ["thuy", "Thủy"], ["bang", "Băng"], ["loi", "Lôi"], ["moc", "Mộc"], ["tho", "Thổ"], ["quang", "Quang"], ["am", "Ám"], ["huyen", "Huyền"], ["phong", "Phong"], ["di", "Dị Giới"], ["bao", "Bạo"], ["thu", "Ngự Thú"]];
+const ITEM_KIND = [["pill", "Đan dược (dùng được)"], ["book", "Bí kíp"], ["material", "Nguyên liệu"]];
+/** Show a long list a page at a time: the first `n`, then a button for the next `n`. */
+function paged(list, render, n = 24) {
+  const box = el("div", { class: "grid" });
+  let shown = 0;
+  const more = el("button", { class: "small", type: "button" }, "Xem thêm");
+  const step = () => {
+    box.append(...list.slice(shown, shown + n).map(render));
+    shown += n;
+    more.hidden = shown >= list.length;
+    more.textContent = `Xem thêm (còn ${Math.max(0, list.length - shown)})`;
+  };
+  more.addEventListener("click", step);
+  step();
+  return [box, el("div", { class: "actions" }, more)];
+}
+const itemOptions = (items) => items.map((i) => [i.item_key, `${i.name} (${i.item_key})`]);
+
 const VIEWS = {
   async overview() {
     const [o, log] = await Promise.all([api("/overview"), api("/log")]);
@@ -295,27 +321,142 @@ const VIEWS = {
   async items() {
     const rows = await api("/t/items");
     const F = [
-      { k: "name", label: "Tên" }, { k: "price", label: "Giá (linh thạch)", type: "number", step: 1 },
+      { k: "name", label: "Tên" }, { k: "kind", label: "Loại", type: "select", options: ITEM_KIND }, { k: "price", label: "Giá (linh thạch)", type: "number", step: 1 },
       { k: "heal", label: "Hồi sinh lực (0-1)", type: "number", step: 0.05, hint: "0.4 = 40% sinh lực tối đa" },
       { k: "exp_base", label: "Tu vi cộng", type: "number", step: 1 }, { k: "exp_per_level", label: "Tu vi thêm mỗi cấp", type: "number", step: 1 },
       { k: "cooldown", label: "Hồi (giây)", type: "number", step: 0.5 }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
       { k: "on_sale", label: "Đang bán", type: "bool" }, { k: "description", label: "Mô tả", type: "textarea", wide: true },
     ];
     const add = record({
-      title: "Thêm đan dược", isNew: true, row: { price: 10, heal: 0, exp_base: 0, exp_per_level: 0, cooldown: 1, on_sale: 1, sort: 10 },
+      title: "Thêm vật phẩm", isNew: true, row: { kind: "pill", price: 10, heal: 0, exp_base: 0, exp_per_level: 0, cooldown: 1, on_sale: 1, sort: 10 },
       fields: [{ k: "item_key", label: "Mã (chữ thường, không dấu)", hint: "vd: longhuyet" }, ...F],
       onSave: async (c) => (await guard(() => api("/t/items", { method: "POST", body: c }), "Đã thêm.")) && reload(),
     });
-    return [
-      el("h2", {}, "Đan dược (Đan Các)"),
-      el("p", { class: "dim" }, "Muốn bỏ một loại, hãy bỏ chọn \"Đang bán\" thay vì xóa: người chơi đã mua vẫn dùng được."),
-      el("div", { class: "grid" }, add, rows.map((r) => record({
-        title: r.name, sub: r.item_key, row: r, fields: F,
-        extra: r.on_sale ? el("span", { class: "tag green" }, "Đang bán") : el("span", { class: "tag" }, "Ngừng bán"),
+    const kind = el("select", {}, [["", "Mọi loại"], ...ITEM_KIND].map(([v, l]) => el("option", { value: v }, l)));
+    const q = el("input", { type: "search", placeholder: "Tìm theo tên hoặc mã..." });
+    const out = el("div");
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      const list = rows.filter((r) => (!kind.value || r.kind === kind.value) && (!t || r.name.toLowerCase().includes(t) || r.item_key.includes(t)));
+      out.replaceChildren(...paged(list, (r) => record({
+        title: r.name, sub: `${r.item_key} · ${ITEM_KIND.find((k) => k[0] === r.kind)?.[1] ?? r.kind}`, row: r, fields: F,
+        extra: r.on_sale ? el("span", { class: "tag green" }, "Đang bán") : el("span", { class: "tag" }, "Không bán"),
         onSave: async (c) => (await guard(() => api(`/t/items/${r.item_key}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
         onDelete: async () => confirm(`Xóa hẳn ${r.name}?`) && (await guard(() => api(`/t/items/${r.item_key}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
-      }))),
+      })));
+    };
+    kind.addEventListener("change", draw);
+    q.addEventListener("input", draw);
+    draw();
+    return [
+      el("h2", {}, "Vật phẩm"),
+      el("p", { class: "dim" }, "Đan dược bán ở Đan Các và dùng trên thanh nút. Bí kíp và nguyên liệu không bán: rơi từ yêu thú (tab Rơi đồ), dùng để lĩnh ngộ công pháp. Muốn bỏ một món, hãy bỏ chọn \"Đang bán\" thay vì xóa. Món đang được công pháp cần hoặc đang rơi từ yêu thú thì không xóa được."),
+      el("div", { class: "grid" }, add), el("div", { class: "bar" }, kind, q), out,
     ];
+  },
+
+  async arts() {
+    const [rows, reqs, items] = await Promise.all([api("/t/arts"), api("/t/art_reqs"), api("/t/items")]);
+    const opts = itemOptions(items), nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name]));
+    const F = [
+      { k: "name", label: "Tên" }, { k: "element", label: "Hệ", type: "select", options: ELEMENTS }, { k: "tier", label: "Bậc (1-9)", type: "number", step: 1 },
+      { k: "type", label: "Loại chiêu", type: "select", options: ART_TYPE }, { k: "cd", label: "Hồi chiêu (giây)", type: "number" },
+      { k: "mult", label: "Hệ số sát thương (× công)", type: "number" },
+      { k: "params", label: "Thông số (JSON)", wide: true, hint: "Theo loại: cận chiến {range, arc}; phóng {range, speed, r}; vùng {dist, r, delay, slow, slowDur}; quanh thân {r, delay, slow, slowDur}; lướt {dist, r}; hồi {pct}; tăng {stat: atk|def|spd, pct, dur}" },
+      { k: "fx", label: "Hiệu ứng pixelfx", hint: "vd fire/fireball; để trống = ném vũ khí đang cầm" }, { k: "fx_at", label: "Hiệu ứng vẽ ở", type: "select", options: ART_AT },
+      { k: "fx_life", label: "Dừng hiệu ứng lặp sau (giây, 0 = mặc định)", type: "number" }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
+      { k: "starter", label: "Ai cũng biết sẵn (không cần vật phẩm)", type: "bool" }, { k: "enabled", label: "Đang mở", type: "bool" },
+      { k: "description", label: "Mô tả", type: "textarea", wide: true },
+    ];
+    const save = (key) => async (c) => {
+      if (c.params !== undefined) {
+        try {
+          c.params = JSON.parse(c.params);
+        } catch {
+          return toast("Thông số phải là JSON, vd {\"range\": 64, \"arc\": 1.4}", false);
+        }
+      }
+      if (await guard(() => api(key ? `/t/arts/${key}` : "/t/arts", { method: key ? "PATCH" : "POST", body: c }), key ? "Đã lưu." : "Đã thêm.")) reload();
+    };
+    // what an art needs: one row per item, each editable; a row to add another
+    const reqBox = (key) => {
+      const mine = reqs.filter((r) => r.art_key === key);
+      const box = el("div", { class: "reqs" }, el("b", {}, "Vật phẩm cần để lĩnh ngộ (tiêu hao khi học)"));
+      for (const r of mine) {
+        const it = el("select", {}, opts.map(([v, l]) => el("option", { value: v, selected: v === r.item_key }, l)));
+        const qty = el("input", { type: "number", min: 1, step: 1, value: r.qty, inputmode: "numeric" });
+        box.append(el("div", { class: "bar" }, it, qty,
+          el("button", { class: "small", type: "button", onclick: async () => (await guard(() => api(`/t/art_reqs/${r.id}`, { method: "PATCH", body: { item_key: it.value, qty: Number(qty.value) } }), "Đã lưu.")) && reload() }, "Lưu"),
+          el("button", { class: "small danger", type: "button", onclick: async () => confirm(`Bỏ yêu cầu ${nameOf[r.item_key] ?? r.item_key}?`) && (await guard(() => api(`/t/art_reqs/${r.id}`, { method: "DELETE" }), "Đã bỏ.")) && reload() }, "✕")));
+      }
+      if (!mine.length) box.append(el("span", { class: "dim" }, "Không cần gì: ai lĩnh ngộ cũng được (nên bật \"Ai cũng biết sẵn\" hoặc thêm yêu cầu)."));
+      const it = el("select", {}, opts.map(([v, l]) => el("option", { value: v, selected: v === "bk_" + key }, l)));
+      const qty = el("input", { type: "number", min: 1, step: 1, value: 1, inputmode: "numeric" });
+      box.append(el("div", { class: "bar" }, it, qty, el("button", { class: "small", type: "button", onclick: async () => (await guard(() => api("/t/art_reqs", { method: "POST", body: { art_key: key, item_key: it.value, qty: Number(qty.value) } }), "Đã thêm yêu cầu.")) && reload() }, "+ Thêm")));
+      return box;
+    };
+    const add = record({
+      title: "Thêm công pháp", isNew: true, row: { element: "kim", tier: 1, type: "melee", cd: 3, mult: 1.3, params: ART_PARAM_HINT.melee, fx: "melee/sword-slash", fx_at: "front", fx_life: 0, sort: 500, starter: 0, enabled: 1 },
+      fields: [{ k: "art_key", label: "Mã (chữ thường, không dấu)", hint: "vd: thanh_long_tram" }, ...F],
+      onSave: save(null),
+    });
+    const type = el("select", {}, [["", "Mọi loại"], ...ART_TYPE].map(([v, l]) => el("option", { value: v }, l)));
+    const elem = el("select", {}, [["", "Mọi hệ"], ...ELEMENTS].map(([v, l]) => el("option", { value: v }, l)));
+    const q = el("input", { type: "search", placeholder: "Tìm theo tên, mã hoặc hiệu ứng..." });
+    const out = el("div");
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      const list = rows.filter((r) => (!type.value || r.type === type.value) && (!elem.value || r.element === elem.value) && (!t || r.name.toLowerCase().includes(t) || r.art_key.includes(t) || r.fx.includes(t)));
+      out.replaceChildren(...paged(list, (r) => {
+        const card = record({
+          title: r.name, sub: `${r.art_key} · ${ELEMENTS.find((e) => e[0] === r.element)?.[1] ?? r.element} · bậc ${r.tier}`, row: r, fields: F,
+          extra: el("span", {}, r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết") : null, " ", r.enabled ? null : el("span", { class: "tag red" }, "Đang khóa")),
+          onSave: save(r.art_key),
+          onDelete: async () => confirm(`Xóa hẳn ${r.name}? Người đã lĩnh ngộ sẽ không dùng được nữa. Muốn tạm ẩn thì bỏ chọn "Đang mở".`) && (await guard(() => api(`/t/arts/${r.art_key}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
+        });
+        if (!r.starter) card.insertBefore(reqBox(r.art_key), card.querySelector(".actions"));
+        return card;
+      }, 12));
+    };
+    for (const s of [type, elem]) s.addEventListener("change", draw);
+    q.addEventListener("input", draw);
+    draw();
+    return [el("h2", {}, `Công pháp (${rows.length})`),
+      el("p", { class: "dim" }, "Mỗi công pháp dùng một hiệu ứng của pixelfx. Người chơi lĩnh ngộ bằng cách tiêu hao các vật phẩm yêu cầu (bí kíp, nguyên liệu: rơi từ yêu thú), rồi gán tối đa 5 môn lên thanh nút. Số sai sẽ bị từ chối, game không bị ảnh hưởng."),
+      el("div", { class: "grid" }, add), el("div", { class: "bar" }, type, elem, q), out];
+  },
+
+  async drops() {
+    const [rows, items, monsters] = await Promise.all([api("/t/monster_drops"), api("/t/items"), api("/t/monsters")]);
+    const mons = [["*", "* Mọi yêu thú (có bật rơi đồ chung)"], ...monsters.map((m) => [m.type, `${m.name} (${m.type})`])];
+    const F = [
+      { k: "monster", label: "Yêu thú", type: "select", options: mons }, { k: "item_key", label: "Vật phẩm", type: "select", options: itemOptions(items) },
+      { k: "chance", label: "Tỉ lệ mỗi lần hạ (0-1)", type: "number", step: 0.001, hint: "0.05 = 5%" },
+      { k: "min_qty", label: "Ít nhất", type: "number", step: 1 }, { k: "max_qty", label: "Nhiều nhất", type: "number", step: 1 },
+    ];
+    const nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name]));
+    const add = record({
+      title: "Thêm vật phẩm rơi", isNew: true, row: { monster: "*", item_key: items[0]?.item_key, chance: 0.05, min_qty: 1, max_qty: 1 }, fields: F,
+      onSave: async (c) => (await guard(() => api("/t/monster_drops", { method: "POST", body: c }), "Đã thêm.")) && reload(),
+    });
+    const mon = el("select", {}, [["", "Mọi yêu thú"], ...mons].map(([v, l]) => el("option", { value: v }, l)));
+    const q = el("input", { type: "search", placeholder: "Tìm vật phẩm..." });
+    const out = el("div");
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      const list = rows.filter((r) => (!mon.value || r.monster === mon.value) && (!t || (nameOf[r.item_key] ?? r.item_key).toLowerCase().includes(t) || r.item_key.includes(t)));
+      out.replaceChildren(...paged(list, (r) => record({
+        title: nameOf[r.item_key] ?? r.item_key, sub: `${r.monster === "*" ? "mọi yêu thú" : r.monster} · ${(r.chance * 100).toFixed(2)}%`, row: r, fields: F,
+        onSave: async (c) => (await guard(() => api(`/t/monster_drops/${r.id}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
+        onDelete: async () => confirm("Bỏ dòng rơi đồ này?") && (await guard(() => api(`/t/monster_drops/${r.id}`, { method: "DELETE" }), "Đã bỏ.")) && reload(),
+      }), 30));
+    };
+    mon.addEventListener("change", draw);
+    q.addEventListener("input", draw);
+    draw();
+    return [el("h2", {}, "Rơi đồ"),
+      el("p", { class: "dim" }, "Mỗi lần hạ một yêu thú, mỗi dòng của nó (và các dòng \"*\" nếu yêu thú bật rơi đồ chung) được tung xúc xắc riêng theo tỉ lệ. Bù nhìn rơm không rơi gì. Vật phẩm rơi vào túi người hạ."),
+      el("div", { class: "grid" }, add), el("div", { class: "bar" }, mon, q), out];
   },
 
   async monsters() {
@@ -326,6 +467,7 @@ const VIEWS = {
       { k: "exp_base", label: "Tu vi thưởng", type: "number", step: 1 }, { k: "exp_per_level", label: "Tu vi thêm mỗi cấp người hạ", type: "number", step: 1 },
       { k: "stones", label: "Linh thạch thưởng", type: "number", step: 1 }, { k: "aggro", label: "Tầm phát hiện (px)", type: "number" },
       { k: "reach", label: "Tầm đánh (px)", type: "number" }, { k: "cooldown", label: "Hồi đòn (giây)", type: "number" }, { k: "mult", label: "Hệ số sát thương", type: "number" },
+      { k: "common_drops", label: "Rơi đồ chung (các dòng * ở tab Rơi đồ)", type: "bool" },
     ];
     return [el("h2", {}, "Yêu thú"), el("p", { class: "dim" }, "Loại yêu thú gắn với hình vẽ trong game; ở đây đổi được mọi con số và tên."),
       el("div", { class: "grid" }, rows.map((r) => record({
@@ -336,8 +478,8 @@ const VIEWS = {
 
   async skills() {
     const rows = await api("/t/skills");
-    const KEYS = ["J", "K", "L"];
-    return [el("h2", {}, "Chiêu thức"), el("p", { class: "dim" }, "Ba chiêu trên nút J / K / L, ai cũng dùng chung. Đổi loại chiêu thì các thông số bên dưới đổi theo."),
+    const KEYS = ["J"];
+    return [el("h2", {}, "Đánh thường"), el("p", { class: "dim" }, "Đòn đánh thường trên nút to (J), ai cũng dùng. Các chiêu khác là công pháp: xem tab Công pháp."),
       el("div", { class: "grid" }, rows.map((r) => {
         const params = JSON.parse(r.params || "{}");
         const row = { ...r, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [`p_${k}`, v])) };
@@ -480,13 +622,13 @@ const VIEWS = {
 
 const ACTIONS = {
   login: "đăng nhập", password: "đổi mật khẩu", "admin.add": "thêm admin", "admin.del": "xóa admin", "player.edit": "sửa người chơi", "player.item": "sửa túi đồ",
-  "player.give": "tặng tóc/áo/vũ khí", "player.take": "lấy lại tóc/áo/vũ khí", "player.ban": "khóa tài khoản", "player.unban": "mở khóa", "player.kick": "mời ra khỏi game",
+  "player.teach": "truyền công pháp", "player.unteach": "lấy lại công pháp", "player.give": "tặng tóc/áo/vũ khí", "player.take": "lấy lại tóc/áo/vũ khí", "player.ban": "khóa tài khoản", "player.unban": "mở khóa", "player.kick": "mời ra khỏi game",
   "player.password": "đặt lại mật khẩu người chơi", "player.delete": "xóa tài khoản", "player.adjust": "chỉnh chỉ số", "player.level": "đặt cảnh giới",
   "player.meditation": "làm mới lượt tu luyện", "player.look": "đổi tên/ngoại hình", "player.buff": "thêm buff", "player.unbuff": "gỡ buff", "player.live": "thao tác trực tiếp",
 };
 function logItem(l) {
   const [t, a] = l.action.split(".");
-  const what = ACTIONS[l.action] ?? `${{ realms: "cảnh giới", items: "đan dược", monsters: "yêu thú", skills: "chiêu thức", settings: "cài đặt", cosmetics: "tóc/áo" }[t] ?? t} · ${{ edit: "sửa", add: "thêm", del: "xóa" }[a] ?? a}`;
+  const what = ACTIONS[l.action] ?? `${{ realms: "cảnh giới", items: "vật phẩm", monsters: "yêu thú", skills: "đánh thường", settings: "cài đặt", cosmetics: "tóc/áo", arts: "công pháp", art_reqs: "yêu cầu công pháp", monster_drops: "rơi đồ" }[t] ?? t} · ${{ edit: "sửa", add: "thêm", del: "xóa" }[a] ?? a}`;
   return el("div", { class: "logitem" }, el("b", {}, l.admin), ` ${what} `, l.target ? el("span", { class: "tag" }, l.target) : null, el("span", { class: "dim" }, ` · ${when(l.at)}`),
     l.detail ? el("div", {}, el("code", {}, l.detail)) : null);
 }
@@ -505,7 +647,7 @@ const ago = (ms) => {
 
 async function playerView(id) {
   const main = $("main");
-  const [first, items, cos, realms] = await Promise.all([api(`/players/${id}`), api("/t/items"), (async () => (await loadAtlas(), api("/t/cosmetics")))(), api("/t/realms")]);
+  const [first, items, cos, realms, arts] = await Promise.all([api(`/players/${id}`), api("/t/items"), (async () => (await loadAtlas(), api("/t/cosmetics")))(), api("/t/realms"), api("/t/arts")]);
   // levels by realm, for the "straight to a realm" picker
   const levels = [];
   for (const r of realms) for (let s = 1; s <= r.stages; s++) levels.push(`${r.name} tầng ${s}`);
@@ -590,11 +732,25 @@ async function playerView(id) {
         p.expiredBuffs.length ? el("details", {}, el("summary", { class: "dim" }, `Buff đã hết hạn (${p.expiredBuffs.length})`),
           el("div", { class: "list" }, p.expiredBuffs.map((b) => el("div", { class: "dim" }, `${BUFFS[b.stat]?.[0] ?? b.stat} ${b.pct}% · hết ${when(b.expires_at)}${b.note ? ` · ${b.note}` : ""} · bởi ${b.created_by}`)))) : null));
 
-      // ---- the bag
+      // ---- the bag: the pills, and every book or material they hold; any item can be given from the picker
       const bag = el("div", { class: "card" }, el("h3", {}, "Túi đồ"));
-      for (const it of items)
-        bag.append(stepper(it.name, p.inventory[it.item_key] ?? 0, it.on_sale ? null : "ngừng bán", (op, value) => act(() => api(`/players/${p.id}/items`, { method: "POST", body: { item: it.item_key, op, value } }), `${it.name}: đã cập nhật.`)));
+      for (const it of items.filter((i) => (i.kind ?? "pill") === "pill" || (p.inventory[i.item_key] ?? 0) > 0))
+        bag.append(stepper(it.name, p.inventory[it.item_key] ?? 0, it.kind === "pill" ? (it.on_sale ? null : "ngừng bán") : it.kind === "book" ? "bí kíp" : "nguyên liệu", (op, value) => act(() => api(`/players/${p.id}/items`, { method: "POST", body: { item: it.item_key, op, value } }), `${it.name}: đã cập nhật.`)));
+      const give = el("select", {}, ITEM_KIND.map(([k, l]) => el("optgroup", { label: l }, items.filter((i) => (i.kind ?? "pill") === k).map((i) => el("option", { value: i.item_key }, i.name)))));
+      const gqty = el("input", { type: "number", min: 1, step: 1, value: 1, inputmode: "numeric" });
+      bag.append(el("div", { class: "bar" }, give, gqty, el("button", { class: "small", onclick: () => act(() => api(`/players/${p.id}/items`, { method: "POST", body: { item: give.value, op: "add", value: Number(gqty.value) } }), "Đã tặng.") }, "Tặng")));
       parts.push(bag);
+
+      // ---- công pháp: what they learned, the bar; teach or take back without spending anything
+      const known = new Set(p.learned);
+      const artName = (k) => arts.find((a) => a.art_key === k)?.name ?? k;
+      const teach = el("select", {}, arts.filter((a) => !a.starter && !known.has(a.art_key)).map((a) => el("option", { value: a.art_key }, `${a.name} (bậc ${a.tier})`)));
+      parts.push(el("div", { class: "card" }, el("h3", {}, `Công pháp (${p.learned.length} đã lĩnh ngộ)`),
+        el("p", { class: "dim" }, `Thanh nút: ${p.slots.map((k, i) => `${i + 1}. ${k ? artName(k) : "trống"}`).join(" · ")}`),
+        el("div", { class: "chips" }, p.learned.length ? p.learned.map((k) => el("span", { class: "chip" }, el("span", {}, artName(k)),
+          el("button", { class: "small danger", title: "Lấy lại", onclick: () => confirm(`Lấy lại ${artName(k)}? (Không hoàn vật phẩm.)`) && act(() => api(`/players/${p.id}/arts`, { method: "POST", body: { key: k, learn: false } }), "Đã lấy lại.") }, "✕")))
+          : el("span", { class: "dim" }, "Chưa lĩnh ngộ môn nào (ngoài các môn ai cũng biết).")),
+        el("div", { class: "bar" }, teach, el("button", { class: "small", onclick: () => teach.value && act(() => api(`/players/${p.id}/arts`, { method: "POST", body: { key: teach.value, learn: true } }), "Đã truyền công pháp.") }, "Truyền thụ"))));
 
       // ---- name and look
       const nm = el("input", { value: p.name });

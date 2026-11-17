@@ -45,16 +45,23 @@ export const mitigate = (def) => 100 / (100 + def);
 // Skill types the server knows: melee (an arc in front: range, arc), bolt (a projectile: range, speed, r), zone (an area
 // some way ahead that hits after a beat and slows: dist, r, delay, slow, slowDur). cd in seconds, mult x attack, px.
 export const SKILL_PARAMS = { melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur"] };
+// Công pháp (arts): learned with items, up to ART_SLOTS of them on the bar at once. Each type's numbers (see
+// shared/arts-seed.js); `stat` is the one string among them.
+export const ART_PARAMS = {
+  melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur"], nova: ["r", "delay", "slow", "slowDur"],
+  dash: ["dist", "r"], heal: ["pct"], buff: ["stat", "pct", "dur"],
+};
+export const ART_SLOTS = 5;
+export const ART_AT = ["front", "self", "target", "bolt"];
+export const ITEM_KINDS = ["pill", "book", "material"];
+const PARAM_MAX = { arc: 6.3, slow: 0.95, pct: 500, dur: 600 };
 // the monster types the game can draw; their numbers are free to change
 export const MONSTER_TYPES = ["dummy", "ghost"];
 
 export const DEFAULTS = {
   realms: ["Luyện Khí", "Trúc Cơ", "Kim Đan", "Nguyên Anh", "Hóa Thần", "Luyện Hư", "Hợp Thể", "Đại Thừa", "Độ Kiếp"].map((name) => ({ name, stages: 5 })),
-  skills: [
-    { slot: 0, name: "Kiếm Khí Trảm", type: "melee", cd: 0.6, mult: 0.85, params: { range: 54, arc: 1.4 } },
-    { slot: 1, name: "Phi Kiếm", type: "bolt", cd: 2.5, mult: 1.5, params: { range: 240, speed: 360, r: 10 } },
-    { slot: 2, name: "Lôi Ấn Trận", type: "zone", cd: 9, mult: 1.4, params: { dist: 110, r: 60, delay: 0.35, slow: 0.5, slowDur: 2.5 } },
-  ],
+  // the basic attack on the big button; every other art is in the arts table (shared/arts-seed.js)
+  skills: [{ slot: 0, name: "Kiếm Khí Trảm", type: "melee", cd: 0.6, mult: 0.85, params: { range: 54, arc: 1.4 } }],
   items: [
     { key: "hoixuan", name: "Hồi Xuân Đan", desc: "Hồi 40% sinh lực. Không dùng được trong đấu trường", price: 12, heal: 0.4, expBase: 0, expPerLevel: 0, cd: 15, onSale: true, sort: 1 },
     { key: "tukhi", name: "Tụ Khí Đan", desc: "Tăng tu vi ngay lập tức", price: 40, heal: 0, expBase: 150, expPerLevel: 30, cd: 1, onSale: true, sort: 2 },
@@ -98,7 +105,11 @@ export const REALMS = []; // [{ name, stages }]
 export let MAX_LEVEL = 1;
 export const CLASS = "tu";
 export const CLASSES = { tu: { name: "Tu Sĩ", hp: 0, atk: 0, def: 0, spd: 0, skills: [] } };
-export const ITEMS = {}; // key -> { name, desc, price, heal, cd, onSale, sort, exp(L) }
+export const ITEMS = {}; // key -> { name, kind, desc, price, heal, cd, onSale, sort, exp(L) }
+export const ARTS = {}; // key -> { key, name, desc, element, tier, type, cd, mult, ...params, fx, at, life, starter, sort, reqs: [{ item, qty }] }
+export const ART_LIST = []; // the enabled arts in display order
+export const STARTER_ARTS = []; // known by everyone; what a fresh bar holds
+export const DROPS = {}; // monster type or "*" -> [{ item, chance, min, max }]
 export const MONSTERS = {}; // type -> { name, hp, atk, def, spd, respawn, stones, aggro, reach, cd, mult, exp(L) }
 export const PVP = {};
 export const MEDITATE = {};
@@ -131,7 +142,7 @@ export function checkConfig(c) {
   if (!Array.isArray(c.realms) || !c.realms.length) throw new Error("Cần ít nhất một cảnh giới");
   const realms = c.realms.map((r, i) => ({ name: str(r.name, `cảnh giới ${i + 1}`, 32), stages: num(r.stages, `số tầng của ${r.name}`, 1, 20) | 0 }));
   if (realms.reduce((a, r) => a + r.stages, 0) > 500) throw new Error("Tổng số tầng tối đa 500");
-  const skills = [0, 1, 2].map((slot) => {
+  const skills = [0].map((slot) => {
     const s = c.skills?.find((x) => Number(x.slot) === slot);
     if (!s) throw new Error(`Thiếu chiêu ô ${slot}`);
     if (!SKILL_PARAMS[s.type]) throw new Error(`Chiêu ${slot}: loại "${s.type}" không có (melee, bolt, zone)`);
@@ -148,7 +159,9 @@ export function checkConfig(c) {
       name: str(it.name, `tên ${key}`), desc: String(it.desc ?? "").slice(0, 200), price: num(it.price, `giá ${key}`) | 0,
       heal: num(it.heal ?? 0, `hồi máu ${key}`, 0, 1), expBase: num(it.expBase ?? 0, `tu vi ${key}`) | 0, expPerLevel: num(it.expPerLevel ?? 0, `tu vi/cấp ${key}`) | 0,
       cd: num(it.cd ?? 1, `hồi ${key}`, 0.2, 3600), onSale: it.onSale !== false && it.onSale !== 0, sort: Number(it.sort) || 0,
+      kind: it.kind ?? "pill",
     };
+    if (!ITEM_KINDS.includes(items[key].kind)) throw new Error(`Vật phẩm ${key}: loại "${it.kind}" không có (${ITEM_KINDS.join(", ")})`);
   }
   const monsters = {};
   for (const m of c.monsters ?? []) {
@@ -161,7 +174,47 @@ export function checkConfig(c) {
     };
   }
   for (const t of MONSTER_TYPES) if (!monsters[t]) throw new Error(`Thiếu yêu thú ${t}`);
-  return { realms, skills, items, monsters, settings: S };
+  for (const m of c.monsters ?? []) if (monsters[m.type]) monsters[m.type].commonDrops = m.commonDrops !== false && m.commonDrops !== 0;
+  const arts = {};
+  for (const a of c.arts ?? []) {
+    const key = str(a.key, "mã công pháp", 32);
+    if (!/^[a-z0-9_]+$/.test(key)) throw new Error(`Mã công pháp "${key}": chỉ chữ thường không dấu, số, _`);
+    if (!ART_PARAMS[a.type]) throw new Error(`Công pháp ${key}: loại "${a.type}" không có (${Object.keys(ART_PARAMS).join(", ")})`);
+    if (!ART_AT.includes(a.at)) throw new Error(`Công pháp ${key}: vị trí hiệu ứng "${a.at}" không có (${ART_AT.join(", ")})`);
+    if (a.fx && !/^[a-z]+\/[a-z0-9-]+$/.test(a.fx)) throw new Error(`Công pháp ${key}: hiệu ứng "${a.fx}" sai dạng (vd fire/fireball)`);
+    let params;
+    try {
+      params = typeof a.params === "string" ? JSON.parse(a.params) : a.params ?? {};
+    } catch {
+      throw new Error(`Công pháp ${key}: params không phải JSON`);
+    }
+    const out = {
+      key, name: str(a.name, `tên công pháp ${key}`, 30), desc: String(a.desc ?? "").slice(0, 200), element: String(a.element ?? ""), tier: num(a.tier ?? 1, `bậc ${key}`, 1, 9) | 0,
+      type: a.type, cd: num(a.cd, `hồi chiêu ${key}`, 0.1, 3600), mult: num(a.mult ?? 0, `hệ số ${key}`, 0, 50), fx: String(a.fx ?? ""), at: a.at,
+      life: num(a.life ?? 0, `thời gian hiệu ứng ${key}`, 0, 60), starter: !!a.starter, enabled: a.enabled !== false && a.enabled !== 0, sort: Number(a.sort) || 0, reqs: [],
+    };
+    for (const p of ART_PARAMS[a.type]) {
+      if (p === "stat") {
+        if (!["atk", "def", "spd"].includes(params.stat)) throw new Error(`Công pháp ${key}: stat phải là atk, def hoặc spd`);
+        out.stat = params.stat;
+      } else out[p] = num(params[p], `công pháp ${key} ${p}`, 0, PARAM_MAX[p] ?? 5000);
+    }
+    arts[key] = out;
+  }
+  for (const r of c.reqs ?? []) {
+    if (!arts[r.art]) throw new Error(`Yêu cầu: công pháp "${r.art}" không có`);
+    if (!items[r.item]) throw new Error(`Yêu cầu của ${r.art}: vật phẩm "${r.item}" không có`);
+    arts[r.art].reqs.push({ item: r.item, qty: num(r.qty, `số lượng ${r.item} cho ${r.art}`, 1, 9999) | 0 });
+  }
+  const drops = {};
+  for (const d of c.drops ?? []) {
+    if (d.monster !== "*" && !monsters[d.monster]) throw new Error(`Rơi đồ: yêu thú "${d.monster}" không có (hoặc * cho mọi yêu thú)`);
+    if (!items[d.item]) throw new Error(`Rơi đồ: vật phẩm "${d.item}" không có`);
+    const min = num(d.min, `số lượng tối thiểu ${d.item}`, 1, 999) | 0, max = num(d.max, `số lượng tối đa ${d.item}`, 1, 999) | 0;
+    if (max < min) throw new Error(`Rơi đồ ${d.item}: tối đa nhỏ hơn tối thiểu`);
+    (drops[d.monster] ??= []).push({ item: d.item, chance: num(d.chance, `tỉ lệ rơi ${d.item}`, 0, 1), min, max });
+  }
+  return { realms, skills, items, monsters, settings: S, arts, drops };
 }
 
 /** Make c the live numbers (checks it first; on error nothing changes and the error is thrown). Returns the checked c. */
@@ -181,6 +234,12 @@ export function applyConfig(c) {
   for (const [key, it] of Object.entries(k.items))
     ITEMS[key] = Object.assign(ITEMS[key] ?? {}, it, { exp: it.expBase || it.expPerLevel ? (L) => it.expBase + it.expPerLevel * L : undefined });
   for (const [t, m] of Object.entries(k.monsters)) MONSTERS[t] = Object.assign(MONSTERS[t] ?? {}, m, { exp: (L) => m.expBase + m.expPerLevel * L });
+  for (const key of Object.keys(ARTS)) if (!k.arts[key]) delete ARTS[key];
+  Object.assign(ARTS, k.arts);
+  ART_LIST.splice(0, ART_LIST.length, ...Object.values(k.arts).filter((a) => a.enabled).sort((a, b) => a.sort - b.sort || a.key.localeCompare(b.key)));
+  STARTER_ARTS.splice(0, STARTER_ARTS.length, ...ART_LIST.filter((a) => a.starter).map((a) => a.key));
+  for (const key of Object.keys(DROPS)) delete DROPS[key];
+  Object.assign(DROPS, k.drops);
   Object.assign(PVP, {
     exp: (L) => S["pvp.exp_base"] + S["pvp.exp_per_level"] * L, stones: S["pvp.stones"], rankWin: S["pvp.rank_win"], rankLose: S["pvp.rank_lose"],
     repeatCooldown: S["pvp.repeat_cooldown"], spawnProtect: S["pvp.spawn_protect"], respawn: S["pvp.respawn"],

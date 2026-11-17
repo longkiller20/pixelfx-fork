@@ -1,6 +1,8 @@
 // Screens: log in, make a character, play. Plus the shop, the leaderboard and the daily gift.
 import { createFrame, clearFrame, composite, painterFor } from "/pixelfx/core/index.js";
-import { ITEMS, DAILY_STONES, realmName, applyConfig } from "/shared/balance.js";
+import { ITEMS, DAILY_STONES, realmName, applyConfig, ARTS, ART_LIST, ART_SLOTS } from "/shared/balance.js";
+import { ELEMENTS } from "/shared/arts-seed.js";
+import { artIcon, artLine, elementName } from "./arts.js";
 import { loadAvatars, drawAvatar, partCanvas } from "./avatar.js";
 import { startGame } from "./game.js";
 
@@ -227,6 +229,8 @@ function play() {
   $("dailyBtn").classList.toggle("ready", !state.dailyClaimed);
   game = startGame({
     token, character: state.character, inventory: state.inventory, touch, refreshConfig,
+    // an empty slot on the bar opens the arts, ready to fill that slot
+    openArts: (slot) => artsPanel(slot),
     onFatal: (msg, relog) => {
       game = null;
       $("fatalMsg").textContent = msg;
@@ -301,6 +305,178 @@ $("shopBtn").addEventListener("click", async () => {
 });
 
 // ---------------------------------------------------------------- the wardrobe (Y Các): try on, buy and wear
+// ---------------------------------------------------------------- Công Pháp: learn arts, put five on the bar
+// An art is learned by spending what it needs (its bí kíp, its element's essence; Linh Tủy for the great ones), all of
+// which drop from monsters. Pick a slot of the bar above, then "Gán" on an art to put it there; an art already on the bar
+// moves (the two swap).
+$("artsBtn").addEventListener("click", () => artsPanel());
+function artsPanel(startSlot = -1) {
+  if (!game) return;
+  let sel = startSlot, show = "all", elem = "", text = "";
+  const wrap = document.createElement("div");
+  wrap.className = "artp";
+  const bar = document.createElement("div"), filters = document.createElement("div"), list = document.createElement("div"), bag = document.createElement("div");
+  bar.className = "bar5";
+  filters.className = "filters";
+  list.className = "list";
+  bag.className = "bag";
+  const st = () => game.arts(), inv = () => game.inventory();
+  const known = (a) => a.starter || st().learned.includes(a.key);
+  const can = (a) => a.reqs.every((r) => (inv()[r.item] ?? 0) >= r.qty);
+  const icon = (key, img) => artIcon(key, (url) => url && (img.src = url));
+
+  const save = async (slots) => {
+    try {
+      const out = await call("/arts/equip", { method: "POST", body: { slots } });
+      game.setArts(out.character);
+      draw();
+    } catch (err) {
+      alertIn(wrap, err.message);
+    }
+  };
+  const put = (key) => {
+    const slots = st().slots.slice(), at = sel >= 0 ? sel : slots.indexOf(null) >= 0 ? slots.indexOf(null) : 0, was = slots.indexOf(key);
+    if (was >= 0) slots[was] = slots[at];
+    slots[at] = key;
+    save(slots);
+  };
+
+  function drawBar() {
+    bar.replaceChildren();
+    st().slots.forEach((k, i) => {
+      const b = document.createElement("button");
+      b.className = "slot" + (sel === i ? " sel" : "");
+      b.title = k ? `${ARTS[k]?.name} (ô ${i + 1})` : `Ô ${i + 1} trống`;
+      b.innerHTML = `<b>${i + 1}</b>`;
+      if (k) {
+        const img = new Image();
+        img.alt = "";
+        icon(k, img);
+        b.append(img);
+      }
+      b.addEventListener("click", () => ((sel = sel === i ? -1 : i), draw()));
+      bar.append(b);
+    });
+    const hint = document.createElement("span");
+    hint.className = "hint";
+    hint.textContent = sel >= 0 ? `Đang chọn ô ${sel + 1}: bấm "Gán" trên một công pháp đã lĩnh ngộ.` : "Chọn một ô rồi bấm \"Gán\", hoặc bấm \"Gán\" để đặt vào ô trống đầu tiên.";
+    bar.append(hint);
+    if (sel >= 0 && st().slots[sel]) {
+      const clr = document.createElement("button");
+      clr.textContent = "Gỡ khỏi ô";
+      clr.addEventListener("click", () => {
+        const slots = st().slots.slice();
+        slots[sel] = null;
+        save(slots);
+      });
+      bar.append(clr);
+    }
+  }
+
+  // filters: which arts, which element, a name
+  const showSel = document.createElement("select"), elemSel = document.createElement("select"), search = document.createElement("input");
+  for (const [v, l] of [["all", "Tất cả"], ["known", "Đã lĩnh ngộ"], ["ready", "Đủ vật phẩm"], ["locked", "Chưa lĩnh ngộ"]]) showSel.append(new Option(l, v));
+  elemSel.append(new Option("Mọi hệ", ""));
+  for (const [k, e] of Object.entries(ELEMENTS)) elemSel.append(new Option(e.name, k));
+  search.placeholder = "Tìm công pháp...";
+  search.type = "search";
+  showSel.onchange = () => ((show = showSel.value), drawList());
+  elemSel.onchange = () => ((elem = elemSel.value), drawList());
+  search.oninput = () => ((text = search.value.trim().toLowerCase()), drawList());
+  filters.append(showSel, elemSel, search);
+
+  // icons are drawn only for the cards that scroll into view
+  const seen = new IntersectionObserver((es) => {
+    for (const e of es)
+      if (e.isIntersecting) {
+        seen.unobserve(e.target);
+        icon(e.target.dataset.key, e.target);
+      }
+  }, { root: list });
+
+  function drawList() {
+    list.replaceChildren();
+    const arts = ART_LIST.filter((a) => (!elem || a.element === elem) && (!text || a.name.toLowerCase().includes(text)) &&
+      (show === "all" || (show === "known" && known(a)) || (show === "ready" && !known(a) && can(a)) || (show === "locked" && !known(a))));
+    arts.sort((a, b) => known(b) - known(a) || can(b) - can(a) || a.tier - b.tier || a.sort - b.sort);
+    for (const a of arts) {
+      const card = document.createElement("div"), k = known(a), on = st().slots.indexOf(a.key);
+      card.className = "card" + (k ? " known" : "");
+      const img = new Image();
+      img.alt = "";
+      img.dataset.key = a.key;
+      seen.observe(img);
+      const body = document.createElement("div");
+      const h = document.createElement("h4");
+      h.innerHTML = `${a.name} <small>· ${elementName(a.element)} · bậc ${a.tier}</small>`;
+      const line = document.createElement("p");
+      line.textContent = artLine(a) + (a.desc ? `. ${a.desc}` : "");
+      body.append(h, line);
+      if (!k) {
+        const req = document.createElement("div");
+        req.className = "req";
+        for (const r of a.reqs) {
+          const have = inv()[r.item] ?? 0, sp = document.createElement("span");
+          sp.className = have >= r.qty ? "ok" : "";
+          sp.textContent = `${ITEMS[r.item]?.name ?? r.item} ${Math.min(have, r.qty)}/${r.qty}`;
+          req.append(sp);
+        }
+        body.append(req);
+      }
+      const acts = document.createElement("div");
+      acts.className = "acts";
+      const b = document.createElement("button");
+      if (k) {
+        b.textContent = on >= 0 ? `Ở ô ${on + 1}${sel >= 0 && sel !== on ? ` → ô ${sel + 1}` : ""}` : sel >= 0 ? `Gán vào ô ${sel + 1}` : "Gán";
+        b.disabled = on >= 0 && (sel < 0 || sel === on);
+        b.addEventListener("click", () => put(a.key));
+      } else {
+        b.textContent = "Lĩnh ngộ";
+        b.disabled = !can(a);
+        b.title = can(a) ? "Tiêu hao các vật phẩm trên" : "Chưa đủ vật phẩm (rơi từ yêu thú)";
+        b.addEventListener("click", async () => {
+          if (!confirm(`Lĩnh ngộ ${a.name}? Sẽ tiêu hao: ${a.reqs.map((r) => `${ITEMS[r.item]?.name ?? r.item} ×${r.qty}`).join(", ")}.`)) return;
+          b.disabled = true;
+          try {
+            const out = await call("/arts/learn", { method: "POST", body: { key: a.key } });
+            game.setInventory(out.inventory);
+            game.setArts(out.character);
+            draw();
+          } catch (err) {
+            alertIn(wrap, err.message);
+            b.disabled = false;
+          }
+        });
+      }
+      acts.append(b);
+      body.append(acts);
+      card.append(img, body);
+      list.append(card);
+    }
+    if (!arts.length) list.textContent = "Không có công pháp nào khớp.";
+  }
+
+  function drawBag() {
+    const items = Object.entries(inv()).filter(([k, n]) => n > 0 && ITEMS[k] && ITEMS[k].kind !== "pill");
+    bag.replaceChildren(Object.assign(document.createElement("b"), { textContent: "Túi: " }));
+    if (!items.length) bag.append("chưa có bí kíp hay tinh thạch nào. Hạ yêu thú để nhặt.");
+    for (const [k, n] of items.sort((a, b) => ITEMS[a[0]].sort - ITEMS[b[0]].sort)) {
+      const sp = document.createElement("span");
+      sp.textContent = `${ITEMS[k].name} ×${n}`;
+      sp.title = ITEMS[k].desc;
+      bag.append(sp);
+    }
+  }
+  function draw() {
+    drawBar();
+    drawList();
+    drawBag();
+  }
+  wrap.append(bar, filters, list, bag);
+  draw();
+  panel(`Công Pháp (${ART_LIST.filter(known).length}/${ART_LIST.length} đã lĩnh ngộ)`, wrap);
+}
+
 $("wardBtn").addEventListener("click", async () => {
   let w, me;
   try {
@@ -425,8 +601,9 @@ $("dailyBtn").addEventListener("click", async () => {
 $("helpBtn").addEventListener("click", () => {
   const d = document.createElement("div");
   d.className = "help";
-  d.innerHTML = `<p><b>Máy tính:</b> A/D hoặc ←/→ để đi, W/↑/Space để nhảy, S + nhảy để xuống khỏi ván gỗ. Chuột để ngắm. J/K/L (hoặc 1/2/3, chuột trái/phải) dùng chiêu. 4: Hồi Xuân Đan, 5: Tụ Khí Đan. Enter để trò chuyện.</p>
-  <p><b>Điện thoại:</b> kéo ngón tay trái/phải bên trái màn hình để đi; góc phải là cụm nút kiểu MOBA: nút to ở góc là Kiếm Khí Trảm, vòng quanh là Phi Kiếm, Lôi Ấn Trận và Nhảy (hình hạc), vòng ngoài là 2 đan dược. Giữ nút Nhảy rồi vuốt xuống để rơi xuyên ván gỗ hoặc đài mây; chiêu tự nhắm kẻ địch gần nhất.</p>
+  d.innerHTML = `<p><b>Máy tính:</b> A/D hoặc ←/→ để đi, W/↑/Space để nhảy, S + nhảy để xuống khỏi ván gỗ. Chuột để ngắm. J (hoặc chuột trái) đánh thường; K/L/U/I/O (hoặc 1-5, chuột phải cho ô 1) dùng 5 công pháp trên thanh. Z: Hồi Xuân Đan, X: Tụ Khí Đan. Enter để trò chuyện.</p>
+  <p><b>Điện thoại:</b> kéo ngón tay trái/phải bên trái màn hình để đi; góc phải là cụm nút kiểu MOBA: nút to ở góc là Kiếm Khí Trảm (đánh thường), vòng trong là 2 công pháp đầu và Nhảy (hình hạc), vòng ngoài là 3 công pháp còn lại, hàng dưới là 2 đan dược. Ô trống có dấu +: chạm vào để gán công pháp.</p>
+  <p><b>Công Pháp (nút 📜):</b> hơn 200 công pháp, mỗi môn cần bí kíp riêng và tinh thạch theo hệ (môn cao cần thêm Linh Tủy), đều rơi ngẫu nhiên khi hạ yêu thú. Đủ vật phẩm thì bấm Lĩnh ngộ; gán tối đa 5 môn lên thanh, đổi lúc nào cũng được. Giữ nút Nhảy rồi vuốt xuống để rơi xuyên ván gỗ hoặc đài mây; chiêu tự nhắm kẻ địch gần nhất.</p>
   <p><b>Y Các (👘):</b> thử và mua kiểu tóc, y phục mới bằng linh thạch; đồ đã mua mặc lại lúc nào cũng được.</p>
   <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (bệ đá dưới đĩa âm dương xoay, trước điện thờ) để tăng tu vi, tối đa mỗi ngày có hạn.</p>
   <p><b>Tân Thủ Thôn:</b> thôn khởi đầu, an toàn, không có yêu thú. Dưới gốc đào tiên có 2 bù nhìn rơm để thử chiêu: số sát thương hiện trên đầu, bù nhìn tự hồi máu khi để yên. Đi sang phải qua vườn đào, lên đồi; mũi tên vàng dưới chân bậc thang đá ở cuối thôn phía đông là lối ra (bản đồ mới sẽ mở sau).</p>

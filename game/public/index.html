@@ -100,6 +100,7 @@
         <button id="dailyBtn" title="Quà mỗi ngày">🎁</button>
         <button id="shopBtn" title="Đan Các">⚗</button>
         <button id="wardBtn" title="Y Các: tóc và y phục">👘</button>
+        <button id="artsBtn" title="Công Pháp: lĩnh ngộ và gán chiêu">📜</button>
         <button id="rankBtn" title="Bảng Phong Thần">🏆</button>
         <button id="helpBtn" title="Hướng dẫn">?</button>
         <button id="fsBtn" title="Toàn màn hình" aria-label="Toàn màn hình"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
@@ -115,11 +116,15 @@
       <!-- action buttons in a MOBA-style arc around the attack button, all within the right thumb's reach -->
       <div class="skills">
         <button data-skill="0" class="sk s1"><span class="nm"></span><span class="cdt"></span><kbd>J</kbd></button>
-        <button data-skill="1" class="sk s2"><span class="nm"></span><span class="cdt"></span><kbd>K</kbd></button>
-        <button data-skill="2" class="sk s3"><span class="nm"></span><span class="cdt"></span><kbd>L</kbd></button>
+        <!-- the five công pháp on the bar: arts the player learned and put there (the Công Pháp panel, 📜) -->
+        <button data-skill="1" class="sk art a1"><span class="nm"></span><span class="cdt"></span><kbd>K</kbd></button>
+        <button data-skill="2" class="sk art a2"><span class="nm"></span><span class="cdt"></span><kbd>L</kbd></button>
+        <button data-skill="3" class="sk art a3"><span class="nm"></span><span class="cdt"></span><kbd>U</kbd></button>
+        <button data-skill="4" class="sk art a4"><span class="nm"></span><span class="cdt"></span><kbd>I</kbd></button>
+        <button data-skill="5" class="sk art a5"><span class="nm"></span><span class="cdt"></span><kbd>O</kbd></button>
         <button id="jumpBtn" class="sk jump"><span class="nm">Nhảy</span><span class="cdt"></span><kbd>Space</kbd></button>
-        <button data-item="hoixuan" class="item i1" title="Hồi Xuân Đan (4)"><span class="ic"><img src="/xianxia/ui/ui_xianxia_item_pill_bottle.png" alt="Hồi Xuân Đan"></span><span class="qty">0</span><kbd>4</kbd></button>
-        <button data-item="tukhi" class="item i2" title="Tụ Khí Đan (5)"><span class="ic"><img src="/xianxia/ui/ui_xianxia_item_furnace.png" alt="Tụ Khí Đan"></span><span class="qty">0</span><kbd>5</kbd></button>
+        <button data-item="hoixuan" class="item i1" title="Hồi Xuân Đan (Z)"><span class="ic"><img src="/xianxia/ui/ui_xianxia_item_pill_bottle.png" alt="Hồi Xuân Đan"></span><span class="qty">0</span><kbd>Z</kbd></button>
+        <button data-item="tukhi" class="item i2" title="Tụ Khí Đan (X)"><span class="ic"><img src="/xianxia/ui/ui_xianxia_item_furnace.png" alt="Tụ Khí Đan"></span><span class="qty">0</span><kbd>X</kbd></button>
       </div>
       <div id="respawn" hidden>Đạo hữu đã tử trận. Hồi sinh sau <b id="respawnT">0</b>s</div>
     </div>

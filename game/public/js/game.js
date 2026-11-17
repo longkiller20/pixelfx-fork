@@ -1,7 +1,8 @@
 // The game in the browser: it shows what the server says is happening, and sends what the player presses.
 import { createFrame, clearFrame, createFx, composite, painterFor, hex, WHITE } from "/pixelfx/core/index.js";
 import { effects } from "/pixelfx/fx/index.js";
-import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL } from "/shared/balance.js";
+import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL, ARTS, ART_SLOTS } from "/shared/balance.js";
+import { artIcon, BLANK_ACTOR } from "./arts.js";
 import { mapInfo } from "/shared/maps/index.js";
 import { drawDummy } from "./art.js";
 import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
@@ -16,7 +17,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -24,6 +25,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
 
   // ---------------------------------------------------------------- state from the server
   let myId = 0, me = null, inv = { ...inventory };
+  // the five arts on the bar and the arts learned (the starters are known by everyone)
+  let arts = { slots: character?.slots ?? Array(ART_SLOTS).fill(null), learned: character?.learned ?? [] };
+  const boltFx = new Map(); // bolt id -> the effect riding it
   const infos = new Map(); // player id -> { name, look, lv }
   const snaps = []; // { at, P: Map, M: Map, B: [] }
   const casts = new Map(); // entity id -> { s, type, at }
@@ -62,7 +66,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         break;
       case "config":
         // an admin changed the numbers: fetch them, then redraw what shows them
-        refreshConfig?.().then(renderMe);
+        refreshConfig?.().then(() => (renderMe(), renderSlots()));
         break;
       case "pi":
         infos.set(m.id, m);
@@ -78,6 +82,17 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         inv = m.inv;
         renderInv();
         break;
+      case "arts":
+        arts = { slots: m.slots, learned: m.learned };
+        renderSlots();
+        onArts?.(arts);
+        break;
+      case "drop": {
+        const got = Object.entries(m.items).map(([k, n]) => `${ITEMS[k]?.name ?? k} ×${n}`).join(", ");
+        toast(`Nhặt được: ${got}`);
+        logLine(null, `Nhặt được ${got}.`, "sys");
+        break;
+      }
       case "s":
         onSnapshot(m);
         break;
@@ -114,23 +129,40 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   }
 
   const posOf = (id, s = snaps[snaps.length - 1]) => s?.P.get(id) ?? s?.M.get(id);
-  function addFx(id, x, y, opts = {}, follow = null) {
+  // life: seconds before a looping effect is told to stop (it then fades); loops get 1.6 s unless told otherwise
+  function addFx(id, x, y, opts = {}, follow = null, life = 0) {
     const mod = effects[id];
     if (!mod || fxs.length > 48) return;
-    fxs.push({ fx: createFx(mod, { seed: (Math.random() * 1e6) | 0, ...opts }), x, y, follow, dy: opts.dy ?? 0 });
+    const fx = createFx(mod, { seed: (Math.random() * 1e6) | 0, actor: BLANK_ACTOR, ...opts });
+    fxs.push({ fx, x, y, follow, dy: opts.dy ?? 0, until: life || mod.meta.loop ? performance.now() / 1000 + (life || 1.6) : 0 });
   }
+  // the avatar's casting pose for an art's type
+  const POSE = { melee: "melee", dash: "melee", bolt: "bolt", zone: "zone", nova: "zone", heal: "zone", buff: "zone" };
   function onEvent(e, s) {
     const now = performance.now() / 1000;
     switch (e.e) {
       case "cast": {
         const p = s.P.get(e.id), info = infos.get(e.id);
         if (!p || !info) break;
-        const sk = CLASSES[CLASS].skills[e.s];
-        casts.set(e.id, { s: e.s, type: sk.type, at: now });
-        const flip = e.ax < 0;
-        if (sk.type === "melee") addFx("melee/sword-slash", p.x + e.ax * 14, p.y - 4, { flip, palette: JADE }, null);
+        const sk = e.a ? ARTS[e.a] : CLASSES[CLASS].skills[0];
+        if (!sk) break;
+        casts.set(e.id, { s: e.s, type: POSE[sk.type] ?? "zone", at: now });
+        // the basic attack's jade crescent; an art draws its own effect (the "art" event)
+        if (!e.a) addFx("melee/sword-slash", p.x + e.ax * 14, p.y - 4, { flip: e.ax < 0, palette: JADE }, null);
         break;
       }
+      case "art": {
+        const a = ARTS[e.a];
+        if (!a?.fx || a.at === "bolt") break;
+        const flip = e.f < 0;
+        if (a.at === "front") addFx(a.fx, e.x + e.f * 10, e.y, { flip }, null, a.life);
+        else if (a.at === "self") addFx(a.fx, e.x, e.y, { flip }, e.id, a.life);
+        else addFx(a.fx, e.x, e.y, { flip }, null, a.life);
+        break;
+      }
+      case "drop":
+        addFx("pickups/loot-beam", e.x, e.y, {}, null, 1.4);
+        break;
       case "hit": {
         flashes.set(e.id, now);
         const t = posOf(e.id, s);
@@ -194,10 +226,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     const k = e.key.toLowerCase();
     keys.add(k);
     if (k === " ") e.preventDefault();
-    const sk = { j: 0, "1": 0, k: 1, "2": 1, l: 2, "3": 2 }[k];
+    // J: the basic attack; K L U I O (or 1-5): the five arts on the bar; Z X: the two pills
+    const sk = { j: 0, k: 1, l: 2, u: 3, i: 4, o: 5, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 }[k];
     if (sk !== undefined && !e.repeat) cast(sk);
-    if (k === "4" && !e.repeat) use("hoixuan");
-    if (k === "5" && !e.repeat) use("tukhi");
+    if (k === "z" && !e.repeat) use("hoixuan");
+    if (k === "x" && !e.repeat) use("tukhi");
   });
   addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
   addEventListener("blur", () => keys.clear());
@@ -294,6 +327,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     return best ? { ax: best.x - self.x, ay: best.y - self.y } : { ax: lastDir.x, ay: lastDir.y };
   }
   function cast(i) {
+    // an empty slot opens the list of arts, to put one there
+    if (i > 0 && !arts.slots[i - 1]) return openArts?.(i - 1);
     if (!me || me.respawn > 0) return;
     if (me.cd[i] > 0.05) return;
     send({ t: "cast", s: i, ...aim() });
@@ -344,17 +379,38 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       s.append(img, `${b.pct > 0 ? "+" : ""}${b.pct}%${left(b.left)}`);
       line.append(s);
     }
-    cls.skills.forEach((sk, i) => {
-      const b = document.querySelector(`[data-skill="${i}"]`);
-      b.querySelector(".nm").textContent = sk.name;
-      const left = me.cd[i];
-      b.style.setProperty("--cd", left > 0 ? left / sk.cd : 0);
-      b.querySelector(".cdt").textContent = left > 0.05 ? left.toFixed(left < 3 ? 1 : 0) : "";
-    });
+    showCooldowns();
     $("respawn").hidden = !(me.respawn > 0);
     $("respawnT").textContent = Math.ceil(me.respawn);
     $("medLeft").textContent = me.medLeft;
   }
+  // the basic attack and the five slots: what's on each, and how long until it's ready
+  const slotSkill = (i) => (i === 0 ? CLASSES[CLASS].skills[0] : ARTS[arts.slots[i - 1]]);
+  function showCooldowns() {
+    for (let i = 0; i <= ART_SLOTS; i++) {
+      const b = document.querySelector(`[data-skill="${i}"]`), sk = slotSkill(i), left = me?.cd?.[i] ?? 0;
+      if (!b) continue;
+      b.style.setProperty("--cd", sk && left > 0 ? Math.min(1, left / sk.cd) : 0);
+      b.querySelector(".cdt").textContent = sk && left > 0.05 ? left.toFixed(left < 3 ? 1 : 0) : "";
+    }
+  }
+  function renderSlots() {
+    const b0 = document.querySelector('[data-skill="0"]');
+    b0.querySelector(".nm").textContent = CLASSES[CLASS].skills[0]?.name ?? "";
+    for (let i = 1; i <= ART_SLOTS; i++) {
+      const b = document.querySelector(`[data-skill="${i}"]`), a = ARTS[arts.slots[i - 1]];
+      b.classList.toggle("empty", !a);
+      b.title = a ? a.name : "Ô trống: chạm để gán công pháp";
+      b.querySelector(".nm").textContent = a ? a.name : "";
+      if (!a) b.style.removeProperty("--icon");
+      else {
+        const key = a.key;
+        artIcon(key, (url) => arts.slots[i - 1] === key && url && b.style.setProperty("--icon", `url(${url})`));
+      }
+    }
+    showCooldowns();
+  }
+  renderSlots();
   function renderInv() {
     for (const b of document.querySelectorAll("[data-item]")) b.querySelector(".qty").textContent = inv[b.dataset.item] ?? 0;
   }
@@ -613,6 +669,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         const e = drawn.get(f.follow);
         if (e) (f.x = e.x), (f.y = e.y);
       }
+      if (f.until && now > f.until) (f.fx.stop(), (f.until = 0));
       if (f.fx.done()) fxs.splice(i, 1);
     }
     for (const f of fxs) if (on(f.x, f.y)) (place(f.fx, f.x, f.y), f.fx.draw(frame, "back"));
@@ -620,7 +677,25 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     // everyone, back to front
     const list = [...drawn.values()].filter((e) => on(e.x, e.y)).sort((a, b) => a.y - b.y);
     for (const e of list) drawEntity(p, e, now);
-    for (const b of snaps[snaps.length - 1]?.B ?? []) drawBolt(p, b, now);
+    const live = new Set();
+    for (const b of snaps[snaps.length - 1]?.B ?? []) {
+      const a = b[6] && ARTS[b[6]];
+      if (!a || !a.fx) drawBolt(p, b, now);
+      else if (a.at === "bolt") {
+        // the art's own effect rides the projectile, turned the way it flies
+        live.add(b[0]);
+        let f = boltFx.get(b[0]);
+        if (!f && effects[a.fx]) boltFx.set(b[0], (f = createFx(effects[a.fx], { seed: b[0], flip: b[4] < 0, actor: BLANK_ACTOR })));
+        if (!f) continue;
+        f.update(dt);
+        f.options.x = Math.round(b[2] - camX);
+        f.options.y = Math.round(b[3] - camY - 30 + (f.meta.origin ? 0 : 0));
+        f.draw(frame, "back");
+        f.draw(frame, "front");
+      }
+      // an art whose effect already shows the throw (at: front) flies unseen
+    }
+    for (const id of boltFx.keys()) if (!live.has(id)) boltFx.delete(id);
     for (const f of fxs) if (on(f.x, f.y)) (place(f.fx, f.x, f.y), f.fx.draw(frame, "front"));
     for (const a of ambient) if (on(a.x, a.y)) (place(a.fx, a.x, a.y), a.fx.draw(frame, "front"));
     drawPortalArrows(p, now, on);
@@ -632,12 +707,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       // count cooldowns down between server updates
       me.cd = me.cd.map((c) => Math.max(0, c - dt));
       if (me.respawn > 0) me.respawn = Math.max(0, me.respawn - dt);
-      for (let i = 0; i < 3; i++) {
-        const b = document.querySelector(`[data-skill="${i}"]`), sk = CLASSES[CLASS].skills[i];
-        if (!sk) continue;
-        b.style.setProperty("--cd", me.cd[i] > 0 ? me.cd[i] / sk.cd : 0);
-        b.querySelector(".cdt").textContent = me.cd[i] > 0.05 ? me.cd[i].toFixed(me.cd[i] < 3 ? 1 : 0) : "";
-      }
+      showCooldowns();
     }
     requestAnimationFrame(render);
   }
@@ -780,5 +850,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     // any pill, including ones an admin added that have no button of their own on the HUD
     use,
     inventory: () => inv,
+    arts: () => arts,
+    // the panel changed the bar: show it now (the server confirms with an "arts" message too)
+    setArts(v) {
+      arts = { slots: v.slots, learned: v.learned };
+      renderSlots();
+    },
+    refreshSlots: renderSlots,
   };
 }

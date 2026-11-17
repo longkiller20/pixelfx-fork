@@ -255,13 +255,80 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
     assert.ok(mineGem?.special && !mineGem.onSale && after.owned.includes(gem.id), "given: it is theirs, marked special");
     assert.equal((await call("/cosmetics/wear", { token: q2.token, method: "POST", body: { id: gem.id } })).data.character.look.weapon, 90, "and in their hand");
 
+    // công pháp: learning spends every required item exactly once, even when the same learn (or two arts that need the
+    // same essence) arrive together; the bar holds only known arts, none twice; a monster's drop lands in the bag
+    {
+      const P = await player(), [pu] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [P.name]);
+      const m0 = await me(P.token);
+      assert.deepEqual(m0.character.slots, ["phikiem", "loian", null, null, null], "a fresh bar: the two arts everyone knows");
+      assert.equal((await call("/arts/learn", { token: P.token, method: "POST", body: { key: "fire_fireball" } })).status, 409, "nothing in the bag: refused");
+      const art = (await adm("/t/art_reqs", { token })).data.filter((r) => r.art_key === "fire_fireball");
+      for (const r of art) await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: r.item_key, op: "add", value: r.qty } });
+      const tries = await Promise.all(Array.from({ length: 6 }, () => call("/arts/learn", { token: P.token, method: "POST", body: { key: "fire_fireball" } })));
+      assert.equal(tries.filter((x) => x.status === 200).length, 1, "six learns at once: one goes through");
+      const after = await me(P.token);
+      assert.ok(after.character.learned.includes("fire_fireball") && after.character.slots[2] === "fire_fireball", "learned, and on the first empty slot");
+      for (const r of art) assert.equal(after.inventory[r.item_key] ?? 0, 0, `${r.item_key} spent once`);
+      // two other arts and a repeat of one, all at once: each learned once, every item spent exactly once
+      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "bk_fire_spirit_flame", op: "add", value: 1 } });
+      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "bk_fire_flame_pillar", op: "add", value: 1 } });
+      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "mat_am", op: "add", value: 3 } });
+      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "mat_hoa", op: "add", value: 6 } });
+      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "mat_linhtuy", op: "add", value: 1 } });
+      const two = await Promise.all(["fire_spirit_flame", "fire_flame_pillar", "fire_spirit_flame"].map((key) => call("/arts/learn", { token: P.token, method: "POST", body: { key } })));
+      assert.equal(two.filter((x) => x.status === 200).length, 2, "two arts, once each; the repeat is refused");
+      const inv2 = (await me(P.token)).inventory;
+      assert.ok(!inv2.mat_am && !inv2.mat_hoa && !inv2.mat_linhtuy, "every essence spent exactly once");
+      // the bar: unknown arts and the same art twice are refused; a good bar is live in the world at once
+      const eq = (slots) => call("/arts/equip", { token: P.token, method: "POST", body: { slots } });
+      assert.equal((await eq(["nuke", null, null, null, null])).status, 400);
+      assert.equal((await eq(["explosions_nuke", null, null, null, null])).status, 403, "not learned");
+      assert.equal((await eq(["fire_fireball", "fire_fireball", null, null, null])).status, 400, "not twice");
+      const c3 = await connect(P.token);
+      await sleep(300);
+      assert.equal((await eq(["fire_fireball", "phikiem", null, "fire_flame_pillar", null])).status, 200);
+      await sleep(200);
+      assert.deepEqual(c3.msgs.filter((m) => m.t === "arts").pop().slots, ["fire_fireball", "phikiem", null, "fire_flame_pillar", null], "the online player's bar changed");
+      send(c3, { t: "cast", s: 1, ax: 1, ay: 0 });
+      send(c3, { t: "cast", s: 3, ax: 1, ay: 0 }); // an empty slot does nothing
+      await sleep(300);
+      const casts = c3.msgs.filter((m) => m.t === "s").flatMap((m) => m.E).filter((e) => e.e === "cast" && e.id === c3.id);
+      assert.deepEqual(casts.map((e) => e.a), ["fire_fireball"], "slot 1 casts the fireball; the empty slot nothing");
+      assert.ok(c3.me.cd[1] > 1, "and its cooldown runs");
+      // an admin takes it back: it leaves the bar too
+      await adm(`/players/${pu.id}/arts`, { token, method: "POST", body: { key: "fire_fireball", learn: false } });
+      assert.equal((await me(P.token)).character.slots[0], null);
+      // drops: a dummy set to always drop two Huyền Thiết Tinh; break it and they are in the bag
+      const row = (await adm("/t/monster_drops", { token, method: "POST", body: { monster: "dummy", item_key: "mat_kim", chance: 1, min_qty: 2, max_qty: 2 } })).data;
+      try {
+        const d = c3.snap.M.find((m) => m[1] === 0);
+        for (let i = 0; i < 120; i++) {
+          const pos = c3.snap.P.find((x) => x[0] === c3.id), dx = d[2] + 30 - pos[1];
+          if (Math.abs(dx) < 6) break;
+          send(c3, { t: "in", dx: Math.sign(dx), jump: false, down: false });
+          await sleep(50);
+        }
+        send(c3, { t: "in", dx: 0, jump: false, down: false });
+        for (let i = 0; i < 60 && !c3.msgs.some((m) => m.t === "drop"); i++) {
+          send(c3, { t: "cast", s: 0, ax: -1, ay: 0 });
+          await sleep(650);
+        }
+        await sleep(300);
+        assert.deepEqual(c3.msgs.find((m) => m.t === "drop")?.items, { mat_kim: 2 }, "the drop is announced");
+        assert.equal((await me(P.token)).inventory.mat_kim, 2, "and in the bag");
+      } finally {
+        await adm(`/t/monster_drops/${row.id}`, { token, method: "DELETE" });
+        c3.ws.close();
+      }
+    }
+
     assert.equal((await adm(`/players/${u.id}/ban`, { token, method: "POST", body: { banned: true, reason: "thử" } })).status, 200);
     assert.equal((await call("/me", { token: p.token })).status, 401);
     assert.equal((await call("/login", { method: "POST", body: { username: u.username, password: "secret123" } })).status, 403);
   } finally {
     await q("DELETE FROM admins WHERE username = ?", [name]);
   }
-  ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs, bảo vật gifts and bans take effect");
+  ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs, bảo vật gifts, công pháp (learn once, 5-slot bar, drops) and bans take effect");
 }
 
 {
@@ -271,7 +338,8 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   assert.equal(M.mobs.filter((m) => m.type === "dummy").length, 2);
   const P = await player(), c = await connect(P.token);
   await sleep(300);
-  const d = c.snap.M.find((m) => m[1] === 0);
+  // a standing one (the công pháp check may just have broken the other)
+  const d = c.snap.M.find((m) => m[1] === 0 && !(m[6] & 1));
   // walk to just right of the dummy, face it and cut
   for (let i = 0; i < 80; i++) {
     const me = c.snap.P.find((q) => q[0] === c.id), dx = d[2] + 30 - me[1];
