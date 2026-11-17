@@ -230,8 +230,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     joy0 = appXY(e);
     pad.setPointerCapture(e.pointerId);
     // the base goes under the thumb: pad.offsetLeft/Top are in the app's own frame, rotated or not
-    base.style.left = `${joy0.x - pad.offsetLeft}px`;
-    base.style.top = `${joy0.y - pad.offsetTop}px`;
+    base.style.cssText = `left: ${joy0.x - pad.offsetLeft}px; top: ${joy0.y - pad.offsetTop}px; bottom: auto; margin: -30px 0 0 -74px`;
     base.classList.add("on");
   });
   pad.addEventListener("pointermove", (e) => {
@@ -246,6 +245,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     joy = { dx: 0 };
     knob.style.transform = "";
     base.classList.remove("on");
+    // back to its resting place
+    base.style.cssText = "";
   };
   pad.addEventListener("pointerup", joyEnd);
   pad.addEventListener("pointercancel", joyEnd);
@@ -303,6 +304,18 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   }
 
   // ---------------------------------------------------------------- HUD
+  // the "?" by the counters: what each icon means, for whoever is new
+  const legend = $("legend"), legendBtn = $("legendBtn");
+  legendBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    legend.hidden = !legend.hidden;
+    legendBtn.setAttribute("aria-expanded", String(!legend.hidden));
+  });
+  for (const ev of ["pointerdown", "keydown"])
+    addEventListener(ev, (e) => {
+      if (!legend.hidden && !legend.contains(e.target) && e.target !== legendBtn) (legend.hidden = true), legendBtn.setAttribute("aria-expanded", "false");
+    });
+
   const myInfo = () => infos.get(myId);
   function renderMe() {
     const info = myInfo();

@@ -78,6 +78,31 @@ def shrink(a, s):
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
+# the action buttons' icons: one frame of a grey effect from the pack, tinted (dark, mid, light), cropped and fitted to 64 px
+ICONS = {
+    "skill_s1": ("xf_moon_arc", 1, ((10, 60, 50), (60, 220, 160), (230, 255, 240))),  # Kiếm Khí Trảm: a jade crescent cut
+    "skill_s2": ("xf_flying_sword", 3, ((10, 40, 70), (80, 190, 255), (235, 250, 255))),  # Phi Kiếm: a ring of flying swords
+    "skill_s3": ("xf_tribulation", 2, ((50, 20, 90), (200, 140, 255), (255, 250, 200))),  # Lôi Ấn Trận: tribulation lightning
+    "skill_jump": ("xf_crane", 2, ((20, 50, 70), (170, 230, 255), (255, 255, 255))),  # Nhảy: a crane taking off
+}
+
+
+def skill_icons():
+    for out, (name, frame, (d, m, l)) in ICONS.items():
+        frames = sorted(os.listdir(os.path.join(PACK, "fx", name + "_frames")))
+        a = np.array(Image.open(os.path.join(PACK, "fx", name + "_frames", frames[frame])).convert("RGBA")).astype(np.float32)
+        ys, xs = np.nonzero(a[..., 3] > 40)
+        a = a[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+        lum = a[..., :3].mean(2, keepdims=True) / 255
+        d, m, l = (np.array(c, np.float32) for c in (d, m, l))
+        rgb = np.where(lum < 0.5, d + (m - d) * (lum / 0.5), m + (l - m) * ((lum - 0.5) / 0.5))
+        img = Image.fromarray(np.dstack([rgb, a[..., 3:]]).clip(0, 255).astype(np.uint8))
+        img.thumbnail((56, 56), Image.NEAREST)
+        canvas = Image.new("RGBA", (64, 64))
+        canvas.alpha_composite(img, ((64 - img.width) // 2, (64 - img.height) // 2))
+        canvas.save(os.path.join(OUT, "ui", out + ".png"))
+
+
 def main():
     os.makedirs(os.path.join(OUT, "bg"), exist_ok=True)
     os.makedirs(os.path.join(OUT, "ui"), exist_ok=True)
@@ -121,6 +146,7 @@ def main():
         shutil.copy(os.path.join(PACK, "backgrounds", n + ".png"), os.path.join(OUT, "bg", n + ".png"))
     for n in UI:
         shutil.copy(os.path.join(PACK, "ui", n + ".png"), os.path.join(OUT, "ui", n + ".png"))
+    skill_icons()
     shutil.copy(os.path.join(PACK, "LICENSE.txt"), os.path.join(OUT, "LICENSE.txt"))
     print("terrain", atlas.size, "weapons", sheet.shape[1], "x", sheet.shape[0], len(items), "items")
 

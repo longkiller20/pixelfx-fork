@@ -259,3 +259,81 @@ body.rotated .ward { grid-template-columns: 140px 1fr; gap: 8px; }
 @media (pointer: fine) { #view, #labels { cursor: url(/xianxia/ui/ui_xianxia_01_cursor_sword.png) 4 4, crosshair; } }
 .shop .item .ic { width: 32px; height: 32px; image-rendering: pixelated; flex: none; }
 .shop .item > div:not(:last-child) { flex: 1; }
+
+/* ================================================================ action buttons: a MOBA-style arc
+   The attack button sits big in the bottom-right corner; the two arts and jump ring it at one thumb-reach (100 px), the
+   pills on an outer ring. Everything is placed from the attack button's centre (--cx, --cy from the corner), so the
+   whole cluster scales as one on small screens. Icons are effects from the Xianxia Pixel Pack, tinted. */
+.skills { display: block; position: absolute; right: 0; bottom: 0; width: 290px; height: 290px; grid-template-columns: none; gap: 0;
+  pointer-events: none; transform-origin: 100% 100%; --cx: 78px; --cy: 74px; }
+.skills button { position: absolute; pointer-events: auto; padding: 0; border-radius: 50%; overflow: hidden;
+  border: 3px solid #c99a3a; box-shadow: 0 0 0 2px #2a1a08, 0 6px 14px #000a, inset 0 0 14px #000c;
+  background: radial-gradient(circle at 50% 40%, #2c2240, #0e0a18 72%) center / cover no-repeat;
+  right: calc(var(--cx) + var(--dx, 0px) - var(--s) / 2); bottom: calc(var(--cy) + var(--dy, 0px) - var(--s) / 2);
+  width: var(--s); height: var(--s); }
+.skills .sk::before { content: ""; position: absolute; inset: 14%; background: var(--icon) center / contain no-repeat; image-rendering: pixelated;
+  filter: drop-shadow(0 0 4px var(--glow, #6fe0b0)); }
+.skills .s1 { --s: 100px; --icon: url(/xianxia/ui/skill_s1.png); --glow: #5cf0a0; border-color: #f0c050; border-width: 4px;
+  box-shadow: 0 0 0 2px #3a2208, 0 0 18px #f0c05066, 0 6px 14px #000a, inset 0 0 18px #000c; }
+.skills .s2 { --s: 68px; --dx: 104px; --dy: -6px; --icon: url(/xianxia/ui/skill_s2.png); --glow: #7cc8ff; }
+.skills .s3 { --s: 68px; --dx: 80px; --dy: 72px; --icon: url(/xianxia/ui/skill_s3.png); --glow: #c896ff; }
+.skills .jump { --s: 68px; --dx: 4px; --dy: 106px; --icon: url(/xianxia/ui/skill_jump.png); --glow: #c8f0ff; border-color: #7fd8e8; }
+.skills .item { --s: 48px; border-width: 2px; border-color: #5cc890; background: radial-gradient(#1a3a28, #06100a 75%); }
+.skills .i1 { --dx: 168px; --dy: 22px; }
+.skills .i2 { --dx: 142px; --dy: 108px; }
+.skills .item .ic img { width: 30px; height: 30px; }
+.skills .nm { position: absolute; left: 0; right: 0; bottom: 12%; z-index: 1; font-size: 9px; line-height: 1.05; padding: 0 8px; color: #fff3d0;
+  text-shadow: 0 0 3px #000, 0 1px 2px #000; pointer-events: none; }
+.skills .s1 .nm { font-size: 10px; bottom: 10%; }
+.skills .cdt { z-index: 3; font-size: 20px; }
+.skills .s1 .cdt { font-size: 26px; }
+.skills kbd { z-index: 2; top: 3px; bottom: auto; font-size: 9px; color: #d8c8a0; background: #0008; border-radius: 4px; padding: 0 3px; }
+.skills .item kbd { top: auto; bottom: 1px; }
+.skills .item .qty { right: 6px; bottom: 4px; z-index: 2; }
+body.touch .skills .nm { display: none; }
+body.touch .skills .sk::before { inset: 12%; }
+.skills button:active { transform: scale(0.92); filter: brightness(1.25); }
+/* small landscape screens and phones turned by the page: the same arc, smaller */
+@media (max-height: 420px) { .skills { transform: scale(0.82); } }
+body.rotated .skills { transform: scale(0.82); }
+@media (max-height: 340px) { .skills { transform: scale(0.7); } }
+/* the joystick: a faint pad always showing where the thumb goes */
+body.touch #joybase { opacity: 0.45; left: 110px; top: auto; bottom: 80px; margin: 0 0 -30px -74px; border: 2px solid #f0c05055;
+  background: linear-gradient(90deg, #ffffff10, #ffffff22, #ffffff10); }
+body.touch #joybase.on { opacity: 0.95; }
+#joyknob { border: 2px solid #f0c050aa; background: radial-gradient(circle at 40% 35%, #fff6d0cc, #c99a3a88); box-shadow: 0 2px 8px #0008; }
+
+/* the character panel and the counters as one column (on small screens): never overlapping */
+.hudl { display: contents; }
+.legendBtn { width: 20px; height: 20px; border-radius: 50%; border: 1px solid #f0c05099; background: #2a1f10; color: var(--gold2);
+  font: 700 12px/1 system-ui, sans-serif; cursor: pointer; padding: 0; margin-left: 2px; align-self: center; }
+.legend { position: absolute; z-index: 6; top: 52px; left: 50%; transform: translateX(-50%); width: min(340px, 86vw); font-size: 12.5px;
+  border: 14px solid transparent; border-image: url(/xianxia/ui/ui_xianxia_panel_01_ink.png) 24 fill / 14px stretch; image-rendering: pixelated; }
+.legend > b { color: var(--gold2); font-size: 13px; }
+.legend p { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0 0; line-height: 1.35; }
+.legend p .ico { flex: none; margin-top: 1px; }
+.legend .sw { display: inline-block; width: 18px; height: 7px; vertical-align: 2px; flex: none; }
+.legend .sw.hp { background: url(/xianxia/ui/ui_xianxia_bar_01_hp.png) 0 0 / 100% 100%; }
+.legend .sw.exp { background: url(/xianxia/ui/ui_xianxia_bar_01_spirit.png) 0 0 / 100% 100%; }
+@media (max-height: 420px) {
+  .hudl { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; position: absolute; top: 6px; left: 8px; }
+  .hudl .me, .hudl .top { position: static; transform: none; }
+  .hudl .me { width: 190px; border-width: 9px; border-image-width: 9px; }
+  .me .nm { font-size: 11px; }
+  .me .nm span { font-size: 10px; }
+  .bar { height: 10px; margin-top: 2px; }
+  .bar span { line-height: 10px; font-size: 8px; }
+  .bar.exp { height: 8px; }
+  .bar.exp span { line-height: 8px; font-size: 7px; }
+  #statLine { font-size: 9px; }
+  .hudl .top { border-width: 7px; border-image-width: 7px; padding: 0 2px; font-size: 11px; gap: 8px; }
+  .hudl .top .ico { width: 14px; height: 14px; vertical-align: -3px; }
+  .legendBtn { width: 17px; height: 17px; font-size: 11px; }
+  .legend { left: 8px; top: 8px; transform: none; font-size: 11.5px; }
+  body.touch .chat { top: 132px; }
+}
+body.rotated .hudl { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; position: absolute; top: 6px; left: 8px; }
+body.rotated .hudl .me, body.rotated .hudl .top { position: static; transform: none; }
+body.rotated .hudl .me { width: 190px; border-width: 9px; border-image-width: 9px; }
+body.rotated .hudl .top { border-width: 7px; border-image-width: 7px; padding: 0 2px; font-size: 11px; gap: 8px; }
+body.rotated.touch .chat { top: 132px; }

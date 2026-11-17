@@ -115,6 +115,13 @@ Có HTTPS thì game tự dùng `wss://`.
 - Điều khiển: kéo ngón tay sang trái/phải ở nửa trái màn hình để đi (joystick chỉ trái/phải); nút Nhảy để nhảy, giữ nút Nhảy rồi vuốt xuống để rơi xuyên ván gỗ và đài mây.
   Bên phải có nút Nhảy, các nút chiêu và đan dược. Trên điện thoại, chiêu tự nhắm kẻ địch gần nhất.
 
+- **Cụm nút kiểu MOBA** ở góc phải dưới, trong tầm ngón cái phải:
+  - Nút to ở góc: Kiếm Khí Trảm (J).
+  - Vòng trong: Phi Kiếm (K) bên trái, Lôi Ấn Trận (L) chéo trên, Nhảy ngay phía trên.
+  - Vòng ngoài: 2 nút đan dược nhỏ.
+  - Icon chiêu lấy từ hiệu ứng của Xianxia Pixel Pack (CC0): trăng khuyết, vòng phi kiếm, sét thiên kiếp, hạc bay.
+  - Màn hình thấp (điện thoại ngang) thì cả cụm thu nhỏ đều lại, không đè lên nhau.
+
 ## Máy tính
 
 | Phím | Tác dụng |
