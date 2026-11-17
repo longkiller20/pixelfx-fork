@@ -71,8 +71,9 @@ export function flush(uid, d) {
   return userLock.run(uid, () => tx(async (c) => {
     if (d.exp || d.stones || d.rank || d.kills || d.deaths)
       await c.query(
-        `UPDATE characters SET exp = exp + ?, stones = stones + ?, rank_points = GREATEST(0, CAST(rank_points AS SIGNED) + ?),
-         kills = kills + ?, deaths = deaths + ? WHERE user_id = ?`,
+        `UPDATE characters SET exp = GREATEST(0, CAST(exp AS SIGNED) + ?), stones = GREATEST(0, CAST(stones AS SIGNED) + ?),
+         rank_points = GREATEST(0, CAST(rank_points AS SIGNED) + ?), kills = GREATEST(0, CAST(kills AS SIGNED) + ?),
+         deaths = GREATEST(0, CAST(deaths AS SIGNED) + ?) WHERE user_id = ?`,
         [d.exp | 0, d.stones | 0, d.rank | 0, d.kills | 0, d.deaths | 0, uid],
       );
     if (d.med > 0) {
@@ -199,6 +200,76 @@ export function wearCosmetic(uid, id) {
     await c.query(`UPDATE characters SET ${it.kind === "hair" ? "hair" : "robe"} = ? WHERE user_id = ?`, [it.idx, uid]);
     return loadCharacter(uid, c);
   }));
+}
+
+// ---------------------------------------------------------------- an admin's edits of one player
+// Every one runs under the player's userLock, the same lock the world's saves, purchases, pills and the daily gift take, and
+// writes with atomic SQL (col = col + ?), so it can't interleave with any of them. The character is read back inside the
+// lock, and onLoaded(ch) runs there too: the world takes the numbers before the next save can start (see World.refresh).
+
+/** Buffs still running for a player: [{ id, stat, pct, until (ms, null = for good), note, by, at }]. */
+export async function activeBuffs(uid, conn = null) {
+  const rows = await (conn ?? { query: q }).query(
+    "SELECT id, stat, pct, expires_at, note, created_by, created_at FROM player_buffs WHERE user_id = ? AND (expires_at IS NULL OR expires_at > NOW()) ORDER BY id",
+    [uid],
+  );
+  return rows.map((b) => ({ id: Number(b.id), stat: b.stat, pct: b.pct, until: b.expires_at ? new Date(b.expires_at).getTime() : null, note: b.note, by: b.created_by, at: b.created_at }));
+}
+
+function adminRun(uid, fn, onLoaded) {
+  return userLock.run(uid, async () => {
+    const ch = await tx(async (c) => {
+      const [has] = await c.query("SELECT 1 FROM characters WHERE user_id = ?", [uid]);
+      if (!has) throw new GameError("Người chơi này chưa có nhân vật.");
+      await fn(c);
+      return loadCharacter(uid, c);
+    });
+    onLoaded?.(ch);
+    return ch;
+  });
+}
+
+const ADJUST = { stones: "stones", exp: "exp", rank: "rank_points", kills: "kills", deaths: "deaths" };
+/** Add to (op "add", value may be negative; never below 0) or set (op "set") one of a player's numbers. */
+export function adminAdjust(uid, field, op, value, onLoaded) {
+  const col = ADJUST[field];
+  if (!col) throw new GameError("Không có chỉ số này.");
+  if (!Number.isInteger(value) || Math.abs(value) > 1e12 || (op === "set" && value < 0)) throw new GameError("Giá trị không hợp lệ.");
+  if (op !== "add" && op !== "set") throw new GameError("Thao tác không hợp lệ.");
+  return adminRun(uid, (c) => c.query(
+    op === "add" ? `UPDATE characters SET ${col} = GREATEST(0, CAST(${col} AS SIGNED) + ?) WHERE user_id = ?` : `UPDATE characters SET ${col} = ? WHERE user_id = ?`,
+    [value, uid],
+  ), onLoaded);
+}
+
+/** Give back today's meditation allowance. */
+export const adminResetMeditation = (uid, onLoaded) => adminRun(uid, (c) => c.query("UPDATE characters SET med_exp = 0, med_day = CURDATE() WHERE user_id = ?", [uid]), onLoaded);
+
+/** Name, gender, hair, robe (any of them). */
+export function adminLook(uid, ch, onLoaded) {
+  const set = Object.entries(ch);
+  if (!set.length) throw new GameError("Không có gì để lưu.");
+  return adminRun(uid, async (c) => {
+    try {
+      await c.query(`UPDATE characters SET ${set.map(([k]) => `${k} = ?`).join(", ")} WHERE user_id = ?`, [...set.map(([, v]) => v), uid]);
+    } catch (e) {
+      if (isDup(e)) throw new GameError("Đạo hiệu đã có người dùng.", 409);
+      throw e;
+    }
+  }, onLoaded);
+}
+
+/** Add to or set how many of an item a player holds (never below 0). Returns the inventory. */
+export function adminItem(uid, item, op, value) {
+  if (!/^[a-z0-9_]{1,32}$/.test(item)) throw new GameError("Mã vật phẩm không hợp lệ.");
+  if (!Number.isInteger(value) || Math.abs(value) > 1e6 || (op === "set" && value < 0)) throw new GameError("Số lượng không hợp lệ.");
+  return userLock.run(uid, async () => {
+    if (op === "set") await q("INSERT INTO inventory (user_id, item, qty) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qty = VALUES(qty)", [uid, item, value]);
+    else if (op === "add") await q("INSERT INTO inventory (user_id, item, qty) VALUES (?, ?, GREATEST(0, ?)) ON DUPLICATE KEY UPDATE qty = GREATEST(0, CAST(qty AS SIGNED) + ?)", [uid, item, value, value]);
+    else throw new GameError("Thao tác không hợp lệ.");
+    await q("DELETE FROM inventory WHERE user_id = ? AND item = ? AND qty = 0", [uid, item]);
+    return inventory(uid);
+  });
 }
 
 export const logPvp = (killer, victim, rewarded) => q("INSERT INTO pvp_log (killer_id, victim_id, rewarded) VALUES (?, ?, ?)", [killer, victim, rewarded ? 1 : 0]);

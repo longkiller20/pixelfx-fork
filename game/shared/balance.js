@@ -27,6 +27,17 @@ export const COSMETIC_KINDS = ["hair", "robe"];
 const idxOk = (v) => Number.isInteger(v) && v >= 0 && v < 1000;
 export const validLook = (g, hair, robe) => GENDERS.includes(g) && idxOk(hair) && idxOk(robe);
 
+// Buffs an admin can give one player, per stat, in percent (+20 = 20% more), with the range each allows.
+export const BUFF_STATS = {
+  hp: { name: "Sinh lực", min: -50, max: 500 },
+  atk: { name: "Công", min: -50, max: 500 },
+  def: { name: "Thủ", min: -50, max: 500 },
+  spd: { name: "Tốc độ", min: -50, max: 100 },
+  exp: { name: "Tu vi nhận được", min: -100, max: 1000 },
+  stones: { name: "Linh thạch nhận được", min: -100, max: 1000 },
+  med: { name: "Tốc độ tu luyện", min: -100, max: 1000 },
+};
+
 /** Damage taken after defense. */
 export const mitigate = (def) => 100 / (100 + def);
 

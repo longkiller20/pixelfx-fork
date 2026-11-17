@@ -118,6 +118,19 @@ const SCHEMA = [
     CONSTRAINT fk_own_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_own_item FOREIGN KEY (cosmetic_id) REFERENCES cosmetics(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
+  // buffs an admin gives one player: a percent on one stat, until a time or for good. They add up per stat.
+  `CREATE TABLE IF NOT EXISTS player_buffs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    stat VARCHAR(8) NOT NULL,
+    pct DOUBLE NOT NULL,
+    expires_at DATETIME NULL,
+    note VARCHAR(200) NOT NULL DEFAULT '',
+    created_by VARCHAR(32) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY k_user (user_id),
+    CONSTRAINT fk_buff_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,

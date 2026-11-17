@@ -287,7 +287,7 @@ Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nh�
 | Tab | Làm được gì |
 | --- | --- |
 | Tổng quan | Người đang online, số tài khoản, đăng ký và nhận quà hôm nay, linh thạch đang lưu hành và đã tiêu, top tu vi, thao tác admin gần đây |
-| Người chơi | Tìm theo tên đăng nhập hoặc đạo hiệu. Sửa: đạo hiệu, linh thạch, tu vi, điểm đấu trường, hạ/bại, giới tính, tóc, áo; túi đồ; tặng hoặc lấy lại tóc/áo. Mời ra khỏi game, khóa/mở khóa (kèm lý do), đặt lại mật khẩu, xóa tài khoản |
+| Người chơi | Tìm theo tên; lọc người đang online hoặc bị khóa. Xem chi tiết từng người (bảng bên dưới) |
 | Cảnh giới | Thêm, đổi tên, số tầng, đổi thứ tự (↑ ↓), xóa; hiện khoảng cấp của từng cảnh giới |
 | Đan dược | Thêm, sửa giá, công dụng (hồi máu, tu vi), thời gian hồi, mô tả, bật/tắt bán, xóa |
 | Yêu thú | Mọi chỉ số và phần thưởng của bù nhìn và âm hồn |
@@ -298,6 +298,27 @@ Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nh�
 | Nhật ký | Mọi thao tác của admin: ai, làm gì, lúc nào, giá trị trước và sau |
 
 Trên điện thoại cầm dọc, các tab thành một hàng kéo ngang và mỗi món hiện thành một thẻ.
+
+**Chi tiết một người chơi:**
+
+| Phần | Làm được gì |
+| --- | --- |
+| Trực tiếp (khi đang online) | Bản đồ, vị trí, sinh lực, công/thủ/tốc đang có (đã tính buff), phần tiến trình chưa lưu và đang ghi; tự làm mới 4 giây một lần. Nút: hồi đầy máu, hồi sinh ngay, về điểm xuất hiện, làm mới hồi chiêu, mời ra khỏi game |
+| Tài nguyên & chỉ số | Linh thạch, tu vi, điểm đấu trường, hạ, bại: mỗi thứ riêng một hàng, nút **Cộng / Trừ / Đặt**; trừ không bao giờ xuống dưới 0. Đặt thẳng cảnh giới (tu vi về đầu cấp đó). Làm mới lượt tu luyện hôm nay |
+| Buff riêng | Tăng (hoặc giảm) theo % từng chỉ số: sinh lực, công, thủ, tốc độ, tu vi nhận được, linh thạch nhận được, tốc độ tu luyện. Có hạn theo giờ hoặc vĩnh viễn, kèm ghi chú; nhiều buff cùng chỉ số thì cộng dồn; gỡ bất cứ lúc nào. Người chơi thấy buff và thời gian còn lại trên màn hình |
+| Túi đồ | Từng loại đan: Cộng / Trừ / Đặt |
+| Tên & ngoại hình | Đổi đạo hiệu, giới tính, chọn tóc và áo bằng ảnh; mọi người thấy ngay, không cần vào lại |
+| Tóc & y phục đã mua | Xem, tặng thêm, lấy lại |
+| Tài khoản | Khóa/mở khóa kèm lý do, đặt lại mật khẩu, xóa tài khoản |
+| Lịch sử | Các lần admin đã chỉnh người này, PvP gần đây, mua ở Đan Các |
+
+Buff công/thủ/sinh lực/tốc độ không áp dụng ở bản đồ đấu trường PvP, để đấu trường luôn công bằng. Buff tu vi, linh thạch, tu luyện áp dụng mọi nơi.
+
+**Chống race condition khi người chơi đang online:**
+- Mọi thay đổi của admin lên một người chơi đi qua cùng một khóa theo tài khoản với việc game lưu tiến trình, mua đồ, dùng đan, nhận quà ngày. Vì vậy chúng chạy lần lượt, không bao giờ chen nhau.
+- Thay đổi được ghi bằng phép cộng nguyên tử trong SQL (`stones = stones + ?`), không phải đọc-sửa-ghi, nên không ghi đè phần người chơi vừa kiếm được.
+- Game tách bạch ba phần: con số đã lưu, phần đang ghi xuống database, và phần chưa ghi. Admin sửa đúng lúc game đang lưu thì con số trên màn hình người chơi vẫn đúng, không nhảy lùi.
+- Hồi máu, hồi sinh, dịch chuyển, làm mới hồi chiêu chạy ngay trong vòng lặp của game, giữa hai nhịp, nên không có gì chen vào.
 
 **Sửa là có hiệu lực ngay:**
 - Số liệu được kiểm tra trước khi lưu. Số sai (cảnh giới 0 tầng, sinh lực âm, ô tóc/áo không có trong atlas…) bị từ chối, kèm lý do.

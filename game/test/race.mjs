@@ -209,15 +209,37 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
     // ban a player: their login and their session stop working
     const p = await player();
     const [u] = await q("SELECT u.id, u.username FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [p.name]);
-    assert.equal((await adm(`/players/${u.id}`, { token, method: "PATCH", body: { stones: 777 } })).status, 200);
+    assert.equal((await adm(`/players/${u.id}/adjust`, { token, method: "POST", body: { field: "stones", op: "set", value: 777 } })).status, 200);
     assert.equal((await me(p.token)).character.stones, 777);
+
+    // the player is online and everything happens at once: 20 admin top-ups, 10 admin deductions, 3 purchases, the
+    // daily gift, a buff, and the world's own saves. Every stone must be accounted for, in the database and on screen.
+    const q2 = await player(), [u2] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [q2.name]);
+    const c2 = await connect(q2.token);
+    await sleep(300);
+    await adm(`/players/${u2.id}/adjust`, { token, method: "POST", body: { field: "stones", op: "add", value: 100 } });
+    await Promise.all([
+      ...Array.from({ length: 20 }, () => adm(`/players/${u2.id}/adjust`, { token, method: "POST", body: { field: "stones", op: "add", value: 5 } })),
+      ...Array.from({ length: 10 }, () => adm(`/players/${u2.id}/adjust`, { token, method: "POST", body: { field: "stones", op: "sub", value: 3 } })),
+      ...Array.from({ length: 3 }, () => call("/shop/buy", { token: q2.token, method: "POST", body: { item: "hoixuan", qty: 1, requestId: crypto.randomUUID() } })),
+      call("/daily", { token: q2.token, method: "POST" }),
+      adm(`/players/${u2.id}/buffs`, { token, method: "POST", body: { stat: "atk", pct: 50, hours: 1, note: "thử" } }),
+    ]);
+    await sleep(600);
+    const want = 20 + 100 + 20 * 5 - 10 * 3 - 3 * 12 + 30;
+    assert.equal((await me(q2.token)).character.stones, want, "the database adds up");
+    assert.equal(c2.me.stones, want, "and so does what the online player sees");
+    const d2 = (await adm(`/players/${u2.id}`, { token })).data;
+    assert.equal(d2.live.atk, Math.round(60 * 1.5), "the +50% attack buff is live");
+    assert.ok(c2.me.buffs.some((b) => b.stat === "atk" && b.pct === 50), "and shown to the player");
+    c2.ws.close();
     assert.equal((await adm(`/players/${u.id}/ban`, { token, method: "POST", body: { banned: true, reason: "thử" } })).status, 200);
     assert.equal((await call("/me", { token: p.token })).status, 401);
     assert.equal((await call("/login", { method: "POST", body: { username: u.username, password: "secret123" } })).status, 403);
   } finally {
     await q("DELETE FROM admins WHERE username = ?", [name]);
   }
-  ok("admin site: password change forced first, bad numbers refused, edits and bans take effect");
+  ok("admin site: forced password change, bad numbers refused, an online player's stones add up under concurrent edits, buffs and bans take effect");
 }
 
 {
