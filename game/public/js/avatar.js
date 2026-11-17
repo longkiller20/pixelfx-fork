@@ -11,7 +11,7 @@ export const GENDERS = ["m", "f"];
 export const N_HAIR = 40, N_ROBE = 40;
 const BW = 29, BH = 63, OX = 15; // the base grid, and the x of the line between the feet
 // where the body is cut: shoulders (sleeve pivots), the waist, the boots
-const SH_F = [22, 27], SH_B = [8, 27], ARM_Y0 = 24, ARM_Y1 = 46, SKIRT_Y = 44, FEET_Y = 57, BACK_HAIR_Y = 22;
+const SH_F = [22, 27], SH_B = [8, 27], ARM_Y0 = 24, ARM_Y1 = 43, SKIRT_Y = 44, FEET_Y = 57, BACK_HAIR_Y = 22;
 // parts: 0 torso, 1 front sleeve, 2 back sleeve, 3 skirt, 4 front boot, 5 back boot
 const TORSO = 0, ARM_F = 1, ARM_B = 2, SKIRT = 3, FOOT_F = 4, FOOT_B = 5;
 
@@ -81,6 +81,7 @@ function rigFor(g, hair, robe) {
       return [x, y, c, part];
     }),
   };
+  r.at = new Map(r.robe.map(([x, y, c]) => [y * 256 + x, c]));
   // the sleeves as lookup grids, for drawing them turned
   for (const [name, part, piv] of [["armF", ARM_F, SH_F], ["armB", ARM_B, SH_B]]) {
     const px = r.robe.filter((p) => p[3] === part);
@@ -102,40 +103,41 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
  * Arm angles are radians, positive turning the hand back and down (screen space, facing right).
  */
 export function poseOf(st) {
-  const t = st.t, P = { bob: 0, lean: 0, armF: 0, armB: 0, skirt: 0.5, skirtW: 2.2, flare: 0, wind: 0, lift: 0, hairAmp: 0.8, hairW: 2.4, footF: [0, 0], footB: [0, 0] };
+  // every offset here is either a rigid shift of a whole part or a shear that grows steadily along the body, so neighbouring
+  // rows never move apart by more than a pixel: the cloth bends but never tears
+  const t = st.t, P = { bob: 0, lean: 0, armF: 0, armB: 0, swingF: 0, swingB: 0, skirt: 0, sway: 0, wind: 0, lift: 0, footF: [0, 0], footB: [0, 0] };
   if (st.air) {
-    P.armF = -0.55;
-    P.armB = 0.45;
-    P.flare = 1.6;
+    P.armF = -0.35;
+    P.armB = 0.3;
     P.lift = 2;
-    P.wind = 0.6;
+    P.wind = 0.5;
+    P.skirt = -1;
     P.footF = [1, -1];
-    P.footB = [-1, -2];
+    P.footB = [0, -2];
   } else if (st.moving) {
-    // a step every 0.19 s: boots swap, the body rises on each, sleeves and skirt swing against the legs
-    const ph = t * 16.5, s = Math.sin(ph);
-    P.footF = [Math.round(s * 2), -Math.max(0, Math.round(Math.cos(ph) * 1.4))];
-    P.footB = [-Math.round(s * 2), -Math.max(0, Math.round(-Math.cos(ph) * 1.4))];
-    P.bob = Math.abs(Math.cos(ph)) > 0.6 ? -1 : 0;
-    P.armF = -s * 0.32;
-    P.armB = s * 0.32;
+    // a step every 0.19 s: boots swap, the body dips as each lands, sleeves and skirt swing against the legs
+    const ph = t * 16.5, s = Math.sin(ph), c = Math.cos(ph);
+    P.footF = [Math.round(s), c > 0.3 ? -1 : 0];
+    P.footB = [-Math.round(s), c < -0.3 ? -1 : 0];
+    P.bob = Math.abs(c) < 0.5 ? 1 : 0;
+    P.swingF = -s * 1.6;
+    P.swingB = s * 1.6;
     P.lean = 1;
-    P.skirt = 1.3;
-    P.skirtW = 16.5;
+    P.skirt = -s * 1.2;
+    P.sway = Math.sin(ph * 0.5) * 0.6;
     P.wind = 1.4;
-    P.hairAmp = 1;
-    P.hairW = 7;
   } else {
-    // breathing
+    // breathing: the chest settles a pixel, the hair and hem drift
     P.bob = Math.sin(t * 2.4) > 0.3 ? 1 : 0;
-    P.armF = 0.04 * Math.sin(t * 2.4);
-    P.armB = -0.04 * Math.sin(t * 2.4);
+    P.sway = Math.sin(t * 1.7) * 0.8;
+    P.skirt = Math.sin(t * 1.3) * 0.6;
   }
-  if (st.meditating) P.armF = P.armB = 0;
+  if (st.meditating) P.swingF = P.swingB = 0;
   const c = st.cast;
   if (st.busy) P.armF = -1.5;
   else if (c && c.age < 0.5) {
     const u = c.age / 0.5;
+    P.swingF = 0;
     if (c.type === "melee") {
       // raise the sword arm high in front, cut down through the target, let it fall back
       P.armF = u < 0.2 ? -2.6 * (u / 0.2) : u < 0.45 ? -2.6 + 2.1 * ((u - 0.2) / 0.25) : -0.5 * (1 - (u - 0.45) / 0.55);
@@ -143,7 +145,7 @@ export function poseOf(st) {
     } else {
       // a palm thrust straight ahead, held, then lowered
       P.armF = -1.45 * (u < 0.15 ? u / 0.15 : u > 0.7 ? 1 - (u - 0.7) / 0.3 : 1);
-      P.armB = 0.35 * (1 - u);
+      P.armB = 0.3 * (1 - u);
       P.lean = u < 0.3 ? -1 : 1;
     }
     P.wind += 0.6;
@@ -159,57 +161,60 @@ export function drawAvatar(p, look, st) {
   if (!meta) return false;
   const g = GENDERS.includes(look.g) ? look.g : "m";
   const r = rigFor(g, clampI(look.hair, N_HAIR), clampI(look.robe, N_ROBE));
-  const P = poseOf(st), t = st.t;
+  const P = poseOf(st);
   const tint = (c) => (st.flash ? WHITE : st.slow ? mix(c, SLOW, 0.35) : c);
   const X = (x) => x - OX, Y = (y) => y - BH;
-  // the upper body: breathing, bobbing and leaning (more the higher up)
-  const upX = (y) => Math.round(P.lean * clamp01((48 - y) / 40));
-  const upY = (y) => (y < FEET_Y - 1 ? P.bob : 0);
-  const hairOff = (x, y) => {
+  // one lean for the whole body, strongest at the head, nothing at the feet; the bob moves everything above the boots down
+  // (only ever down: overlapping rows hide each other, a gap would show)
+  const lean = (y) => Math.round(P.lean * clamp01((FEET_Y - y) / FEET_Y));
+  const bob = (y) => (y < FEET_Y ? P.bob : 0);
+  // the skirt swings from the waist: 0 at the waist, full at the hem
+  const hem = (y) => Math.round(P.skirt * clamp01((y - SKIRT_Y) / (FEET_Y - SKIRT_Y)));
+  // hair hangs from the crown and sways as one piece, streaming back in the wind
+  const hairDX = (y) => {
     const w = clamp01((y - 8) / 30);
-    return [
-      Math.round(w * (P.hairAmp * Math.sin(t * P.hairW - y * 0.22) - P.wind * 2.2 * w)) + upX(y),
-      -Math.round(w * P.lift) + upY(y),
-    ];
+    return Math.round(w * P.sway - w * w * P.wind * 2.2) + lean(y);
   };
-  for (const [x, y, c] of r.hairBack) {
-    const [dx, dy] = hairOff(x, y);
-    p.px(X(x + dx), Y(y + dy), tint(shade(c, 0.85)));
-  }
-  // robe: torso and skirt first, then the boots, then the sleeves turned about the shoulders
+  const hairDY = (y) => -Math.round(clamp01((y - 8) / 30) * P.lift) + bob(y);
+  for (const [x, y, c] of r.hairBack) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(shade(c, 0.85)));
+  // robe: torso and skirt, then the boots; the sleeves are drawn on their own (nothing left behind where they were)
   for (const [x, y, c, part] of r.robe) {
     if (part === ARM_F || part === ARM_B) {
-      // under the sleeve: the robe's own shadow, seen when the sleeve swings away
-      p.px(X(x + upX(y)), Y(y + upY(y)), tint(shade(c, 0.55)));
+      // a sleeve lifted away uncovers the robe's side: carry the body's edge a few pixels out under it, no further
+      const a = part === ARM_F ? P.armF : P.armB, inner = part === ARM_F ? 20 : 10;
+      if (Math.abs(a) >= 0.05 && Math.abs(x - inner) <= 3) {
+        const under = r.at.get(y * 256 + inner);
+        if (under) p.px(X(x + lean(y)), Y(y + bob(y)), tint(shade(under, 0.82)));
+      }
       continue;
     }
-    let dx = upX(y), dy = upY(y);
-    if (part === SKIRT) {
-      const k = clamp01((y - SKIRT_Y) / 14);
-      dx = Math.round(k * (P.skirt * Math.sin(t * P.skirtW - y * 0.35) + P.flare * Math.sign(x - OX))) + Math.round(P.lean * 0.3);
-      dy = 0;
-    } else if (part === FOOT_F) [dx, dy] = P.footF;
+    let dx = lean(y), dy = bob(y);
+    if (part === SKIRT) dx += hem(y);
+    else if (part === FOOT_F) [dx, dy] = P.footF;
     else if (part === FOOT_B) [dx, dy] = P.footB;
     p.px(X(x + dx), Y(y + dy), tint(c));
   }
-  drawArm(p, r.armB, P.armB, upX(30), P.bob, tint, X, Y);
-  for (const [x, y, c] of r.head) p.px(X(x + upX(y)), Y(y + upY(y)), tint(c));
-  for (const [x, y, c] of r.hairFront) {
-    const [dx, dy] = hairOff(x, y);
-    p.px(X(x + dx), Y(y + dy), tint(c));
-  }
-  for (const [x, y, c] of r.face) p.px(X(x + upX(y)), Y(y + upY(y)), tint(c));
-  drawArm(p, r.armF, P.armF, upX(30), P.bob, tint, X, Y);
+  drawArm(p, r.armB, P.armB, P.swingB, lean, bob, tint, X, Y);
+  for (const [x, y, c] of r.head) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
+  for (const [x, y, c] of r.hairFront) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(c));
+  for (const [x, y, c] of r.face) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
+  drawArm(p, r.armF, P.armF, P.swingF, lean, bob, tint, X, Y);
   return true;
 }
 
-// a sleeve turned by a about its shoulder: every target pixel looks up where it came from, so no holes open up
-function drawArm(p, arm, a, ox, oy, tint, X, Y) {
-  const [px0, py0] = arm.piv, R = arm.R, cs = Math.cos(a), sn = Math.sin(a);
-  if (Math.abs(a) < 0.03) {
-    for (const [k, c] of arm.m) p.px(X((k & 255) + ox), Y((k >> 8) + oy), tint(c));
+// A sleeve. Small swings (walking) are a shear: the cuff moves, the shoulder stays, every row whole and crisp. Big moves
+// (casting, a jump) turn it about the shoulder, every target pixel looking up where it came from so no holes open up.
+function drawArm(p, arm, a, swing, lean, bob, tint, X, Y) {
+  const [px0, py0] = arm.piv;
+  if (Math.abs(a) < 0.05) {
+    const len = Math.max(1, arm.R - 1);
+    for (const [k, c] of arm.m) {
+      const x = k & 255, y = k >> 8;
+      p.px(X(x + lean(y) + Math.round(swing * clamp01((y - py0) / len))), Y(y + bob(y)), tint(c));
+    }
     return;
   }
+  const R = arm.R, cs = Math.cos(a), sn = Math.sin(a), ox = lean(py0), oy = bob(py0);
   for (let ty = -R; ty <= R; ty++)
     for (let tx = -R; tx <= R; tx++) {
       // rotate back by -a

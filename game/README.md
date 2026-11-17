@@ -109,7 +109,7 @@ Có HTTPS thì game tự dùng `wss://`.
 - Khi bấm **Đăng nhập** hoặc **Đăng ký**, game xin chế độ toàn màn hình và khoá màn hình nằm ngang. Android Chrome hỗ trợ việc này.
 - iPhone Safari không cho web khoá hướng màn hình. Vì vậy, nếu máy đang cầm dọc, cả giao diện tự xoay ngang 90° để vẫn chơi được.
 - Nút ⛶ trên thanh menu để vào lại toàn màn hình. Trình duyệt chỉ cho phép việc đó sau một lần chạm, nên khi mở lại game bằng phiên đã lưu, bạn cần bấm nút này.
-- Điều khiển: kéo ngón tay sang trái/phải ở nửa trái màn hình để đi; kéo lên để nhảy, kéo xuống rồi nhảy để rơi xuyên đài mây.
+- Điều khiển: kéo ngón tay sang trái/phải ở nửa trái màn hình để đi (joystick chỉ trái/phải); nút Nhảy để nhảy, giữ nút Nhảy rồi vuốt xuống để rơi xuyên ván gỗ và đài mây.
   Bên phải có nút Nhảy, các nút chiêu và đan dược. Trên điện thoại, chiêu tự nhắm kẻ địch gần nhất.
 
 ## Máy tính

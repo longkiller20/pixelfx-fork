@@ -169,7 +169,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
 
   // ---------------------------------------------------------------- input
   const keys = new Set();
-  let joy = { dx: 0, dy: 0 }, mouse = null, sentIn = { dx: 9 }, lastSent = 0, lastDir = { x: 1, y: 0 }, jumpBtn = false;
+  let joy = { dx: 0 }, mouse = null, sentIn = { dx: 9 }, lastSent = 0, lastDir = { x: 1, y: 0 }, jumpBtn = false, jumpDown = false;
   const chatInput = $("chatInput");
   addEventListener("keydown", (e) => {
     if (document.activeElement === chatInput) {
@@ -205,13 +205,16 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   });
   view.addEventListener("contextmenu", (e) => e.preventDefault());
   for (const b of document.querySelectorAll("[data-skill]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), cast(+b.dataset.skill)));
-  // the jump button: held while the thumb is on it
+  // the jump button: held while the thumb is on it; sliding the thumb down off it drops through a plank or cloud instead
   const jb = $("jumpBtn");
-  jb.addEventListener("pointerdown", (e) => (e.preventDefault(), jb.setPointerCapture(e.pointerId), (jumpBtn = true)));
-  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) jb.addEventListener(ev, () => (jumpBtn = false));
+  let jb0 = 0;
+  const appY = (e) => (document.body.classList.contains("rotated") ? innerWidth - e.clientX : e.clientY);
+  jb.addEventListener("pointerdown", (e) => (e.preventDefault(), jb.setPointerCapture(e.pointerId), (jb0 = appY(e)), (jumpBtn = true)));
+  jb.addEventListener("pointermove", (e) => jumpBtn && (jumpDown = appY(e) - jb0 > 24));
+  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) jb.addEventListener(ev, () => (jumpBtn = jumpDown = false));
   for (const b of document.querySelectorAll("[data-item]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), use(b.dataset.item)));
 
-  // the joystick: wherever the thumb lands in the left part of the screen
+  // the joystick: left and right only (jumping has its own button), wherever the thumb lands in the left part of the screen
   const pad = $("joyzone"), knob = $("joyknob"), base = $("joybase");
   let joyId = null, joy0 = null;
   // pointer position in the app's own (possibly rotated) frame
@@ -227,15 +230,14 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   });
   pad.addEventListener("pointermove", (e) => {
     if (e.pointerId !== joyId) return;
-    const q = appXY(e), dx = q.x - joy0.x, dy = q.y - joy0.y, l = Math.hypot(dx, dy), R = 46;
-    const k = l > R ? R / l : 1;
-    knob.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
-    joy = l < 8 ? { dx: 0, dy: 0 } : { dx: (dx / l) * Math.min(1, l / R), dy: (dy / l) * Math.min(1, l / R) };
+    const dx = appXY(e).x - joy0.x, R = 46, k = Math.max(-R, Math.min(R, dx));
+    knob.style.transform = `translateX(${k}px)`;
+    joy = { dx: Math.abs(dx) < 8 ? 0 : k / R };
   });
   const joyEnd = (e) => {
     if (e.pointerId !== joyId) return;
     joyId = null;
-    joy = { dx: 0, dy: 0 };
+    joy = { dx: 0 };
     knob.style.transform = "";
     base.classList.remove("on");
   };
@@ -243,13 +245,17 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
   pad.addEventListener("pointercancel", joyEnd);
 
   // side view: left and right along the ground, jump, and down (down + jump drops through a plank)
+  let jumpHeld = false, jumpUntil = 0;
   function inputDir() {
     let dx = Math.abs(joy.dx) > 0.25 ? Math.sign(joy.dx) * Math.min(1, Math.abs(joy.dx) * 1.4) : 0;
     if (keys.has("a") || keys.has("arrowleft")) dx -= 1;
     if (keys.has("d") || keys.has("arrowright")) dx += 1;
     dx = Math.max(-1, Math.min(1, dx));
-    const jump = jumpBtn || keys.has("w") || keys.has("arrowup") || keys.has(" ") || joy.dy < -0.6;
-    const down = keys.has("s") || keys.has("arrowdown") || joy.dy > 0.6;
+    const jump = jumpBtn || keys.has("w") || keys.has("arrowup") || keys.has(" ");
+    const down = keys.has("s") || keys.has("arrowdown") || jumpDown;
+    const now = performance.now() / 1000;
+    if (jump && !jumpHeld) jumpUntil = now + PHYS.JUMP_BUFFER;
+    jumpHeld = jump;
     if (Math.abs(dx) > 0.2) lastDir = { x: Math.sign(dx), y: 0 };
     return { dx: +dx.toFixed(2), jump, down };
   }
@@ -377,6 +383,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
 
   let camX = 0, camY = 0;
   const drawn = new Map(); // id -> what's on screen this frame
+  let offSince = null, camFX = null, camFY = null, focusY = null;
   function interpolated(now) {
     drawn.clear();
     if (!snaps.length) return;
@@ -402,9 +409,16 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     const last = snaps[snaps.length - 1].P.get(myId), self = drawn.get(myId);
     if (last && self) {
       if (!body || last.f & 1) body = { x: last.x, y: last.y, vx: 0, vy: 0, ground: false, dropUntil: 0 };
-      const err = Math.hypot(body.x - last.x, body.y - last.y);
-      if (err > 72) Object.assign(body, { x: last.x, y: last.y, vy: 0 });
-      else if (!(last.f & 32) && body.ground && !(last.f & 128) && err > 0.5) (body.x += (last.x - body.x) * 0.2), (body.y = last.y);
+      // the server's word is always a little behind (the trip there and back, and its 20 ticks a second), so in mid-air the
+      // two can be a jump apart without anything being wrong: only a big split snaps; on the ground, both standing, a small
+      // one eases back, and a height that stays different for a while (a plank one side thinks it's on) settles to the server's
+      const dx = Math.abs(body.x - last.x), dy = Math.abs(body.y - last.y), bothDown = body.ground && !(last.f & 128);
+      if (dx > 120 || dy > 200) Object.assign(body, { x: last.x, y: last.y, vy: 0 });
+      else if (bothDown && !(last.f & 32) && (dx > 0.5 || dy > 0.5)) {
+        body.x += (last.x - body.x) * 0.2;
+        if (dy > 0.5 && (offSince ??= now) < now - 0.35) Object.assign(body, { y: last.y, vy: 0 });
+      }
+      if (!(bothDown && dy > 0.5)) offSince = null;
       self.x = body.x;
       self.y = body.y;
       self.f = (self.f & ~128) | (body.ground ? 0 : 128);
@@ -415,7 +429,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     if (!body || !last || last.f & 1 || !info) return;
     const c = CLASSES[CLASS];
     const spd = c.spd * (last.f & 4 ? 0.5 : 1) * (last.f & 64 ? 0.45 : 1) * PHYS.RUN;
-    stepBody(body, inputDir(), spd, dt, map, now);
+    const inp = inputDir(), wasGround = body.ground;
+    stepBody(body, { ...inp, jump: inp.jump || jumpUntil > now }, spd, dt, map, now);
+    if (wasGround && !body.ground) jumpUntil = 0;
   }
 
 
@@ -535,8 +551,18 @@ export function startGame({ token, character, inventory, api, onFatal, touch }) 
     interpolated(now);
     const self = drawn.get(myId);
     if (self) {
-      camX = Math.round(Math.max(0, Math.min(map.w - VW, self.x - VW / 2)));
-      camY = Math.round(Math.max(0, Math.min(map.h - VH, self.y - 40 - VH * 0.6)));
+      // across: straight on you. Up and down: the camera holds the level you jumped from, moves only when you land
+      // somewhere else or leave the frame, and eases there instead of jumping, so a hop never shakes the whole world
+      const grounded = !(self.f & 128);
+      if (focusY === null || grounded) focusY = self.y;
+      else if (self.y < focusY - 150) focusY = self.y + 150;
+      else if (self.y > focusY + 40) focusY = self.y - 40;
+      const tx = Math.max(0, Math.min(map.w - VW, self.x - VW / 2)), ty = Math.max(0, Math.min(map.h - VH, focusY - 40 - VH * 0.6));
+      if (camFX === null || Math.abs(ty - camFY) > VH) (camFX = tx), (camFY = ty);
+      camFX = tx;
+      camFY += (ty - camFY) * (1 - Math.exp(-dt * 6));
+      camX = Math.round(camFX);
+      camY = Math.round(camFY);
     }
     scene.paint(bgBuf, VW, VH, camX, camY, now);
     clearFrame(frame);

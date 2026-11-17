@@ -7,6 +7,7 @@ export const PHYS = {
   RUN: 1.6, // walking speed = the class's spd × this
   HW: 9, // half the body's width
   HH: 56, // the body's height, for bumping heads
+  JUMP_BUFFER: 0.15, // a jump pressed this long before landing (or tapped between two server ticks) still happens
   STEP: 1 / 120, // longest step: nothing moves more than 8 px at once, so nothing tunnels through a tile
 };
 
