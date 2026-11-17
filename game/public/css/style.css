@@ -337,3 +337,52 @@ body.rotated .hudl .me, body.rotated .hudl .top { position: static; transform: n
 body.rotated .hudl .me { width: 190px; border-width: 9px; border-image-width: 9px; }
 body.rotated .hudl .top { border-width: 7px; border-image-width: 7px; padding: 0 2px; font-size: 11px; gap: 8px; }
 body.rotated.touch .chat { top: 132px; }
+
+/* ================================================================ the character maker on phones: one screen, no scrolling
+   Short screens (phones held sideways, or turned by the page) get a tight layout: no title, no hint line, a smaller
+   preview, the five hairs and five robes each in a single row sized to the height. main.js shrinks the whole box as a
+   last resort if a screen is smaller still. */
+#create { overflow: hidden; padding: 4px; }
+#create .maker { transform-origin: center; flex: none; }
+@media (max-height: 500px) {
+  #create .maker { width: min(760px, 100%); border-width: 14px; border-image-width: 14px; padding: 0 2px; }
+  #create .maker h2, #create .choices > p.dim { display: none; }
+  #create .maker-grid { grid-template-columns: auto 1fr; gap: 10px; }
+  #create .preview { width: min(150px, calc(100dvh - 130px)); gap: 4px; }
+  #create .pvbar button { padding: 4px 2px; font-size: 11px; }
+  #create .choices { gap: 3px; }
+  #create .choices h4 { margin: 2px 0 0; font-size: 12px; }
+  #create .seg button { padding: 5px 12px; font-size: 13px; }
+  #create .choices input { padding: 6px 10px; min-width: 110px; }
+  #create .picks { max-height: none; overflow: visible; grid-template-columns: repeat(5, min(64px, calc((100dvh - 190px) / 2))); }
+  #create .row.end .primary { padding: 1px 12px; }
+}
+body.rotated #create .maker { width: min(760px, 100%); border-width: 14px; border-image-width: 14px; padding: 0 2px; }
+body.rotated #create .maker h2, body.rotated #create .choices > p.dim { display: none; }
+body.rotated #create .maker-grid { grid-template-columns: auto 1fr; gap: 10px; }
+body.rotated #create .preview { position: static; flex-direction: column; width: min(150px, calc(100dvw - 130px)); gap: 4px; }
+body.rotated #create .preview canvas { width: 100%; }
+body.rotated #create .pvbar { grid-template-columns: 1fr 1fr; }
+body.rotated #create .pvbar button { padding: 4px 2px; font-size: 11px; }
+body.rotated #create .choices { gap: 3px; }
+body.rotated #create .choices h4 { margin: 2px 0 0; font-size: 12px; }
+body.rotated #create .seg button { padding: 5px 12px; font-size: 13px; }
+body.rotated #create .choices input { padding: 6px 10px; min-width: 110px; }
+body.rotated #create .picks { max-height: none; overflow: visible; grid-template-columns: repeat(5, min(64px, calc((100dvw - 190px) / 2))); }
+
+/* ================================================================ round frames on the action buttons
+   Pixel-art rings drawn in the pack's style (tools/xianxia/rings.py): a gold ring set with jade for the attack, gold with
+   an azure or violet gem for the two arts, silver for jump, a small jade ring for the pills. The ring is the top
+   background layer; the dark glass behind the icon shows through its middle. */
+.skills button { border: none; box-shadow: 0 5px 12px #000a; image-rendering: pixelated;
+  background: var(--ring) center / 100% 100% no-repeat, radial-gradient(circle at 50% 42%, #2c2240, #0e0a18 68%); }
+.skills .s1 { --ring: url(/xianxia/ui/ring_main.png); box-shadow: 0 0 16px #f0c05055, 0 5px 12px #000a; }
+.skills .s2 { --ring: url(/xianxia/ui/ring_art_azure.png); }
+.skills .s3 { --ring: url(/xianxia/ui/ring_art_violet.png); }
+.skills .jump { --ring: url(/xianxia/ui/ring_jump.png); background: var(--ring) center / 100% 100% no-repeat, radial-gradient(circle at 50% 42%, #163a48, #06121a 68%); }
+.skills .item { --ring: url(/xianxia/ui/ring_item.png); background: var(--ring) center / 100% 100% no-repeat, radial-gradient(#1a3a28, #06100a 70%); }
+.skills .sk::before { inset: 19%; }
+.skills .s1::before { inset: 17%; }
+body.touch .skills .sk::before { inset: 18%; }
+.skills .sk::after { inset: 9%; border-radius: 50%; }
+.skills .s1::after { inset: 9%; }

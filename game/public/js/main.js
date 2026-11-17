@@ -33,6 +33,7 @@ function uuid() {
 
 function show(id) {
   for (const s of document.querySelectorAll(".screen")) s.classList.toggle("hidden", s.id !== id);
+  fitOrientation();
 }
 
 // ---------------------------------------------------------------- phones: landscape, full screen
@@ -50,7 +51,20 @@ async function goLandscape() {
 // where the browser won't turn (iPhone Safari), turn the page itself while the phone is upright
 function fitOrientation() {
   const upright = innerHeight > innerWidth;
-  document.body.classList.toggle("rotated", touch && upright && !$("game").classList.contains("hidden"));
+  // the game and the character maker are laid out for landscape; the login form stays upright
+  const wide = !$("game").classList.contains("hidden") || !$("create").classList.contains("hidden");
+  document.body.classList.toggle("rotated", touch && upright && wide);
+  requestAnimationFrame(fitMaker);
+}
+// the character maker never scrolls: if it is still taller or wider than the screen after the compact layout, it is
+// shrunk as a whole to fit
+function fitMaker() {
+  const box = document.querySelector("#create .maker"), scr = $("create");
+  if (!box || scr.classList.contains("hidden")) return;
+  box.style.transform = "";
+  const W = scr.clientWidth - 8, H = scr.clientHeight - 8;
+  const k = Math.min(1, W / box.offsetWidth, H / box.offsetHeight);
+  box.style.transform = k < 1 ? `scale(${k})` : "";
 }
 addEventListener("resize", () => {
   fitOrientation();
@@ -164,6 +178,7 @@ async function showCreate() {
   pickRandom("hair");
   pickRandom("robe");
   fillPicks();
+  fitMaker();
   preview($("pv"), () => look, () => anim, () => !$("create").classList.contains("hidden"));
 }
 function fillPicks() {
