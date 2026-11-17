@@ -9,7 +9,7 @@
 import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
 import { DEFAULT_WEAPON } from "./cosmetics-seed.js";
-import { CLASS, validLook, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, START, NAME_RE, levelFromExp } from "../shared/balance.js";
+import { CLASS, validLook, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, START, NAME_RE, levelFromExp, ARTS, ART_SLOTS, STARTER_ARTS } from "../shared/balance.js";
 
 export class GameError extends Error {
   constructor(message, status = 400) {
@@ -18,16 +18,29 @@ export class GameError extends Error {
   }
 }
 
-const COLS = "user_id, name, gender, hair, robe, weapon, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp";
+const COLS = "user_id, name, gender, hair, robe, weapon, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots";
+/** The bar as saved, or the starters for a character that never changed it; always ART_SLOTS long. */
+export function parseSlots(raw) {
+  let a = null;
+  try {
+    a = raw ? JSON.parse(raw) : null;
+  } catch {}
+  if (!Array.isArray(a)) a = STARTER_ARTS.slice(0, ART_SLOTS);
+  return Array.from({ length: ART_SLOTS }, (_, i) => (typeof a[i] === "string" ? a[i] : null));
+}
 const shape = (r) => r && {
   userId: r.user_id, name: r.name, cls: CLASS, look: { g: r.gender === "f" ? "f" : "m", hair: Number(r.hair), robe: Number(r.robe), weapon: Number(r.weapon) }, exp: Number(r.exp), stones: Number(r.stones), rank: Number(r.rank_points),
   kills: Number(r.kills), deaths: Number(r.deaths), level: levelFromExp(Number(r.exp)),
   medLeft: Math.max(0, MEDITATE.dailyCap - (r.med_today ? Number(r.med_exp) : 0)),
+  slots: parseSlots(r.art_slots),
 };
 
 export async function loadCharacter(uid, conn = null) {
-  const rows = await (conn ?? { query: q }).query(`SELECT ${COLS} FROM characters WHERE user_id = ?`, [uid]);
-  return shape(rows[0]);
+  const Q = conn ?? { query: q };
+  const rows = await Q.query(`SELECT ${COLS} FROM characters WHERE user_id = ?`, [uid]);
+  const ch = shape(rows[0]);
+  if (ch) ch.learned = (await Q.query("SELECT art_key FROM learned_arts WHERE user_id = ? ORDER BY learned_at", [uid])).map((r) => r.art_key);
+  return ch;
 }
 
 export async function inventory(uid) {
@@ -129,10 +142,90 @@ export function claimDaily(uid) {
 export function useItem(uid, item, level) {
   const it = ITEMS[item];
   if (!it) throw new GameError("Vật phẩm không tồn tại.");
+  if ((it.kind ?? "pill") !== "pill") throw new GameError(`${it.name} không dùng trực tiếp được; dùng để lĩnh ngộ công pháp.`);
   return userLock.run(uid, () => tx(async (c) => {
     const r = await c.query("UPDATE inventory SET qty = qty - 1 WHERE user_id = ? AND item = ? AND qty > 0", [uid, item]);
     if (r.affectedRows !== 1) throw new GameError("Đạo hữu không còn viên nào.", 409);
     if (it.exp) await c.query("UPDATE characters SET exp = exp + ? WHERE user_id = ?", [it.exp(level), uid]);
+    return loadCharacter(uid, c);
+  }));
+}
+
+// ---------------------------------------------------------------- công pháp (arts)
+// Learning spends every required item in one transaction: each with "qty = qty - n WHERE qty >= n", so two learns at once
+// (or a learn racing a drop or an admin's edit) can't spend the same item twice, and if any item is short nothing is
+// spent. The learned row's primary key makes learning the same art twice impossible.
+
+const knows = (ch, key) => !!ARTS[key] && (ARTS[key].starter || ch.learned.includes(key));
+
+/** Learn an art: spend what it needs, put it on the first empty slot of the bar. Returns the character. */
+export function learnArt(uid, key) {
+  const art = ARTS[String(key ?? "")];
+  if (!art || !art.enabled) throw new GameError("Công pháp không tồn tại.");
+  if (art.starter) throw new GameError("Công pháp này ai cũng đã biết.");
+  return userLock.run(uid, () => tx(async (c) => {
+    const ch = await loadCharacter(uid, c);
+    if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
+    try {
+      await c.query("INSERT INTO learned_arts (user_id, art_key) VALUES (?, ?)", [uid, art.key]);
+    } catch (e) {
+      if (isDup(e)) throw new GameError("Đạo hữu đã lĩnh ngộ công pháp này rồi.", 409);
+      throw e;
+    }
+    for (const r of art.reqs) {
+      const out = await c.query("UPDATE inventory SET qty = qty - ? WHERE user_id = ? AND item = ? AND qty >= ?", [r.qty, uid, r.item, r.qty]);
+      if (out.affectedRows !== 1) throw new GameError(`Thiếu ${ITEMS[r.item]?.name ?? r.item} (cần ${r.qty}).`, 409);
+    }
+    const slots = ch.slots.slice(), free = slots.indexOf(null);
+    if (free >= 0 && !slots.includes(art.key)) {
+      slots[free] = art.key;
+      await c.query("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify(slots), uid]);
+    }
+    return loadCharacter(uid, c);
+  }));
+}
+
+/** Put arts on the bar: ART_SLOTS entries, each an art the player knows or null, none twice. Returns the character. */
+export function equipArts(uid, slots) {
+  if (!Array.isArray(slots) || slots.length !== ART_SLOTS) throw new GameError(`Thanh công pháp có ${ART_SLOTS} ô.`);
+  slots = slots.map((s) => (s === null || s === "" ? null : String(s)));
+  const set = slots.filter(Boolean);
+  if (new Set(set).size !== set.length) throw new GameError("Một công pháp chỉ gán vào một ô.");
+  return userLock.run(uid, () => tx(async (c) => {
+    const ch = await loadCharacter(uid, c);
+    if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
+    for (const k of set) {
+      if (!ARTS[k]) throw new GameError("Công pháp không tồn tại.");
+      if (!knows(ch, k)) throw new GameError("Đạo hữu chưa lĩnh ngộ công pháp này.", 403);
+      if (!ARTS[k].enabled) throw new GameError(`${ARTS[k].name} đang tạm khóa.`);
+    }
+    await c.query("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify(slots), uid]);
+    return loadCharacter(uid, c);
+  }));
+}
+
+/** Items dropped by a monster: added in one statement each, so nothing else touching the bag can lose them. */
+export function grantItems(uid, items) {
+  const list = Object.entries(items).filter(([k, n]) => ITEMS[k] && n > 0);
+  if (!list.length) return Promise.resolve();
+  return userLock.run(uid, () => tx(async (c) => {
+    for (const [k, n] of list) await c.query("INSERT INTO inventory (user_id, item, qty) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qty = qty + VALUES(qty)", [uid, k, n]);
+  }));
+}
+
+/** An admin teaches or takes back an art (no items spent). Taking it back also clears it from the bar. */
+export function adminArt(uid, key, learn) {
+  const art = ARTS[String(key ?? "")];
+  if (!art) throw new GameError("Công pháp không tồn tại.");
+  return userLock.run(uid, () => tx(async (c) => {
+    const ch = await loadCharacter(uid, c);
+    if (!ch) throw new GameError("Người chơi chưa có nhân vật.", 404);
+    if (learn) await c.query("INSERT IGNORE INTO learned_arts (user_id, art_key) VALUES (?, ?)", [uid, art.key]);
+    else {
+      await c.query("DELETE FROM learned_arts WHERE user_id = ? AND art_key = ?", [uid, art.key]);
+      if (!art.starter && ch.slots.includes(art.key))
+        await c.query("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify(ch.slots.map((s) => (s === art.key ? null : s))), uid]);
+    }
     return loadCharacter(uid, c);
   }));
 }

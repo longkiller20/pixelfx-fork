@@ -3,7 +3,7 @@
 // 20 times a second. Nothing a client claims about positions, damage or rewards is ever trusted.
 import { WebSocket } from "ws";
 import {
-  TICK_HZ, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE, levelFromExp, worldMult, arenaMult, mitigate,
+  TICK_HZ, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE, levelFromExp, worldMult, arenaMult, mitigate, ARTS, ART_SLOTS, DROPS,
 } from "../shared/balance.js";
 import { mapInfo, START_MAP } from "../shared/maps/index.js";
 import { stepBody, fits, PHYS } from "../shared/physics.js";
@@ -101,7 +101,7 @@ export class World {
         id: this.nid++, kind: "p", userId: uid, ws, name: ch.name, cls: ch.cls, look: ch.look,
         ...this.spawnPoint(), face: 1, in: { dx: 0, jump: false, down: false }, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
         hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
-        cd: [0, 0, 0], busyUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
+        cd: [0], artCd: {}, slots: ch.slots, learned: new Set(ch.learned), tbuffs: {}, busyUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
         medAcc: 0, meditating: false, base: null, pend: zero(), fly: zero(), level: 1, medLeft: 0, saving: null, gone: false, buffs,
       };
       this.applyBase(p, ch, true);
@@ -113,6 +113,7 @@ export class World {
         players: [...this.players.values()].map(info),
       });
       this.broadcast({ t: "pi", ...info(p) }, p);
+      this.sendArts(p);
       this.sendMe(p);
       this.feed(`${p.name} đã tiến vào Đa Vũ Trụ.`);
     });
@@ -165,6 +166,11 @@ export class World {
     const p = this.players.get(uid);
     if (!p || !ch || p.gone) return;
     this.applyBase(p, ch);
+    if (ch.slots && (JSON.stringify(ch.slots) !== JSON.stringify(p.slots) || ch.learned.length !== p.learned.size)) {
+      p.slots = ch.slots;
+      p.learned = new Set(ch.learned);
+      this.sendArts(p);
+    }
     this.sendMe(p);
     if ((ch.look && JSON.stringify(ch.look) !== JSON.stringify(p.look)) || (ch.name && ch.name !== p.name)) {
       p.look = ch.look ?? p.look;
@@ -218,7 +224,8 @@ export class World {
         this.ev({ e: "spawn", id: p.id });
         break;
       case "cooldowns":
-        p.cd = [0, 0, 0];
+        p.cd = [0];
+        p.artCd = {};
         p.itemCd = 0;
         p.busyUntil = 0;
         break;
@@ -299,11 +306,25 @@ export class World {
     if (e.kind === "m") return e.st;
     const c = CLASSES[e.cls], m = this.map.pvp ? arenaMult(e.level) : worldMult(e.level);
     // an admin's buffs count in the open world; on PvP maps everyone fights on the same numbers
-    const b = (stat) => (this.map.pvp ? 1 : Math.max(0.1, 1 + this.buff(e, stat) / 100));
+    // an admin's buffs count in the open world; an art's own buff (Cuồng Bạo Quyết, Thánh Quang Hộ Thuẫn...) everywhere
+    const tb = (stat) => {
+      const x = e.tbuffs?.[stat];
+      return x && x.until > this.t ? x.pct / 100 : 0;
+    };
+    const b = (stat) => Math.max(0.1, (this.map.pvp ? 1 : 1 + this.buff(e, stat) / 100) + tb(stat));
     return {
       maxHp: Math.round(c.hp * m * b("hp")), atk: c.atk * m * b("atk"), def: c.def * m * b("def"),
       spd: c.spd * b("spd") * (e.slowUntil > this.t ? 0.5 : 1) * (e.busyUntil > this.t ? 0.45 : 1),
     };
+  }
+  /** The player's bar and what they have learned (the starters are known by all and not listed). */
+  sendArts(p) {
+    send(p.ws, { t: "arts", slots: p.slots, learned: [...p.learned] });
+  }
+  /** Seconds left on the basic attack and on each slot of the bar. */
+  cooldowns(p) {
+    const left = (c) => Math.max(0, +((c ?? 0) - this.t).toFixed(2));
+    return [left(p.cd[0]), ...p.slots.map((k) => (k ? left(p.artCd[k]) : 0))];
   }
   sendMe(p) {
     const st = this.stats(p);
@@ -311,7 +332,7 @@ export class World {
       t: "me", lv: p.level, exp: this.exp(p), stones: p.base.stones + p.pend.stones, rank: p.base.rank + p.pend.rank,
       kills: p.base.kills + p.pend.kills, deaths: p.base.deaths + p.pend.deaths, medLeft: p.medLeft,
       hp: Math.max(0, Math.round(p.hpFrac * st.maxHp)), maxHp: st.maxHp, atk: Math.round(st.atk), def: Math.round(st.def),
-      cd: p.cd.map((c) => Math.max(0, +(c - this.t).toFixed(2))),
+      cd: this.cooldowns(p),
       respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
       buffs: (p.buffs ?? []).filter((x) => x.until === null || x.until > Date.now()).map((x) => ({ stat: x.stat, pct: x.pct, left: x.until === null ? null : Math.round((x.until - Date.now()) / 1000) })),
     });
@@ -329,8 +350,9 @@ export class World {
         return;
       }
       case "cast": {
+        // 0 is the basic attack, 1-5 the arts on the bar
         const i = m.s | 0;
-        if (i < 0 || i > 2) return;
+        if (i < 0 || i > ART_SLOTS) return;
         // aim mostly along the ground: at most a gentle slope up or down
         let ax = num(m.ax) ? m.ax : p.face, ay = num(m.ay) ? clamp(m.ay, -Math.abs(ax) * 0.6 - 0.01, Math.abs(ax) * 0.6 + 0.01) : 0;
         const l = Math.hypot(ax, ay);
@@ -411,37 +433,96 @@ export class World {
   }
 
   cast(p, i, ax, ay) {
-    if (p.dead) return;
-    const sk = CLASSES[p.cls].skills[i], t = this.t;
-    if (p.cd[i] > t + 0.05) return;
-    if (p.busyUntil > t) return;
-    p.cd[i] = t + sk.cd;
+    if (p.dead || p.busyUntil > this.t) return;
+    const t = this.t;
+    let sk;
+    if (i === 0) {
+      sk = CLASSES[p.cls].skills[0];
+      if (p.cd[0] > t + 0.05) return;
+      p.cd[0] = t + sk.cd;
+    } else {
+      // only an art on the bar that the player knows and that is switched on
+      const key = p.slots[i - 1];
+      sk = key && ARTS[key];
+      if (!sk || !sk.enabled || !(sk.starter || p.learned.has(key))) return;
+      // cooldowns belong to the art, not the slot: moving it to another slot doesn't reset it
+      if ((p.artCd[key] ?? 0) > t + 0.05) return;
+      p.artCd[key] = t + sk.cd;
+    }
     p.lastCast = t;
     if (Math.abs(ax) > 0.15) p.face = ax > 0 ? 1 : -1;
-    const st = this.stats(p);
-    this.ev({ e: "cast", id: p.id, s: i, ax: +ax.toFixed(2), ay: +ay.toFixed(2) });
+    const st = this.stats(p), key = i === 0 ? "" : sk.key, dir = Math.sign(ax || p.face) || 1;
+    this.ev({ e: "cast", id: p.id, s: i, a: key, ax: +ax.toFixed(2), ay: +ay.toFixed(2) });
+    // where the art's effect is drawn, for everyone: on the caster, before them, where the zone lands
+    const show = (x, y) => key && this.ev({ e: "art", id: p.id, a: key, x: Math.round(x), y: Math.round(y), f: dir });
+    // hit everyone hostile within r of (x, y) after `delay`, slowing them if the art does
+    const burst = (x, y, delay) => {
+      this.at(t + delay, () => {
+        if (p.gone) return;
+        for (const e of this.targetsOf(p))
+          if (Math.hypot(e.x - x, e.y - y) <= sk.r + PLAYER_R) {
+            if (sk.slow) e.slowUntil = this.t + sk.slowDur;
+            this.damage(p, this.stats(p).atk, e, sk.mult);
+          }
+      });
+    };
     switch (sk.type) {
       case "melee":
+        show(p.x, p.y);
         this.cone(p, p.x, p.y, ax, ay, sk.range, sk.arc, st.atk, sk.mult);
         break;
       case "bolt":
-        this.bolts.push({ id: this.nid++, owner: p, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
+        show(p.x, p.y);
+        this.bolts.push({ id: this.nid++, owner: p, art: key, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
         break;
       case "zone": {
-        const x = clamp(p.x + Math.sign(ax || p.face) * sk.dist, 20, this.map.w - 20), y = p.y;
-        this.ev({ e: "fx", k: "thunder", x: Math.round(x), y: Math.round(y) });
-        this.at(t + sk.delay, () => {
-          if (p.gone) return;
-          for (const e of this.targetsOf(p))
-            if (Math.hypot(e.x - x, e.y - y) <= sk.r + PLAYER_R) {
-              e.slowUntil = this.t + sk.slowDur;
-              this.damage(p, this.stats(p).atk, e, sk.mult);
-            }
-        });
+        const x = clamp(p.x + dir * sk.dist, 20, this.map.w - 20), y = p.y;
+        if (key) show(sk.at === "target" ? x : p.x, p.y);
+        else this.ev({ e: "fx", k: "thunder", x: Math.round(x), y: Math.round(y) });
+        burst(x, y, sk.delay);
         break;
       }
+      case "nova":
+        show(p.x, p.y);
+        burst(p.x, p.y, sk.delay);
+        break;
+      case "dash": {
+        // rush forward until a wall, hitting everyone along the line once
+        show(p.x, p.y);
+        const x0 = p.x, step = 4 * dir;
+        let x = p.x;
+        for (let d = 0; d < sk.dist; d += 4) {
+          if (!fits(x + step, p.y, this.map)) break;
+          x += step;
+        }
+        p.x = x;
+        const lo = Math.min(x0, x), hi = Math.max(x0, x);
+        for (const e of this.targetsOf(p)) if (e.x >= lo - sk.r && e.x <= hi + sk.r && Math.abs(e.y - p.y) <= sk.r + 40) this.damage(p, st.atk, e, sk.mult);
+        break;
+      }
+      case "heal":
+        show(p.x, p.y);
+        p.hpFrac = Math.min(1, p.hpFrac + sk.pct);
+        break;
+      case "buff":
+        show(p.x, p.y);
+        p.tbuffs[sk.stat] = { pct: sk.pct, until: t + sk.dur };
+        break;
     }
     this.sendMe(p);
+  }
+
+  /** Roll a dead monster's drops for whoever killed it: its own list, plus the "*" list if it takes common drops. */
+  rollDrops(owner, m) {
+    const list = [...(DROPS[m.type] ?? []), ...(m.def.commonDrops ? DROPS["*"] ?? [] : [])], got = {};
+    for (const d of list) if (Math.random() < d.chance) got[d.item] = (got[d.item] ?? 0) + d.min + Math.floor(Math.random() * (d.max - d.min + 1));
+    if (!Object.keys(got).length) return;
+    store.grantItems(owner.userId, got).then(() => {
+      if (owner.gone) return;
+      this.sendInv(owner.userId);
+      send(owner.ws, { t: "drop", items: got });
+    }).catch((e) => console.error("drop", e.message));
+    this.ev({ e: "drop", id: owner.id, x: Math.round(m.x), y: Math.round(m.y) });
   }
 
   /** A reward after the player's gain buff (exp, stones, med), never below zero. */
@@ -461,6 +542,7 @@ export class World {
         owner.pend.exp += gx;
         owner.pend.stones += gs;
         this.ev({ e: "loot", id: owner.id, x: Math.round(e.x), y: Math.round(e.y), exp: gx, stones: gs });
+        this.rollDrops(owner, e);
         this.relevel(owner);
         this.sendMe(owner);
       }
@@ -682,7 +764,8 @@ export class World {
     for (const m of this.ents.values())
       if (m.kind === "m") M.push([m.id, MTYPES.indexOf(m.type), Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
     // the thrower's id: a flying sword is drawn as the weapon its owner holds
-    for (const b of this.bolts) B.push([b.id, b.owner.id, Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy)]);
+    // ... and the art it belongs to ("" for none): Phi Kiếm draws the weapon, other arts their own effect
+    for (const b of this.bolts) B.push([b.id, b.owner.id, Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy), b.art ?? ""]);
     const msg = JSON.stringify({ t: "s", k: this.tick, P, M, B, E: this.events });
     this.events = [];
     for (const p of this.players.values()) sendRaw(p.ws, msg);

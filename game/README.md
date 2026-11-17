@@ -19,8 +19,18 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   kỳ. Thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
   - Mọi nhân vật dựng từ cùng một thân gốc, nên tóc và áo nào cũng mặc vừa.
   - Có rig và hoạt ảnh: thân trên thở và nhún, tay áo xoay quanh vai, vạt áo và tóc bay theo bước chạy, hai chân bước.
-- **Chiêu thức chung cho mọi người:** Kiếm Khí Trảm (cận chiến), Phi Kiếm (phóng kiếm), Lôi Ấn Trận (sét đánh xuống một
-  vùng, làm chậm). Thắng thua nhờ cách chơi, không nhờ chọn phái.
+- **Đánh thường:** Kiếm Khí Trảm, nút to ở góc (J), ai cũng có.
+- **Công Pháp (nút 📜):** 215 công pháp, mỗi hiệu ứng có thể làm chiêu của pixelfx là một môn (chỉ bỏ ui, chuyển cảnh và
+  vật phẩm nhặt). Có 7 kiểu: cận chiến, phóng xa, vùng phía trước, vùng quanh thân, lướt tới, hồi sinh lực, tăng chỉ số
+  tạm thời. Mỗi môn có hệ (Kim, Hỏa, Thủy, Băng, Lôi, Mộc, Thổ, Quang, Ám, Huyền, Phong, Dị Giới, Bạo, Ngự Thú) và bậc 1-3.
+  - **Lĩnh ngộ:** tiêu hao bí kíp riêng của môn đó, cộng 3/6/10 tinh thạch của hệ theo bậc, và 1/3 Linh Tủy cho bậc 2/3.
+    Có sẵn 213 bí kíp, 14 loại tinh thạch và Linh Tủy.
+  - **Rơi đồ:** mọi vật phẩm trên rơi ngẫu nhiên khi hạ yêu thú (tinh thạch 4%, Linh Tủy 1%, bí kíp 0,1-0,6% tùy bậc).
+    Bù nhìn rơm không rơi gì. Yêu thú để săn sẽ có sau.
+  - **Thanh 5 ô:** gán tối đa 5 môn, đổi lúc nào cũng được. Hồi chiêu đi theo môn, nên đổi ô không làm mới hồi chiêu.
+    Phi Kiếm và Lôi Ấn Trận ai cũng biết sẵn và nằm ở 2 ô đầu của nhân vật mới.
+  - Icon của mỗi môn vẽ từ chính hiệu ứng pixelfx của nó.
+  - Admin sửa được công pháp, vật phẩm yêu cầu, vật phẩm và tỉ lệ rơi; truyền hoặc lấy lại công pháp của từng người.
 - **Góc nhìn đi ngang** (side-scroller), khớp với cách pixelfx vẽ nhân vật và hiệu ứng: đi trái/phải, nhảy, đứng trên đài
   mây, rơi theo trọng lực.
 - **Bản đồ hiện có: Tân Thủ Thôn,** thôn khởi đầu dài 128 ô (mỗi ô 32 px). Đi từ tây sang đông:
@@ -158,6 +168,10 @@ Chống tranh chấp khi nhiều yêu cầu đến cùng lúc (`server/store.js`
   - Mỗi lần mua có một mã giao dịch: bấm hai lần hoặc mạng gửi lại vẫn chỉ trừ tiền một lần.
   - Quà mỗi ngày có khoá (tài khoản, ngày).
   - Tên đăng nhập và đạo hiệu là duy nhất.
+  - Mỗi công pháp chỉ lĩnh ngộ một lần (khoá tài khoản + môn). Mọi vật phẩm yêu cầu bị trừ trong cùng một transaction,
+    mỗi món một câu `qty = qty - n WHERE qty >= n`. Thiếu một món thì không món nào bị trừ, và hai lần học cùng lúc không
+    tiêu chung một viên tinh thạch.
+  - Đồ rơi được cộng thẳng vào túi (`qty = qty + n`), nên không bị mất khi trùng lúc với việc học hay admin sửa túi.
 - **Các bước liên quan chạy trong một transaction,** và mỗi tài khoản xử lý tuần tự từng việc một (`server/lock.js`).
 - **Thế giới chỉ cộng phần mới kiếm được** (`exp = exp + 35`), không ghi đè con số nó nhớ. Một lần mua xen giữa hai lần lưu
   không bao giờ bị mất.
@@ -317,9 +331,11 @@ Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nh�
 | Tổng quan | Người đang online, số tài khoản, đăng ký và nhận quà hôm nay, linh thạch đang lưu hành và đã tiêu, top tu vi, thao tác admin gần đây |
 | Người chơi | Tìm theo tên; lọc người đang online hoặc bị khóa. Xem chi tiết từng người (bảng bên dưới) |
 | Cảnh giới | Thêm, đổi tên, số tầng, đổi thứ tự (↑ ↓), xóa; hiện khoảng cấp của từng cảnh giới |
-| Đan dược | Thêm, sửa giá, công dụng (hồi máu, tu vi), thời gian hồi, mô tả, bật/tắt bán, xóa |
-| Yêu thú | Mọi chỉ số và phần thưởng của bù nhìn và âm hồn |
-| Chiêu thức | Tên, loại, thời gian hồi, sát thương và thông số riêng của 3 chiêu |
+| Vật phẩm | Đan dược, bí kíp, nguyên liệu: lọc theo loại, tìm; thêm, sửa giá, công dụng, thời gian hồi, mô tả, bật/tắt bán, xóa |
+| Công pháp | 215 môn: lọc theo loại, hệ, tìm; sửa tên, hệ, bậc, loại chiêu, hồi chiêu, sát thương, thông số, hiệu ứng pixelfx và chỗ vẽ, bật/tắt; sửa từng vật phẩm yêu cầu và số lượng, thêm, bỏ; thêm môn mới, xóa |
+| Rơi đồ | Yêu thú nào (hoặc `*` mọi yêu thú) rơi vật phẩm gì, tỉ lệ, số lượng ít nhất và nhiều nhất |
+| Yêu thú | Mọi chỉ số và phần thưởng của bù nhìn và âm hồn; bật/tắt rơi đồ chung |
+| Đánh thường | Tên, thời gian hồi, sát thương và tầm của Kiếm Khí Trảm |
 | Cài đặt | 25 con số còn lại, chia nhóm, mỗi số có giải thích |
 | Tóc & Y phục | Lọc theo loại, giới, trạng thái; ảnh xem trước; sửa tên, giá, miễn phí, đang bán; thêm món ở ô atlas còn trống; xóa |
 | Admin | Thêm admin (người mới phải đổi mật khẩu lần đầu), xóa admin, đổi mật khẩu của mình |
@@ -418,7 +434,12 @@ Các bảng trong database:
 | `realms` | Cảnh giới theo thứ tự (`sort`), mỗi cảnh giới có `stages` tầng. Tổng số tầng là cấp tối đa. |
 | `items` | Đan dược bán ở Đan Các: giá, `heal` (phần sinh lực hồi, 0.4 = 40%), tu vi (`exp_base` + `exp_per_level` × cấp), thời gian hồi, còn bán hay không. |
 | `monsters` | Chỉ số yêu thú `dummy` (bù nhìn) và `ghost` (âm hồn): sinh lực, công, thủ, tốc, thưởng, tầm đánh… |
-| `skills` | 3 chiêu J/K/L: tên, thời gian hồi, hệ số sát thương, và số riêng của từng loại chiêu (`params`). |
+| `items` (tiếp) | Cột `kind`: `pill` (đan dược, dùng được), `book` (bí kíp), `material` (nguyên liệu). |
+| `skills` | Đánh thường (J): tên, thời gian hồi, hệ số sát thương, tầm (`params`). |
+| `arts` | Công pháp: tên, hệ, bậc, loại (`melee`, `bolt`, `zone`, `nova`, `dash`, `heal`, `buff`), hồi chiêu, hệ số, `params` (JSON, theo loại), hiệu ứng pixelfx (`fx`) và chỗ vẽ (`fx_at`: `front`, `self`, `target`, `bolt`), `starter` (ai cũng biết), `enabled`. Danh sách đầu nằm ở `shared/arts-seed.js`. |
+| `art_reqs` | Mỗi dòng là một vật phẩm (và số lượng) cần để lĩnh ngộ một công pháp. |
+| `monster_drops` | Rơi đồ: `monster` (hoặc `*` cho mọi yêu thú có `common_drops`), vật phẩm, `chance` (0-1), `min_qty`, `max_qty`. |
+| `learned_arts`, `characters.art_slots` | Công pháp người chơi đã lĩnh ngộ, và 5 ô trên thanh (JSON). |
 | `settings` | Các con số còn lại, mỗi dòng có ghi chú ý nghĩa: chỉ số gốc nhân vật, đường tu vi, quà mỗi ngày, quà tân thủ, tu luyện, thưởng PvP, thời gian hồi sinh… |
 
 Lần đầu chạy, máy chủ tự tạo bảng và điền số liệu hiện tại. Những lần sau không ghi đè chỉnh sửa của admin.

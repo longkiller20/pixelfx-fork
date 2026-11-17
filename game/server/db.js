@@ -86,6 +86,14 @@ const SCHEMA = [
     PRIMARY KEY (user_id, request_id),
     CONSTRAINT fk_buy_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
+  // công pháp learned (the starter arts are known by everyone and have no row); one row per art, so learning twice is refused
+  `CREATE TABLE IF NOT EXISTS learned_arts (
+    user_id INT UNSIGNED NOT NULL,
+    art_key VARCHAR(32) NOT NULL,
+    learned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, art_key),
+    CONSTRAINT fk_art_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
   // one row per account per day: the daily gift can only be claimed once
   `CREATE TABLE IF NOT EXISTS daily_claims (
     user_id INT UNSIGNED NOT NULL,
@@ -150,6 +158,8 @@ const UPGRADES = [
   `ALTER TABLE characters ADD COLUMN IF NOT EXISTS weapon SMALLINT UNSIGNED NOT NULL DEFAULT ${DEFAULT_WEAPON} AFTER robe`,
   // bảo vật: never sold, never free; only given (by an admin now, by events and the auction house later)
   "ALTER TABLE cosmetics ADD COLUMN IF NOT EXISTS special TINYINT(1) NOT NULL DEFAULT 0 AFTER on_sale",
+  // the five arts on the bar, as a JSON array of art keys (null: an empty slot); NULL until first changed (starters)
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS art_slots VARCHAR(400) NULL",
 ];
 
 export async function migrate() {

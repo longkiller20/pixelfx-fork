@@ -12,7 +12,7 @@ import { ROOT, config } from "./config.js";
 import { hashPassword, verifyPassword, dummyVerify, rateLimit } from "./auth.js";
 import { readConfig, loadConfig } from "./gameconfig.js";
 import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS } from "../shared/balance.js";
-import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem } from "./store.js";
+import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem, adminArt, loadCharacter } from "./store.js";
 import { userLock } from "./lock.js";
 
 const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
@@ -65,12 +65,22 @@ const T = {
   realms: { pk: "id", order: "sort, id", config: true, add: true, del: true, cols: { name: "str:32", stages: "uint", sort: "int" } },
   items: {
     pk: "item_key", pkType: "key", order: "sort, item_key", config: true, add: true, del: true,
-    cols: { name: "str:40", description: "str:200", price: "uint", heal: "num", exp_base: "uint", exp_per_level: "uint", cooldown: "num", on_sale: "bool", sort: "int" },
+    cols: { name: "str:40", kind: "enum:pill|book|material", description: "str:200", price: "uint", heal: "num", exp_base: "uint", exp_per_level: "uint", cooldown: "num", on_sale: "bool", sort: "int" },
   },
   monsters: {
     pk: "type", order: "type", config: true,
-    cols: { name: "str:40", hp: "num", atk: "num", def: "num", spd: "num", respawn: "num", exp_base: "uint", exp_per_level: "uint", stones: "uint", aggro: "num", reach: "num", cooldown: "num", mult: "num" },
+    cols: { name: "str:40", hp: "num", atk: "num", def: "num", spd: "num", respawn: "num", exp_base: "uint", exp_per_level: "uint", stones: "uint", aggro: "num", reach: "num", cooldown: "num", mult: "num", common_drops: "bool" },
   },
+  // công pháp, what each needs to learn, and what monsters drop (see shared/arts-seed.js)
+  arts: {
+    pk: "art_key", pkType: "key", order: "sort, art_key", config: true, add: true, del: true,
+    cols: {
+      name: "str:30", description: "str:200", element: "str:8", tier: "uint", type: "enum:melee|bolt|zone|nova|dash|heal|buff", cd: "num", mult: "num",
+      params: "json", fx: "str:48", fx_at: "enum:front|self|target|bolt", fx_life: "num", starter: "bool", enabled: "bool", sort: "int",
+    },
+  },
+  art_reqs: { pk: "id", order: "art_key, id", config: true, add: true, del: true, cols: { art_key: "str:32", item_key: "str:32", qty: "uint" } },
+  monster_drops: { pk: "id", order: "monster, id", config: true, add: true, del: true, cols: { monster: "str:16", item_key: "str:32", chance: "num", min_qty: "uint", max_qty: "uint" } },
   skills: { pk: "slot", order: "slot", config: true, cols: { name: "str:40", type: "enum:melee|bolt|zone", cd: "num", mult: "num", params: "json" } },
   settings: { pk: "k", order: "k", config: true, cols: { v: "num" } },
   cosmetics: {
@@ -82,7 +92,7 @@ const T = {
 function value(type, v, col) {
   if (type.startsWith("str:")) {
     const s = String(v ?? "").trim();
-    if (!s && col !== "description") throw bad(`${col}: không được để trống`);
+    if (!s && col !== "description" && col !== "fx") throw bad(`${col}: không được để trống`);
     if (s.length > Number(type.slice(4))) throw bad(`${col}: tối đa ${type.slice(4)} ký tự`);
     return s;
   }
@@ -309,6 +319,8 @@ export function adminApp(world) {
       const [before] = await c.query(`SELECT * FROM ${name} WHERE ${t.pk} = ?`, [pk]);
       if (!before) throw bad("Không tìm thấy dòng này.", 404);
       await c.query(`DELETE FROM ${name} WHERE ${t.pk} = ?`, [pk]);
+      // an art takes what it needed with it; who learned it keeps the row (harmless) until it comes back
+      if (name === "arts") await c.query("DELETE FROM art_reqs WHERE art_key = ?", [pk]);
       if (t.config) await checkInside(c);
       await log(req.admin, `${name}.del`, pk, before);
     });
@@ -354,8 +366,9 @@ export function adminApp(world) {
       q("SELECT admin, action, detail, at FROM admin_log WHERE target = ? AND action LIKE 'player.%' ORDER BY id DESC LIMIT 30", [String(id)]),
       q("SELECT id, stat, pct, expires_at, note, created_by, created_at FROM player_buffs WHERE user_id = ? AND expires_at IS NOT NULL AND expires_at <= NOW() ORDER BY id DESC LIMIT 10", [id]),
     ]);
+    const ch = p.name === null ? null : await loadCharacter(id);
     return {
-      ...shapePlayer(p), inventory: await inventory(id), owned, buys, pvp, history,
+      ...shapePlayer(p), inventory: await inventory(id), owned, buys, pvp, history, learned: ch?.learned ?? [], slots: ch?.slots ?? [],
       buffs: await activeBuffs(id), expiredBuffs: oldBuffs.map((b) => ({ ...b, id: Number(b.id) })), live: world.liveInfo(id),
     };
   }
@@ -390,6 +403,13 @@ export function adminApp(world) {
     await adminItem(id, String(item ?? ""), op === "set" ? "set" : "add", op === "sub" ? -v : v);
     await log(req.admin, "player.item", id, { item, op, value: v });
     await world.sendInv(id);
+    res.json(await playerDetail(id));
+  }));
+  // teach an art without spending anything, or take one back (it leaves the bar too); an online player gets it at once
+  r.post("/players/:id/arts", wrap(async (req, res) => {
+    const id = playerId(req.params.id), key = String(req.body?.key ?? ""), learn = req.body?.learn === true;
+    world.refresh(id, await adminArt(id, key, learn));
+    await log(req.admin, learn ? "player.teach" : "player.unteach", id, { art: key });
     res.json(await playerDetail(id));
   }));
   // name and look: shown to everyone at once, no need to log back in

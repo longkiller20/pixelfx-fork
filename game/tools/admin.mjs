@@ -16,7 +16,7 @@
 //                                                                 cooldown on_sale sort  (heal 0.4 = 40% of max hp)
 //   npm run admin -- monster set <dummy|ghost> <field> <value>    fields: name hp atk def spd respawn exp_base
 //                                                                 exp_per_level stones aggro reach cooldown mult
-//   npm run admin -- skill set <0|1|2> <field> <value>            fields: name cd mult, or the type's own numbers:
+//   npm run admin -- skill set 0 <field> <value>      (the basic attack; arts are edited on the admin site)            fields: name cd mult, or the type's own numbers:
 //                                                                 melee range arc · bolt range speed r · zone dist r delay slow slowDur
 //
 // Hair styles and robes have their own tool: npm run cosmetics.
@@ -129,7 +129,7 @@ try {
     }
     case "skill": {
       const [slot, field, v] = b;
-      if (verb !== "set") throw new Error("skill set <0|1|2> <trường> <giá trị>");
+      if (verb !== "set") throw new Error("skill set 0 <trường> <giá trị> (công pháp sửa ở trang admin)");
       await change(async (c) => {
         const [s] = await c.query("SELECT * FROM skills WHERE slot = ?", [number(slot, "ô chiêu")]);
         if (!s) throw new Error(`Không có chiêu ô ${slot}.`);

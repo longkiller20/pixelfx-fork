@@ -4,6 +4,7 @@
 // applied live and pushed to every browser; a broken one is refused with a log line and the game keeps the last good set.
 import { q, pool } from "./db.js";
 import { DEFAULTS, applyConfig } from "../shared/balance.js";
+import { ARTS_SEED, ART_ITEMS_SEED, ART_REQS_SEED, DROPS_SEED } from "../shared/arts-seed.js";
 
 export const CONFIG_SCHEMA = [
   // one row per realm, in sort order; each realm has `stages` levels ("tầng")
@@ -44,6 +45,46 @@ export const CONFIG_SCHEMA = [
     mult DOUBLE NOT NULL,
     params VARCHAR(500) NOT NULL DEFAULT '{}'
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // công pháp: every art a player can learn (see shared/arts-seed.js for the types and what `fx_at` means)
+  `CREATE TABLE IF NOT EXISTS arts (
+    art_key VARCHAR(32) NOT NULL PRIMARY KEY,
+    name VARCHAR(30) NOT NULL,
+    description VARCHAR(200) NOT NULL DEFAULT '',
+    element VARCHAR(8) NOT NULL DEFAULT 'kim',
+    tier TINYINT UNSIGNED NOT NULL DEFAULT 1,
+    type VARCHAR(8) NOT NULL,
+    cd DOUBLE NOT NULL,
+    mult DOUBLE NOT NULL DEFAULT 0,
+    params VARCHAR(500) NOT NULL DEFAULT '{}',
+    fx VARCHAR(48) NOT NULL DEFAULT '',
+    fx_at VARCHAR(8) NOT NULL DEFAULT 'front',
+    fx_life DOUBLE NOT NULL DEFAULT 0,
+    starter TINYINT(1) NOT NULL DEFAULT 0,
+    enabled TINYINT(1) NOT NULL DEFAULT 1,
+    sort INT NOT NULL DEFAULT 0
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // what learning an art spends: every row is one item and how many
+  `CREATE TABLE IF NOT EXISTS art_reqs (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    art_key VARCHAR(32) NOT NULL,
+    item_key VARCHAR(32) NOT NULL,
+    qty INT UNSIGNED NOT NULL DEFAULT 1,
+    UNIQUE KEY uq_req (art_key, item_key)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // what a monster may drop when killed: monster '*' means every monster with common drops on
+  `CREATE TABLE IF NOT EXISTS monster_drops (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    monster VARCHAR(16) NOT NULL,
+    item_key VARCHAR(32) NOT NULL,
+    chance DOUBLE NOT NULL,
+    min_qty INT UNSIGNED NOT NULL DEFAULT 1,
+    max_qty INT UNSIGNED NOT NULL DEFAULT 1,
+    UNIQUE KEY uq_drop (monster, item_key)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // pills (used from the bar), books and materials (spent on arts)
+  "ALTER TABLE items ADD COLUMN IF NOT EXISTS kind VARCHAR(8) NOT NULL DEFAULT 'pill' AFTER name",
+  // straw dummies drop nothing; everything else takes the '*' drops
+  "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS common_drops TINYINT(1) NOT NULL DEFAULT 1",
   `CREATE TABLE IF NOT EXISTS settings (
     k VARCHAR(48) NOT NULL PRIMARY KEY,
     v DOUBLE NOT NULL,
@@ -70,29 +111,70 @@ export async function seedConfig() {
   // breaking one, so they can't be farmed. Changed only if an admin never touched their rewards.
   await q("UPDATE monsters SET exp_base = 2, exp_per_level = 0, stones = 0 WHERE type = 'dummy' AND exp_base = 10 AND exp_per_level = 2 AND stones = 1");
   await pool.batch("INSERT IGNORE INTO skills (slot, name, type, cd, mult, params) VALUES (?, ?, ?, ?, ?, ?)", DEFAULTS.skills.map((s) => [s.slot, s.name, s.type, s.cd, s.mult, JSON.stringify(s.params)]));
+  await seedArts();
   await pool.batch("INSERT IGNORE INTO settings (k, v, note) VALUES (?, ?, ?)", Object.entries(DEFAULTS.settings).map(([k, [v, note]]) => [k, v, note]));
 }
 
-/** Read the five tables into a config object (not yet checked). conn: a connection inside a transaction, optional. */
+/**
+ * The arts, their books and essences, what each needs and where things drop. Arts and items go in by key (an admin's
+ * changes stay). Requirements and drops are filled only the first time there are arts at all, so a row an admin deleted
+ * doesn't come back. Phi Kiếm and Lôi Ấn Trận used to be skills 2 and 3: an admin's numbers for them move over.
+ */
+async function seedArts() {
+  const [{ n }] = await q("SELECT COUNT(*) AS n FROM arts");
+  const first = !Number(n);
+  const old = first ? await q("SELECT slot, name, cd, mult, params FROM skills WHERE slot IN (1, 2)") : [];
+  const rows = ARTS_SEED.map((a) => {
+    const o = old.find((s) => (a.key === "phikiem" && s.slot === 1) || (a.key === "loian" && s.slot === 2));
+    const params = o ? { ...a.params, ...JSON.parse(o.params) } : a.params;
+    return [a.key, o?.name ?? a.name, a.desc, a.element, a.tier, a.type, o?.cd ?? a.cd, o?.mult ?? a.mult, JSON.stringify(params), a.fx, a.at, a.life, a.starter ? 1 : 0, a.sort];
+  });
+  await pool.batch(
+    "INSERT IGNORE INTO arts (art_key, name, description, element, tier, type, cd, mult, params, fx, fx_at, fx_life, starter, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    rows,
+  );
+  await pool.batch(
+    "INSERT IGNORE INTO items (item_key, name, kind, description, price, heal, exp_base, exp_per_level, cooldown, on_sale, sort) VALUES (?, ?, ?, ?, 0, 0, 0, 0, 1, 0, ?)",
+    ART_ITEMS_SEED.map((i) => [i.key, i.name, i.kind, i.desc, i.sort]),
+  );
+  await q("UPDATE monsters SET common_drops = 0 WHERE type = 'dummy'");
+  if (first) {
+    // the old skill rows 2 and 3 now live on as arts
+    await q("DELETE FROM skills WHERE slot IN (1, 2)");
+    await pool.batch("INSERT IGNORE INTO art_reqs (art_key, item_key, qty) VALUES (?, ?, ?)", ART_REQS_SEED.map((r) => [r.art, r.item, r.qty]));
+    await pool.batch("INSERT IGNORE INTO monster_drops (monster, item_key, chance, min_qty, max_qty) VALUES (?, ?, ?, ?, ?)", DROPS_SEED.map((d) => [d.monster, d.item, d.chance, d.min, d.max]));
+  }
+}
+
+/** Read the config tables into a config object (not yet checked). conn: a connection inside a transaction, optional. */
 export async function readConfig(conn = null) {
   const Q = (sql) => (conn ?? pool).query(sql);
-  const [realms, items, monsters, skills, settings] = await Promise.all([
+  const [realms, items, monsters, skills, settings, arts, reqs, drops] = await Promise.all([
     Q("SELECT name, stages FROM realms ORDER BY sort, id"),
     Q("SELECT * FROM items ORDER BY sort, item_key"),
     Q("SELECT * FROM monsters"),
     Q("SELECT * FROM skills ORDER BY slot"),
     Q("SELECT k, v FROM settings"),
+    Q("SELECT * FROM arts ORDER BY sort, art_key"),
+    Q("SELECT art_key, item_key, qty FROM art_reqs ORDER BY id"),
+    Q("SELECT monster, item_key, chance, min_qty, max_qty FROM monster_drops ORDER BY id"),
   ]);
   return {
     realms: realms.map((r) => ({ name: r.name, stages: Number(r.stages) })),
     items: items.map((i) => ({
-      key: i.item_key, name: i.name, desc: i.description, price: Number(i.price), heal: i.heal, expBase: Number(i.exp_base), expPerLevel: Number(i.exp_per_level),
+      key: i.item_key, name: i.name, kind: i.kind ?? "pill", desc: i.description, price: Number(i.price), heal: i.heal, expBase: Number(i.exp_base), expPerLevel: Number(i.exp_per_level),
       cd: i.cooldown, onSale: !!i.on_sale, sort: i.sort,
     })),
     monsters: monsters.map((m) => ({
       type: m.type, name: m.name, hp: m.hp, atk: m.atk, def: m.def, spd: m.spd, respawn: m.respawn, expBase: Number(m.exp_base), expPerLevel: Number(m.exp_per_level),
-      stones: Number(m.stones), aggro: m.aggro, reach: m.reach, cd: m.cooldown, mult: m.mult,
+      stones: Number(m.stones), aggro: m.aggro, reach: m.reach, cd: m.cooldown, mult: m.mult, commonDrops: m.common_drops === undefined ? true : !!m.common_drops,
     })),
+    arts: arts.map((a) => ({
+      key: a.art_key, name: a.name, desc: a.description, element: a.element, tier: a.tier, type: a.type, cd: a.cd, mult: a.mult, params: a.params,
+      fx: a.fx, at: a.fx_at, life: a.fx_life, starter: !!a.starter, enabled: !!a.enabled, sort: a.sort,
+    })),
+    reqs: reqs.map((r) => ({ art: r.art_key, item: r.item_key, qty: Number(r.qty) })),
+    drops: drops.map((d) => ({ monster: d.monster, item: d.item_key, chance: d.chance, min: Number(d.min_qty), max: Number(d.max_qty) })),
     skills: skills.map((s) => ({ slot: s.slot, name: s.name, type: s.type, cd: s.cd, mult: s.mult, params: s.params })),
     settings: Object.fromEntries(settings.map((s) => [s.k, s.v])),
   };
