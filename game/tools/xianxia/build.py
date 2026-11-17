@@ -97,10 +97,18 @@ def main():
         h, w = p.shape[:2]
         x0, y0 = (k % cols) * cw, (k // cols) * ch
         sheet[y0 : y0 + h, x0 : x0 + w] = p
-        # the grip: on the handle end, at the height the shaft runs through there
-        gx = max(2, round(w * 0.2))
+        # the grip: for a sword-sized weapon on the handle, just behind the guard when there is one (a column much taller
+        # than the handle's), else near the butt end; at the height the shaft runs through there
+        heights = [(p[:, x, 3] > 0).sum() for x in range(w)]
+        near = heights[: max(3, int(w * 0.45))]
+        handle = float(np.median([v for v in near if v > 0] or [1]))
+        guard = max(range(len(near)), key=lambda x: near[x])
+        if w > 62:  # polearms and staves: held a quarter of the way up the shaft
+            gx = round(w * 0.25)
+        else:
+            gx = max(2, guard - 3) if near[guard] >= handle * 1.8 and guard >= 5 else max(2, round(w * 0.14))
         col = np.nonzero(p[:, gx, 3])[0]
-        gy = int(col.mean()) if len(col) else h // 2
+        gy = int(round(col.mean())) if len(col) else h // 2
         items.append({"name": n, "x": x0, "y": y0, "w": w, "h": h, "gx": gx, "gy": gy})
     Image.fromarray(sheet).save(os.path.join(OUT, "weapons.png"), optimize=True)
     with open(os.path.join(OUT, "weapons.json"), "w") as f:

@@ -410,13 +410,24 @@ const middle = (base, cx, cy) => {
   const h = hash(cx, cy, 71);
   return `${base}_${h < 0.5 ? "M" : h < 0.75 ? "M2" : "M3"}`;
 };
-/** One solid cell from a set: the surface where open sky is above it, the body otherwise. */
+// How far a set's surface tile is raised so its solid ground meets the floor line the physics stands on: the bamboo
+// earth has a 9 px fringe of dry grass above its soil, which would leave everything standing on grass tips.
+const LIFT = { bamboo: 6, bluestone: 0, cloud: 0 };
+/**
+ * One solid cell from a set: the surface where open sky is above it, the body otherwise. An end tile (with its rounded,
+ * see-through edge) only where the side is open air; against water, a waterfall or a bridge the middle tile, so no gap
+ * shows between the earth and the water.
+ */
 function groundCell(S, M, set, cx, cy, T) {
-  const at = (x, y) => M.cell(x, y), solid = (ch) => ch === "#" || ch === "s";
-  const up = at(cx, cy - 1), surface = up === "." || up === "=" || up === "b";
-  const L = !solid(at(cx - 1, cy)), R = !solid(at(cx + 1, cy));
-  const base = surface ? "ground_top" : "ground_body";
-  tile(S, set, L && R ? `${base}_S` : L ? `${base}_L` : R ? `${base}_R` : middle(base, cx, cy), cx * T, cy * T);
+  const at = (x, y) => M.cell(x, y), closed = (ch) => ch === "#" || ch === "s" || ch === "w" || ch === "|" || ch === "b";
+  const up = at(cx, cy - 1), surface = up === "." || up === "=";
+  const L = !closed(at(cx - 1, cy)), R = !closed(at(cx + 1, cy));
+  const pick = (base) => (L && R ? `${base}_S` : L ? `${base}_L` : R ? `${base}_R` : middle(base, cx, cy));
+  if (surface && LIFT[set]) {
+    // the body fills the cell, the surface sits on it raised: its grass stands above the floor, over the props' feet
+    tile(S, set, pick("ground_body"), cx * T, cy * T);
+    tile(S, set, pick("ground_top"), cx * T, cy * T - LIFT[set]);
+  } else tile(S, set, pick(surface ? "ground_top" : "ground_body"), cx * T, cy * T);
 }
 /** A cloud platform: its top on the cell, its billowing underside hanging into the cell below. */
 function cloudPlatform(S, M, cx, cy, T) {
