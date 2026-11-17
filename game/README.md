@@ -24,7 +24,8 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Khu chợ: điểm xuất hiện, có bia Truyền Tống.
   - Đồi có bảo tháp.
   - Bậc thang đá đi xuống lối ra.
-- **Thôn an toàn, không có yêu thú.**
+- **Thôn an toàn, không có yêu thú.** Cạnh chợ (gần điểm xuất hiện) có 2 bù nhìn rơm để thử sát thương: không đánh trả, tự hồi
+  máu khi để yên, bị hạ thì 5 giây sau dựng lại; chỉ thưởng 2 tu vi, không có linh thạch, để không ai cày được.
   - Nước và thác có hoạt ảnh, đèn đá lập lòe, hoa anh đào bay.
   - Phía sau là núi, đảo bay và mây, mỗi lớp trượt chậm hơn tiền cảnh (parallax).
   - Ngồi thiền trên Thái Cực Đài để tu luyện; đĩa âm dương phía trên quay nhanh hơn khi có người tu luyện.

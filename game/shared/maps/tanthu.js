@@ -14,14 +14,15 @@
 export const TANTHU = {
   id: "tanthu",
   name: "Tân Thủ Thôn",
-  sub: "Thôn khởi đầu: an toàn, không có yêu thú. Ngồi thiền trên Thái Cực Đài để tu luyện.",
+  sub: "Thôn khởi đầu: an toàn, không có yêu thú. Thử chiêu trên bù nhìn rơm cạnh chợ; ngồi thiền trên Thái Cực Đài để tu luyện.",
   terrain: "/maps/tiles/terrain.png",
   roof: "/maps/tiles/roof.png",
   mountains: "/maps/tiles/mountains.png",
   pines: "/maps/tiles/pines.png",
   cell: 32,
   pvp: false,
-  mobs: [],
+  // two straw dummies by the market, beside where newcomers appear: something to try the arts on
+  mobs: [{ type: "dummy", x: 83, row: 15 }, { type: "dummy", x: 85.5, row: 15 }],
   spawn: { x: 89, row: 15 },
   spring: { x0: 48.8, x1: 53.2, row: 13 },
   portals: [{ x: 123, row: 18, r: 0.8, to: null, msg: "Bản đồ mới sẽ được mở rộng sau, xin đạo hữu thông cảm!" }],
