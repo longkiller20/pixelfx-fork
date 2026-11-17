@@ -21,10 +21,10 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Phố nhà mái cong.
   - Điện thờ trên sân đá cao 2 ô; trước điện là Thái Cực Đài, phía trên có đài mây lơ lửng.
   - Cổng chào, suối có cầu.
-  - Khu chợ: điểm xuất hiện, có bia Truyền Tống.
+  - Vườn đào tiên: điểm xuất hiện, có bia Truyền Tống, cây đào tiên, hòn non bộ, khóm lan và linh chi.
   - Đồi có bảo tháp.
   - Bậc thang đá đi xuống lối ra.
-- **Thôn an toàn, không có yêu thú.** Cạnh chợ (gần điểm xuất hiện) có 2 bù nhìn rơm để thử sát thương: không đánh trả, tự hồi
+- **Thôn an toàn, không có yêu thú.** Dưới gốc đào tiên (gần điểm xuất hiện) có 2 bù nhìn rơm để thử sát thương: không đánh trả, tự hồi
   máu khi để yên, bị hạ thì 5 giây sau dựng lại; chỉ thưởng 2 tu vi, không có linh thạch, để không ai cày được.
   - Nước và thác có hoạt ảnh, đèn đá lập lòe, hoa anh đào bay.
   - Phía sau là núi, đảo bay và mây, mỗi lớp trượt chậm hơn tiền cảnh (parallax).
@@ -209,7 +209,8 @@ Mỗi bản đồ là một file trong `shared/maps/`. Bản đồ dựng từ l
   - `bamboo`: khóm trúc.
   - `taiji`: Thái Cực Đài.
   - `well`: giếng.
-  - `stall`: sạp hàng chợ.
+  - `xx`: một món cảnh của Xianxia Pixel Pack (`{"n": tên ảnh trong public/xianxia/bg/, "s": thu nhỏ 1/s}`), đứng trên mặt đất.
+  - `stall`: sạp hàng chợ (không còn dùng ở Tân Thủ Thôn).
   - `spawnstone`: bia Truyền Tống.
   - `sign`: biển gỗ.
 - `deco`: cây hoa lấy từ tileset đất, viết dạng `[cột trong tấm, hàng trong tấm, x, hàng nền]`.

@@ -57,6 +57,23 @@ class Buf {
   }
 }
 
+/** A picture at 1/s size (s = 1, 2, 3, 4...): each s x s block averaged, transparent if mostly empty. */
+function shrunk(img, s) {
+  if (s <= 1) return img;
+  const w = Math.floor(img.w / s), h = Math.floor(img.h / s), px = new Uint32Array(w * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let j = 0; j < s; j++)
+        for (let i = 0; i < s; i++) {
+          const c = img.px[(y * s + j) * img.w + x * s + i];
+          if (c >>> 24 > 128) (r += c & 255), (g += (c >>> 8) & 255), (b += (c >>> 16) & 255), n++;
+        }
+      if (n * 2 >= s * s) px[y * w + x] = ((255 << 24) | (Math.round(b / n) << 16) | (Math.round(g / n) << 8) | Math.round(r / n)) >>> 0;
+    }
+  return { w, h, px };
+}
+
 /** A picture at half size: each 2 x 2 block averaged (transparent if mostly empty). For far-away scenery. */
 function halve(img) {
   const w = img.w >> 1, h = img.h >> 1, px = new Uint32Array(w * h);
@@ -545,6 +562,10 @@ export async function buildScene(M) {
       // the golden palace (Xianxia Pixel Pack), on its own marble base, in the middle of the terrace
       const cx = Math.round((x + (o?.w ?? 13) / 2) * T);
       S.blit(palace.px, palace.w, 0, 0, palace.w, palace.h, cx - (palace.w >> 1), row * T - palace.h);
+    } else if (kind === "xx") {
+      // a piece of scenery from the Xianxia Pixel Pack, shrunk by o.s, standing on the floor at x (its middle)
+      const img = shrunk(await loadPixels(`/xianxia/bg/${o.n}.png`), o.s ?? 1);
+      S.blit(img.px, img.w, 0, 0, img.w, img.h, Math.round(x * T) - (img.w >> 1), row * T - img.h + 2);
     } else if (kind === "pagoda") S.blit(tower.px, tower.w, 0, 0, tower.w, tower.h, Math.round(x * T) - (tower.w >> 1), row * T - tower.h);
     else if (PROPS[kind]) PROPS[kind](S, Math.round(x * T), row * T, o ?? {}, roofs);
   }
