@@ -11,21 +11,18 @@ ground(g, 0, 159, 15);
 ground(g, 22, 40, 14);
 ground(g, 26, 36, 13);
 ground(g, 29, 33, 12);
-// the pond: three rows deep, a plank bridge across the middle, open water at its banks
+// the pond: three rows deep, a plank bridge from bank to bank
 box(g, 44, 61, 15, 17, "w");
-box(g, 46, 59, 15, 15, "b");
+box(g, 44, 61, 15, 15, "b");
 // the deep wood: a root-hump, and walkways in the branches
 ground(g, 70, 74, 14);
 box(g, 76, 83, 11, 11, "b");
 box(g, 86, 92, 8, 8, "b");
 box(g, 94, 99, 11, 11, "b");
-// the stone rise to the east gate: three steps with stone faces
+// the rise to the east gate: three grassy steps
 ground(g, 130, 159, 14);
 ground(g, 136, 159, 13);
 ground(g, 141, 159, 12);
-box(g, 130, 130, 14, 14, "s");
-box(g, 136, 136, 13, 13, "s");
-box(g, 141, 141, 12, 12, "s");
 
 const XX = (n, x, row, s, o = {}) => ["xx", x, row, { n, s, ...o }];
 export const BICHLAC = {
@@ -55,13 +52,12 @@ export const BICHLAC = {
   ],
   props: [
     // the way in from the town: bamboo and a great pine
-    XX("bg_mid_01_03", 13, 15, 2), ["pine", 10, 15, { v: 1 }], XX("bg_xianxia_deco_01_03", 18.5, 15, 4), ["sign", 5.2, 15],
+    XX("bg_mid_01_03", 13, 15, 2), ["pine", 10, 15, { v: 1 }], XX("bg_xianxia_deco_01_01", 18.5, 15, 5), ["sign", 5.2, 15],
     // the hill: a gnarled pine on top, bamboo on its flank, orchids
     XX("bg_mid_01_03", 24.5, 14, 2), XX("bg_mid_01_04", 31, 12, 2), XX("bg_xianxia_deco_01_01", 37.5, 14, 4),
-    // the pond: willows on both banks, lotus at its edges, ripples
+    // the pond: willows on both banks, ripples under the bridge
     XX("bg_mid_02_05", 41, 15, 2), XX("bg_mid_02_05", 64, 15, 2, { f: 1 }),
-    XX("bg_xianxia_deco_01_04", 44.9, 15, 4, { dy: 18 }), XX("bg_xianxia_deco_01_04", 60.6, 15, 4, { dy: 18, f: 1 }),
-    ["fx", 45, 15, { id: "water/ripples", h: -6, k: 1 }], ["fx", 60.5, 15, { id: "water/ripples", h: -6, k: 1 }],
+    ["fx", 48, 16, { id: "water/ripples", h: 8, k: 1 }], ["fx", 57, 16, { id: "water/ripples", h: 8, k: 1 }],
     // the deep wood: great pines, bamboo, a scholar's rock, mushrooms, fireflies under the canopy, leaves falling
     ["pine", 69, 15, { v: 0 }], XX("bg_mid_01_03", 77, 15, 2), ["pine", 88, 15, { v: 2 }], XX("bg_mid_01_03", 95, 15, 2, { f: 1 }),
     XX("bg_mid_02_04", 73, 14, 3), XX("bg_xianxia_deco_01_00", 67.5, 15, 4), XX("bg_xianxia_deco_01_00", 91, 15, 5),
@@ -71,7 +67,7 @@ export const BICHLAC = {
     XX("bg_xianxia_deco_01_01", 113, 15, 4, { f: 1 }), XX("bg_xianxia_deco_01_02", 111, 15, 3), XX("bg_mid_02_03", 123, 15, 2),
     XX("bg_xianxia_deco_01_00", 127.5, 15, 5),
     // the stone rise and the gate east
-    XX("bg_mid_01_04", 134, 14, 2, { f: 1 }), XX("bg_xianxia_deco_01_03", 139, 13, 4), XX("bg_mid_02_00", 150, 12, 2),
+    XX("bg_mid_01_04", 134, 14, 2, { f: 1 }), XX("bg_xianxia_deco_01_02", 139, 13, 4), XX("bg_mid_02_00", 150, 12, 2),
     ["lantern", 145.5, 12], ["lantern", 154.5, 12], ["sign", 158.5, 12],
     ["glow", 80, 15, { h: 40, r: 70, c: "#c8ff8a", a: 0.12 }], ["glow", 115, 15, { h: 40, r: 70, c: "#c8ff8a", a: 0.12 }],
   ],

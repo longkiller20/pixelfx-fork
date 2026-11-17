@@ -24,11 +24,6 @@ box(g, 139, 141, 15, 16, "w");
 ground(g, 146, 169, 13);
 ground(g, 152, 169, 11);
 ground(g, 157, 169, 9);
-box(g, 146, 146, 13, 13, "s");
-box(g, 152, 152, 11, 11, "s");
-box(g, 157, 157, 9, 9, "s");
-// the waterfall comes down from the heights above, past the cliff's face
-box(g, 148, 149, 0, 12, "|");
 
 const XX = (n, x, row, s, o = {}) => ["xx", x, row, { n, s, ...o }];
 const RIPPLE = (x) => ["fx", x, 15, { id: "water/ripples", h: -4, k: 1.2 }];
@@ -57,21 +52,19 @@ export const LINHTHUY = {
   props: [
     // the west shore: willows, a stone lantern, a stone bridge's arch where the walkway starts
     XX("bg_mid_02_05", 9, 15, 2), ["lantern", 15, 15], XX("bg_xianxia_deco_01_02", 17.5, 15, 4), ["sign", 4.6, 15],
-    // lotus on the water, ripples
-    XX("bg_xianxia_deco_01_04", 29, 15, 3, { dy: 22 }), XX("bg_xianxia_deco_01_04", 68, 15, 3, { dy: 22, f: 1 }), XX("bg_xianxia_deco_01_04", 112, 15, 3, { dy: 22 }),
+    // ripples on the open water
     RIPPLE(25), RIPPLE(37), RIPPLE(63), RIPPLE(74), RIPPLE(102), RIPPLE(117),
     // the little isle: a lotus basin with a fountain playing, a jade rock
     XX("bg_xianxia_mid_04_01", 51.5, 14, 3), ["fx", 51.5, 14, { id: "water/fountain", h: 30, k: 1.2 }], XX("bg_xianxia_deco_01_02", 56.5, 14, 4, { f: 1 }),
     // the big isle: a pavilion under a pine, lanterns, orchids
     XX("bg_mid_01_04", 83, 12, 2), XX("bg_mid_01_00", 89, 12, 2), ["lantern", 81.5, 13], ["lantern", 95, 13], XX("bg_xianxia_deco_01_01", 93, 12, 5),
-    // a jade arch over the last walkway
-    XX("bg_xianxia_mid_03_02", 108, 15, 2, { dy: 6 }),
     // the marsh: willows, reeds, mushrooms, bubbles in the pools
     XX("bg_mid_02_05", 124, 15, 2, { f: 1 }), XX("bg_near_01_04", 133, 15, 3, { tint: "#2a5a3a", k: 0.6 }), XX("bg_near_01_04", 137.5, 15, 3, { tint: "#2a5a3a", k: 0.6, f: 1 }),
     XX("bg_xianxia_deco_01_00", 144, 15, 5), ["fx", 129.5, 15, { id: "water/bubbles", h: -8, k: 1 }], ["fx", 140, 15, { id: "water/bubbles", h: -8, k: 1 }],
     // the cliff: a waterfall cliff far behind, pines on the steps, the road on
     XX("bg_mid_01_04", 155, 11, 2, { f: 1 }), ["lantern", 160, 9], ["sign", 168.5, 9],
-    ["fx", 148.5, 13, { id: "water/ripples", h: -2, k: 1.4 }],
+    // a spring pouring out of a rock at the foot of the cliff, into the last pool of the marsh
+    ["fx", 140, 15, { id: "water/waterfall", h: -18, k: 1.2, f: 1 }],
   ],
   grid: rows(g),
 };
