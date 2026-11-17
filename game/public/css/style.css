@@ -454,3 +454,5 @@ body.rotated .artp .list { max-height: calc(100dvw - 200px); grid-template-colum
 body.rotated .artp .card { grid-template-columns: 36px 1fr; padding: 4px 6px; }
 body.rotated .artp .card img { width: 36px; height: 36px; }
 body.rotated .artp .card p { font-size: 10px; }
+.artp .evtag { margin-left: 6px; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: #4a3208; color: #ffd84a; vertical-align: 1px; }
+.artp .evnote { color: #ffd88a !important; font-style: italic; }

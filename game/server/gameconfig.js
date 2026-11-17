@@ -84,6 +84,10 @@ export const CONFIG_SCHEMA = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   // how much bigger the art's effect is drawn (0: worked out from the effect, see public/js/arts.js artScale)
   "ALTER TABLE arts ADD COLUMN IF NOT EXISTS fx_scale DOUBLE NOT NULL DEFAULT 0 AFTER fx_life",
+  // where an art comes from: 'learn' (spend its items) or 'event' (only given: activities, events, the auction house...),
+  // with a line for the players saying where
+  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS source VARCHAR(8) NOT NULL DEFAULT 'learn' AFTER starter",
+  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS source_note VARCHAR(100) NOT NULL DEFAULT '' AFTER source",
   // pills (used from the bar), books and materials (spent on arts)
   "ALTER TABLE items ADD COLUMN IF NOT EXISTS kind VARCHAR(8) NOT NULL DEFAULT 'pill' AFTER name",
   // straw dummies drop nothing; everything else takes the '*' drops
@@ -179,7 +183,7 @@ export async function readConfig(conn = null) {
     })),
     arts: arts.map((a) => ({
       key: a.art_key, name: a.name, desc: a.description, element: a.element, tier: a.tier, type: a.type, cd: a.cd, mult: a.mult, params: a.params,
-      fx: a.fx, at: a.fx_at, life: a.fx_life, scale: a.fx_scale ?? 0, starter: !!a.starter, enabled: !!a.enabled, sort: a.sort,
+      fx: a.fx, at: a.fx_at, life: a.fx_life, scale: a.fx_scale ?? 0, starter: !!a.starter, source: a.source ?? "learn", sourceNote: a.source_note ?? "", enabled: !!a.enabled, sort: a.sort,
     })),
     reqs: reqs.map((r) => ({ art: r.art_key, item: r.item_key, qty: Number(r.qty) })),
     drops: drops.map((d) => ({ monster: d.monster, item: d.item_key, chance: d.chance, min: Number(d.min_qty), max: Number(d.max_qty) })),

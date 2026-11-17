@@ -53,6 +53,8 @@ export const ART_PARAMS = {
 };
 export const ART_SLOTS = 5;
 export const ART_AT = ["front", "self", "target", "bolt"];
+// learn: spend its items in the Công Pháp panel; event: only given (activities, events, the auction house... by an admin now)
+export const ART_SOURCES = ["learn", "event"];
 export const ITEM_KINDS = ["pill", "book", "material"];
 const PARAM_MAX = { arc: 6.3, slow: 0.95, pct: 500, dur: 600 };
 // the monster types the game can draw; their numbers are free to change
@@ -180,6 +182,7 @@ export function checkConfig(c) {
     const key = str(a.key, "mã công pháp", 32);
     if (!/^[a-z0-9_]+$/.test(key)) throw new Error(`Mã công pháp "${key}": chỉ chữ thường không dấu, số, _`);
     if (!ART_PARAMS[a.type]) throw new Error(`Công pháp ${key}: loại "${a.type}" không có (${Object.keys(ART_PARAMS).join(", ")})`);
+    if (a.source && !ART_SOURCES.includes(a.source)) throw new Error(`Công pháp ${key}: nguồn "${a.source}" không có (${ART_SOURCES.join(", ")})`);
     if (!ART_AT.includes(a.at)) throw new Error(`Công pháp ${key}: vị trí hiệu ứng "${a.at}" không có (${ART_AT.join(", ")})`);
     if (a.fx && !/^[a-z]+\/[a-z0-9-]+$/.test(a.fx)) throw new Error(`Công pháp ${key}: hiệu ứng "${a.fx}" sai dạng (vd fire/fireball)`);
     let params;
@@ -191,6 +194,7 @@ export function checkConfig(c) {
     const out = {
       key, name: str(a.name, `tên công pháp ${key}`, 30), desc: String(a.desc ?? "").slice(0, 200), element: String(a.element ?? ""), tier: num(a.tier ?? 1, `bậc ${key}`, 1, 9) | 0,
       type: a.type, cd: num(a.cd, `hồi chiêu ${key}`, 0.1, 3600), mult: num(a.mult ?? 0, `hệ số ${key}`, 0, 50), fx: String(a.fx ?? ""), at: a.at,
+      source: a.source ?? "learn", sourceNote: String(a.sourceNote ?? "").slice(0, 100),
       life: num(a.life ?? 0, `thời gian hiệu ứng ${key}`, 0, 60), scale: num(a.scale ?? 0, `cỡ hiệu ứng ${key}`, 0, 6), starter: !!a.starter, enabled: a.enabled !== false && a.enabled !== 0, sort: Number(a.sort) || 0, reqs: [],
     };
     for (const p of ART_PARAMS[a.type]) {
