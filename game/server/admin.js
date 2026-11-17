@@ -11,8 +11,8 @@ import { q, tx, isDup } from "./db.js";
 import { ROOT, config } from "./config.js";
 import { hashPassword, verifyPassword, dummyVerify, rateLimit } from "./auth.js";
 import { readConfig, loadConfig } from "./gameconfig.js";
-import { checkConfig, levelFromExp, realmName, SKILL_PARAMS, NAME_RE, USER_RE, GENDERS } from "../shared/balance.js";
-import { loadCharacter, inventory, GameError } from "./store.js";
+import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS } from "../shared/balance.js";
+import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem } from "./store.js";
 import { userLock } from "./lock.js";
 
 const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
@@ -315,17 +315,24 @@ export function adminApp(world) {
   }));
 
   // ---- players
+  // Every edit of a player goes through store.admin*(), under the player's own lock with atomic SQL, and hands the
+  // re-read character to world.refresh() while still holding that lock: an online player's running numbers, their
+  // unsaved gains and the save in flight all stay right (see World.applyBase).
   const PLAYER_COLS = `u.id, u.username, u.banned, u.ban_reason, u.created_at, c.name, c.gender, c.hair, c.robe, c.exp, c.stones, c.rank_points,
-    c.kills, c.deaths, c.created_at AS char_created`;
+    c.kills, c.deaths, c.created_at AS char_created, (c.med_day = CURDATE()) AS med_today, c.med_exp`;
   const shapePlayer = (p) => ({
     ...p, exp: p.exp === null ? null : Number(p.exp), stones: p.stones === null ? null : Number(p.stones), banned: !!p.banned,
     realm: p.exp === null ? null : realmName(levelFromExp(Number(p.exp))), level: p.exp === null ? null : levelFromExp(Number(p.exp)),
-    online: world.players.has(p.id),
+    online: world.players.has(p.id), medLeft: p.exp === null ? null : Math.max(0, MEDITATE.dailyCap - (p.med_today ? Number(p.med_exp) : 0)),
   });
   r.get("/players", wrap(async (req, res) => {
-    const s = `%${String(req.query.q ?? "").replace(/[%_\\]/g, "\\$&")}%`, sort = { exp: "c.exp DESC", stones: "c.stones DESC", new: "u.id DESC", rank: "c.rank_points DESC" }[req.query.sort] ?? "u.id DESC";
+    const s = `%${String(req.query.q ?? "").replace(/[%_\\]/g, "\\$&")}%`;
+    const sort = { exp: "c.exp DESC", stones: "c.stones DESC", new: "u.id DESC", rank: "c.rank_points DESC" }[req.query.sort] ?? "u.id DESC";
+    const only = req.query.filter === "online" ? [...world.players.keys()] : null;
+    if (only && !only.length) return res.json([]);
     const rows = await q(`SELECT ${PLAYER_COLS} FROM users u LEFT JOIN characters c ON c.user_id = u.id
-      WHERE u.username LIKE ? OR c.name LIKE ? ORDER BY ${sort} LIMIT 100`, [s, s]);
+      WHERE (u.username LIKE ? OR c.name LIKE ?) ${req.query.filter === "banned" ? "AND u.banned = 1" : ""} ${only ? `AND u.id IN (${only.map(() => "?").join(",")})` : ""}
+      ORDER BY ${sort} LIMIT 100`, [s, s, ...(only ?? [])]);
     res.json(rows.map(shapePlayer));
   }));
   const playerId = (v) => {
@@ -336,58 +343,110 @@ export function adminApp(world) {
   async function playerDetail(id) {
     const [p] = await q(`SELECT ${PLAYER_COLS} FROM users u LEFT JOIN characters c ON c.user_id = u.id WHERE u.id = ?`, [id]);
     if (!p) throw bad("Không có người chơi này.", 404);
-    const owned = await q("SELECT c.id, c.kind, c.gender, c.idx, c.name, c.price, o.price AS paid, o.bought_at FROM owned_cosmetics o JOIN cosmetics c ON c.id = o.cosmetic_id WHERE o.user_id = ? ORDER BY c.kind, c.idx", [id]);
-    const buys = await q("SELECT item, qty, price, created_at FROM purchases WHERE user_id = ? ORDER BY created_at DESC LIMIT 20", [id]);
-    return { ...shapePlayer(p), inventory: await inventory(id), owned, buys };
+    const [owned, buys, pvp, history, oldBuffs] = await Promise.all([
+      q("SELECT c.id, c.kind, c.gender, c.idx, c.name, c.price, o.price AS paid, o.bought_at FROM owned_cosmetics o JOIN cosmetics c ON c.id = o.cosmetic_id WHERE o.user_id = ? ORDER BY c.kind, c.idx", [id]),
+      q("SELECT item, qty, price, created_at FROM purchases WHERE user_id = ? ORDER BY created_at DESC LIMIT 20", [id]),
+      q(`SELECT l.killer_id, l.victim_id, l.rewarded, l.at, k.name AS killer, v.name AS victim FROM pvp_log l
+         LEFT JOIN characters k ON k.user_id = l.killer_id LEFT JOIN characters v ON v.user_id = l.victim_id
+         WHERE l.killer_id = ? OR l.victim_id = ? ORDER BY l.id DESC LIMIT 20`, [id, id]),
+      q("SELECT admin, action, detail, at FROM admin_log WHERE target = ? AND action LIKE 'player.%' ORDER BY id DESC LIMIT 30", [String(id)]),
+      q("SELECT id, stat, pct, expires_at, note, created_by, created_at FROM player_buffs WHERE user_id = ? AND expires_at IS NOT NULL AND expires_at <= NOW() ORDER BY id DESC LIMIT 10", [id]),
+    ]);
+    return {
+      ...shapePlayer(p), inventory: await inventory(id), owned, buys, pvp, history,
+      buffs: await activeBuffs(id), expiredBuffs: oldBuffs.map((b) => ({ ...b, id: Number(b.id) })), live: world.liveInfo(id),
+    };
   }
   r.get("/players/:id", wrap(async (req, res) => res.json(await playerDetail(playerId(req.params.id)))));
+  const refresh = (id) => (ch) => world.refresh(id, ch);
 
-  /** After editing an online player's saved numbers: the world takes them (pending gains are kept on top). */
-  const refresh = async (id) => {
-    const ch = await loadCharacter(id);
-    if (ch) world.refresh(id, ch);
-  };
-
-  r.patch("/players/:id", wrap(async (req, res) => {
-    const id = playerId(req.params.id), b = req.body ?? {}, set = [];
+  // one number at a time: add, take away (never below 0) or set
+  r.post("/players/:id/adjust", wrap(async (req, res) => {
+    const id = playerId(req.params.id), { field, op } = req.body ?? {}, v = value("int", req.body?.value, "giá trị");
+    if (!["add", "sub", "set"].includes(op)) throw bad("Thao tác: add, sub hoặc set.");
+    const ch = await adminAdjust(id, field, op === "set" ? "set" : "add", op === "sub" ? -Math.abs(v) : op === "add" ? Math.abs(v) : v, refresh(id));
+    await log(req.admin, "player.adjust", id, { field, op, value: v, now: { stones: ch.stones, exp: ch.exp, rank: ch.rank, kills: ch.kills, deaths: ch.deaths }[field] });
+    res.json(await playerDetail(id));
+  }));
+  // straight to a level: tu vi set to the first point of that level
+  r.post("/players/:id/level", wrap(async (req, res) => {
+    const id = playerId(req.params.id), L = value("uint", req.body?.level, "cấp");
+    if (L < 1 || L > MAX_LEVEL) throw bad(`Cấp từ 1 đến ${MAX_LEVEL}.`);
+    await adminAdjust(id, "exp", "set", expForLevel(L), refresh(id));
+    await log(req.admin, "player.level", id, { level: L, realm: realmName(L) });
+    res.json(await playerDetail(id));
+  }));
+  r.post("/players/:id/meditation", wrap(async (req, res) => {
+    const id = playerId(req.params.id);
+    await adminResetMeditation(id, refresh(id));
+    await log(req.admin, "player.meditation", id, null);
+    res.json(await playerDetail(id));
+  }));
+  r.post("/players/:id/items", wrap(async (req, res) => {
+    const id = playerId(req.params.id), { item, op } = req.body ?? {}, v = value("uint", req.body?.value, "số lượng");
+    if (!["add", "sub", "set"].includes(op)) throw bad("Thao tác: add, sub hoặc set.");
+    await adminItem(id, String(item ?? ""), op === "set" ? "set" : "add", op === "sub" ? -v : v);
+    await log(req.admin, "player.item", id, { item, op, value: v });
+    await world.sendInv(id);
+    res.json(await playerDetail(id));
+  }));
+  // name and look: shown to everyone at once, no need to log back in
+  r.patch("/players/:id/look", wrap(async (req, res) => {
+    const id = playerId(req.params.id), b = req.body ?? {}, set = {};
     if (b.name !== undefined) {
       const name = String(b.name).trim().replace(/\s+/g, " ");
       if (!NAME_RE.test(name)) throw bad("Đạo hiệu 3-16 ký tự: chữ, số, khoảng trắng hoặc _.");
-      set.push(["name", name]);
+      set.name = name;
     }
-    for (const k of ["stones", "exp", "rank_points", "kills", "deaths"]) if (b[k] !== undefined) set.push([k, value("uint", b[k], k)]);
+    const [cur] = await q("SELECT gender, hair, robe FROM characters WHERE user_id = ?", [id]);
+    if (!cur) throw bad("Người chơi này chưa có nhân vật.");
     if (b.gender !== undefined) {
       if (!GENDERS.includes(b.gender)) throw bad("Giới tính m hoặc f.");
-      set.push(["gender", b.gender]);
+      set.gender = b.gender;
     }
-    for (const k of ["hair", "robe"]) if (b[k] !== undefined) set.push([k, value("uint", b[k], k)]);
-    if (!set.length) throw bad("Không có gì để lưu.");
-    await userLock.run(id, () => tx(async (c) => {
-      const [before] = await c.query("SELECT name, gender, hair, robe, exp, stones, rank_points, kills, deaths FROM characters WHERE user_id = ?", [id]);
-      if (!before) throw bad("Người chơi này chưa có nhân vật.");
-      try {
-        await c.query(`UPDATE characters SET ${set.map(([k]) => `${k} = ?`).join(", ")} WHERE user_id = ?`, [...set.map(([, v]) => v), id]);
-      } catch (e) {
-        if (isDup(e)) throw bad("Đạo hiệu đã có người dùng.", 409);
-        throw e;
-      }
-      await log(req.admin, "player.edit", id, Object.fromEntries(set.map(([k, v]) => [k, [before[k], v]])));
-    }));
-    // a new name or look needs a fresh join to show everywhere; numbers are taken over live
-    if (set.some(([k]) => ["name", "gender", "hair", "robe"].includes(k))) world.kickUser(id, "Admin vừa cập nhật nhân vật của đạo hữu, hãy vào lại.");
-    else await refresh(id);
+    const g = set.gender ?? cur.gender;
+    for (const k of ["hair", "robe"]) {
+      const v = b[k] === undefined ? (set.gender ? cur[k] : undefined) : value("uint", b[k], k);
+      if (v === undefined) continue;
+      if (v >= atlasCount(k, g)) throw bad(`${k === "hair" ? "Tóc" : "Y phục"} ô ${v} không có cho giới tính này.`);
+      set[k] = v;
+    }
+    await adminLook(id, set, refresh(id));
+    await log(req.admin, "player.look", id, set);
     res.json(await playerDetail(id));
   }));
 
-  r.put("/players/:id/items/:item", wrap(async (req, res) => {
-    const id = playerId(req.params.id), item = String(req.params.item), qty = value("uint", req.body?.qty, "số lượng");
-    if (!/^[a-z0-9_]{1,32}$/.test(item)) throw bad("Mã vật phẩm không hợp lệ.");
-    await userLock.run(id, async () => {
-      if (qty > 0) await q("INSERT INTO inventory (user_id, item, qty) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qty = VALUES(qty)", [id, item, qty]);
-      else await q("DELETE FROM inventory WHERE user_id = ? AND item = ?", [id, item]);
-    });
-    await log(req.admin, "player.item", id, { item, qty });
-    await world.sendInv(id);
+  // buffs: a percent on one stat, for some hours or for good; they add up per stat
+  r.post("/players/:id/buffs", wrap(async (req, res) => {
+    const id = playerId(req.params.id), b = req.body ?? {}, def = BUFF_STATS[b.stat];
+    if (!def) throw bad("Chỉ số buff không hợp lệ.");
+    const pct = value("num", b.pct, "phần trăm");
+    if (pct < def.min || pct > def.max || pct === 0) throw bad(`${def.name}: từ ${def.min}% đến ${def.max}%, khác 0.`);
+    const hours = b.hours === "" || b.hours === null || b.hours === undefined ? null : value("num", b.hours, "số giờ");
+    if (hours !== null && (hours <= 0 || hours > 24 * 365)) throw bad("Số giờ từ lớn hơn 0 đến 8760 (để trống là vĩnh viễn).");
+    const [u] = await q("SELECT 1 FROM users WHERE id = ?", [id]);
+    if (!u) throw bad("Không có người chơi này.", 404);
+    await q(`INSERT INTO player_buffs (user_id, stat, pct, expires_at, note, created_by) VALUES (?, ?, ?, ${hours === null ? "NULL" : "NOW() + INTERVAL ? SECOND"}, ?, ?)`,
+      [id, b.stat, pct, ...(hours === null ? [] : [Math.round(hours * 3600)]), String(b.note ?? "").slice(0, 200), req.admin.name]);
+    await world.reloadBuffs(id);
+    await log(req.admin, "player.buff", id, { stat: b.stat, pct, hours });
+    res.json(await playerDetail(id));
+  }));
+  r.delete("/players/:id/buffs/:bid", wrap(async (req, res) => {
+    const id = playerId(req.params.id);
+    const out = await q("DELETE FROM player_buffs WHERE id = ? AND user_id = ?", [Number(req.params.bid), id]);
+    if (!out.affectedRows) throw bad("Không có buff này.", 404);
+    await world.reloadBuffs(id);
+    await log(req.admin, "player.unbuff", id, { buff: Number(req.params.bid) });
+    res.json(await playerDetail(id));
+  }));
+
+  // things only the running game can do: heal, revive, back to the spawn, clear cooldowns
+  r.post("/players/:id/live", wrap(async (req, res) => {
+    const id = playerId(req.params.id), action = String(req.body?.action ?? "");
+    if (!["heal", "revive", "spawn", "cooldowns"].includes(action)) throw bad("Thao tác không hợp lệ.");
+    if (!world.liveAction(id, action)) throw bad("Người chơi đang offline.", 409);
+    await log(req.admin, "player.live", id, { action });
     res.json(await playerDetail(id));
   }));
 

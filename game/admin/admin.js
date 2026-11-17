@@ -236,9 +236,10 @@ const VIEWS = {
     const wrap = el("div");
     const q = el("input", { placeholder: "Tìm tên đăng nhập hoặc đạo hiệu...", type: "search" });
     const sort = el("select", {}, [["new", "Mới đăng ký"], ["exp", "Tu vi cao"], ["stones", "Nhiều linh thạch"], ["rank", "Điểm đấu trường"]].map(([v, l]) => el("option", { value: v }, l)));
+    const filter = el("select", {}, [["", "Tất cả"], ["online", "Đang online"], ["banned", "Bị khóa"]].map(([v, l]) => el("option", { value: v }, l)));
     const list = el("div", { class: "list" });
     const load = async () => {
-      const rows = await guard(() => api(`/players?q=${encodeURIComponent(q.value.trim())}&sort=${sort.value}`));
+      const rows = await guard(() => api(`/players?q=${encodeURIComponent(q.value.trim())}&sort=${sort.value}&filter=${filter.value}`));
       if (!rows) return;
       list.replaceChildren(...(rows.length ? rows.map((p) => el("div", { class: "row", onclick: () => playerView(p.id) },
         el("span", { class: `dot ${p.online ? "on" : ""}`, title: p.online ? "Đang online" : "Offline" }),
@@ -249,7 +250,8 @@ const VIEWS = {
     let t;
     q.addEventListener("input", () => (clearTimeout(t), (t = setTimeout(load, 300))));
     sort.addEventListener("change", load);
-    wrap.append(el("h2", {}, "Người chơi"), el("div", { class: "bar" }, q, sort), list);
+    filter.addEventListener("change", load);
+    wrap.append(el("h2", {}, "Người chơi"), el("div", { class: "bar" }, q, filter, sort), list);
     await load();
     return wrap;
   },
@@ -475,7 +477,8 @@ const VIEWS = {
 const ACTIONS = {
   login: "đăng nhập", password: "đổi mật khẩu", "admin.add": "thêm admin", "admin.del": "xóa admin", "player.edit": "sửa người chơi", "player.item": "sửa túi đồ",
   "player.give": "tặng tóc/áo", "player.take": "lấy lại tóc/áo", "player.ban": "khóa tài khoản", "player.unban": "mở khóa", "player.kick": "mời ra khỏi game",
-  "player.password": "đặt lại mật khẩu người chơi", "player.delete": "xóa tài khoản",
+  "player.password": "đặt lại mật khẩu người chơi", "player.delete": "xóa tài khoản", "player.adjust": "chỉnh chỉ số", "player.level": "đặt cảnh giới",
+  "player.meditation": "làm mới lượt tu luyện", "player.look": "đổi tên/ngoại hình", "player.buff": "thêm buff", "player.unbuff": "gỡ buff", "player.live": "thao tác trực tiếp",
 };
 function logItem(l) {
   const [t, a] = l.action.split(".");
@@ -485,84 +488,190 @@ function logItem(l) {
 }
 
 // ---------------------------------------------------------------- one player, in detail
+const BUFFS = {
+  hp: ["Sinh lực", -50, 500], atk: ["Công", -50, 500], def: ["Thủ", -50, 500], spd: ["Tốc độ", -50, 100],
+  exp: ["Tu vi nhận được", -100, 1000], stones: ["Linh thạch nhận được", -100, 1000], med: ["Tốc độ tu luyện", -100, 1000],
+};
+const RES = [["stones", "Linh thạch", "stones"], ["exp", "Tu vi", "exp"], ["rank", "Điểm đấu trường", "rank_points"], ["kills", "Hạ", "kills"], ["deaths", "Bại", "deaths"]];
+const LIVE = [["heal", "Hồi đầy máu"], ["revive", "Hồi sinh ngay"], ["spawn", "Về điểm xuất hiện"], ["cooldowns", "Làm mới hồi chiêu"]];
+const ago = (ms) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return s >= 86400 ? `${Math.floor(s / 86400)} ngày ${Math.floor((s % 86400) / 3600)} giờ` : s >= 3600 ? `${Math.floor(s / 3600)} giờ ${Math.floor((s % 3600) / 60)} phút` : `${Math.ceil(s / 60)} phút`;
+};
+
 async function playerView(id) {
   const main = $("main");
-  const [p, items, cos] = await Promise.all([api(`/players/${id}`), api("/t/items"), (async () => (await loadAtlas(), api("/t/cosmetics")))()]);
-  const render = (p) => {
-    const back = el("button", { class: "ghost", onclick: () => go("players") }, "← Danh sách");
-    const head = el("div", { class: "card" },
+  const [first, items, cos, realms] = await Promise.all([api(`/players/${id}`), api("/t/items"), (async () => (await loadAtlas(), api("/t/cosmetics")))(), api("/t/realms")]);
+  // levels by realm, for the "straight to a realm" picker
+  const levels = [];
+  for (const r of realms) for (let s = 1; s <= r.stages; s++) levels.push(`${r.name} tầng ${s}`);
+  let p = first, timer = null;
+  const act = async (fn, ok) => {
+    const out = await guard(fn, ok);
+    if (out) draw(out);
+    return out;
+  };
+  // a small row: label, current value, an amount, and add / take / set
+  const stepper = (label, cur, sub, onOp, { min = 0 } = {}) => {
+    const n = el("input", { type: "number", min, step: 1, value: "", placeholder: "số lượng", inputmode: "numeric" });
+    const go = (op) => () => {
+      if (n.value === "" || !Number.isFinite(Number(n.value))) return toast("Nhập số trước.", false);
+      onOp(op, Math.round(Number(n.value)));
+    };
+    return el("div", { class: "step" },
+      el("div", { class: "lbl" }, el("b", {}, label), el("span", { class: "cur" }, fmt(cur)), sub ? el("small", { class: "dim" }, sub) : null),
+      el("div", { class: "ops" }, n, el("button", { class: "small", onclick: go("add"), title: "Cộng thêm" }, "+ Cộng"), el("button", { class: "small", onclick: go("sub"), title: "Trừ bớt (không xuống dưới 0)" }, "− Trừ"),
+        el("button", { class: "small", onclick: go("set"), title: "Đặt đúng bằng" }, "= Đặt")));
+  };
+
+  function liveBox(p) {
+    const L = p.live;
+    if (!L) return el("div", { class: "dim" }, "Đang offline: các thay đổi được lưu thẳng vào database và có hiệu lực khi người này vào game.");
+    return el("div", { class: "livebox" },
+      el("div", { class: "kv" },
+        el("span", {}, "Đang ở ", el("b", {}, L.map), ` (${L.x}, ${L.y})`),
+        el("span", {}, "Sinh lực ", el("b", {}, `${fmt(L.hp)} / ${fmt(L.maxHp)}`)),
+        el("span", {}, "Công ", el("b", {}, L.atk), " · Thủ ", el("b", {}, L.def), " · Tốc ", el("b", {}, L.spd)),
+        L.dead ? el("span", { class: "tag red" }, "Đang tử trận") : null, L.meditating ? el("span", { class: "tag green" }, "Đang tu luyện") : null),
+      el("div", { class: "dim" }, `Chưa lưu: +${fmt(L.pending.exp + L.pending.med)} tu vi, +${fmt(L.pending.stones)} linh thạch · đang ghi: +${fmt(L.saving.exp + L.saving.med)} tu vi, +${fmt(L.saving.stones)} linh thạch`),
+      el("div", { class: "actions left" }, LIVE.map(([a, l]) => el("button", { class: "small", onclick: () => act(() => api(`/players/${p.id}/live`, { method: "POST", body: { action: a } }), `${l}: xong.`) }, l)),
+        el("button", { class: "small", onclick: () => guard(() => api(`/players/${p.id}/kick`, { method: "POST", body: {} }), "Đã mời ra khỏi game.").then(() => setTimeout(async () => draw(await api(`/players/${p.id}`)), 600)) }, "Mời ra khỏi game")));
+  }
+
+  function draw(np) {
+    p = np;
+    const parts = [el("button", { class: "ghost", onclick: () => go("players") }, "← Danh sách")];
+    // ---- header: who, where, right now (the live part refreshes itself while they're online)
+    const liveHolder = el("div");
+    parts.push(el("div", { class: "card" },
       el("div", { class: "head" }, el("span", { class: `dot ${p.online ? "on" : ""}` }), el("b", {}, p.name ?? "(chưa tạo nhân vật)"), el("span", { class: "dim" }, `@${p.username} · id ${p.id}`),
-        p.banned ? el("span", { class: "tag red" }, `Bị khóa${p.ban_reason ? `: ${p.ban_reason}` : ""}`) : null),
-      el("span", { class: "dim" }, `${p.realm ?? ""}${p.realm ? " · " : ""}Đăng ký: ${when(p.created_at)} · ${p.online ? "Đang online" : "Offline"}`));
-    const parts = [back, head];
+        p.banned ? el("span", { class: "tag red" }, `Bị khóa${p.ban_reason ? `: ${p.ban_reason}` : ""}`) : null, el("span", { class: "grow" }),
+        el("button", { class: "small ghost", onclick: async () => draw(await api(`/players/${p.id}`)) }, "↻ Làm mới")),
+      el("span", { class: "dim" }, `${p.realm ?? ""}${p.realm ? " · " : ""}Đăng ký ${when(p.created_at)}`),
+      liveHolder));
+    liveHolder.replaceChildren(liveBox(p));
+
     if (p.name !== null) {
-      parts.push(record({
-        title: "Nhân vật", row: p, sub: "đổi tên, giới tính, tóc hay áo sẽ mời người này vào lại game",
-        fields: [
-          { k: "name", label: "Đạo hiệu" }, { k: "stones", label: "Linh thạch", type: "number", step: 1 },
-          { k: "exp", label: "Tu vi", type: "number", step: 1, hint: p.realm }, { k: "rank_points", label: "Điểm đấu trường", type: "number", step: 1 },
-          { k: "kills", label: "Hạ", type: "number", step: 1 }, { k: "deaths", label: "Bại", type: "number", step: 1 },
-          { k: "gender", label: "Giới tính", type: "select", options: [["m", "Nam"], ["f", "Nữ"]] },
-          { k: "hair", label: "Tóc (ô atlas)", type: "number", step: 1 }, { k: "robe", label: "Y phục (ô atlas)", type: "number", step: 1 },
-        ],
-        extra: el("span", {}, thumb("hair", p.gender, p.hair), thumb("robe", p.gender, p.robe)),
-        onSave: async (c) => {
-          const out = await guard(() => api(`/players/${p.id}`, { method: "PATCH", body: c }), "Đã lưu.");
-          if (out) main.replaceChildren(...render(out));
-        },
-      }));
-      // the bag
+      // ---- numbers, one at a time
+      const res = el("div", { class: "card" }, el("h3", {}, "Tài nguyên & chỉ số"),
+        el("p", { class: "dim" }, p.online ? "Đang online: mỗi thay đổi đi chung hàng đợi với việc lưu tiến trình, mua đồ, dùng đan của người này, nên không bao giờ ghi đè hay mất phần họ vừa kiếm được." : "Mỗi thay đổi là một phép cộng/trừ nguyên tử trong database; trừ không bao giờ xuống dưới 0."));
+      for (const [field, label, col] of RES)
+        res.append(stepper(label, p[col], field === "exp" ? p.realm : null, (op, value) => act(() => api(`/players/${p.id}/adjust`, { method: "POST", body: { field, op, value } }), `${label}: đã cập nhật.`)));
+      const lv = el("select", {}, levels.map((n, i) => el("option", { value: i + 1, selected: i + 1 === p.level }, `Cấp ${i + 1} · ${n}`)));
+      res.append(el("div", { class: "step" }, el("div", { class: "lbl" }, el("b", {}, "Cảnh giới"), el("span", { class: "cur" }, p.realm)),
+        el("div", { class: "ops" }, lv, el("button", { class: "small", onclick: () => confirm(`Đặt tu vi về đầu ${levels[lv.value - 1]}?`) && act(() => api(`/players/${p.id}/level`, { method: "POST", body: { level: Number(lv.value) } }), "Đã đặt cảnh giới.") }, "Đặt cảnh giới"))));
+      res.append(el("div", { class: "step" }, el("div", { class: "lbl" }, el("b", {}, "Tu luyện hôm nay"), el("span", { class: "cur" }, `còn ${fmt(p.medLeft)}`)),
+        el("div", { class: "ops" }, el("button", { class: "small", onclick: () => act(() => api(`/players/${p.id}/meditation`, { method: "POST" }), "Đã làm mới lượt tu luyện hôm nay.") }, "Làm mới lượt tu luyện"))));
+      parts.push(res);
+
+      // ---- buffs
+      const now = Date.now();
+      const stat = el("select", {}, Object.entries(BUFFS).map(([k, [n, lo, hi]]) => el("option", { value: k }, `${n} (${lo}%…+${hi}%)`)));
+      const pct = el("input", { type: "number", step: 1, placeholder: "% (vd 20, hoặc -10)", inputmode: "decimal" });
+      const hours = el("input", { type: "number", step: 0.5, min: 0, placeholder: "số giờ (trống = vĩnh viễn)", inputmode: "decimal" });
+      const note = el("input", { placeholder: "ghi chú (vd: thưởng sự kiện)" });
+      const sum = {};
+      for (const b of p.buffs) sum[b.stat] = (sum[b.stat] ?? 0) + b.pct;
+      parts.push(el("div", { class: "card" }, el("h3", {}, "Buff riêng"),
+        el("p", { class: "dim" }, "Mỗi buff tăng (hoặc giảm) một chỉ số theo %, có hạn hoặc vĩnh viễn; nhiều buff cùng chỉ số thì cộng dồn. Công/Thủ/Sinh lực/Tốc độ không áp dụng ở đấu trường PvP để giữ công bằng."),
+        Object.keys(sum).length ? el("div", { class: "chips" }, Object.entries(sum).map(([k, v]) => el("span", { class: `tag ${v > 0 ? "green" : "red"}` }, `${BUFFS[k]?.[0] ?? k} ${v > 0 ? "+" : ""}${v}%`))) : null,
+        el("div", { class: "list" }, p.buffs.length ? p.buffs.map((b) => el("div", { class: "buff" },
+          el("b", {}, `${BUFFS[b.stat]?.[0] ?? b.stat} ${b.pct > 0 ? "+" : ""}${b.pct}%`),
+          el("span", { class: "dim" }, b.until === null ? "vĩnh viễn" : `còn ${ago(b.until - now)}`, b.note ? ` · ${b.note}` : "", ` · bởi ${b.by}`),
+          el("span", { class: "grow" }),
+          el("button", { class: "small danger", onclick: () => confirm("Gỡ buff này?") && act(() => api(`/players/${p.id}/buffs/${b.id}`, { method: "DELETE" }), "Đã gỡ buff.") }, "Gỡ")))
+          : el("span", { class: "dim" }, "Chưa có buff nào.")),
+        el("div", { class: "fields" }, el("label", {}, "Chỉ số", stat), el("label", {}, "Phần trăm", pct), el("label", {}, "Thời hạn (giờ)", hours), el("label", {}, "Ghi chú", note)),
+        el("div", { class: "actions" }, el("button", { class: "primary small", onclick: () => act(() => api(`/players/${p.id}/buffs`, { method: "POST", body: { stat: stat.value, pct: Number(pct.value), hours: hours.value === "" ? null : Number(hours.value), note: note.value } }), "Đã thêm buff.") }, "Thêm buff")),
+        p.expiredBuffs.length ? el("details", {}, el("summary", { class: "dim" }, `Buff đã hết hạn (${p.expiredBuffs.length})`),
+          el("div", { class: "list" }, p.expiredBuffs.map((b) => el("div", { class: "dim" }, `${BUFFS[b.stat]?.[0] ?? b.stat} ${b.pct}% · hết ${when(b.expires_at)}${b.note ? ` · ${b.note}` : ""} · bởi ${b.created_by}`)))) : null));
+
+      // ---- the bag
       const bag = el("div", { class: "card" }, el("h3", {}, "Túi đồ"));
-      for (const it of items) {
-        const qty = el("input", { type: "number", min: 0, step: 1, value: p.inventory[it.item_key] ?? 0, inputmode: "numeric" });
-        bag.append(el("div", { class: "bar" }, el("span", { style: "flex:1 1 140px" }, it.name), qty,
-          el("button", { class: "small", onclick: async () => {
-            const out = await guard(() => api(`/players/${p.id}/items/${it.item_key}`, { method: "PUT", body: { qty: Number(qty.value) } }), "Đã cập nhật túi đồ.");
-            if (out) main.replaceChildren(...render(out));
-          } }, "Đặt")));
-      }
+      for (const it of items)
+        bag.append(stepper(it.name, p.inventory[it.item_key] ?? 0, it.on_sale ? null : "ngừng bán", (op, value) => act(() => api(`/players/${p.id}/items`, { method: "POST", body: { item: it.item_key, op, value } }), `${it.name}: đã cập nhật.`)));
       parts.push(bag);
-      // hair and robes owned
+
+      // ---- name and look
+      const nm = el("input", { value: p.name });
+      const gsel = el("select", {}, [["m", "Nam"], ["f", "Nữ"]].map(([v, l]) => el("option", { value: v, selected: v === p.gender }, l)));
+      const pickBox = el("div");
+      const choice = { hair: p.hair, robe: p.robe };
+      const drawPicks = () => {
+        const g = gsel.value;
+        pickBox.replaceChildren(...["hair", "robe"].map((kind) => {
+          const n = atlas.meta[`${kind}_${g}`].length;
+          if (choice[kind] >= n) choice[kind] = 0;
+          const grid = el("div", { class: "pickgrid" });
+          for (let i = 0; i < n; i++) {
+            const c = cos.find((x) => x.kind === kind && x.gender === g && x.idx === i);
+            grid.append(el("button", { type: "button", class: `pick ${choice[kind] === i ? "on" : ""}`, title: c ? `${c.name}${c.starter ? " (miễn phí)" : ` (${c.price})`}` : `ô ${i}`,
+              onclick: (e) => {
+                choice[kind] = i;
+                for (const b of grid.children) b.classList.toggle("on", b === e.currentTarget);
+              } }, thumb(kind, g, i, "")));
+          }
+          return el("div", {}, el("h4", {}, kind === "hair" ? "Tóc" : "Y phục"), grid);
+        }));
+      };
+      gsel.addEventListener("change", drawPicks);
+      drawPicks();
+      parts.push(el("div", { class: "card" }, el("h3", {}, "Tên & ngoại hình"),
+        el("p", { class: "dim" }, "Đổi xong mọi người trong game thấy ngay, người chơi không phải vào lại. Admin chọn được mọi kiểu, kể cả kiểu người này chưa mua."),
+        el("div", { class: "fields" }, el("label", {}, "Đạo hiệu", nm), el("label", {}, "Giới tính", gsel)),
+        pickBox,
+        el("div", { class: "actions" }, el("button", { class: "primary small", onclick: () => {
+          const body = {};
+          if (nm.value.trim() !== p.name) body.name = nm.value;
+          if (gsel.value !== p.gender) body.gender = gsel.value;
+          if (choice.hair !== p.hair || body.gender) body.hair = choice.hair;
+          if (choice.robe !== p.robe || body.gender) body.robe = choice.robe;
+          if (!Object.keys(body).length) return toast("Chưa có thay đổi.");
+          act(() => api(`/players/${p.id}/look`, { method: "PATCH", body }), "Đã đổi tên/ngoại hình.");
+        } }, "Lưu tên & ngoại hình"))));
+
+      // ---- hair and robes owned
       const mine = new Set(p.owned.map((o) => o.id));
       const pick = el("select", {}, cos.filter((c) => c.gender === p.gender && !c.starter && !mine.has(c.id)).map((c) => el("option", { value: c.id }, `${c.kind === "hair" ? "Tóc" : "Áo"} · ${c.name} (${c.price})`)));
-      parts.push(el("div", { class: "card" }, el("h3", {}, "Tóc & y phục đã có"),
-        el("div", { class: "chips" }, p.owned.length ? p.owned.map((o) => el("span", { class: "chip" }, thumb(o.kind, o.gender, o.idx, ""), o.name,
-          el("button", { class: "small danger", title: "Lấy lại", onclick: async () => {
-            if (!confirm(`Lấy lại ${o.name} của người này?`)) return;
-            const out = await guard(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: o.id, own: false } }), "Đã lấy lại.");
-            if (out) main.replaceChildren(...render(out));
-          } }, "✕"))) : el("span", { class: "dim" }, "Chưa mua món nào (các món miễn phí ai cũng có).")),
-        el("div", { class: "bar" }, pick, el("button", { class: "small", onclick: async () => {
-          if (!pick.value) return;
-          const out = await guard(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: Number(pick.value), own: true } }), "Đã tặng.");
-          if (out) main.replaceChildren(...render(out));
-        } }, "Tặng"))));
+      parts.push(el("div", { class: "card" }, el("h3", {}, `Tóc & y phục đã mua (${p.owned.length})`),
+        el("div", { class: "chips" }, p.owned.length ? p.owned.map((o) => el("span", { class: "chip" }, thumb(o.kind, o.gender, o.idx, ""), el("span", {}, o.name, el("small", { class: "dim" }, ` · trả ${fmt(o.paid)}`)),
+          el("button", { class: "small danger", title: "Lấy lại", onclick: () => confirm(`Lấy lại ${o.name} của người này?`) && act(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: o.id, own: false } }), "Đã lấy lại.") }, "✕")))
+          : el("span", { class: "dim" }, "Chưa mua món nào (các món miễn phí ai cũng có).")),
+        el("div", { class: "bar" }, pick, el("button", { class: "small", onclick: () => pick.value && act(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: Number(pick.value), own: true } }), "Đã tặng.") }, "Tặng"))));
     }
-    // account actions
+
+    // ---- the account
     const reason = el("input", { placeholder: "Lý do khóa (người chơi sẽ thấy)", value: p.ban_reason ?? "" });
     const pw = el("input", { placeholder: "Mật khẩu mới cho người chơi (6-72 ký tự)", type: "text", autocomplete: "off" });
     parts.push(el("div", { class: "card" }, el("h3", {}, "Tài khoản"),
-      el("div", { class: "bar" }, reason, el("button", { class: p.banned ? "small" : "small danger", onclick: async () => {
-        const out = await guard(() => api(`/players/${p.id}/ban`, { method: "POST", body: { banned: !p.banned, reason: reason.value } }), p.banned ? "Đã mở khóa." : "Đã khóa tài khoản.");
-        if (out) main.replaceChildren(...render(out));
-      } }, p.banned ? "Mở khóa" : "Khóa tài khoản")),
-      el("div", { class: "bar" }, pw, el("button", { class: "small", onclick: async () => {
-        if (await guard(() => api(`/players/${p.id}/password`, { method: "POST", body: { password: pw.value } }), "Đã đặt lại mật khẩu.")) pw.value = "";
-      } }, "Đặt lại mật khẩu")),
-      el("div", { class: "actions" },
-        el("button", { class: "small", disabled: !p.online, onclick: () => guard(() => api(`/players/${p.id}/kick`, { method: "POST", body: {} }), "Đã mời ra khỏi game.") }, "Mời ra khỏi game"),
-        el("button", { class: "small danger", onclick: async () => {
-          const c = prompt(`Xóa vĩnh viễn tài khoản này cùng nhân vật, túi đồ và mọi thứ đã mua.\nGõ tên đăng nhập "${p.username}" để xác nhận:`);
-          if (c === null) return;
-          if (await guard(() => api(`/players/${p.id}`, { method: "DELETE", body: { confirm: c } }), "Đã xóa tài khoản.")) go("players");
-        } }, "Xóa tài khoản"))));
-    if (p.buys?.length)
-      parts.push(el("div", { class: "card" }, el("h3", {}, "Mua ở Đan Các gần đây"),
-        el("table", { class: "simple" }, el("tr", {}, el("th", {}, "Món"), el("th", {}, "SL"), el("th", {}, "Giá"), el("th", {}, "Lúc")),
-          p.buys.map((b) => el("tr", {}, el("td", {}, b.item), el("td", {}, b.qty), el("td", {}, fmt(b.price)), el("td", {}, when(b.created_at)))))));
-    return [el("div", { class: "list" }, parts)];
-  };
-  main.replaceChildren(...render(p));
+      el("div", { class: "bar" }, reason, el("button", { class: p.banned ? "small" : "small danger", onclick: () => act(() => api(`/players/${p.id}/ban`, { method: "POST", body: { banned: !p.banned, reason: reason.value } }), p.banned ? "Đã mở khóa." : "Đã khóa tài khoản.") }, p.banned ? "Mở khóa" : "Khóa tài khoản")),
+      el("div", { class: "bar" }, pw, el("button", { class: "small", onclick: async () => (await guard(() => api(`/players/${p.id}/password`, { method: "POST", body: { password: pw.value } }), "Đã đặt lại mật khẩu.")) && (pw.value = "") }, "Đặt lại mật khẩu")),
+      el("div", { class: "actions" }, el("button", { class: "small danger", onclick: async () => {
+        const c = prompt(`Xóa vĩnh viễn tài khoản này cùng nhân vật, túi đồ và mọi thứ đã mua.\nGõ tên đăng nhập "${p.username}" để xác nhận:`);
+        if (c === null) return;
+        if (await guard(() => api(`/players/${p.id}`, { method: "DELETE", body: { confirm: c } }), "Đã xóa tài khoản.")) go("players");
+      } }, "Xóa tài khoản"))));
+
+    // ---- history
+    const table = (heads, rows) => el("div", { class: "scrollx" }, el("table", { class: "simple" }, el("tr", {}, heads.map((h) => el("th", {}, h))), rows));
+    parts.push(el("div", { class: "card" }, el("h3", {}, "Lịch sử"),
+      el("details", { open: true }, el("summary", {}, `Admin đã chỉnh (${p.history.length})`), p.history.length ? el("div", { class: "list" }, p.history.map(logItem)) : el("p", { class: "dim" }, "Chưa có.")),
+      el("details", {}, el("summary", {}, `PvP gần đây (${p.pvp.length})`), table(["Người hạ", "Người bị hạ", "Thưởng", "Lúc"], p.pvp.map((x) => el("tr", {}, el("td", {}, x.killer ?? x.killer_id), el("td", {}, x.victim ?? x.victim_id), el("td", {}, x.rewarded ? "có" : "không"), el("td", {}, when(x.at)))))),
+      el("details", {}, el("summary", {}, `Mua ở Đan Các (${p.buys.length})`), table(["Món", "SL", "Giá", "Lúc"], p.buys.map((b) => el("tr", {}, el("td", {}, b.item), el("td", {}, b.qty), el("td", {}, fmt(b.price)), el("td", {}, when(b.created_at))))))));
+
+    main.replaceChildren(el("div", { class: "list" }, parts));
+    // while they're online, keep the live box fresh (only that box: whatever is being typed elsewhere stays)
+    clearTimeout(timer);
+    const tick = async () => {
+      if (tab !== "players" || !document.body.contains(liveHolder)) return;
+      const fresh = await api(`/players/${p.id}`).catch(() => null);
+      if (!fresh || !document.body.contains(liveHolder)) return;
+      liveHolder.replaceChildren(liveBox(fresh));
+      if (fresh.online) timer = setTimeout(tick, 4000);
+    };
+    if (p.online) timer = setTimeout(tick, 4000);
+  }
+  draw(p);
   scrollTo(0, 0);
 }
 

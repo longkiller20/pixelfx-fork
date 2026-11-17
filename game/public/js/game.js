@@ -1,7 +1,7 @@
 // The game in the browser: it shows what the server says is happening, and sends what the player presses.
 import { createFrame, clearFrame, createFx, composite, painterFor, hex, WHITE } from "/pixelfx/core/index.js";
 import { effects } from "/pixelfx/fx/index.js";
-import { CLASSES, CLASS, MONSTERS, ITEMS, expForLevel, realmName, MAX_LEVEL } from "/shared/balance.js";
+import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL } from "/shared/balance.js";
 import { mapInfo } from "/shared/maps/index.js";
 import { drawDummy } from "./art.js";
 import { drawAvatar, avatarTop, loadAvatars } from "./avatar.js";
@@ -316,7 +316,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     $("stones").textContent = me.stones;
     $("rank").textContent = me.rank;
     $("kd").textContent = `${me.kills}/${me.deaths}`;
-    $("statLine").textContent = `Công ${me.atk} · Thủ ${me.def}`;
+    // buffs from an admin (event prizes and the like): stat, percent, time left
+    const left = (sec) => (sec === null ? "" : sec >= 3600 ? ` ${Math.floor(sec / 3600)}g${String(Math.floor((sec % 3600) / 60)).padStart(2, "0")}` : ` ${Math.ceil(sec / 60)}p`);
+    const buffs = (me.buffs ?? []).map((b) => `${BUFF_STATS[b.stat]?.name ?? b.stat} ${b.pct > 0 ? "+" : ""}${b.pct}%${left(b.left)}`);
+    $("statLine").textContent = `Công ${me.atk} · Thủ ${me.def}${buffs.length ? ` · ✦ ${buffs.join(", ")}` : ""}`;
     cls.skills.forEach((sk, i) => {
       const b = document.querySelector(`[data-skill="${i}"]`);
       b.querySelector(".nm").textContent = sk.name;

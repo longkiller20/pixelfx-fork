@@ -95,13 +95,14 @@ export class World {
         return ws.close(4003, "no character");
       }
       const inv = await store.inventory(uid);
+      const buffs = await store.activeBuffs(uid);
       if (ws.readyState !== WebSocket.OPEN) return;
       const p = {
         id: this.nid++, kind: "p", userId: uid, ws, name: ch.name, cls: ch.cls, look: ch.look,
         ...this.spawnPoint(), face: 1, in: { dx: 0, jump: false, down: false }, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
         hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
         cd: [0, 0, 0], busyUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
-        medAcc: 0, meditating: false, base: null, pend: zero(), level: 1, medLeft: 0, saving: null, gone: false,
+        medAcc: 0, meditating: false, base: null, pend: zero(), fly: zero(), level: 1, medLeft: 0, saving: null, gone: false, buffs,
       };
       this.applyBase(p, ch, true);
       this.players.set(uid, p);
@@ -155,24 +156,87 @@ export class World {
     this.broadcast({ t: "config" });
   }
 
-  /** The database changed under a connected player (a purchase, the daily gift, a new look): take its numbers. */
+  /**
+   * The database changed under a connected player (a purchase, the daily gift, an admin's edit): take its numbers. ch must
+   * have been read under the player's userLock (store functions do), so it holds every save before it and none after;
+   * applyBase adds what is still on its way (p.fly) on top. Name and look changes are shown to everyone.
+   */
   refresh(uid, ch) {
     const p = this.players.get(uid);
-    if (p && ch) {
-      this.applyBase(p, ch);
-      this.sendMe(p);
-      // a new hair style or robe: everyone sees it
-      if (ch.look && JSON.stringify(ch.look) !== JSON.stringify(p.look)) {
-        p.look = ch.look;
-        this.broadcast({ t: "pi", ...info(p) });
-      }
+    if (!p || !ch || p.gone) return;
+    this.applyBase(p, ch);
+    this.sendMe(p);
+    if ((ch.look && JSON.stringify(ch.look) !== JSON.stringify(p.look)) || (ch.name && ch.name !== p.name)) {
+      p.look = ch.look ?? p.look;
+      p.name = ch.name ?? p.name;
+      this.broadcast({ t: "pi", ...info(p) });
     }
   }
 
+  // ---------------------------------------------------------------- admin
+  /** An admin changed this player's buffs: read them again. */
+  async reloadBuffs(uid) {
+    const p = this.players.get(uid);
+    if (!p) return;
+    p.buffs = await store.activeBuffs(uid);
+    this.sendMe(p);
+  }
+  /** Total percent of every live buff on one stat. */
+  buff(p, stat) {
+    if (!p.buffs?.length) return 0;
+    const now = Date.now();
+    let s = 0;
+    for (const b of p.buffs) if (b.stat === stat && (b.until === null || b.until > now)) s += b.pct;
+    return s;
+  }
+  /** What an admin sees of a connected player right now, or null if they're off. */
+  liveInfo(uid) {
+    const p = this.players.get(uid);
+    if (!p) return null;
+    const st = this.stats(p);
+    return {
+      map: this.map.name, x: Math.round(p.x), y: Math.round(p.y), hp: Math.max(0, Math.round(p.hpFrac * st.maxHp)), maxHp: st.maxHp,
+      atk: Math.round(st.atk), def: Math.round(st.def), spd: Math.round(st.spd), dead: p.dead, meditating: p.meditating, level: p.level,
+      pending: { ...p.pend }, saving: { ...p.fly },
+    };
+  }
+  /** Things only the running world can do to a player. Runs on the game's own thread, between ticks: nothing races it. */
+  liveAction(uid, action) {
+    const p = this.players.get(uid);
+    if (!p) return false;
+    const t = this.t;
+    switch (action) {
+      case "heal":
+        if (!p.dead) p.hpFrac = 1;
+        p.slowUntil = 0;
+        break;
+      case "revive":
+        if (p.dead) p.respawnAt = t;
+        break;
+      case "spawn":
+        Object.assign(p, this.spawnPoint());
+        this.ev({ e: "spawn", id: p.id });
+        break;
+      case "cooldowns":
+        p.cd = [0, 0, 0];
+        p.itemCd = 0;
+        p.busyUntil = 0;
+        break;
+      default:
+        return false;
+    }
+    this.sendMe(p);
+    return true;
+  }
+
   // ---------------------------------------------------------------- saving
+  // What a player has = what the database says (ch) + what is being written right now (p.fly) + what is not yet
+  // written (p.pend). ch is always read under the player's userLock, which also orders the writes, so it already holds
+  // every save that finished before it and none still in p.fly: the sum never counts a gain twice or drops one.
   applyBase(p, ch, first = false) {
-    p.base = { exp: ch.exp, stones: ch.stones, rank: ch.rank, kills: ch.kills, deaths: ch.deaths };
-    p.medLeft = Math.max(0, ch.medLeft - p.pend.med);
+    const f = p.fly;
+    p.base = { exp: ch.exp + f.exp + f.med, stones: ch.stones + f.stones, rank: Math.max(0, ch.rank + f.rank), kills: ch.kills + f.kills, deaths: ch.deaths + f.deaths };
+    p.medLeft = Math.max(0, ch.medLeft - p.pend.med - f.med);
     this.relevel(p, first);
   }
 
@@ -181,12 +245,11 @@ export class World {
     const d = p.pend;
     if (!d.exp && !d.stones && !d.rank && !d.kills && !d.deaths && !d.med) return p.saving ?? Promise.resolve();
     p.pend = zero();
-    // count it as saved straight away so the numbers on screen don't dip while the write is in flight
-    p.base.exp += d.exp + d.med;
-    p.base.stones += d.stones;
-    p.base.rank += d.rank;
+    // move it from "not yet written" to "being written": the total on screen stays the same while the write is in flight
+    for (const k in d) p.fly[k] += d[k];
     const run = store.flush(p.userId, d).then(
       (ch) => {
+        for (const k in d) p.fly[k] -= d[k];
         if (!p.gone) {
           this.applyBase(p, ch);
           this.sendMe(p);
@@ -194,10 +257,7 @@ export class World {
       },
       (e) => {
         console.error("save failed, will retry", p.userId, e.message);
-        p.base.exp -= d.exp + d.med;
-        p.base.stones -= d.stones;
-        p.base.rank -= d.rank;
-        for (const k in d) p.pend[k] += d[k];
+        for (const k in d) (p.fly[k] -= d[k]), (p.pend[k] += d[k]);
         if (p.gone) return store.flush(p.userId, d).catch((e2) => console.error("save lost", p.userId, d, e2.message));
       },
     );
@@ -238,9 +298,11 @@ export class World {
   stats(e) {
     if (e.kind === "m") return e.st;
     const c = CLASSES[e.cls], m = this.map.pvp ? arenaMult(e.level) : worldMult(e.level);
+    // an admin's buffs count in the open world; on PvP maps everyone fights on the same numbers
+    const b = (stat) => (this.map.pvp ? 1 : Math.max(0.1, 1 + this.buff(e, stat) / 100));
     return {
-      maxHp: Math.round(c.hp * m), atk: c.atk * m, def: c.def * m,
-      spd: c.spd * (e.slowUntil > this.t ? 0.5 : 1) * (e.busyUntil > this.t ? 0.45 : 1),
+      maxHp: Math.round(c.hp * m * b("hp")), atk: c.atk * m * b("atk"), def: c.def * m * b("def"),
+      spd: c.spd * b("spd") * (e.slowUntil > this.t ? 0.5 : 1) * (e.busyUntil > this.t ? 0.45 : 1),
     };
   }
   sendMe(p) {
@@ -251,6 +313,7 @@ export class World {
       hp: Math.max(0, Math.round(p.hpFrac * st.maxHp)), maxHp: st.maxHp, atk: Math.round(st.atk), def: Math.round(st.def),
       cd: p.cd.map((c) => Math.max(0, +(c - this.t).toFixed(2))),
       respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
+      buffs: (p.buffs ?? []).filter((x) => x.until === null || x.until > Date.now()).map((x) => ({ stat: x.stat, pct: x.pct, left: x.until === null ? null : Math.round((x.until - Date.now()) / 1000) })),
     });
   }
 
@@ -381,6 +444,11 @@ export class World {
     this.sendMe(p);
   }
 
+  /** A reward after the player's gain buff (exp, stones, med), never below zero. */
+  gain(p, stat, v) {
+    return Math.max(0, Math.round(v * (1 + this.buff(p, stat) / 100)));
+  }
+
   kill(e, att) {
     e.dead = true;
     e.hpFrac = 0;
@@ -389,9 +457,10 @@ export class World {
     if (e.kind === "m") {
       e.respawnAt = this.t + e.def.respawn;
       if (owner && !owner.gone) {
-        owner.pend.exp += e.def.exp(owner.level);
-        owner.pend.stones += e.def.stones;
-        this.ev({ e: "loot", id: owner.id, x: Math.round(e.x), y: Math.round(e.y), exp: e.def.exp(owner.level), stones: e.def.stones });
+        const gx = this.gain(owner, "exp", e.def.exp(owner.level)), gs = this.gain(owner, "stones", e.def.stones);
+        owner.pend.exp += gx;
+        owner.pend.stones += gs;
+        this.ev({ e: "loot", id: owner.id, x: Math.round(e.x), y: Math.round(e.y), exp: gx, stones: gs });
         this.relevel(owner);
         this.sendMe(owner);
       }
@@ -405,8 +474,8 @@ export class World {
       const rewarded = last === undefined || this.t - last > PVP.repeatCooldown;
       if (rewarded) {
         this.pairs.set(key, this.t);
-        owner.pend.exp += PVP.exp(owner.level);
-        owner.pend.stones += PVP.stones;
+        owner.pend.exp += this.gain(owner, "exp", PVP.exp(owner.level));
+        owner.pend.stones += this.gain(owner, "stones", PVP.stones);
         owner.pend.rank += PVP.rankWin;
         owner.pend.kills += 1;
         e.pend.rank -= PVP.rankLose;
@@ -500,7 +569,7 @@ export class World {
       p.medAcc += DT;
       if (p.medAcc >= 1) {
         p.medAcc -= 1;
-        const g = Math.min(MEDITATE.perSec(p.level), p.medLeft);
+        const g = Math.min(this.gain(p, "med", MEDITATE.perSec(p.level)), p.medLeft);
         p.pend.med += g;
         p.medLeft -= g;
         this.relevel(p);
