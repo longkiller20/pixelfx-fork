@@ -5,7 +5,7 @@ import { WebSocket } from "ws";
 import {
   TICK_HZ, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE, levelFromExp, worldMult, arenaMult, mitigate, ARTS, ART_SLOTS, DROPS,
 } from "../shared/balance.js";
-import { mapInfo, START_MAP } from "../shared/maps/index.js";
+import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
 import { stepBody, fits, PHYS } from "../shared/physics.js";
 import * as store from "./store.js";
 import { userFromToken } from "./auth.js";
@@ -16,8 +16,18 @@ const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const num = (v) => typeof v === "number" && Number.isFinite(v);
 const sessionLock = new KeyedLock();
 
+// ids are unique across every map, so a player keeps theirs and nothing mixes up when they walk from one map to another
+let NID = 1;
+const nextId = () => NID++;
+
+/**
+ * One map's world: its players, monsters and projectiles, stepped by the Universe 20 times a second. Every map steps on
+ * the same tick, so their clocks (this.t) are always equal and a player's timers (cooldowns, buffs, protection) mean the
+ * same thing on whichever map they are.
+ */
 export class World {
-  constructor() {
+  constructor(mapId = START_MAP, universe = null) {
+    this.u = universe;
     this.ents = new Map(); // id -> player or monster
     this.players = new Map(); // userId -> player
     this.bolts = [];
@@ -26,96 +36,43 @@ export class World {
     this.pairs = new Map(); // "killer:victim" -> time of the last rewarded kill
     this.t = 0;
     this.tick = 0;
-    this.nid = 1;
-    this.map = mapInfo(START_MAP);
+    this.map = mapInfo(mapId);
     this.spawnMonsters();
-    this.timer = setInterval(() => this.step(), 1000 / TICK_HZ);
-    this.saver = setInterval(() => this.saveAll(), 5000);
   }
 
-  // ---------------------------------------------------------------- connections
-  attach(ws) {
-    ws.bucket = 80;
-    ws.lastFill = Date.now();
-    const authTimer = setTimeout(() => !ws.player && ws.close(4001, "auth timeout"), 8000);
-    ws.on("message", (raw, binary) => {
-      // a token bucket: 40 messages a second, bursts of 80; a client far past that is cut off
-      const now = Date.now();
-      ws.bucket = Math.min(80, ws.bucket + ((now - ws.lastFill) / 1000) * 40);
-      ws.lastFill = now;
-      if (--ws.bucket < -40) return ws.close(4008, "flood");
-      if (ws.bucket < 0 || binary) return;
-      let m;
-      try {
-        m = JSON.parse(raw);
-      } catch {
-        return;
-      }
-      if (!m || typeof m !== "object") return;
-      if (!ws.player) {
-        if (m.t === "auth" && !ws.authing) {
-          ws.authing = true;
-          clearTimeout(authTimer);
-          this.join(ws, m.token).catch((e) => {
-            console.error("join", e);
-            ws.close(1011, "join failed");
-          });
-        }
-        return;
-      }
-      this.onMessage(ws.player, m);
-    });
-    ws.on("close", () => {
-      clearTimeout(authTimer);
-      const p = ws.player;
-      if (p) sessionLock.run(p.userId, () => this.remove(p)).catch((e) => console.error("leave", e));
-    });
-    ws.on("error", () => {});
+  // ---------------------------------------------------------------- arriving and leaving
+  /** A player logging in onto this map (the Universe has checked the token and loaded the character). */
+  admit(ws, ch, inv, buffs) {
+    const p = {
+      id: nextId(), kind: "p", userId: ch.userId, ws, name: ch.name, cls: ch.cls, look: ch.look,
+      ...this.spawnPoint(), face: 1, in: { dx: 0, jump: false, down: false }, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
+      hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
+      cd: [0], artCd: {}, slots: ch.slots, learned: new Set(ch.learned), tbuffs: {}, busyUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
+      medAcc: 0, meditating: false, base: null, pend: zero(), fly: zero(), level: 1, medLeft: 0, saving: null, gone: false, buffs,
+    };
+    this.applyBase(p, ch, true);
+    ws.player = p;
+    this.enter(p, inv);
+    this.u?.feed(`${p.name} đã tiến vào Đa Vũ Trụ.`);
+    return p;
   }
-
-  // joining and leaving for one account run one at a time: a second tab replaces the first, never runs beside it
-  async join(ws, token) {
-    const uid = await userFromToken(token);
-    if (!uid) {
-      send(ws, { t: "fatal", m: "Phiên đăng nhập đã hết hạn, hãy đăng nhập lại." });
-      return ws.close(4001, "bad token");
-    }
-    await sessionLock.run(uid, async () => {
-      const old = this.players.get(uid);
-      if (old) {
-        send(old.ws, { t: "fatal", m: "Tài khoản vừa vào game ở nơi khác." });
-        old.ws.close(4002, "replaced");
-        await this.remove(old);
-      }
-      if (ws.readyState !== WebSocket.OPEN) return;
-      const ch = await store.loadCharacter(uid);
-      if (!ch) {
-        send(ws, { t: "fatal", m: "Đạo hữu chưa tạo nhân vật." });
-        return ws.close(4003, "no character");
-      }
-      const inv = await store.inventory(uid);
-      const buffs = await store.activeBuffs(uid);
-      if (ws.readyState !== WebSocket.OPEN) return;
-      const p = {
-        id: this.nid++, kind: "p", userId: uid, ws, name: ch.name, cls: ch.cls, look: ch.look,
-        ...this.spawnPoint(), face: 1, in: { dx: 0, jump: false, down: false }, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
-        hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
-        cd: [0], artCd: {}, slots: ch.slots, learned: new Set(ch.learned), tbuffs: {}, busyUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
-        medAcc: 0, meditating: false, base: null, pend: zero(), fly: zero(), level: 1, medLeft: 0, saving: null, gone: false, buffs,
-      };
-      this.applyBase(p, ch, true);
-      this.players.set(uid, p);
-      this.ents.set(p.id, p);
-      ws.player = p;
-      send(ws, {
-        t: "welcome", id: p.id, tick: this.tick, inv, map: this.map.id,
-        players: [...this.players.values()].map(info),
-      });
-      this.broadcast({ t: "pi", ...info(p) }, p);
-      this.sendArts(p);
-      this.sendMe(p);
-      this.feed(`${p.name} đã tiến vào Đa Vũ Trụ.`);
-    });
+  /** Put a player on this map (logging in, or walking in through a gate) and tell their browser where they are. */
+  enter(p, inv, at = null) {
+    p.world = this;
+    if (at) Object.assign(p, { x: at.x, y: at.y, vx: 0, vy: 0, ground: false });
+    this.players.set(p.userId, p);
+    this.ents.set(p.id, p);
+    send(p.ws, { t: "welcome", id: p.id, tick: this.tick, inv, map: this.map.id, players: [...this.players.values()].map(info) });
+    this.broadcast({ t: "pi", ...info(p) }, p);
+    this.sendArts(p);
+    this.sendMe(p);
+  }
+  /** Take a player off this map without saving or ending anything: they are walking to another map. */
+  leave(p) {
+    if (this.players.get(p.userId) === p) this.players.delete(p.userId);
+    this.ents.delete(p.id);
+    for (const m of this.ents.values()) if (m.target === p) m.target = null;
+    this.broadcast({ t: "gone", id: p.id });
   }
 
   /** Take a player out and save what they earned. Safe to call twice. */
@@ -124,6 +81,7 @@ export class World {
     p.gone = true;
     if (this.players.get(p.userId) === p) this.players.delete(p.userId);
     this.ents.delete(p.id);
+    for (const m of this.ents.values()) if (m.target === p) m.target = null;
     this.broadcast({ t: "gone", id: p.id });
     await this.save(p);
   }
@@ -276,8 +234,6 @@ export class World {
   }
 
   async shutdown() {
-    clearInterval(this.timer);
-    clearInterval(this.saver);
     const all = [...this.players.values()];
     for (const p of all) send(p.ws, { t: "fatal", m: "Máy chủ đang bảo trì, hẹn gặp lại." });
     await Promise.all(all.map((p) => this.remove(p)));
@@ -364,7 +320,8 @@ export class World {
         const text = m.m.replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 120);
         if (!text) return;
         p.chatAt = this.t + 1;
-        return this.broadcast({ t: "chat", n: p.name, m: text });
+        // chat reaches everyone, on every map
+        return this.u ? this.u.broadcast({ t: "chat", n: p.name, m: text }) : this.broadcast({ t: "chat", n: p.name, m: text });
       }
       case "use":
         if (typeof m.item === "string") this.useItem(p, m.item);
@@ -474,7 +431,7 @@ export class World {
         break;
       case "bolt":
         show(p.x, p.y);
-        this.bolts.push({ id: this.nid++, owner: p, art: key, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
+        this.bolts.push({ id: nextId(), owner: p, art: key, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
         break;
       case "zone": {
         const x = clamp(p.x + dir * sk.dist, 20, this.map.w - 20), y = p.y;
@@ -646,10 +603,31 @@ export class World {
     stepBody(p, { ...inp, jump: inp.jump || p.jumpUntil > t }, st.spd * PHYS.RUN, DT, this.map, t);
     if (wasGround && !p.ground) p.jumpUntil = 0;
     if (p.moving && p.busyUntil <= t) p.face = inp.dx > 0 ? 1 : -1;
+    // a map's burning ground (the abyss's lava): standing in it costs a share of sinh lực each second, and can kill
+    const hurt = this.map.def.hurt;
+    if (hurt && this.map.cell(Math.floor(p.x / this.map.T), Math.floor((p.y - 6) / this.map.T)) === hurt.cell && p.protectUntil <= t) {
+      p.hpFrac -= hurt.perSec * DT;
+      p.lastHurt = t;
+      if (this.tick % 10 === 0) this.ev({ e: "burn", id: p.id });
+      if (p.hpFrac <= 0) {
+        p.dead = true;
+        p.hpFrac = 0;
+        p.respawnAt = t + RESPAWN_WORLD;
+        this.ev({ e: "die", id: p.id });
+        this.feed(`${p.name} đã bị nham thạch thiêu đốt.`);
+        this.sendMe(p);
+        return;
+      }
+    }
     // fell out of the world somehow: back to the spawn
     if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint());
-    // a way out: for now every road beyond the town is still being built
+    // a way out: to the map it leads to, or (a road still being built) a word and a step back
     const gate = this.map.portalAt(p.x, p.y);
+    if (gate && t >= p.portalAt && gate.to && this.u?.worlds.has(gate.to)) {
+      p.portalAt = t + 2.5;
+      this.u.transfer(p, gate.to, this.map.id);
+      return;
+    }
     if (gate && t >= p.portalAt) {
       p.portalAt = t + 2.5;
       send(p.ws, { t: "portal", m: gate.msg, to: gate.to });
@@ -676,7 +654,7 @@ export class World {
     const d = MONSTERS[type];
     if (!d) return null;
     const m = {
-      id: this.nid++, kind: "m", type, def: d, x, y, home: { x, y }, face: -1, hpFrac: 1, dead: false, respawnAt: 0, slowUntil: 0, lastHurt: -99, nextAtk: 0,
+      id: nextId(), kind: "m", type, def: d, x, y, home: { x, y }, face: -1, hpFrac: 1, dead: false, respawnAt: 0, slowUntil: 0, lastHurt: -99, nextAtk: 0,
       target: null, wander: { x, y }, wanderAt: 0, atkAnim: 0, vx: 0, vy: 0, ground: false, dropUntil: 0, temp, bornAt: this.t,
       st: { maxHp: d.hp, atk: d.atk, def: d.def, spd: d.spd },
     };
@@ -748,7 +726,7 @@ export class World {
           m.nextAtk = t + d.cd;
           m.atkAnim = t + 0.3;
           const sy = m.y - (d.fly ? 0 : 24), ax = p.x - m.x, ay = p.y - 26 - sy, l = Math.hypot(ax, ay) || 1;
-          this.bolts.push({ id: this.nid++, owner: m, art: "@" + m.type, x: m.x, y: sy + 30, vx: (ax / l) * d.shotSpeed, vy: (ay / l) * d.shotSpeed, left: d.range * 1.3, r: 12, atk: d.atk, mult: d.mult });
+          this.bolts.push({ id: nextId(), owner: m, art: "@" + m.type, x: m.x, y: sy + 30, vx: (ax / l) * d.shotSpeed, vy: (ay / l) * d.shotSpeed, left: d.range * 1.3, r: 12, atk: d.atk, mult: d.mult });
         }
         if (dd > d.range * 0.85) (gx = p.x - Math.sign(dx) * d.range * 0.6), (gy = ty);
         else if (dd < d.range * 0.4) (gx = m.x - Math.sign(dx) * 60), (gy = ty), (run = 0.7);
@@ -842,3 +820,173 @@ function sendRaw(ws, msg) {
   if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 1 << 20) ws.send(msg);
 }
 const send = (ws, obj) => sendRaw(ws, JSON.stringify(obj));
+
+/**
+ * Every map at once. It takes the connections, logs players in onto the map they were last on, moves them through the
+ * gates from one map to another, and answers the API and the admin site for a player wherever they are.
+ */
+export class Universe {
+  constructor() {
+    this.worlds = new Map(Object.keys(MAPS).map((id) => [id, new World(id, this)]));
+    // one tick for every map, so all their clocks stay equal
+    this.timer = setInterval(() => {
+      for (const w of this.worlds.values()) w.step();
+    }, 1000 / TICK_HZ);
+    this.saver = setInterval(() => {
+      for (const w of this.worlds.values()) w.saveAll();
+    }, 5000);
+  }
+  /** userId -> player, every map (a fresh Map each time: for lookups, not for keeping). */
+  get players() {
+    const all = new Map();
+    for (const w of this.worlds.values()) for (const [k, v] of w.players) all.set(k, v);
+    return all;
+  }
+  get online() {
+    let n = 0;
+    for (const w of this.worlds.values()) n += w.players.size;
+    return n;
+  }
+  worldOf(uid) {
+    for (const w of this.worlds.values()) if (w.players.has(uid)) return w;
+    return null;
+  }
+  broadcast(obj) {
+    for (const w of this.worlds.values()) w.broadcast(obj);
+  }
+  feed(m) {
+    this.broadcast({ t: "feed", m });
+  }
+
+  attach(ws) {
+    ws.bucket = 80;
+    ws.lastFill = Date.now();
+    const authTimer = setTimeout(() => !ws.player && ws.close(4001, "auth timeout"), 8000);
+    ws.on("message", (raw, binary) => {
+      // a token bucket: 40 messages a second, bursts of 80; a client far past that is cut off
+      const now = Date.now();
+      ws.bucket = Math.min(80, ws.bucket + ((now - ws.lastFill) / 1000) * 40);
+      ws.lastFill = now;
+      if (--ws.bucket < -40) return ws.close(4008, "flood");
+      if (ws.bucket < 0 || binary) return;
+      let m;
+      try {
+        m = JSON.parse(raw);
+      } catch {
+        return;
+      }
+      if (!m || typeof m !== "object") return;
+      if (!ws.player) {
+        if (m.t === "auth" && !ws.authing) {
+          ws.authing = true;
+          clearTimeout(authTimer);
+          this.join(ws, m.token).catch((e) => {
+            console.error("join", e);
+            ws.close(1011, "join failed");
+          });
+        }
+        return;
+      }
+      // whichever map the player is on now
+      ws.player.world.onMessage(ws.player, m);
+    });
+    ws.on("close", () => {
+      clearTimeout(authTimer);
+      const p = ws.player;
+      if (p) sessionLock.run(p.userId, () => p.world.remove(p)).catch((e) => console.error("leave", e));
+    });
+    ws.on("error", () => {});
+  }
+
+  // joining and leaving for one account run one at a time: a second tab replaces the first, never runs beside it
+  async join(ws, token) {
+    const uid = await userFromToken(token);
+    if (!uid) {
+      send(ws, { t: "fatal", m: "Phiên đăng nhập đã hết hạn, hãy đăng nhập lại." });
+      return ws.close(4001, "bad token");
+    }
+    await sessionLock.run(uid, async () => {
+      const old = this.players.get(uid);
+      if (old) {
+        send(old.ws, { t: "fatal", m: "Tài khoản vừa vào game ở nơi khác." });
+        old.ws.close(4002, "replaced");
+        await old.world.remove(old);
+      }
+      if (ws.readyState !== WebSocket.OPEN) return;
+      const ch = await store.loadCharacter(uid);
+      if (!ch) {
+        send(ws, { t: "fatal", m: "Đạo hữu chưa tạo nhân vật." });
+        return ws.close(4003, "no character");
+      }
+      const inv = await store.inventory(uid);
+      const buffs = await store.activeBuffs(uid);
+      if (ws.readyState !== WebSocket.OPEN) return;
+      // back on the map they were last on (at its arrival point), or the starter town
+      (this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs);
+    });
+  }
+
+  /**
+   * Walk a player through a gate: off this map, onto the other, just inside its gate back to where they came from (or at
+   * its spawn). Nothing they carry is lost: their unsaved gains and saves in flight go with them. The map is remembered.
+   */
+  async transfer(p, toId, fromId) {
+    const from = p.world, to = this.worlds.get(toId);
+    if (!to || p.gone || from === to) return;
+    // the bag first (the one wait), then off one map and onto the other in the same moment: never on no map at all
+    const inv = await store.inventory(p.userId).catch(() => ({}));
+    if (p.gone || p.world !== from) return;
+    from.leave(p);
+    const back = to.map.portals.find((g) => g.to === fromId);
+    let at = null;
+    if (back) {
+      // beside the gate, inward first, the first spot that is open ground and not the gate itself
+      const dir = back.x < to.map.w / 2 ? 1 : -1;
+      for (const k of [3, -3, 2, -2, 4, -4]) {
+        const x = back.x + dir * back.r * k;
+        if (fits(x, back.y, to.map) && !to.map.portalAt(x, back.y)) {
+          at = { x, y: back.y };
+          break;
+        }
+      }
+    }
+    at ??= to.spawnPoint();
+    p.portalAt = to.t + 2.5;
+    p.protectUntil = to.t + PVP.spawnProtect;
+    p.in = { dx: 0, jump: false, down: false };
+    p.meditating = false;
+    to.enter(p, inv, at);
+    store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
+  }
+
+  // ---- the same calls the API and the admin site made on the one world, now for wherever the player is
+  refresh(uid, ch) {
+    this.worldOf(uid)?.refresh(uid, ch);
+  }
+  sendInv(uid) {
+    return this.worldOf(uid)?.sendInv(uid);
+  }
+  kickUser(uid, why) {
+    this.worldOf(uid)?.kickUser(uid, why);
+  }
+  reloadBuffs(uid) {
+    return this.worldOf(uid)?.reloadBuffs(uid);
+  }
+  liveInfo(uid) {
+    return this.worldOf(uid)?.liveInfo(uid) ?? null;
+  }
+  liveAction(uid, action) {
+    return this.worldOf(uid)?.liveAction(uid, action) ?? false;
+  }
+  summon(uid, type) {
+    return this.worldOf(uid)?.summon(uid, type) ?? null;
+  }
+  onConfig() {
+    for (const w of this.worlds.values()) w.onConfig();
+  }
+  async shutdown() {
+    clearInterval(this.timer);
+    clearInterval(this.saver);
+    await Promise.all([...this.worlds.values()].map((w) => w.shutdown()));
+  }
+}

@@ -160,6 +160,8 @@ const UPGRADES = [
   "ALTER TABLE cosmetics ADD COLUMN IF NOT EXISTS special TINYINT(1) NOT NULL DEFAULT 0 AFTER on_sale",
   // the five arts on the bar, as a JSON array of art keys (null: an empty slot); NULL until first changed (starters)
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS art_slots VARCHAR(400) NULL",
+  // the map a character was last on (NULL: the starter town)
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS map_id VARCHAR(16) NULL",
 ];
 
 export async function migrate() {

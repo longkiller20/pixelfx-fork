@@ -20,7 +20,7 @@ from PIL import Image
 
 PACK = sys.argv[1] if len(sys.argv) > 1 else "Xianxia_Pixel_Pack"
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "public", "xianxia"))
-SETS = ["bamboo", "bluestone", "cloud"]
+SETS = ["bamboo", "bluestone", "cloud", "redclay"]
 TILES = [
     "ground_top_L", "ground_top_M", "ground_top_M2", "ground_top_M3", "ground_top_R", "ground_top_S",
     "ground_body_L", "ground_body_M", "ground_body_M2", "ground_body_M3", "ground_body_R", "ground_body_S",
@@ -40,6 +40,16 @@ BG = [
     "bg_mid_02_04",  # scholar's rock
     "bg_xianxia_deco_01_01",  # orchids
     "bg_xianxia_deco_01_00",  # lingzhi mushrooms
+    # the maps beyond the town
+    "bg_far_01_00", "bg_far_01_03", "bg_far_02_03",  # snowy peaks, the full moon, a waterfall cliff
+    "bg_mid_01_00", "bg_mid_01_01", "bg_mid_01_03", "bg_mid_01_04", "bg_mid_01_05",  # pavilion, stone bridge, bamboo, pine, stairs
+    "bg_mid_02_00", "bg_mid_02_01", "bg_mid_02_02", "bg_mid_02_03", "bg_mid_02_05",  # paifang, watchtower, moon gate, gallery, willow
+    "bg_near_01_00", "bg_near_01_01", "bg_near_01_02", "bg_near_01_04", "bg_near_01_05",  # dead tree, hanging willow, boulder, reeds
+    "bg_near_02_00", "bg_near_02_01", "bg_near_02_02", "bg_near_02_03", "bg_near_02_04", "bg_near_02_05",  # lantern, lion, stele...
+    "bg_xianxia_deco_01_02", "bg_xianxia_deco_01_03", "bg_xianxia_deco_01_04", "bg_xianxia_deco_01_05",  # jade rock, shoots, lotus
+    "bg_xianxia_far_03_01", "bg_xianxia_mid_03_02", "bg_xianxia_mid_03_03", "bg_xianxia_mid_04_00", "bg_xianxia_mid_04_01",
+    "bg_xianxia_mid_04_02", "bg_xianxia_mid_04_04", "bg_xianxia_mid_04_05",  # jade bridge, dragon pillar, isle, lotus basin, rune circle
+    "bg_xianxia_near_03_00", "bg_xianxia_near_03_01", "bg_xianxia_near_03_02", "bg_xianxia_near_03_03", "bg_xianxia_near_03_04", "bg_xianxia_near_03_05",
 ]
 UI = [
     "ui_xianxia_panel_01_ink", "ui_xianxia_panel_01_jade", "ui_xianxia_panel_01_silk", "ui_xianxia_panel_01_rosewood",

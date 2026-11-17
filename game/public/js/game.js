@@ -50,11 +50,28 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "welcome":
         myId = m.id;
         if (!map || map.id !== m.map) {
+          // a new map (logging in, or through a gate): forget everything of the last one
           map = mapInfo(m.map);
           scene = null;
+          infos.clear();
+          snaps.length = 0;
+          fxs.length = 0;
+          texts.length = 0;
+          ambient.length = 0;
+          motes.length = 0;
+          casts.clear();
+          ghosts.clear();
+          boltFx.clear();
+          body = null;
+          camFX = camFY = null;
           $("loading").hidden = false;
+          const want = map.id;
           buildScene(map).then((sc) => {
+            if (map.id !== want) return;
             scene = sc;
+            // the map's own living scenery: pixelfx effects that loop where the map puts them (fireflies, spirit fire...)
+            for (const [kind, x, row, o = {}] of map.def.props)
+              if (kind === "fx" && effects[o.id]) ambient.push({ id: o.id, fx: createFx(effects[o.id], { seed: (x * 97) | 0, flip: !!o.f, actor: BLANK_ACTOR, ...(o.o ?? {}) }), x: x * map.T, y: row * map.T - (o.h ?? 0), k: o.k ?? 1.4, every: o.every ?? 0, next: 0 });
             $("loading").hidden = true;
             zoneBanner(map.name, map.sub);
           }, () => onFatal("Không tải được bản đồ, hãy thử lại.", false));
@@ -242,6 +259,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "fx":
         if (e.k === "thunder") addFx("lightning/lightning-strike", e.x, e.y, {});
         break;
+      case "burn": {
+        const t = posOf(e.id, s);
+        if (t) addFx("status/burning", t.x, t.y, {}, e.id, 0.6, 1.4);
+        break;
+      }
       case "boom":
         addFx("impacts/hit-spark", e.x, e.y - 30, { palette: JADE });
         break;
@@ -578,9 +600,15 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       p.glow(x - camX, y - camY, 30, WARM, 0.3 * f);
       p.glow(x - camX, y - camY, 8, WARM2, 0.55 * f);
     }
+    // the map's own lights: lava, spirit fire, rune circles
+    for (const g of scene.glows) {
+      if (!on(g.x, g.y, g.r)) continue;
+      const f = 0.8 + 0.2 * Math.sin(now * 3 * g.f + g.x);
+      p.glow(g.x - camX, g.y - camY, g.r, hex(g.c), g.a * f);
+    }
     // the taiji floating over its dais, turning; brighter while someone cultivates
-    const s = map.spring, sx = (s.x0 + s.x1) / 2;
-    if (on(sx, s.y, 300)) {
+    const s = map.spring ?? { x0: -9999, x1: -9999, y: -9999 }, sx = (s.x0 + s.x1) / 2;
+    if (map.spring && on(sx, s.y, 300)) {
       const busy = [...drawn.values()].some((e) => e.kind === "p" && e.f & 16), cx = Math.round(sx - camX), cy = Math.round(s.y - camY - 128 + Math.sin(now * 1.3) * 4);
       taiji(p, cx, cy, 15, now * (busy ? 1.6 : 0.5));
       p.glow(cx, cy, 34, VEIN, (busy ? 0.4 : 0.18) + 0.06 * Math.sin(now * 2));
@@ -647,25 +675,38 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     }
   }
 
-  // cherry petals drifting across the town
-  const petals = [];
-  const PINK = ["#ffd0e0", "#ffa8c8", "#f080a8"].map(hex);
+  // what drifts through the air, by the map's theme: cherry petals over the town, leaves in the forest, spores over the
+  // lake, pale souls among the tombs, embers rising out of the abyss
+  const motes = [];
+  const MOTES = {
+    petals: { n: 36, c: ["#ffd0e0", "#ffa8c8", "#f080a8"], vx: [12, 26], vy: [16, 30], sway: 14, size: 2 },
+    leaves: { n: 30, c: ["#9ac85a", "#d8c050", "#d08a3a", "#6a9a3a"], vx: [8, 22], vy: [18, 34], sway: 22, size: 2 },
+    spores: { n: 40, c: ["#e8fff4", "#bff0ff", "#fff8c0"], vx: [-6, 6], vy: [-14, -4], sway: 10, size: 1 },
+    souls: { n: 26, c: ["#9ff8ff", "#c8b0ff", "#7fd8ff"], vx: [-5, 5], vy: [-16, -6], sway: 16, size: 1, glow: true },
+    embers: { n: 50, c: ["#ffd24a", "#ff8a2a", "#ff5a1a", "#fff0a0"], vx: [-10, 10], vy: [-46, -18], sway: 12, size: 1, glow: true },
+  };
   function drawPetals(p, now, dt) {
-    while (petals.length < 36) petals.push({ x: camX + Math.random() * (VW + 200) - 100, y: camY - Math.random() * VH, vx: 12 + Math.random() * 14, vy: 16 + Math.random() * 14, ph: Math.random() * 6, c: PINK[(Math.random() * 3) | 0] });
+    const K = MOTES[scene.theme.motes] ?? MOTES.petals, up = K.vy[1] < 0;
+    while (motes.length < K.n) {
+      const r = (a) => a[0] + Math.random() * (a[1] - a[0]);
+      motes.push({ x: camX + Math.random() * (VW + 200) - 100, y: up ? camY + VH + Math.random() * VH * 0.5 : camY - Math.random() * VH, vx: r(K.vx), vy: r(K.vy), ph: Math.random() * 6, c: hex(K.c[(Math.random() * K.c.length) | 0]) });
+    }
     p.place(0, 0, false);
-    for (let i = petals.length - 1; i >= 0; i--) {
-      const q = petals[i];
-      q.x += (q.vx + Math.sin(now * 2 + q.ph) * 14) * dt;
+    for (let i = motes.length - 1; i >= 0; i--) {
+      const q = motes[i];
+      q.x += (q.vx + Math.sin(now * 2 + q.ph) * K.sway) * dt;
       q.y += q.vy * dt;
       const sx = q.x - camX, sy = q.y - camY;
-      if (sy > VH + 10 || sx > VW + 120 || sx < -140) {
-        petals.splice(i, 1);
+      if (sy > VH + 10 || sy < -20 || sx > VW + 120 || sx < -140) {
+        motes.splice(i, 1);
         continue;
       }
       p.px(sx, sy, q.c);
-      if (Math.sin(now * 5 + q.ph) > 0) p.px(sx + 1, sy, q.c);
+      if (K.size > 1 && Math.sin(now * 5 + q.ph) > 0) p.px(sx + 1, sy, q.c);
+      if (K.glow) p.glow(sx, sy, 5, q.c, 0.25 + 0.15 * Math.sin(now * 4 + q.ph));
     }
   }
+
 
   let lastT = performance.now() / 1000;
   function render() {
@@ -703,7 +744,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     };
     for (const a of ambient) {
       a.fx.update(dt);
-      if (on(a.x, a.y)) (place(a.fx, a.x, a.y), a.fx.draw(frame, "back"));
+      // a one-shot (a pillar of flame, a geyser) starts over after a pause
+      if (a.fx.done() && now > a.next) {
+        a.fx = createFx(effects[a.id], { seed: (Math.random() * 1e6) | 0, actor: BLANK_ACTOR });
+        a.next = now + a.fx.meta.duration + a.every;
+      }
+      if (on(a.x, a.y, 260)) drawFx(a.fx, "back", a.x, a.y, a.k);
     }
     for (let i = fxs.length - 1; i >= 0; i--) {
       const f = fxs[i];
@@ -739,7 +785,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     }
     for (const id of boltFx.keys()) if (!live.has(id)) boltFx.delete(id);
     for (const f of fxs) if (on(f.x, f.y)) drawFx(f.fx, "front", f.x, f.y, f.k);
-    for (const a of ambient) if (on(a.x, a.y)) (place(a.fx, a.x, a.y), a.fx.draw(frame, "front"));
+    for (const a of ambient) if (on(a.x, a.y, 260)) drawFx(a.fx, "front", a.x, a.y, a.k);
     drawPortalArrows(p, now, on);
     drawPetals(p, now, dt);
     composite(frame, img.data, bgBuf);
