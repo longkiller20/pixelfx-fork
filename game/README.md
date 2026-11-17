@@ -233,7 +233,8 @@ thật bên cạnh người:
 
 Nguồn tài nguyên:
 - **Xianxia Pixel Pack v2.1** (giấy phép **CC0**), chép phần dùng tới vào `public/xianxia/` bằng `tools/xianxia/build.py`:
-  - **Địa hình:** bộ đất rừng trúc (mặt đất), đá xanh (sân điện, bậc thang, tường), mây (đài mây). Tile 32 px, khớp đúng ô bản đồ.
+  - **Địa hình:** đá xanh (sân điện, bậc thang, tường) và mây (đài mây). Tile 32 px, khớp đúng ô bản đồ. Mặt đất vẽ bằng code
+    với tông màu trầm (cỏ rêu, đất nâu sẫm tối dần theo độ sâu) để hợp với đá xanh và mây.
   - **Công trình:** cung điện vàng trên sân điện, bảo tháp 7 tầng trên đồi.
   - **Phía xa:** cung điện, cổng trời, tháp trắng và đảo bay trên mây.
   - **Vũ khí:** 90 món (kiếm, đao, thương, kích, phất trần, thiền trượng, pháp bảo…), thu nhỏ còn 45% cho vừa nhân vật.

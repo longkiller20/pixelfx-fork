@@ -388,6 +388,80 @@ const PINES = [[8, 164], [172, 296], [304, 424]], PINE_FOOT = 304; // the trunks
 const WATER = ["#0e3a6a", "#16548e", "#2274b4", "#3a98d4", "#8ad0f4", "#ffffff"].map(C);
 
 // ---------------------------------------------------------------- the whole scene
+// ---------------------------------------------------------------- earth: painted per pixel, in quiet tones that sit with
+// the pack's blue stone and clouds; a mossy grass cap, rounded corners, a dark rim on open sides, soil darker with depth
+const vnoise = (x, y, s) => {
+  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+};
+const EARTH = ["#1c140f", "#261b14", "#30231a", "#3a2b1f", "#463425", "#5a4430"].map(C);
+const RIM = C("#160e09");
+const GRASS = ["#1d3a22", "#2b5230", "#3b6a3a", "#547f45", "#7c9d5a"].map(C);
+const SILT = ["#4a4636", "#5e5a44", "#767052"].map(C);
+const PEBBLE = ["#2a221c", "#4a4038", "#5e5448"].map(C);
+// (stone comes from the pack)
+const _BRICK = ["#1e2030", "#3c4462", "#4d5778", "#5e6a8e", "#7380a6", "#96a2c4"].map(C);
+const _COPING = ["#262a3c", "#7c86aa", "#a6b0d0", "#d0d8ee"].map(C);
+
+/** Grass thickness along the world x: 5 to 8 px, gently rolling. */
+const grassDepth = (wx) => 5 + Math.round(vnoise(wx / 9, 0, 41) * 3);
+
+function earthCell(S, M, cx, cy, T) {
+  const at = (x, y) => M.cell(x, y), solidC = (ch) => ch === "#" || ch === "s";
+  const up = at(cx, cy - 1), sky = !solidC(up) && up !== "w" && up !== "|", wet = up === "w";
+  const openL = !solidC(at(cx - 1, cy)), openR = !solidC(at(cx + 1, cy)), openD = !solidC(at(cx, cy + 1));
+  const x0 = cx * T, y0 = cy * T;
+  for (let j = 0; j < T; j++)
+    for (let i = 0; i < T; i++) {
+      const wx = x0 + i, wy = y0 + j;
+      // rounded corners where the top meets an open side
+      if (sky && ((openL && i + j < 2) || (openR && T - 1 - i + j < 2))) continue;
+      const g = grassDepth(wx);
+      let c;
+      const sideGrass = sky && ((openL && i < 2) || (openR && i > T - 3)) && j < g + 2 + Math.round(hash(wx, cy, 3) * 3);
+      if (sky && (j < g || sideGrass)) {
+        // grass: a bright lip, a body with lighter flecks, a dark underside
+        const fleck = vnoise(wx / 3, wy / 3, 7) + dith(wx, wy) * 0.35;
+        c = j === 0 ? GRASS[4] : j === 1 ? GRASS[3] : j >= g - 1 && !sideGrass ? GRASS[1] : fleck > 0.8 ? GRASS[3] : GRASS[2];
+        if (sideGrass && ((openL && i === 0) || (openR && i === T - 1))) c = GRASS[0];
+      } else if (sky && j === g && hash(wx, 0, 9) > 0.35) c = GRASS[0]; // ragged roots under the turf
+      else if (wet && j < 4) c = j === 0 ? SILT[2] : SILT[j < 2 ? 1 : 0];
+      else {
+        // earth: soft blotches and thin strata, quantised with an ordered dither, darker with depth
+        const n = vnoise(wx / 7, wy / 5, 1) * 0.65 + vnoise(wx / 2.5, wy / 2.5, 2) * 0.35 + Math.sin(wy * 0.55 + vnoise(wx / 12, 0, 5) * 4) * 0.08;
+        // darker the further below the town's floor (the spawn's level), the same in every column so cells never show seams
+        const deep = Math.max(0, Math.min(1, (wy - M.spawn.y) / (T * 4)));
+        const v = n * 2.2 + 1.9 - deep * 1.6 + (dith(wx, wy) - 0.5) * 0.7;
+        c = EARTH[Math.max(1, Math.min(4, Math.round(v)))];
+        // pebbles on an 8 px grid
+        const gx = wx >> 3, gy = wy >> 3, h = hash(gx, gy, 77);
+        if (h > 0.965) {
+          const px = (gx << 3) + 2 + Math.floor(hash(gx, gy, 78) * 3), py = (gy << 3) + 2 + Math.floor(hash(gx, gy, 79) * 3);
+          const dx = wx - px, dy = wy - py;
+          if (dx >= 0 && dx < 3 && dy >= 0 && dy < 2) c = dy === 0 ? PEBBLE[dx === 0 ? 1 : 2] : PEBBLE[1];
+          else if (dx >= -1 && dx <= 3 && dy >= -1 && dy <= 2 && !(Math.abs(dx - 1) === 2 && (dy === -1 || dy === 2))) c = PEBBLE[0];
+        }
+        if (sky && j === g + 1) c = EARTH[1];
+      }
+      // open sides: a dark rim, and just inside it a lit left face / shaded right face
+      if ((openL && i === 0) || (openR && i === T - 1) || (openD && j === T - 1)) c = RIM;
+      else if (!(sky && j < g) && openL && i === 1) c = EARTH[5];
+      else if (!(sky && j < g) && openR && i === T - 2) c = EARTH[0];
+      S.set(wx, wy, c);
+    }
+  // grass blades standing on the turf
+  if (sky)
+    for (let i = 0; i < T; i++) {
+      const wx = x0 + i, h = hash(wx, cy, 11);
+      if ((openL && i < 2) || (openR && i > T - 3)) continue;
+      const tall = h > 0.82 ? 3 : h > 0.62 ? 2 : h > 0.4 ? 1 : 0;
+      for (let k = 1; k <= tall; k++) S.set(wx, y0 - k, k === tall ? GRASS[4] : GRASS[3]);
+    }
+}
+
+
 // ---------------------------------------------------------------- the ground: the Xianxia Pixel Pack's terrain sets (CC0)
 // 32 px tiles, one per map cell: bamboo-forest earth for "#", blue stone for "s", cloud for "=". Each cell picks the top or
 // body tile, and its left end, right end, lone or middle form from its neighbours; middles mix three variants at random.
@@ -478,7 +552,7 @@ export async function buildScene(M) {
   for (let cy = 0; cy < rows; cy++)
     for (let cx = 0; cx < cols; cx++) {
       const ch = at(cx, cy), x = cx * T, y = cy * T;
-      if (ch === "#") groundCell(S, M, "bamboo", cx, cy, T);
+      if (ch === "#") earthCell(S, M, cx, cy, T);
       else if (ch === "s") groundCell(S, M, "bluestone", cx, cy, T);
       else if (ch === "=") cloudPlatform(S, M, cx, cy, T);
       else if (ch === "b") {

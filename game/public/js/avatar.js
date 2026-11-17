@@ -88,6 +88,26 @@ function rigFor(g, hair, robe) {
   r.at = new Map(r.robe.map(([x, y, c]) => [y * 256 + x, c]));
   // the hem's right edge at the waist line, where the robe's body under the sleeve ends
   r.hemR = Math.max(21, ...r.robe.filter(([, y, , part]) => y === SKIRT_Y && part === SKIRT).map(([x]) => x));
+  // the torso under the front sleeve, which the artist never drew: rebuilt so a raised arm leaves the robe whole. Row by
+  // row, the body's edge runs from the shoulder's width down to the hem's, inside the sleeve's own outline only; it is
+  // filled with the cloth just inside it (repeating its last few columns), with a dark outline on the new edge.
+  {
+    const robeAt = new Map(r.robe.filter((q) => q[3] !== ARM_F).map(([x, y, c]) => [y * 256 + x, c]));
+    const arm = new Set(r.robe.filter((q) => q[3] === ARM_F).map(([x, y]) => y * 256 + x));
+    const rowMax = (y) => Math.max(-1, ...r.robe.filter((q) => q[1] === y && q[3] !== ARM_F).map((q) => q[0]));
+    const top = Math.min(26, Math.max(21, rowMax(ARM_Y0 - 1))), bottom = Math.min(27, r.hemR);
+    r.under = [];
+    for (let y = ARM_Y0; y <= ARM_Y1; y++) {
+      const edge = Math.round(top + ((bottom - top) * (y - ARM_Y0)) / (ARM_Y1 - ARM_Y0));
+      let last = 20;
+      while (last > 8 && !robeAt.has(y * 256 + last)) last--;
+      for (let x = last + 1; x <= edge; x++) {
+        if (!arm.has(y * 256 + x)) continue;
+        const src = robeAt.get(y * 256 + (last - ((x - last - 1) % 3))) ?? robeAt.get(y * 256 + last);
+        if (src) r.under.push([x, y, x === edge ? shade(src, 0.35) : shade(src, 0.9)]);
+      }
+    }
+  }
   // the sleeves as lookup grids, for drawing them turned
   // where this robe's front fist is: its skin-coloured pixels low on the front sleeve (the weapon is held there)
   {
@@ -195,23 +215,14 @@ export function drawAvatar(p, look, st) {
   for (const [x, y, c] of r.hairBack) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(shade(c, 0.85)));
   // robe: torso and skirt, then the boots; the sleeves are drawn on their own (nothing left behind where they were)
   for (const [x, y, c, part] of r.robe) {
-    if (part === ARM_F) {
-      // a sleeve lifted away uncovers the robe's side: carry the body's edge a few pixels out under it, no further
-      // and lower down, the body widens from the waist towards the hem's own edge: fill only that, not the hanging cuff
-      const inner = 20;
-      const body = y >= 36 ? x <= Math.round(21 + (r.hemR - 21) * ((y - 36) / (SKIRT_Y - 36))) : Math.abs(x - inner) <= 3;
-      if (Math.abs(P.armF) >= 0.05 && body) {
-        const under = (y >= 36 && r.at.get(SKIRT_Y * 256 + x)) || r.at.get(y * 256 + inner);
-        if (under) p.px(X(x + lean(y)), Y(y + bob(y)), tint(shade(under, 0.82)));
-      }
-      continue;
-    }
+    if (part === ARM_F) continue;
     let dx = lean(y), dy = bob(y);
     if (part === SKIRT) dx += hem(y);
     else if (part === FOOT_F) [dx, dy] = P.footF;
     else if (part === FOOT_B) [dx, dy] = P.footB;
     p.px(X(x + dx), Y(y + dy), tint(c));
   }
+  for (const [x, y, c] of r.under) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
   for (const [x, y, c] of r.head) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
   for (const [x, y, c] of r.hairFront) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(c));
   for (const [x, y, c] of r.face) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
