@@ -33,8 +33,8 @@ export function mapInfo(id) {
       return c === "=" || c === "b";
     },
     inSpring: (x, y) => x >= s.x0 * T && x <= s.x1 * T && Math.abs(y - s.row * T) < 2,
-    // the column over the arrow, from its step up to three tiles high: walking or jumping through it counts
-    portalAt: (x, y) => portals.find((p) => Math.abs(x - p.x) < p.r && y <= p.y + 2 && y >= p.y - 3 * T) ?? null,
+    // the column over the arrow, from its step up to five tiles high (higher than any jump): walking or hopping over it counts
+    portalAt: (x, y) => portals.find((p) => Math.abs(x - p.x) < p.r && y <= p.y + 2 && y >= p.y - 5 * T) ?? null,
   };
   cache.set(id, info);
   return info;

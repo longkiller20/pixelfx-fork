@@ -98,7 +98,7 @@ export class World {
       if (ws.readyState !== WebSocket.OPEN) return;
       const p = {
         id: this.nid++, kind: "p", userId: uid, ws, name: ch.name, cls: ch.cls, look: ch.look,
-        ...this.spawnPoint(), face: 1, in: { dx: 0, jump: false, down: false }, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
+        ...this.spawnPoint(), face: 1, in: { dx: 0, jump: false, down: false }, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
         hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
         cd: [0, 0, 0], busyUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
         medAcc: 0, meditating: false, base: null, pend: zero(), level: 1, medLeft: 0, saving: null, gone: false,
@@ -240,6 +240,8 @@ export class World {
       case "in": {
         // side view: a direction along the ground, and whether jump and down are held
         if (!num(m.dx)) return;
+        // a tap shorter than a tick still counts: the press is kept for JUMP_BUFFER and spent on the next jump
+        if (m.jump === true && !p.in.jump) p.jumpUntil = this.t + PHYS.JUMP_BUFFER;
         p.in = { dx: clamp(m.dx, -1, 1), jump: m.jump === true, down: m.down === true };
         return;
       }
@@ -457,7 +459,9 @@ export class World {
     }
     const st = this.stats(p), inp = p.in;
     p.moving = Math.abs(inp.dx) > 0.05;
-    stepBody(p, inp, st.spd * PHYS.RUN, DT, this.map, t);
+    const wasGround = p.ground;
+    stepBody(p, { ...inp, jump: inp.jump || p.jumpUntil > t }, st.spd * PHYS.RUN, DT, this.map, t);
+    if (wasGround && !p.ground) p.jumpUntil = 0;
     if (p.moving && p.busyUntil <= t) p.face = inp.dx > 0 ? 1 : -1;
     // fell out of the world somehow: back to the spawn
     if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint());

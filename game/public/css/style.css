@@ -89,6 +89,9 @@ input:focus { border-color: var(--gold); }
 .picks canvas { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
 .menu { position: absolute; top: 8px; right: 10px; display: flex; gap: 6px; }
 .menu button { width: 38px; height: 38px; border-radius: 10px; background: #0d0a16cc; border: 1px solid var(--line); cursor: pointer; font-size: 17px; }
+.menu button svg { width: 18px; height: 18px; fill: none; stroke: #e8e0ff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
+#logoutBtn svg { stroke: #ff9a9a; }
+.menu button { display: inline-grid; place-items: center; padding: 0; }
 .menu button.ready { border-color: var(--gold); box-shadow: 0 0 12px #f0c05088; animation: pulse 1.2s infinite; }
 .pulse { animation: pulse 1.2s infinite; }
 @keyframes pulse { 50% { transform: scale(1.08); } }
@@ -109,9 +112,9 @@ input:focus { border-color: var(--gold); }
 #chatInput { width: 100%; margin-top: 4px; padding: 6px 10px; font-size: 13px; background: #0d0a16cc; }
 
 #joyzone { display: none; position: absolute; left: 0; bottom: 0; width: 45%; height: 62%; touch-action: none; }
-#joybase { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; left: 90px; top: 70%; border-radius: 50%; background: #ffffff14; border: 2px solid #ffffff30; opacity: 0.6; }
+#joybase { position: absolute; width: 148px; height: 60px; margin: -30px 0 0 -74px; left: 90px; top: 70%; border-radius: 30px; background: #ffffff14; border: 2px solid #ffffff30; opacity: 0.6; }
 #joybase.on { opacity: 1; }
-#joyknob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px; border-radius: 50%; background: radial-gradient(#fff8, #fff3); }
+#joyknob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: radial-gradient(#fff8, #fff3); }
 
 .skills { position: absolute; right: 12px; bottom: 12px; display: grid; grid-template-columns: repeat(6, auto); align-items: end; gap: 8px; }
 .skills button { position: relative; border-radius: 50%; border: 2px solid #f0c05099; background: radial-gradient(#3a2a10, #120c04); cursor: pointer; touch-action: none; overflow: hidden; display: flex; align-items: center; justify-content: center; }

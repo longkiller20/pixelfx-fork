@@ -1,7 +1,7 @@
 // The side-view town, drawn at the characters' own pixel size: one art pixel is one world pixel. That lets buildings and trees
 // be as big as they really are beside a person: doors taller than you, houses three times your height, a temple and a pagoda
 // towering over the street, cherry trees above the roofs.
-//   terrain  Frogatto's old tile art (CC0): earth, grass, stone bricks, flowers, 16 px tiles, four to a 32 px map cell
+//   terrain  Frogatto's old tile art (CC0): grass tufts, flowers and the signpost; earth and stone are painted per pixel
 //   roofs    the Oriental Roof Tiles sheet (CC0): an end piece and a repeating middle, in four colours, for every roof
 //   the rest walls, doors, lattice windows, pillars, lanterns, cherry trees, bamboo, clouds, water and sky are painted here
 // Everything still is painted once into one picture of the whole map; the far scenery (sky, peaks, isles, cloud) slides behind
@@ -378,10 +378,108 @@ function layers(w, h) {
   return { sky: { a: skyA, b: skyB, k: skyK }, cloud, isles };
 }
 
-const PINES = [[8, 164], [172, 296], [304, 424]];
+const PINES = [[8, 164], [172, 296], [304, 424]], PINE_FOOT = 304; // the trunks end at row 303 of the sheet
 const WATER = ["#0e3a6a", "#16548e", "#2274b4", "#3a98d4", "#8ad0f4", "#ffffff"].map(C);
 
 // ---------------------------------------------------------------- the whole scene
+// ---------------------------------------------------------------- the ground, painted per pixel so every edge joins up
+// Earth and stone are drawn from their neighbours, not stamped from tiles: a grass cap where the earth meets the sky
+// (rounded over the corners and hanging a little down the sides), silt under water, a dark rim and a lit edge on every open
+// side, strata that darken with depth, pebbles; stone as running-bond bricks with a coping on top. No repeating stamp, so no
+// stripes and no seams between cells.
+const vnoise = (x, y, s) => {
+  const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+};
+const EARTH = ["#231710", "#33221a", "#432c1e", "#553823", "#6a472b", "#83593a"].map(C);
+const RIM = C("#160e09");
+const GRASS = ["#1f4a1f", "#2f6e2a", "#46923a", "#6ab84a", "#a2dc62"].map(C);
+const SILT = ["#4a4636", "#5e5a44", "#767052"].map(C);
+const PEBBLE = ["#3a3028", "#6a5c4c", "#8e806c"].map(C);
+const BRICK = ["#1e2030", "#3c4462", "#4d5778", "#5e6a8e", "#7380a6", "#96a2c4"].map(C);
+const COPING = ["#262a3c", "#7c86aa", "#a6b0d0", "#d0d8ee"].map(C);
+
+/** Grass thickness along the world x: 5 to 8 px, gently rolling. */
+const grassDepth = (wx) => 5 + Math.round(vnoise(wx / 9, 0, 41) * 3);
+
+function earthCell(S, M, cx, cy, T) {
+  const at = (x, y) => M.cell(x, y), solidC = (ch) => ch === "#" || ch === "s";
+  const up = at(cx, cy - 1), sky = !solidC(up) && up !== "w" && up !== "|", wet = up === "w";
+  const openL = !solidC(at(cx - 1, cy)), openR = !solidC(at(cx + 1, cy)), openD = !solidC(at(cx, cy + 1));
+  const x0 = cx * T, y0 = cy * T;
+  for (let j = 0; j < T; j++)
+    for (let i = 0; i < T; i++) {
+      const wx = x0 + i, wy = y0 + j;
+      // rounded corners where the top meets an open side
+      if (sky && ((openL && i + j < 2) || (openR && T - 1 - i + j < 2))) continue;
+      const g = grassDepth(wx);
+      let c;
+      const sideGrass = sky && ((openL && i < 2) || (openR && i > T - 3)) && j < g + 2 + Math.round(hash(wx, cy, 3) * 3);
+      if (sky && (j < g || sideGrass)) {
+        // grass: a bright lip, a body with lighter flecks, a dark underside
+        const fleck = vnoise(wx / 3, wy / 3, 7) + dith(wx, wy) * 0.35;
+        c = j === 0 ? GRASS[4] : j >= g - 1 && !sideGrass ? GRASS[1] : fleck > 0.95 ? GRASS[4] : fleck > 0.62 ? GRASS[3] : GRASS[2];
+        if (sideGrass && ((openL && i === 0) || (openR && i === T - 1))) c = GRASS[0];
+      } else if (sky && j === g && hash(wx, 0, 9) > 0.35) c = GRASS[0]; // ragged roots under the turf
+      else if (wet && j < 4) c = j === 0 ? SILT[2] : SILT[j < 2 ? 1 : 0];
+      else {
+        // earth: soft blotches and thin strata, quantised with an ordered dither, darker with depth
+        const n = vnoise(wx / 7, wy / 5, 1) * 0.65 + vnoise(wx / 2.5, wy / 2.5, 2) * 0.35 + Math.sin(wy * 0.55 + vnoise(wx / 12, 0, 5) * 4) * 0.08;
+        // darker the further below the town's floor (the spawn's level), the same in every column so cells never show seams
+        const deep = Math.max(0, Math.min(1, (wy - M.spawn.y) / (T * 4)));
+        const v = n * 3.2 + 1.8 - deep * 1.4 + (dith(wx, wy) - 0.5) * 0.9;
+        c = EARTH[Math.max(1, Math.min(4, Math.round(v)))];
+        // pebbles on an 8 px grid
+        const gx = wx >> 3, gy = wy >> 3, h = hash(gx, gy, 77);
+        if (h > 0.9) {
+          const px = (gx << 3) + 2 + Math.floor(hash(gx, gy, 78) * 3), py = (gy << 3) + 2 + Math.floor(hash(gx, gy, 79) * 3);
+          const dx = wx - px, dy = wy - py;
+          if (dx >= 0 && dx < 3 && dy >= 0 && dy < 2) c = dy === 0 ? PEBBLE[dx === 0 ? 1 : 2] : PEBBLE[1];
+          else if (dx >= -1 && dx <= 3 && dy >= -1 && dy <= 2 && !(Math.abs(dx - 1) === 2 && (dy === -1 || dy === 2))) c = PEBBLE[0];
+        }
+        if (sky && j === g + 1) c = EARTH[1];
+      }
+      // open sides: a dark rim, and just inside it a lit left face / shaded right face
+      if ((openL && i === 0) || (openR && i === T - 1) || (openD && j === T - 1)) c = RIM;
+      else if (!(sky && j < g) && openL && i === 1) c = EARTH[5];
+      else if (!(sky && j < g) && openR && i === T - 2) c = EARTH[0];
+      S.set(wx, wy, c);
+    }
+  // grass blades standing on the turf
+  if (sky)
+    for (let i = 0; i < T; i++) {
+      const wx = x0 + i, h = hash(wx, cy, 11);
+      if ((openL && i < 2) || (openR && i > T - 3)) continue;
+      const tall = h > 0.82 ? 3 : h > 0.62 ? 2 : h > 0.4 ? 1 : 0;
+      for (let k = 1; k <= tall; k++) S.set(wx, y0 - k, k === tall ? GRASS[4] : GRASS[3]);
+    }
+}
+
+function stoneCell(S, M, cx, cy, T) {
+  const at = (x, y) => M.cell(x, y), solidC = (ch) => ch === "#" || ch === "s";
+  const top = !solidC(at(cx, cy - 1)), openL = !solidC(at(cx - 1, cy)), openR = !solidC(at(cx + 1, cy)), openD = !solidC(at(cx, cy + 1));
+  const x0 = cx * T, y0 = cy * T, CAP = 5;
+  for (let j = 0; j < T; j++)
+    for (let i = 0; i < T; i++) {
+      const wx = x0 + i, wy = y0 + j;
+      let c;
+      if (top && j < CAP) c = j === 0 ? COPING[3] : j === CAP - 1 ? COPING[0] : j === 1 ? COPING[2] : COPING[1];
+      else {
+        // running bond: 8 px courses, 16 px bricks, every other course shifted half a brick
+        const course = Math.floor(wy / 8), off = course & 1 ? 8 : 0, bx = Math.floor((wx + off) / 16);
+        const u = (wx + off) % 16, v = wy % 8, tone = 2 + Math.floor(hash(bx, course, 13) * 2.99);
+        if (v === 7 || u === 15) c = BRICK[0];
+        else if (v === 0 || u === 0) c = BRICK[Math.min(5, tone + 1)];
+        else if (v === 6) c = BRICK[tone - 1];
+        else c = dith(wx, wy) < 0.1 + hash(bx, course, 14) * 0.15 ? BRICK[tone - 1] : BRICK[tone];
+      }
+      if ((openL && i === 0) || (openR && i === T - 1) || (openD && j === T - 1)) c = BRICK[0];
+      S.set(wx, wy, c);
+    }
+}
+
 export async function buildScene(M) {
   const [ts, rf, mt, pn] = await Promise.all([loadPixels(M.def.terrain), loadPixels(M.def.roof), loadPixels(M.def.mountains), loadPixels(M.def.pines)]);
   const T = M.T, cols = M.cols, rows = M.rows, SW = M.w, SH = M.h, S = new Buf(SW, SH);
@@ -405,7 +503,7 @@ export async function buildScene(M) {
     else if (kind === "pine") {
       // Crisisworks' Asian mountain pines, at half their size: still four times a person's height
       const [a, b] = PINES[(o?.v ?? 0) % PINES.length];
-      S.blit(pn.px, pn.w, a, 0, b - a, pn.h, Math.round(x * T - (b - a) / 2), row * T - pn.h);
+      S.blit(pn.px, pn.w, a, 0, b - a, PINE_FOOT, Math.round(x * T - (b - a) / 2), row * T - PINE_FOOT + 2);
     }
     else if (PROPS[kind]) PROPS[kind](S, Math.round(x * T), row * T, o ?? {}, roofs);
   }
@@ -414,30 +512,17 @@ export async function buildScene(M) {
     for (let cx = 0; cx < cols; cx++) {
       const ch = at(cx, cy), x = cx * T, y = cy * T;
       if (ch === "#") {
-        const open = !solid(at(cx, cy - 1));
-        for (let j = 0; j < 2; j++)
+        earthCell(S, M, cx, cy, T);
+        // the odd flowering tuft from the sheet on open turf (never under water)
+        if (!solid(at(cx, cy - 1)) && at(cx, cy - 1) === ".")
           for (let i = 0; i < 2; i++) {
-            const h = hash(cx * 2 + i, cy * 2 + j);
-            if (open && j === 0) sub([1, 2, 3, 5][Math.floor(h * 4)], 2, x + i * 16, y);
-            else sub(...(h > 0.5 ? [10, 0] : [10, 1]), x + i * 16, y + j * 16);
+            const h = hash(cx, i, 31);
+            if (h > 0.8 && !(i === 0 && !solid(at(cx - 1, cy))) && !(i === 1 && !solid(at(cx + 1, cy))))
+              sub([2, 3, 4, 5][Math.floor(h * 13) % 4], 1, x + i * 16, y - 16 + 4);
+            else if (h < 0.05) sub(6, 0, x + i * 16, y - 16 + 4);
           }
-        // grass blades and the odd flower standing on the top
-        if (open) for (let i = 0; i < 2; i++) {
-          const h = hash(cx, i, 31);
-          if (h > 0.7) sub([2, 3, 4, 5][Math.floor(h * 13) % 4], 1, x + i * 16, y - 16);
-          else if (h < 0.06) sub(6, 0, x + i * 16, y - 16);
-        }
-        // a dark rim where earth meets open air at the sides
-        for (const [dir, edge] of [[-1, 0], [1, T - 1]]) if (!solid(at(cx + dir, cy)) && at(cx + dir, cy) !== "w") S.rect(x + edge, y + (open ? 6 : 0), 1, T, C("#231a14"));
-      } else if (ch === "s") {
-        const open = !solid(at(cx, cy - 1));
-        for (let j = 0; j < 2; j++)
-          for (let i = 0; i < 2; i++) {
-            const h = hash(cx * 2 + i, cy * 2 + j, 5);
-            if (open && j === 0) sub([9, 11, 14, 15][Math.floor(h * 4)], 8, x + i * 16, y);
-            else sub(...[[9, 9], [10, 9], [15, 10], [8, 10], [9, 10]][Math.floor(h * 5)], x + i * 16, y + j * 16);
-          }
-      } else if (ch === "=") cloudCell(S, x, y, at(cx - 1, cy) !== "=", at(cx + 1, cy) !== "=", cx);
+      } else if (ch === "s") stoneCell(S, M, cx, cy, T);
+      else if (ch === "=") cloudCell(S, x, y, at(cx - 1, cy) !== "=", at(cx + 1, cy) !== "=", cx);
       else if (ch === "b") {
         bridgeCell(S, x, y, at(cx - 1, cy) !== "b", at(cx + 1, cy) !== "b");
         if (at(cx, cy + 1) === "w") water.push([cx, cy, true]);

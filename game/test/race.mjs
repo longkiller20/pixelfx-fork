@@ -153,6 +153,22 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
 }
 
 {
+  // a jump tap shorter than a server tick (pressed and let go in the same instant) still jumps
+  const P = await player(), c = await connect(P.token);
+  await sleep(600);
+  send(c, { t: "in", dx: 0, jump: true, down: false });
+  send(c, { t: "in", dx: 0, jump: false, down: false });
+  let air = false;
+  for (let i = 0; i < 20 && !air; i++) {
+    await sleep(50);
+    air = !!(c.snap?.P.find((q) => q[0] === c.id)?.[5] & 128);
+  }
+  c.ws.close();
+  assert.ok(air, "the tap made a jump");
+  ok("a jump tapped between two server ticks is not lost");
+}
+
+{
   // the starter town, side view: walls hold, jumps clear them, and the way out at the foot of the east stairs answers
   const { mapInfo, START_MAP } = await import("../shared/maps/index.js");
   const { fits } = await import("../shared/physics.js");
