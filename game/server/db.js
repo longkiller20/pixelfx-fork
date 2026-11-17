@@ -1,7 +1,7 @@
 // MariaDB: the pool, transactions, and the schema (created on start, safe to run every time).
 import mariadb from "mariadb";
 import { config } from "./config.js";
-import { COSMETICS_SEED, WEAPONS_SEED, DEFAULT_WEAPON } from "./cosmetics-seed.js";
+import { COSMETICS_SEED, WEAPONS_SEED, SPECIAL_WEAPONS_SEED, DEFAULT_WEAPON } from "./cosmetics-seed.js";
 import { seedConfig } from "./gameconfig.js";
 
 export const pool = mariadb.createPool({
@@ -148,6 +148,8 @@ const UPGRADES = [
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS robe TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER hair",
   // the weapon in hand (Xianxia Pixel Pack); everyone starts with the plain long sword
   `ALTER TABLE characters ADD COLUMN IF NOT EXISTS weapon SMALLINT UNSIGNED NOT NULL DEFAULT ${DEFAULT_WEAPON} AFTER robe`,
+  // bảo vật: never sold, never free; only given (by an admin now, by events and the auction house later)
+  "ALTER TABLE cosmetics ADD COLUMN IF NOT EXISTS special TINYINT(1) NOT NULL DEFAULT 0 AFTER on_sale",
 ];
 
 export async function migrate() {
@@ -156,8 +158,8 @@ export async function migrate() {
   for (const s of UPGRADES) await q(s);
   // the first wardrobe; rows already there (and an admin's changes to them) are kept
   await pool.batch(
-    "INSERT IGNORE INTO cosmetics (kind, gender, idx, name, price, starter, sort) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    [...COSMETICS_SEED, ...WEAPONS_SEED].map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.idx]),
+    "INSERT IGNORE INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [...COSMETICS_SEED, ...WEAPONS_SEED, ...SPECIAL_WEAPONS_SEED].map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.onSale === false ? 0 : 1, c.special ? 1 : 0, c.idx]),
   );
   // whatever a character already wears is theirs to keep, even if it is now sold in the shop
   for (const kind of ["hair", "robe", "weapon"])

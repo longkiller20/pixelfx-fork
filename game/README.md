@@ -5,7 +5,13 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
 
 - **Máy chủ:** Node.js + Express, WebSocket (`ws`) cho thế giới chung, MariaDB lưu dữ liệu, mặc định chạy ở cổng **5886**. Trang admin ở cổng riêng **5885** (xem phần "Trang admin").
 - **Vũ khí:** nhân vật cầm vũ khí trên tay; vũ khí vung theo đòn chém, và Phi Kiếm bay ra đúng vũ khí đang cầm. Có 90 món
-  (5 miễn phí, còn lại bán ở Y Các), nam nữ dùng chung.
+  của Xianxia Pixel Pack (5 miễn phí, còn lại bán ở Y Các), nam nữ dùng chung.
+- **Bảo vật (vũ khí đặc biệt):** 8 vũ khí lấy từ pixelfx (Phá Quân Kiếm, Trảm Long Đại Kiếm, Ảnh Sát Chủy, Bá Vương Thương,
+  Lôi Thần Chùy, U Minh Liêm, Huyết Lang Trảo, Lạc Nhật Cung). Bảo vật không bán và không miễn phí. Chưa được tặng thì
+  không hiện ở Y Các, mua hay mặc đều bị từ chối. Hiện tại admin tặng riêng cho từng người ở trang người chơi; sau này sẽ
+  có từ hoạt động, sự kiện hay đấu giá. Cột `cosmetics.special` đánh dấu bảo vật, nên admin có thể biến món khác thành
+  bảo vật. Vẽ lại các vũ khí này bằng `node tools/xianxia/pixelfx-weapons.mjs`, rồi thêm vào atlas bằng
+  `python3 tools/xianxia/build.py --pixelfx-only`.
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật cử động: đứng, đi, nhảy, xuất chiêu.
 - **Y Các (nút 👘 trong game):** bán 35 kiểu tóc và 35 bộ y phục còn lại của mỗi giới, giá 150 / 300 / 500 linh thạch tùy độ cầu

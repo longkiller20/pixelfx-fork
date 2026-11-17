@@ -258,3 +258,17 @@ export const WEAPONS_SEED = [
   { kind: "weapon", g: "a", idx: 88, name: "Tiên Khí V", price: 800, starter: false }, // tier3_b_04
   { kind: "weapon", g: "a", idx: 89, name: "Tiên Khí VI", price: 800, starter: false }, // tier3_b_05
 ];
+
+// Bảo vật: the weapons pixelfx draws in code (tools/xianxia/pixelfx-weapons.mjs), after the pack's 90 in the atlas.
+// Special: never sold at the Y Các and never free; a player gets one only when it is given to them (by an admin now; by
+// events, activities and the auction house later). Changed by an admin later, a row is left alone.
+export const SPECIAL_WEAPONS_SEED = [
+  { idx: 90, name: "Phá Quân Kiếm" }, // pixelfx sword
+  { idx: 91, name: "Trảm Long Đại Kiếm" }, // pixelfx greatsword
+  { idx: 92, name: "Ảnh Sát Chủy" }, // pixelfx dagger
+  { idx: 93, name: "Bá Vương Thương" }, // pixelfx spear
+  { idx: 94, name: "Lôi Thần Chùy" }, // pixelfx hammer
+  { idx: 95, name: "U Minh Liêm" }, // pixelfx scythe
+  { idx: 96, name: "Huyết Lang Trảo" }, // pixelfx claw
+  { idx: 97, name: "Lạc Nhật Cung" }, // pixelfx bow
+].map((w) => ({ kind: "weapon", g: "a", price: 0, starter: false, onSale: false, special: true, ...w }));

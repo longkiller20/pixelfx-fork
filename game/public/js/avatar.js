@@ -29,7 +29,8 @@ export function loadAvatars() {
     sheets = Object.fromEntries(names.map((n, i) => [n, imgs[i]]));
     // weapons (Xianxia Pixel Pack): for everyone, drawn pointing right with the hand's grip at (gx, gy)
     sheets.weapon_a = imgs[names.length];
-    m.weapon_a = wm.map((w) => [w.x, w.y, w.w, w.h, w.gx, w.gy]);
+    // [x, y, w, h, grip x, grip y, held upright at rest]: long arms are, and so is anything marked long (a bow)
+    m.weapon_a = wm.map((w) => [w.x, w.y, w.w, w.h, w.gx, w.gy, w.long ?? w.w > 62]);
     meta = m;
   })();
   return ready;
@@ -231,7 +232,7 @@ export function drawAvatar(p, look, st) {
     const a = P.armF, [sx, sy] = SH_F, [hx, hy] = r.hand;
     const handX = sx + hx * Math.cos(a) - hy * Math.sin(a), handY = sy + hx * Math.sin(a) + hy * Math.cos(a);
     // long arms (spears, halberds, staves) stand upright at rest; swords and the like point forward, clear of the ground
-    const long = (meta.weapon_a[look.weapon]?.[2] ?? 0) > 62;
+    const long = !!meta.weapon_a[look.weapon]?.[6];
     drawWeapon(p, look.weapon, X(Math.round(handX) + lean(sy)) + 0.5, Y(Math.round(handY) + bob(sy)) + 0.5, long ? P.longW ?? WEAPON_REST_LONG : WEAPON_REST + a, tint, true);
   }
   drawArm(p, r.armF, P.armF, P.swingF, lean, bob, tint, X, Y);
