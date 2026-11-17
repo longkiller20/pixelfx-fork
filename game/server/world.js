@@ -12,6 +12,8 @@ import { userFromToken } from "./auth.js";
 import { KeyedLock } from "./lock.js";
 
 const DT = 1 / TICK_HZ;
+// seconds between stepping into a gate and arriving on the other map: the departure plays, the screen closes
+const WARP_DELAY = 0.9;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const num = (v) => typeof v === "number" && Number.isFinite(v);
 const sessionLock = new KeyedLock();
@@ -298,8 +300,8 @@ export class World {
   onMessage(p, m) {
     switch (m.t) {
       case "in": {
-        // side view: a direction along the ground, and whether jump and down are held
-        if (!num(m.dx)) return;
+        // side view: a direction along the ground, and whether jump and down are held (nothing while teleporting)
+        if (!num(m.dx) || p.warping) return;
         // a tap shorter than a tick still counts: the press is kept for JUMP_BUFFER and spent on the next jump
         if (m.jump === true && !p.in.jump) p.jumpUntil = this.t + PHYS.JUMP_BUFFER;
         p.in = { dx: clamp(m.dx, -1, 1), jump: m.jump === true, down: m.down === true };
@@ -392,7 +394,7 @@ export class World {
   }
 
   cast(p, i, ax, ay) {
-    if (p.dead || p.busyUntil > this.t) return;
+    if (p.dead || p.busyUntil > this.t || p.warping) return;
     const t = this.t;
     let sk;
     if (i === 0) {
@@ -635,9 +637,19 @@ export class World {
     if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint());
     // a way out: to the map it leads to, or (a road still being built) a word and a step back
     const gate = this.map.portalAt(p.x, p.y);
-    if (gate && t >= p.portalAt && gate.to && this.u?.worlds.has(gate.to)) {
+    if (gate && t >= p.portalAt && gate.to && this.u?.worlds.has(gate.to) && !p.warping) {
+      // the teleport: everyone here sees them break into light at the gate, their own screen closes in a star; a moment
+      // later they are moved, and the map they arrive on sees a pillar of light bring them down
       p.portalAt = t + 2.5;
-      this.u.transfer(p, gate.to, this.map.id);
+      p.warping = true;
+      p.in = { dx: 0, jump: false, down: false };
+      this.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
+      send(p.ws, { t: "warp", to: gate.to });
+      const from = this.map.id;
+      this.at(t + WARP_DELAY, () => {
+        if (p.gone || p.world !== this) return void (p.warping = false);
+        this.u.transfer(p, gate.to, from).finally(() => (p.warping = false));
+      });
       return;
     }
     if (gate && t >= p.portalAt) {
@@ -968,6 +980,7 @@ export class Universe {
     p.in = { dx: 0, jump: false, down: false };
     p.meditating = false;
     to.enter(p, inv, at);
+    to.ev({ e: "warp", id: p.id, x: Math.round(at.x), y: Math.round(at.y), out: 0 });
     store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
   }
 

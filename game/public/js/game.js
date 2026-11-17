@@ -27,6 +27,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   // the five arts on the bar and the arts learned (the starters are known by everyone)
   let arts = { slots: character?.slots ?? Array(ART_SLOTS).fill(null), learned: character?.learned ?? [] };
   const boltFx = new Map(); // bolt id -> the effect riding it
+  // teleporting through a gate: a star closes over the screen, holds while the new map loads, and opens on it
+  const WARP_FX = "transitions/star-iris";
+  let screenFx = null, warpWaiting = false;
+  const vanish = new Map(); // player id -> when they vanish into the light at a gate
   const infos = new Map(); // player id -> { name, look, lv }
   const snaps = []; // { at, P: Map, M: Map, B: [] }
   const casts = new Map(); // entity id -> { s, type, at }
@@ -62,6 +66,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
           casts.clear();
           ghosts.clear();
           boltFx.clear();
+          vanish.clear();
           body = null;
           camFX = camFY = null;
           $("loading").hidden = false;
@@ -74,6 +79,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
               if (kind === "fx" && effects[o.id]) ambient.push({ id: o.id, fx: createFx(effects[o.id], { seed: (x * 97) | 0, flip: !!o.f, actor: BLANK_ACTOR, ...(o.o ?? {}) }), x: x * map.T, y: row * map.T - (o.h ?? 0), k: o.k ?? 1.4, every: o.every ?? 0, next: 0 });
             $("loading").hidden = true;
             zoneBanner(map.name, map.sub);
+            // arrived through a gate: the star opens again on the new map
+            if (warpWaiting) {
+              screenFx = createFx(effects[WARP_FX], { seed: (Math.random() * 1e6) | 0 });
+              screenFx.update(screenFx.meta.duration * 0.55);
+              warpWaiting = false;
+            }
           }, () => onFatal("Không tải được bản đồ, hãy thử lại.", false));
         }
         inv = m.inv;
@@ -97,6 +108,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "inv":
         inv = m.inv;
         renderInv();
+        break;
+      case "warp":
+        screenFx = createFx(effects[WARP_FX], { seed: (Math.random() * 1e6) | 0 });
+        warpWaiting = true;
         break;
       case "arts":
         arts = { slots: m.slots, learned: m.learned };
@@ -222,6 +237,13 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       }
       case "drop":
         addFx("pickups/loot-beam", e.x, e.y, {}, null, 1.4);
+        break;
+      case "warp":
+        // through a gate: here they break into light and are gone; on the far side a pillar of light sets them down
+        if (e.out) {
+          addFx("arcane/blink-out", e.x, e.y, { palette: GOLD }, null, 0, 1.65);
+          vanish.set(e.id, now + 0.55);
+        } else addFx("spawn/respawn-beam", e.x, e.y, { palette: GOLD }, null, 0, 1.5);
         break;
       case "hit": {
         flashes.set(e.id, now);
@@ -788,6 +810,15 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     for (const a of ambient) if (on(a.x, a.y, 260)) drawFx(a.fx, "front", a.x, a.y, a.k);
     drawPortalArrows(p, now, on);
     drawPetals(p, now, dt);
+    if (screenFx) {
+      // hold it shut while waiting for the new map; then let it open and finish
+      const D = screenFx.meta.duration;
+      if (!(warpWaiting && screenFx.t >= D * 0.5)) screenFx.update(dt);
+      const k = VW / 320;
+      drawFx(screenFx, "back", camX, camY, k);
+      drawFx(screenFx, "front", camX, camY, k);
+      if (screenFx.done()) screenFx = null;
+    }
     composite(frame, img.data, bgBuf);
     ctx.putImageData(img, 0, 0);
     drawLabels(list, now);
@@ -806,6 +837,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       const info = infos.get(e.id);
       if (!info || e.dead) return;
       if (e.f & 8 && Math.floor(now * 10) & 1) return; // just respawned: blinking
+      if (vanish.has(e.id) && now > vanish.get(e.id)) return; // gone into the light at a gate
       p.place(sx, sy, e.face < 0);
       // a shadow, and an aura while cultivating
       if (!(e.f & 128)) shadow(p, 13);
