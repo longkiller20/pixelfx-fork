@@ -243,7 +243,7 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
 
     // bảo vật (pixelfx's weapons): not in the wardrobe, can't be bought or worn; given by an admin, it shows up and is worn
     const sp = (await adm("/t/cosmetics", { token })).data.filter((c) => c.special);
-    assert.equal(sp.length, 8, "eight pixelfx weapons seeded as bảo vật");
+    assert.equal(sp.length, 11, "all eleven pixelfx weapons seeded as bảo vật");
     const gem = sp.find((c) => c.idx === 90);
     const before = (await call("/cosmetics", { token: q2.token })).data;
     assert.ok(!before.items.some((it) => it.id === gem.id), "a bảo vật nobody gave you isn't on the shelf");

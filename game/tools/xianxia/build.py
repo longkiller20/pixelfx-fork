@@ -124,8 +124,8 @@ def append_pixelfx():
                 if c:
                     grown[top + j, x + k] = (int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16), 255)
         item = {"name": w["name"], "x": x, "y": top, "w": w["w"], "h": w["h"], "gx": w["gx"], "gy": w["gy"]}
-        if w.get("long"):
-            item["long"] = True
+        if w.get("long") is not None:  # set only where the length alone would decide wrong (a bow, a whip)
+            item["long"] = w["long"]
         items.append(item)
         x += w["w"] + 2
     Image.fromarray(grown).save(os.path.join(OUT, "weapons.png"), optimize=True)
