@@ -15,6 +15,19 @@ const FIXED = { phikiem: "/xianxia/ui/skill_s2.png", loian: "/xianxia/ui/skill_s
 const stock = stockActor(2);
 export const BLANK_ACTOR = { ...stock, pixels: new Uint32Array(stock.pixels.length) };
 
+/**
+ * How much bigger to draw an art's effect. pixelfx draws for its 38 px stand-in, our characters are 63 px: effects on or
+ * by the body (shields, auras, slashes, whole moves) grow by 63/38 so they wrap the character; scenery-sized ones (a
+ * meteor, a storm) a bit less, so they don't fill the screen; projectiles less again. An admin's fx_scale wins.
+ */
+export function artScale(a) {
+  if (a.scale > 0) return a.scale;
+  if (a.at === "bolt") return 1.3;
+  const meta = effects[a.fx]?.meta;
+  if (a.at === "self" || a.at === "front" || meta?.actor) return 1.65;
+  return Math.max(...(meta?.size ?? [0])) > 260 ? 1.2 : 1.4;
+}
+
 /** One line about what an art does, from its numbers. */
 export function artLine(a) {
   const parts = [TYPE_NAME[a.type] ?? a.type, `hồi ${a.cd}s`];

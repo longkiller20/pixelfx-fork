@@ -59,6 +59,7 @@ export const CONFIG_SCHEMA = [
     fx VARCHAR(48) NOT NULL DEFAULT '',
     fx_at VARCHAR(8) NOT NULL DEFAULT 'front',
     fx_life DOUBLE NOT NULL DEFAULT 0,
+    fx_scale DOUBLE NOT NULL DEFAULT 0,
     starter TINYINT(1) NOT NULL DEFAULT 0,
     enabled TINYINT(1) NOT NULL DEFAULT 1,
     sort INT NOT NULL DEFAULT 0
@@ -81,6 +82,8 @@ export const CONFIG_SCHEMA = [
     max_qty INT UNSIGNED NOT NULL DEFAULT 1,
     UNIQUE KEY uq_drop (monster, item_key)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // how much bigger the art's effect is drawn (0: worked out from the effect, see public/js/arts.js artScale)
+  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS fx_scale DOUBLE NOT NULL DEFAULT 0 AFTER fx_life",
   // pills (used from the bar), books and materials (spent on arts)
   "ALTER TABLE items ADD COLUMN IF NOT EXISTS kind VARCHAR(8) NOT NULL DEFAULT 'pill' AFTER name",
   // straw dummies drop nothing; everything else takes the '*' drops
@@ -138,6 +141,11 @@ async function seedArts() {
     ART_ITEMS_SEED.map((i) => [i.key, i.name, i.kind, i.desc, i.sort]),
   );
   await q("UPDATE monsters SET common_drops = 0 WHERE type = 'dummy'");
+  // the whole moves are drawn 1.65x now, so their target stands 96 px ahead, not 70 (only rows an admin left as seeded)
+  await q("UPDATE arts SET params = JSON_SET(params, '$.dist', 96) WHERE fx LIKE 'moves/%' AND type = 'zone' AND JSON_VALUE(params, '$.dist') = 70");
+  // a campfire, a fountain or the weather stays where it was called up instead of walking along with the caster
+  await q("UPDATE arts SET fx_at = 'target' WHERE fx_at = 'self' AND fx IN ('fire/brazier', 'fire/campfire', 'fire/candle', 'fire/torch', 'water/fountain', 'weather/aurora', 'weather/cherry-blossoms', 'weather/god-rays', 'weather/clouds')");
+  await q("UPDATE arts SET fx_life = 10 WHERE fx = 'holy/halo' AND fx_life = 4");
   if (first) {
     // the old skill rows 2 and 3 now live on as arts
     await q("DELETE FROM skills WHERE slot IN (1, 2)");
@@ -171,7 +179,7 @@ export async function readConfig(conn = null) {
     })),
     arts: arts.map((a) => ({
       key: a.art_key, name: a.name, desc: a.description, element: a.element, tier: a.tier, type: a.type, cd: a.cd, mult: a.mult, params: a.params,
-      fx: a.fx, at: a.fx_at, life: a.fx_life, starter: !!a.starter, enabled: !!a.enabled, sort: a.sort,
+      fx: a.fx, at: a.fx_at, life: a.fx_life, scale: a.fx_scale ?? 0, starter: !!a.starter, enabled: !!a.enabled, sort: a.sort,
     })),
     reqs: reqs.map((r) => ({ art: r.art_key, item: r.item_key, qty: Number(r.qty) })),
     drops: drops.map((d) => ({ monster: d.monster, item: d.item_key, chance: d.chance, min: Number(d.min_qty), max: Number(d.max_qty) })),

@@ -95,8 +95,50 @@ def ring(n, metal, gem, points):
     return img
 
 
+# the jump button: a chunky pixel arrow pointing up, gold rim, sky-jade body lit from the top left. "#" ink, "g" gold
+# rim, "b" body (shaded by row), "h" a highlight down the left side.
+ARROW = [
+    "........#........",
+    ".......#g#.......",
+    "......#gbg#......",
+    ".....#ghbbg#.....",
+    "....#ghbbbbg#....",
+    "...#ghbbbbbbg#...",
+    "..#ghbbbbbbbbg#..",
+    ".#ghbbbbbbbbbbg#.",
+    "#gggggbbbbbggggg#",
+    "#####ghbbbbg#####",
+    "....#ghbbbbg#....",
+    "....#ghbbbbg#....",
+    "....#ghbbbbg#....",
+    "....#ghbbbbg#....",
+    "....#ghbbbbg#....",
+    "....#ggggggg#....",
+    "....#########....",
+]
+
+
+def arrow():
+    h, w = len(ARROW), max(len(r) for r in ARROW)
+    img = np.zeros((h, w, 4), np.uint8)
+    top, bot = np.array((200, 250, 255)), np.array((40, 150, 170))
+    for y, row in enumerate(ARROW):
+        for x, c in enumerate(row):
+            if c == "#":
+                img[y, x] = (*INK, 255)
+            elif c == "g":
+                img[y, x] = (*(METALS["gold"][2] if y < 9 else METALS["gold"][1]), 255)
+            elif c == "h":
+                img[y, x] = (240, 255, 255, 255)
+            elif c == "b":
+                t = y / (h - 1)
+                img[y, x] = (*(top * (1 - t) + bot * t).astype(int), 255)
+    return img
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    Image.fromarray(arrow()).save(os.path.join(OUT, "jump_arrow.png"), optimize=True)
     for name, (n, metal, gem, points) in RINGS.items():
         Image.fromarray(ring(n, metal, gem, points)).save(os.path.join(OUT, name + ".png"), optimize=True)
         print(name, n)

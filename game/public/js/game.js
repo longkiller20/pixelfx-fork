@@ -2,7 +2,7 @@
 import { createFrame, clearFrame, createFx, composite, painterFor, hex, WHITE } from "/pixelfx/core/index.js";
 import { effects } from "/pixelfx/fx/index.js";
 import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL, ARTS, ART_SLOTS } from "/shared/balance.js";
-import { artIcon, BLANK_ACTOR } from "./arts.js";
+import { artIcon, artScale, BLANK_ACTOR } from "./arts.js";
 import { mapInfo } from "/shared/maps/index.js";
 import { drawDummy } from "./art.js";
 import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
@@ -129,12 +129,55 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   }
 
   const posOf = (id, s = snaps[snaps.length - 1]) => s?.P.get(id) ?? s?.M.get(id);
-  // life: seconds before a looping effect is told to stop (it then fades); loops get 1.6 s unless told otherwise
-  function addFx(id, x, y, opts = {}, follow = null, life = 0) {
+  // life: seconds before a looping effect is told to stop (it then fades); loops get 1.6 s unless told otherwise.
+  // k: how much bigger to draw it (pixelfx draws for its 38 px stand-in; our characters are 63 px tall)
+  function addFx(id, x, y, opts = {}, follow = null, life = 0, k = 1) {
     const mod = effects[id];
     if (!mod || fxs.length > 48) return;
     const fx = createFx(mod, { seed: (Math.random() * 1e6) | 0, actor: BLANK_ACTOR, ...opts });
-    fxs.push({ fx, x, y, follow, dy: opts.dy ?? 0, until: life || mod.meta.loop ? performance.now() / 1000 + (life || 1.6) : 0 });
+    fxs.push({ fx, x, y, k, follow, dy: opts.dy ?? 0, until: life || mod.meta.loop ? performance.now() / 1000 + (life || 1.6) : 0 });
+  }
+  // an effect drawn k times bigger: into a scratch frame of its own, then each pixel blown up into the view, blended over
+  // what is already there (so a translucent shield shows the character inside it), its glow added to the view's
+  const scratch = new Map();
+  function drawFx(fx, layer, x, y, k = 1) {
+    const sx = Math.round(x - camX), sy = Math.round(y - camY);
+    if (k === 1) {
+      fx.options.x = sx;
+      fx.options.y = sy;
+      return fx.draw(frame, layer);
+    }
+    const [w, h] = fx.meta.size, [ox, oy] = fx.meta.origin ?? [w / 2, h / 2], pad = 16;
+    // room on both sides of the anchor, so a flipped effect still fits
+    const half = Math.ceil(Math.max(ox, w - ox)) + pad, W = half * 2, H = Math.ceil(h) + pad * 2, ay = Math.round(oy) + pad;
+    let s = scratch.get(W * 4096 + H);
+    if (!s) scratch.set(W * 4096 + H, (s = createFrame(W, H)));
+    clearFrame(s);
+    fx.options.x = half;
+    fx.options.y = ay;
+    fx.draw(s, layer);
+    const x0 = Math.round(sx - half * k), y0 = Math.round(sy - ay * k), DW = Math.ceil(W * k), DH = Math.ceil(H * k);
+    const C = s.color, L = s.light, FC = frame.color, FL = frame.light;
+    for (let j = Math.max(0, -y0); j < DH && y0 + j < VH; j++) {
+      const row = Math.min(H - 1, (j / k) | 0) * W, out = (y0 + j) * VW;
+      for (let i = Math.max(0, -x0); i < DW && x0 + i < VW; i++) {
+        const si = row + Math.min(W - 1, (i / k) | 0), c = C[si], l = L[si] & 0xffffff;
+        if (!c && !l) continue;
+        const ti = out + x0 + i;
+        if (c >>> 24) {
+          const a = c >>> 24, d = FC[ti];
+          if (a === 255 || !(d >>> 24)) FC[ti] = c;
+          else {
+            const f = a / 255, g = 1 - f;
+            FC[ti] = ((d >>> 24) << 24) | ((((c >>> 16) & 255) * f + ((d >>> 16) & 255) * g) << 16) | ((((c >>> 8) & 255) * f + ((d >>> 8) & 255) * g) << 8) | ((c & 255) * f + (d & 255) * g);
+          }
+        }
+        if (l) {
+          const e = FL[ti];
+          FL[ti] = (Math.min(255, ((e >>> 16) & 255) + ((l >>> 16) & 255)) << 16) | (Math.min(255, ((e >>> 8) & 255) + ((l >>> 8) & 255)) << 8) | Math.min(255, (e & 255) + (l & 255));
+        }
+      }
+    }
   }
   // the avatar's casting pose for an art's type
   const POSE = { melee: "melee", dash: "melee", bolt: "bolt", zone: "zone", nova: "zone", heal: "zone", buff: "zone" };
@@ -148,16 +191,17 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         if (!sk) break;
         casts.set(e.id, { s: e.s, type: POSE[sk.type] ?? "zone", at: now });
         // the basic attack's jade crescent; an art draws its own effect (the "art" event)
-        if (!e.a) addFx("melee/sword-slash", p.x + e.ax * 14, p.y - 4, { flip: e.ax < 0, palette: JADE }, null);
+        if (!e.a) addFx("melee/sword-slash", p.x + e.ax * 10, p.y - 2, { flip: e.ax < 0, palette: JADE }, null, 0, 1.4);
         break;
       }
       case "art": {
         const a = ARTS[e.a];
         if (!a?.fx || a.at === "bolt") break;
-        const flip = e.f < 0;
-        if (a.at === "front") addFx(a.fx, e.x + e.f * 10, e.y, { flip }, null, a.life);
-        else if (a.at === "self") addFx(a.fx, e.x, e.y, { flip }, e.id, a.life);
-        else addFx(a.fx, e.x, e.y, { flip }, null, a.life);
+        // an aura that loops (a shield, a halo, rage) lasts as long as the buff it shows
+        const flip = e.f < 0, k = artScale(a), life = a.life || (a.type === "buff" && effects[a.fx]?.meta.loop ? a.dur : 0);
+        if (a.at === "front") addFx(a.fx, e.x + e.f * 6, e.y, { flip }, null, life, k);
+        else if (a.at === "self") addFx(a.fx, e.x, e.y, { flip }, e.id, life, k);
+        else addFx(a.fx, e.x, e.y, { flip }, null, life, k);
         break;
       }
       case "drop":
@@ -672,7 +716,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       if (f.until && now > f.until) (f.fx.stop(), (f.until = 0));
       if (f.fx.done()) fxs.splice(i, 1);
     }
-    for (const f of fxs) if (on(f.x, f.y)) (place(f.fx, f.x, f.y), f.fx.draw(frame, "back"));
+    for (const f of fxs) if (on(f.x, f.y)) drawFx(f.fx, "back", f.x, f.y, f.k);
     drawScenery(p, now, dt, on);
     // everyone, back to front
     const list = [...drawn.values()].filter((e) => on(e.x, e.y)).sort((a, b) => a.y - b.y);
@@ -688,15 +732,13 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         if (!f && effects[a.fx]) boltFx.set(b[0], (f = createFx(effects[a.fx], { seed: b[0], flip: b[4] < 0, actor: BLANK_ACTOR })));
         if (!f) continue;
         f.update(dt);
-        f.options.x = Math.round(b[2] - camX);
-        f.options.y = Math.round(b[3] - camY - 30 + (f.meta.origin ? 0 : 0));
-        f.draw(frame, "back");
-        f.draw(frame, "front");
+        drawFx(f, "back", b[2], b[3] - 30, artScale(a));
+        drawFx(f, "front", b[2], b[3] - 30, artScale(a));
       }
       // an art whose effect already shows the throw (at: front) flies unseen
     }
     for (const id of boltFx.keys()) if (!live.has(id)) boltFx.delete(id);
-    for (const f of fxs) if (on(f.x, f.y)) (place(f.fx, f.x, f.y), f.fx.draw(frame, "front"));
+    for (const f of fxs) if (on(f.x, f.y)) drawFx(f.fx, "front", f.x, f.y, f.k);
     for (const a of ambient) if (on(a.x, a.y)) (place(a.fx, a.x, a.y), a.fx.draw(frame, "front"));
     drawPortalArrows(p, now, on);
     drawPetals(p, now, dt);

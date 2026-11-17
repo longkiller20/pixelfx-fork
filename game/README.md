@@ -30,6 +30,11 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - **Thanh 5 ô:** gán tối đa 5 môn, đổi lúc nào cũng được. Hồi chiêu đi theo môn, nên đổi ô không làm mới hồi chiêu.
     Phi Kiếm và Lôi Ấn Trận ai cũng biết sẵn và nằm ở 2 ô đầu của nhân vật mới.
   - Icon của mỗi môn vẽ từ chính hiệu ứng pixelfx của nó.
+  - Hiệu ứng được phóng to cho khớp nhân vật. pixelfx vẽ cho nhân vật mẫu cao 38 px, nhân vật game cao 63 px, nên hiệu
+    ứng trên người hoặc trước mặt to gấp 1,65: khiên, hào quang và vòng bảo vệ bao trọn nhân vật. Hiệu ứng cỡ cảnh vật
+    (thiên thạch, bão) phóng 1,2-1,4, đạn bay 1,3. Admin chỉnh riêng từng môn bằng `fx_scale`.
+  - Hào quang tăng chỉ số kéo dài đúng bằng thời gian buff. Lửa trại, suối hay thời tiết đứng yên ở chỗ gọi ra, không
+    đi theo người.
   - Admin sửa được công pháp, vật phẩm yêu cầu, vật phẩm và tỉ lệ rơi; truyền hoặc lấy lại công pháp của từng người.
 - **Góc nhìn đi ngang** (side-scroller), khớp với cách pixelfx vẽ nhân vật và hiệu ứng: đi trái/phải, nhảy, đứng trên đài
   mây, rơi theo trọng lực.

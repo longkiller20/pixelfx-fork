@@ -118,13 +118,10 @@ input:focus { border-color: var(--gold); }
 
 .skills { position: absolute; right: 12px; bottom: 12px; display: grid; grid-template-columns: repeat(6, auto); align-items: end; gap: 8px; }
 .skills button { position: relative; border-radius: 50%; border: 2px solid #f0c05099; background: radial-gradient(#3a2a10, #120c04); cursor: pointer; touch-action: none; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-.skills .sk { width: 66px; height: 66px; }
-.skills .sk.s1 { width: 82px; height: 82px; border-color: var(--gold); }
 .skills .sk::after { content: ""; position: absolute; inset: 0; background: conic-gradient(#000000b0 calc(var(--cd, 0) * 360deg), transparent 0); pointer-events: none; }
 .skills .nm { font-size: 10px; font-weight: 700; text-align: center; line-height: 1.1; padding: 0 6px; color: var(--gold2); text-shadow: 0 1px 2px #000; }
 .skills .cdt { position: absolute; z-index: 2; font-size: 18px; font-weight: 800; color: #fff; text-shadow: 0 0 4px #000; }
 .skills kbd { position: absolute; bottom: 3px; font-size: 9px; color: var(--dim); }
-.skills .item { width: 46px; height: 46px; border-color: #5cf0a088; background: radial-gradient(#10301e, #050c08); }
 .skills .item .ic { font-size: 18px; }
 .skills .item .qty { position: absolute; bottom: 2px; right: 8px; font-size: 10px; font-weight: 700; }
 .skills button:active { transform: scale(0.94); }
@@ -381,24 +378,34 @@ body.touch .skills .sk::before { inset: 18%; }
 .skills .sk::after { inset: 9%; border-radius: 50%; }
 .skills .s1::after { inset: 9%; }
 
-/* ================================================================ five công pháp on the bar
-   The attack button stays big in the corner. The inner ring (one thumb-reach) holds the first two arts and jump; the outer
-   ring the other three; the two pills sit in a small row along the bottom. Every icon is drawn from the art's own effect
-   (public/js/arts.js). An empty slot shows a dim "+": touching it opens the Công Pháp panel to put an art there. */
-.skills { width: 330px; height: 250px; }
-.skills .art { --s: 54px; --ring: url(/xianxia/ui/ring_art_azure.png); --glow: #9fd8ff; }
-.skills .a2 { --ring: url(/xianxia/ui/ring_art_violet.png); --glow: #d0a8ff; }
-.skills .a1 { --dx: 84px; --dy: -6px; }
-.skills .a2 { --dx: 62px; --dy: 58px; }
-.skills .jump { --s: 54px; --dx: 0px; --dy: 86px; }
-.skills .a3 { --s: 48px; --dx: 146px; --dy: 10px; }
-.skills .a4 { --s: 48px; --dx: 118px; --dy: 98px; }
-.skills .a5 { --s: 48px; --dx: 50px; --dy: 146px; }
-.skills .i1 { --dx: 250px; --dy: -30px; }
-.skills .i2 { --dx: 202px; --dy: -30px; }
+/* ================================================================ the action buttons
+   The attack button big in the corner; the five công pháp the same size on one even arc round it (r 90 px, 32° apart),
+   all one thumb-reach. Left of them, the two pills as small round buttons, and over the pills the jump button: a pixel
+   arrow pointing up. Every icon is drawn from the art's own effect (public/js/arts.js). An empty slot shows a dim "+":
+   touching it opens the Công Pháp panel to put an art there. */
+.skills { width: 280px; height: 182px; --cx: 64px; --cy: 60px; }
+.skills .s1 { --s: 84px; }
+.skills .art { --s: 46px; --ring: url(/xianxia/ui/ring_art_azure.png); --glow: #9fd8ff; }
+.skills .a1 { --dx: 88px; --dy: -19px; }
+.skills .a2 { --dx: 85px; --dy: 31px; --ring: url(/xianxia/ui/ring_art_violet.png); --glow: #d0a8ff; }
+.skills .a3 { --dx: 55px; --dy: 71px; }
+.skills .a4 { --dx: 9px; --dy: 90px; --ring: url(/xianxia/ui/ring_art_violet.png); --glow: #d0a8ff; }
+.skills .a5 { --dx: -40px; --dy: 81px; }
+.skills .item { --s: 38px; }
+.skills .item .ic img { width: 24px; height: 24px; }
+.skills .item .qty { font-size: 10px; right: 4px; bottom: 2px; }
+.skills .i1 { --dx: 184px; --dy: -24px; }
+.skills .i2 { --dx: 142px; --dy: -24px; }
+.skills .jump { --s: 40px; --dx: 163px; --dy: 30px; border-radius: 0; overflow: visible; box-shadow: none;
+  background: url(/xianxia/ui/jump_arrow.png) center / 100% 100% no-repeat; image-rendering: pixelated; filter: drop-shadow(0 3px 4px #000c); }
+.skills .jump::before, .skills .jump::after, .skills .jump .nm, .skills .jump .cdt { display: none; }
+.skills .jump kbd { top: auto; bottom: -14px; }
+.skills .art .nm { font-size: 8px; bottom: 8%; padding: 0 4px; }
 .skills .art.empty { opacity: 0.55; }
-.skills .art.empty::before { content: "+"; inset: 0; display: grid; place-items: center; background: none; color: #f0e0b0; font: 700 24px/1 system-ui, sans-serif; filter: none; }
-@media (max-height: 340px) { .skills { transform: scale(0.66); } }
+.skills .art.empty::before { content: "+"; inset: 0; display: grid; place-items: center; background: none; color: #f0e0b0; font: 700 22px/1 system-ui, sans-serif; filter: none; }
+.skills .cdt { font-size: 16px; }
+.skills .s1 .cdt { font-size: 22px; }
+@media (max-height: 340px) { .skills { transform: scale(0.7); } }
 
 /* the Công Pháp panel */
 .pbox:has(.artp) { width: min(980px, 100%); }

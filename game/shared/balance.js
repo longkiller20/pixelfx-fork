@@ -191,7 +191,7 @@ export function checkConfig(c) {
     const out = {
       key, name: str(a.name, `tên công pháp ${key}`, 30), desc: String(a.desc ?? "").slice(0, 200), element: String(a.element ?? ""), tier: num(a.tier ?? 1, `bậc ${key}`, 1, 9) | 0,
       type: a.type, cd: num(a.cd, `hồi chiêu ${key}`, 0.1, 3600), mult: num(a.mult ?? 0, `hệ số ${key}`, 0, 50), fx: String(a.fx ?? ""), at: a.at,
-      life: num(a.life ?? 0, `thời gian hiệu ứng ${key}`, 0, 60), starter: !!a.starter, enabled: a.enabled !== false && a.enabled !== 0, sort: Number(a.sort) || 0, reqs: [],
+      life: num(a.life ?? 0, `thời gian hiệu ứng ${key}`, 0, 60), scale: num(a.scale ?? 0, `cỡ hiệu ứng ${key}`, 0, 6), starter: !!a.starter, enabled: a.enabled !== false && a.enabled !== 0, sort: Number(a.sort) || 0, reqs: [],
     };
     for (const p of ART_PARAMS[a.type]) {
       if (p === "stat") {
