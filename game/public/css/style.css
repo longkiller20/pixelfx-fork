@@ -112,7 +112,7 @@ input:focus { border-color: var(--gold); }
 #chatInput { width: 100%; margin-top: 4px; padding: 6px 10px; font-size: 13px; background: #0d0a16cc; }
 
 #joyzone { display: none; position: absolute; left: 0; bottom: 0; width: 45%; height: 62%; touch-action: none; }
-#joybase { position: absolute; width: 148px; height: 60px; margin: -30px 0 0 -74px; left: 90px; top: 70%; border-radius: 30px; background: #ffffff14; border: 2px solid #ffffff30; opacity: 0.6; }
+#joybase { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; left: 90px; top: 70%; border-radius: 50%; background: #ffffff14; border: 2px solid #ffffff30; opacity: 0.6; }
 #joybase.on { opacity: 1; }
 #joyknob { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px; border-radius: 50%; background: radial-gradient(#fff8, #fff3); }
 
@@ -176,8 +176,6 @@ body.rotated.touch .chat { top: 150px; }
 #loading { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: #0b0912; color: var(--gold2); }
 #loading .spin { width: 38px; height: 38px; border-radius: 50%; border: 3px solid #f0c05033; border-top-color: var(--gold); animation: spin 0.9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.skills .jump { border-color: #7ff0ff99; background: radial-gradient(#10303a, #05101a); }
-.skills .jump .nm { color: #c8f8ff; }
 /* price tags and ticks on part thumbnails; the wardrobe (Y Các) panel */
 .picks button { position: relative; }
 .picks .tag { position: absolute; right: 2px; bottom: 1px; font-size: 10px; font-weight: 700; color: #ffe08a; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
@@ -268,7 +266,6 @@ body.rotated .ward { grid-template-columns: 140px 1fr; gap: 8px; }
   box-shadow: 0 0 0 2px #3a2208, 0 0 18px #f0c05066, 0 6px 14px #000a, inset 0 0 18px #000c; }
 .skills .s2 { --s: 58px; --dx: 84px; --dy: -8px; --icon: url(/xianxia/ui/skill_s2.png); --glow: #7cc8ff; }
 .skills .s3 { --s: 58px; --dx: 64px; --dy: 60px; --icon: url(/xianxia/ui/skill_s3.png); --glow: #c896ff; }
-.skills .jump { --s: 58px; --dx: 0px; --dy: 86px; --icon: url(/xianxia/ui/skill_jump.png); --glow: #c8f0ff; border-color: #7fd8e8; }
 .skills .item { --s: 42px; border-width: 2px; border-color: #5cc890; background: radial-gradient(#1a3a28, #06100a 75%); }
 .skills .i1 { --dx: 192px; --dy: -30px; }
 .skills .i2 { --dx: 144px; --dy: -30px; }
@@ -289,8 +286,12 @@ body.touch .skills .sk::before { inset: 12%; }
 body.rotated .skills { transform: scale(0.82); }
 @media (max-height: 340px) { .skills { transform: scale(0.7); } }
 /* the joystick: a faint pad always showing where the thumb goes */
-body.touch #joybase { opacity: 0.45; left: 110px; top: auto; bottom: 80px; margin: 0 0 -30px -74px; border: 2px solid #f0c05055;
-  background: linear-gradient(90deg, #ffffff10, #ffffff22, #ffffff10); }
+body.touch #joybase { opacity: 0.45; left: 100px; top: auto; bottom: 100px; margin: 0 0 -60px -60px; border: 2px solid #f0c05055;
+  background: radial-gradient(circle, #ffffff22 0 30%, #ffffff10 31% 68%, #ffffff1c 69%); }
+/* small marks on the ring: up to jump, down to drop through */
+#joybase::before, #joybase::after { content: ""; position: absolute; left: 50%; margin-left: -7px; border: 7px solid transparent; }
+#joybase::before { top: 4px; border-bottom-color: #f0c050aa; border-top-width: 0; }
+#joybase::after { bottom: 4px; border-top-color: #f0c05066; border-bottom-width: 0; }
 body.touch #joybase.on { opacity: 0.95; }
 #joyknob { border: 2px solid #f0c050aa; background: radial-gradient(circle at 40% 35%, #fff6d0cc, #c99a3a88); box-shadow: 0 2px 8px #0008; }
 
@@ -370,7 +371,6 @@ body.rotated #create .picks { max-height: none; overflow: visible; grid-template
 .skills .s1 { --ring: url(/xianxia/ui/ring_main.png); box-shadow: 0 0 16px #f0c05055, 0 5px 12px #000a; }
 .skills .s2 { --ring: url(/xianxia/ui/ring_art_azure.png); }
 .skills .s3 { --ring: url(/xianxia/ui/ring_art_violet.png); }
-.skills .jump { --ring: url(/xianxia/ui/ring_jump.png); background: var(--ring) center / 100% 100% no-repeat, radial-gradient(circle at 50% 42%, #163a48, #06121a 68%); }
 .skills .item { --ring: url(/xianxia/ui/ring_item.png); background: var(--ring) center / 100% 100% no-repeat, radial-gradient(#1a3a28, #06100a 70%); }
 .skills .sk::before { inset: 19%; }
 .skills .s1::before { inset: 17%; }
@@ -380,8 +380,8 @@ body.touch .skills .sk::before { inset: 18%; }
 
 /* ================================================================ the action buttons
    The attack button big in the corner; the five công pháp the same size on one even arc round it (r 90 px, 32° apart),
-   all one thumb-reach. Left of them, the two pills as small round buttons, and over the pills the jump button: a pixel
-   arrow pointing up. Every icon is drawn from the art's own effect (public/js/arts.js). An empty slot shows a dim "+":
+   all one thumb-reach. Left of them, the two pills as small round buttons. Jumping is on the
+   joystick (push it up). Every icon is drawn from the art's own effect (public/js/arts.js). An empty slot shows a dim "+":
    touching it opens the Công Pháp panel to put an art there. */
 .skills { width: 280px; height: 182px; --cx: 64px; --cy: 60px; }
 .skills .s1 { --s: 84px; }
@@ -396,10 +396,6 @@ body.touch .skills .sk::before { inset: 18%; }
 .skills .item .qty { font-size: 10px; right: 4px; bottom: 2px; }
 .skills .i1 { --dx: 184px; --dy: -24px; }
 .skills .i2 { --dx: 142px; --dy: -24px; }
-.skills .jump { --s: 40px; --dx: 163px; --dy: 30px; border-radius: 0; overflow: visible; box-shadow: none;
-  background: url(/xianxia/ui/jump_arrow.png) center / 100% 100% no-repeat; image-rendering: pixelated; filter: drop-shadow(0 3px 4px #000c); }
-.skills .jump::before, .skills .jump::after, .skills .jump .nm, .skills .jump .cdt { display: none; }
-.skills .jump kbd { top: auto; bottom: -14px; }
 .skills .art .nm { font-size: 8px; bottom: 8%; padding: 0 4px; }
 .skills .art.empty { opacity: 0.55; }
 .skills .art.empty::before { content: "+"; inset: 0; display: grid; place-items: center; background: none; color: #f0e0b0; font: 700 22px/1 system-ui, sans-serif; filter: none; }

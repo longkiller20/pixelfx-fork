@@ -294,7 +294,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
 
   // ---------------------------------------------------------------- input
   const keys = new Set();
-  let joy = { dx: 0 }, mouse = null, sentIn = { dx: 9 }, lastSent = 0, lastDir = { x: 1, y: 0 }, jumpBtn = false, jumpDown = false;
+  let joy = { dx: 0, dy: 0 }, mouse = null, sentIn = { dx: 9 }, lastSent = 0, lastDir = { x: 1, y: 0 };
   const chatInput = $("chatInput");
   addEventListener("keydown", (e) => {
     if (document.activeElement === chatInput) {
@@ -331,16 +331,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   });
   view.addEventListener("contextmenu", (e) => e.preventDefault());
   for (const b of document.querySelectorAll("[data-skill]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), cast(+b.dataset.skill)));
-  // the jump button: held while the thumb is on it; sliding the thumb down off it drops through a plank or cloud instead
-  const jb = $("jumpBtn");
-  let jb0 = 0;
-  const appY = (e) => (document.body.classList.contains("rotated") ? innerWidth - e.clientX : e.clientY);
-  jb.addEventListener("pointerdown", (e) => (e.preventDefault(), jb.setPointerCapture(e.pointerId), (jb0 = appY(e)), (jumpBtn = true)));
-  jb.addEventListener("pointermove", (e) => jumpBtn && (jumpDown = appY(e) - jb0 > 24));
-  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) jb.addEventListener(ev, () => (jumpBtn = jumpDown = false));
   for (const b of document.querySelectorAll("[data-item]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), use(b.dataset.item)));
 
-  // the joystick: left and right only (jumping has its own button), wherever the thumb lands in the left part of the screen
+  // the joystick: a round analog stick wherever the thumb lands in the left part of the screen. Left and right walk; pushing it
+  // up jumps (held up, it keeps jumping on landing), pulling it down drops through a plank or cloud
   const pad = $("joyzone"), knob = $("joyknob"), base = $("joybase");
   let joyId = null, joy0 = null;
   // pointer position in the app's own (possibly rotated) frame
@@ -348,21 +342,24 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   pad.addEventListener("pointerdown", (e) => {
     joyId = e.pointerId;
     joy0 = appXY(e);
-    pad.setPointerCapture(e.pointerId);
+    try { pad.setPointerCapture(e.pointerId); } catch {}
     // the base goes under the thumb: pad.offsetLeft/Top are in the app's own frame, rotated or not
-    base.style.cssText = `left: ${joy0.x - pad.offsetLeft}px; top: ${joy0.y - pad.offsetTop}px; bottom: auto; margin: -30px 0 0 -74px`;
+    base.style.cssText = `left: ${joy0.x - pad.offsetLeft}px; top: ${joy0.y - pad.offsetTop}px; bottom: auto; margin: -60px 0 0 -60px`;
     base.classList.add("on");
   });
   pad.addEventListener("pointermove", (e) => {
     if (e.pointerId !== joyId) return;
-    const dx = appXY(e).x - joy0.x, R = 46, k = Math.max(-R, Math.min(R, dx));
-    knob.style.transform = `translateX(${k}px)`;
-    joy = { dx: Math.abs(dx) < 8 ? 0 : k / R };
+    const q = appXY(e), R = 46;
+    let dx = q.x - joy0.x, dy = q.y - joy0.y;
+    const d = Math.hypot(dx, dy);
+    if (d > R) (dx *= R / d), (dy *= R / d);
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+    joy = d < 8 ? { dx: 0, dy: 0 } : { dx: dx / R, dy: dy / R };
   });
   const joyEnd = (e) => {
     if (e.pointerId !== joyId) return;
     joyId = null;
-    joy = { dx: 0 };
+    joy = { dx: 0, dy: 0 };
     knob.style.transform = "";
     base.classList.remove("on");
     // back to its resting place
@@ -378,8 +375,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     if (keys.has("a") || keys.has("arrowleft")) dx -= 1;
     if (keys.has("d") || keys.has("arrowright")) dx += 1;
     dx = Math.max(-1, Math.min(1, dx));
-    const jump = jumpBtn || keys.has("w") || keys.has("arrowup") || keys.has(" ");
-    const down = keys.has("s") || keys.has("arrowdown") || jumpDown;
+    // the stick counts as up past about 35 degrees above level, as down past about 45 below (a drop needs jump + down)
+    const up = joy.dy < -0.55, pull = joy.dy > 0.7;
+    const jump = up || pull || keys.has("w") || keys.has("arrowup") || keys.has(" ");
+    const down = pull || keys.has("s") || keys.has("arrowdown");
     const now = performance.now() / 1000;
     if (jump && !jumpHeld) jumpUntil = now + PHYS.JUMP_BUFFER;
     jumpHeld = jump;
