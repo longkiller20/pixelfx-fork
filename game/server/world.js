@@ -4,6 +4,7 @@
 import { WebSocket } from "ws";
 import {
   TICK_HZ, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE, levelFromExp, worldMult, arenaMult, mitigate, ARTS, ART_SLOTS, DROPS,
+  FLY, canFly, flyRealmName,
 } from "../shared/balance.js";
 import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
 import { stepBody, fits, PHYS } from "../shared/physics.js";
@@ -47,7 +48,7 @@ export class World {
   admit(ws, ch, inv, buffs) {
     const p = {
       id: nextId(), kind: "p", userId: ch.userId, ws, name: ch.name, cls: ch.cls, look: ch.look,
-      ...this.spawnPoint(), face: 1, in: { dx: 0, jump: false, down: false }, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
+      ...this.spawnPoint(), face: 1, in: { dx: 0, dy: 0, jump: false, down: false }, flying: false, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
       hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
       cd: [0], artCd: {}, slots: ch.slots, learned: new Set(ch.learned), tbuffs: {}, busyUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
       medAcc: 0, meditating: false, base: null, pend: zero(), fly: zero(), level: 1, medLeft: 0, saving: null, gone: false, buffs,
@@ -249,8 +250,10 @@ export class World {
   relevel(p, quiet = false) {
     const L = levelFromExp(this.exp(p));
     if (L !== p.level) {
-      const up = L > p.level;
+      const up = L > p.level, could = canFly(p.level);
       p.level = L;
+      if (!quiet && up && !could && canFly(L))
+        send(p.ws, { t: "toast", m: `Đạt ${flyRealmName()}: mở khoá Ngự Kiếm Phi Hành! Nhấn nút phi kiếm (phím F) để bay; đổi phi kiếm ở Y Các.`, big: 1 });
       if (!quiet) {
         this.broadcast({ t: "pi", ...info(p) });
         if (up) {
@@ -290,6 +293,8 @@ export class World {
       t: "me", lv: p.level, exp: this.exp(p), stones: p.base.stones + p.pend.stones, rank: p.base.rank + p.pend.rank,
       kills: p.base.kills + p.pend.kills, deaths: p.base.deaths + p.pend.deaths, medLeft: p.medLeft,
       hp: Math.max(0, Math.round(p.hpFrac * st.maxHp)), maxHp: st.maxHp, atk: Math.round(st.atk), def: Math.round(st.def),
+      // walking speed before a slow or a cast's pause (the browser applies those itself from the snapshot's flags)
+      spd: +(st.spd / (p.slowUntil > this.t ? 0.5 : 1) / (p.busyUntil > this.t ? 0.45 : 1)).toFixed(2),
       cd: this.cooldowns(p),
       respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
       buffs: (p.buffs ?? []).filter((x) => x.until === null || x.until > Date.now()).map((x) => ({ stat: x.stat, pct: x.pct, left: x.until === null ? null : Math.round((x.until - Date.now()) / 1000) })),
@@ -304,9 +309,11 @@ export class World {
         if (!num(m.dx) || p.warping) return;
         // a tap shorter than a tick still counts: the press is kept for JUMP_BUFFER and spent on the next jump
         if (m.jump === true && !p.in.jump) p.jumpUntil = this.t + PHYS.JUMP_BUFFER;
-        p.in = { dx: clamp(m.dx, -1, 1), jump: m.jump === true, down: m.down === true };
+        p.in = { dx: clamp(m.dx, -1, 1), dy: num(m.dy) ? clamp(m.dy, -1, 1) : 0, jump: m.jump === true, down: m.down === true };
         return;
       }
+      case "fly":
+        return this.setFlying(p, m.on === true);
       case "cast": {
         // 0 is the basic attack, 1-5 the arts on the bar
         const i = m.s | 0;
@@ -520,7 +527,8 @@ export class World {
       }
       return;
     }
-    // a player
+    // a player: falls off the sword
+    e.flying = false;
     e.respawnAt = this.t + (this.map.pvp ? PVP.respawn : RESPAWN_WORLD);
     e.busyUntil = 0;
     if (owner && owner !== e) {
@@ -586,6 +594,23 @@ export class World {
     e.y = clamp(e.y + dy, 40, this.map.h - 10);
   }
 
+  /** Get on (or off) the flying sword. Getting off in the air just drops them: gravity takes over. */
+  setFlying(p, on) {
+    if (on === p.flying) return;
+    if (on) {
+      if (p.dead || p.warping) return;
+      if (!canFly(p.level)) return send(p.ws, { t: "toast", m: `Tới cảnh giới ${flyRealmName()} mới ngự kiếm phi hành được.` });
+      if (this.map.pvp && !FLY.arena) return send(p.ws, { t: "toast", m: "Nơi tỷ thí không được ngự kiếm." });
+      p.flying = true;
+      p.meditating = false;
+      p.vy = Math.min(0, p.vy);
+      this.ev({ e: "fly", id: p.id, on: 1 });
+    } else {
+      p.flying = false;
+      this.ev({ e: "fly", id: p.id, on: 0 });
+    }
+  }
+
   stepPlayer(p) {
     const t = this.t;
     if (p.dead) {
@@ -601,9 +626,11 @@ export class World {
       return;
     }
     const st = this.stats(p), inp = p.in;
-    p.moving = Math.abs(inp.dx) > 0.05;
+    // the realm needed went up (an admin's edit), or the exp went down: off the sword
+    if (p.flying && (!canFly(p.level) || (this.map.pvp && !FLY.arena))) this.setFlying(p, false);
+    p.moving = Math.abs(inp.dx) > 0.05 || (p.flying && Math.abs(inp.dy) > 0.05);
     const wasGround = p.ground;
-    stepBody(p, { ...inp, jump: inp.jump || p.jumpUntil > t }, st.spd * PHYS.RUN, DT, this.map, t);
+    stepBody(p, { ...inp, jump: inp.jump || p.jumpUntil > t }, st.spd * PHYS.RUN * (p.flying ? FLY.speed : 1), DT, this.map, t);
     if (wasGround && !p.ground) p.jumpUntil = 0;
     if (p.moving && p.busyUntil <= t) p.face = inp.dx > 0 ? 1 : -1;
     // a map's burning ground (the abyss's lava): touching it sears off a share of sinh lực and throws the player back out
@@ -642,7 +669,7 @@ export class World {
       // later they are moved, and the map they arrive on sees a pillar of light bring them down
       p.portalAt = t + 2.5;
       p.warping = true;
-      p.in = { dx: 0, jump: false, down: false };
+      p.in = { dx: 0, dy: 0, jump: false, down: false };
       this.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
       send(p.ws, { t: "warp", to: gate.to });
       const from = this.map.id;
@@ -815,7 +842,7 @@ export class World {
     const t = this.t, P = [], M = [], B = [];
     for (const p of this.players.values())
       P.push([p.id, Math.round(p.x), Math.round(p.y), p.face, Math.round(Math.max(0, p.hpFrac) * 1000),
-        (p.dead ? 1 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128)]);
+        (p.dead ? 1 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128) | (p.flying ? 256 : 0)]);
     for (const m of this.ents.values())
       if (m.kind === "m") M.push([m.id, m.type, Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
     // the thrower's id: a flying sword is drawn as the weapon its owner holds
@@ -977,8 +1004,9 @@ export class Universe {
     at ??= to.spawnPoint();
     p.portalAt = to.t + 2.5;
     p.protectUntil = to.t + PVP.spawnProtect;
-    p.in = { dx: 0, jump: false, down: false };
+    p.in = { dx: 0, dy: 0, jump: false, down: false };
     p.meditating = false;
+    p.flying = false;
     to.enter(p, inv, at);
     to.ev({ e: "warp", id: p.id, x: Math.round(at.x), y: Math.round(at.y), out: 0 });
     store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));

@@ -23,14 +23,17 @@ const cache = new Map();
 /** Load the atlases once; resolves when characters can be drawn. */
 export function loadAvatars() {
   ready ??= (async () => {
-    const [m, wm] = await Promise.all([fetch("/avatar/avatar.json").then((r) => r.json()), fetch("/xianxia/weapons.json").then((r) => r.json())]);
+    const [m, wm, sm] = await Promise.all(["/avatar/avatar.json", "/xianxia/weapons.json", "/xianxia/swords.json"].map((u) => fetch(u).then((r) => r.json())));
     const names = ["base", "hair_m", "hair_f", "robe_m", "robe_f"];
-    const imgs = await Promise.all([...names.map((n) => pixels(`/avatar/${n}.png`)), pixels("/xianxia/weapons.png")]);
+    const imgs = await Promise.all([...names.map((n) => pixels(`/avatar/${n}.png`)), pixels("/xianxia/weapons.png"), pixels("/xianxia/swords.png")]);
     sheets = Object.fromEntries(names.map((n, i) => [n, imgs[i]]));
     // weapons (Xianxia Pixel Pack): for everyone, drawn pointing right with the hand's grip at (gx, gy)
     sheets.weapon_a = imgs[names.length];
     // [x, y, w, h, grip x, grip y, held upright at rest]: long arms are, and so is anything marked long (a bow)
     m.weapon_a = wm.map((w) => [w.x, w.y, w.w, w.h, w.gx, w.gy, w.long ?? w.w > 62]);
+    // flying swords (ngự kiếm phi hành; tools/swords/): pointing right, the feet stand on row `by`
+    sheets.sword_a = imgs[names.length + 1];
+    m.sword_a = sm.map((w) => [w.x, w.y, w.w, w.h, w.by]);
     meta = m;
   })();
   return ready;
@@ -201,6 +204,8 @@ export function drawAvatar(p, look, st) {
   const P = poseOf(st);
   const tint = (c) => (st.flash ? WHITE : st.slow ? mix(c, SLOW, 0.35) : c);
   const X = (x) => x - OX, Y = (y) => y - BH;
+  // riding a flying sword: it lies under the feet
+  const fly = st.fly && look.sword !== undefined && look.sword !== null;
   // one lean for the whole body, strongest at the head, nothing at the feet; the bob moves everything above the boots down
   // (only ever down: overlapping rows hide each other, a gap would show)
   const lean = (y) => Math.round(P.lean * clamp01((FEET_Y - y) / FEET_Y));
@@ -213,6 +218,8 @@ export function drawAvatar(p, look, st) {
     return Math.round(w * P.sway - w * w * P.wind * 2.2) + lean(y);
   };
   const hairDY = (y) => -Math.round(clamp01((y - 8) / 30) * P.lift) + bob(y);
+  // first, so the boots stand on the blade and the body hides the ornament round the guard
+  if (fly) drawFlySword(p, look.sword, 0, 1, tint);
   for (const [x, y, c] of r.hairBack) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(shade(c, 0.85)));
   // robe: torso and skirt, then the boots; the sleeves are drawn on their own (nothing left behind where they were)
   for (const [x, y, c, part] of r.robe) {
@@ -278,6 +285,21 @@ export function drawWeapon(p, i, x, y, angle, tint = (c) => c, grip = false) {
       if (u < 0 || v < 0 || u >= w || v >= h) continue;
       const c = sh.px[(wy + v) * sh.w + wx + u];
       if (c >>> 24 > 128) p.px(ox + tx, oy + ty, tint((c | 0xff000000) >>> 0));
+    }
+}
+
+/**
+ * A flying sword lying flat under the feet at (x, y) in the painter's space, pointing the way the painter faces; it rides
+ * a little behind the body, the tail (its dragon, its flowers) trailing.
+ */
+export function drawFlySword(p, i, x, y, tint = (c) => c) {
+  const m = meta?.sword_a?.[i] ?? meta?.sword_a?.[0];
+  if (!m) return;
+  const [sx, sy, w, h, by] = m, sh = sheets.sword_a, ox = Math.round(x - w * 0.55), oy = Math.round(y - by);
+  for (let v = 0; v < h; v++)
+    for (let u = 0; u < w; u++) {
+      const c = sh.px[(sy + v) * sh.w + sx + u];
+      if (c >>> 24 > 128) p.px(ox + u, oy + v, tint((c | 0xff000000) >>> 0));
     }
 }
 

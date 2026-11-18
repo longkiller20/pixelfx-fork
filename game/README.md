@@ -175,12 +175,13 @@ Có HTTPS thì game tự dùng `wss://`.
 - Khi bấm **Đăng nhập** hoặc **Đăng ký**, game xin chế độ toàn màn hình và khoá màn hình nằm ngang. Android Chrome hỗ trợ việc này.
 - iPhone Safari không cho web khoá hướng màn hình. Vì vậy, nếu máy đang cầm dọc, cả giao diện tự xoay ngang 90° để vẫn chơi được.
 - Nút ⛶ trên thanh menu để vào lại toàn màn hình. Trình duyệt chỉ cho phép việc đó sau một lần chạm, nên khi mở lại game bằng phiên đã lưu, bạn cần bấm nút này.
-- Điều khiển: kéo ngón tay sang trái/phải ở nửa trái màn hình để đi (joystick chỉ trái/phải); nút Nhảy để nhảy, giữ nút Nhảy rồi vuốt xuống để rơi xuyên ván gỗ và đài mây.
-  Bên phải có nút Nhảy, các nút chiêu và đan dược. Trên điện thoại, chiêu tự nhắm kẻ địch gần nhất.
+- Điều khiển: đặt ngón tay ở nửa trái màn hình là hiện cần analog tròn: gạt trái/phải để đi, gạt lên để nhảy (giữ lên thì nhảy liên tục), gạt xuống để rơi xuyên ván gỗ và đài mây.
+  Bên phải có các nút chiêu và đan dược. Trên điện thoại, chiêu tự nhắm kẻ địch gần nhất.
+- Từ cảnh giới admin đặt (mặc định Trúc Cơ), nút phi kiếm hiện trên 2 nút đan dược. Chạm vào để ngự kiếm; khi bay, cần analog lái theo mọi hướng. Chạm lần nữa để hạ kiếm.
 
 - **Cụm nút kiểu MOBA** ở góc phải dưới, trong tầm ngón cái phải:
   - Nút to ở góc: Kiếm Khí Trảm (J).
-  - Vòng trong: Phi Kiếm (K) bên trái, Lôi Ấn Trận (L) chéo trên, Nhảy ngay phía trên.
+  - Vòng trong: Phi Kiếm (K) bên trái, Lôi Ấn Trận (L) chéo trên. Nhảy bằng cách gạt cần analog lên.
   - Vòng ngoài: 2 nút đan dược nhỏ.
   - Icon chiêu lấy từ hiệu ứng của Xianxia Pixel Pack (CC0): trăng khuyết, vòng phi kiếm, sét thiên kiếp, hạc bay.
   - Khung tròn của các nút (vàng gắn ngọc bích cho nút đánh, vàng gắn lam/tím ngọc cho 2 chiêu, bạc cho nhảy, ngọc bích cho đan dược) là pixel art vẽ theo phong cách của pack bằng `tools/xianxia/rings.py`.
@@ -195,6 +196,7 @@ Có HTTPS thì game tự dùng `wss://`.
 | A/D hoặc ←/→ | Đi trái/phải |
 | W, ↑, Space | Nhảy |
 | S + nhảy | Rơi xuyên đài mây |
+| F | Ngự kiếm phi hành: lên/xuống phi kiếm (khi bay: W/S hoặc ↑/↓ để lên xuống) |
 | Chuột | Ngắm |
 | J K L, 1 2 3, chuột trái/phải | Chiêu 1, 2, 3 |
 | 4 | Hồi Xuân Đan |
@@ -427,6 +429,35 @@ Buff công/thủ/sinh lực/tốc độ không áp dụng ở bản đồ đấu
 **Quên mật khẩu admin:** chạy `mysql dvtt -e "DELETE FROM admins"` rồi khởi động lại game. Tài khoản `admin` / `admin123456` được tạo lại và phải đổi mật khẩu ở lần đăng nhập đầu.
 
 Các lệnh `npm run admin` và `npm run cosmetics` vẫn dùng được song song với trang web.
+
+## Ngự Kiếm Phi Hành
+
+Tới cảnh giới mở khoá, người chơi đứng lên phi kiếm và bay. Khi bay:
+
+- Không còn trọng lực. Cần analog (hoặc W/A/S/D, mũi tên) lái theo mọi hướng, kiếm tăng tốc và giảm tốc mượt.
+- Tường và trần vẫn chặn. Ván gỗ và đài mây thì bay xuyên qua. Hạ xuống gần mặt đất thì kiếm dừng lơ lửng cách đất một chút.
+- Vẫn ra chiêu được. Tắt bay giữa không trung thì rơi xuống.
+- Chết, qua cổng sang map khác, hoặc tụt dưới cảnh giới mở khoá thì tự hạ kiếm.
+- Mọi người cùng map thấy phi kiếm dưới chân, kiếm lắc lư nhẹ và để lại vệt linh khí khi bay. Lúc lên và xuống kiếm có hiệu ứng pixelfx.
+
+**Admin chỉnh ở Cài đặt, nhóm "Ngự Kiếm Phi Hành":**
+
+| Thiết lập | Ý nghĩa |
+| --- | --- |
+| `fly.realm` | Cảnh giới mở khoá, chọn theo tên. Tới tầng 1 của cảnh giới đó là bay được. Có lựa chọn "Khoá" để tạm khoá với mọi người. |
+| `fly.speed` | Tốc độ bay bằng tốc độ đi nhân hệ số này. Mặc định 1,35. |
+| `fly.arena` | 1 thì được bay trong đấu trường, 0 thì không. Mặc định là 0. |
+
+Khi người chơi vừa đột phá tới cảnh giới đó, game báo đã mở khoá.
+
+**Phi kiếm** là loại `sword` trong bảng `cosmetics` (tab "Tóc, áo, vũ khí & phi kiếm" của admin, chọn "Phi kiếm (bay)"):
+
+- Có 30 thanh, cắt từ ảnh `tools/swords/source.png` bằng `python3 tools/swords/build.py`, ra file `public/xianxia/swords.png` và `.json`.
+- **Thanh Vân Kiếm** là kiếm cơ bản (`starter`): ai mở khoá bay cũng có ngay, không phải mua.
+- 22 thanh bán ở Y Các, tab "Phi kiếm", giá 600 đến 2000 linh thạch. Chỉ mua được sau khi đã mở khoá bay.
+- 7 thanh là **bảo vật** (`special`): Băng Long, Xích Long, Bạch Long, Tinh Hà, Bích Long, Hỏa Long, Thái Cực Kiếm. Các thanh này không bán, chỉ có khi admin tặng ở trang người chơi (sau này qua hoạt động, sự kiện).
+- Admin đổi giá, tên, bật/tắt bán, chuyển thành bảo vật cho từng thanh. Trang người chơi đổi được phi kiếm đang dùng và tặng hoặc lấy lại phi kiếm.
+- Nhân vật lưu phi kiếm đang dùng ở cột `characters.sword`.
 
 ## Tóc và y phục: quản lý trong database
 
