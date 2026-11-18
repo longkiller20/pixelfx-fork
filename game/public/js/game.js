@@ -1,7 +1,7 @@
 // The game in the browser: it shows what the server says is happening, and sends what the player presses.
 import { createFrame, clearFrame, createFx, composite, painterFor, hex, WHITE } from "/pixelfx/core/index.js";
 import { effects } from "/pixelfx/fx/index.js";
-import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL, ARTS, ART_SLOTS } from "/shared/balance.js";
+import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL, ARTS, ART_SLOTS, FLY, canFly, flyRealmName } from "/shared/balance.js";
 import { artIcon, artScale, BLANK_ACTOR } from "./arts.js";
 import { mapInfo } from "/shared/maps/index.js";
 import { drawDummy } from "./art.js";
@@ -126,6 +126,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       }
       case "s":
         onSnapshot(m);
+        renderFly();
         break;
       case "chat":
         logLine(m.n, m.m);
@@ -289,6 +290,13 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "boom":
         addFx("impacts/hit-spark", e.x, e.y - 30, { palette: JADE });
         break;
+      case "fly": {
+        // stepping onto the sword: a burst of qi at the feet; off it, a puff
+        const t = posOf(e.id, s);
+        if (t) addFx(e.on ? "arcane/mana-burst" : "spawn/poof", t.x, t.y, { palette: JADE }, null, 0, e.on ? 1.2 : 0.8);
+        if (e.id === myId) renderFly();
+        break;
+      }
     }
   }
 
@@ -316,6 +324,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     // J: the basic attack; K L U I O (or 1-5): the five arts on the bar; Z X: the two pills
     const sk = { j: 0, k: 1, l: 2, u: 3, i: 4, o: 5, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 }[k];
     if (sk !== undefined && !e.repeat) cast(sk);
+    if (k === "f" && !e.repeat) toggleFly();
     if (k === "z" && !e.repeat) use("hoixuan");
     if (k === "x" && !e.repeat) use("tukhi");
   });
@@ -332,6 +341,24 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   view.addEventListener("contextmenu", (e) => e.preventDefault());
   for (const b of document.querySelectorAll("[data-skill]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), cast(+b.dataset.skill)));
   for (const b of document.querySelectorAll("[data-item]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), use(b.dataset.item)));
+  // ngự kiếm phi hành: on and off the flying sword (F); the button shows once the realm for it is reached
+  const flyBtn = $("flyBtn");
+  const flyingNow = () => !!(snaps[snaps.length - 1]?.P.get(myId)?.f & 256);
+  function toggleFly() {
+    if (!me) return;
+    if (!canFly(me.lv)) return toast(`Tới cảnh giới ${flyRealmName()} mới ngự kiếm phi hành được.`);
+    send({ t: "fly", on: !flyingNow() });
+  }
+  let flyShown = null;
+  function renderFly() {
+    const can = !!me && canFly(me.lv), on = flyingNow(), key = `${can}${on}`;
+    if (key === flyShown) return;
+    flyShown = key;
+    flyBtn.hidden = !can;
+    flyBtn.classList.toggle("on", on);
+    flyBtn.title = on ? "Hạ kiếm (F)" : "Ngự kiếm phi hành (F)";
+  }
+  flyBtn.addEventListener("pointerdown", (e) => (e.preventDefault(), toggleFly()));
 
   // the joystick: a round analog stick wherever the thumb lands in the left part of the screen. Left and right walk; pushing it
   // up jumps (held up, it keeps jumping on landing), pulling it down drops through a plank or cloud
@@ -383,11 +410,16 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     if (jump && !jumpHeld) jumpUntil = now + PHYS.JUMP_BUFFER;
     jumpHeld = jump;
     if (Math.abs(dx) > 0.2) lastDir = { x: Math.sign(dx), y: 0 };
-    return { dx: +dx.toFixed(2), jump, down };
+    // up and down, for a flying sword: the stick's full slant, or the keys
+    let dy = Math.abs(joy.dy) > 0.25 ? Math.sign(joy.dy) * Math.min(1, Math.abs(joy.dy) * 1.3) : 0;
+    if (keys.has("w") || keys.has("arrowup") || keys.has(" ")) dy -= 1;
+    if (keys.has("s") || keys.has("arrowdown")) dy += 1;
+    dy = Math.max(-1, Math.min(1, dy));
+    return { dx: +dx.toFixed(2), dy: +dy.toFixed(2), jump, down };
   }
   function pumpInput(now) {
     const d = inputDir();
-    if (d.dx !== sentIn.dx || d.jump !== sentIn.jump || d.down !== sentIn.down || now - lastSent > 0.5) {
+    if (d.dx !== sentIn.dx || d.dy !== sentIn.dy || d.jump !== sentIn.jump || d.down !== sentIn.down || now - lastSent > 0.5) {
       send({ t: "in", ...d });
       sentIn = d;
       lastSent = now;
@@ -441,6 +473,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   function renderMe() {
     const info = myInfo();
     if (!me || !info) return;
+    renderFly();
     const cls = CLASSES[CLASS];
     $("hpFill").style.width = `${(100 * me.hp) / me.maxHp}%`;
     $("hpText").textContent = `${me.hp} / ${me.maxHp}`;
@@ -587,6 +620,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       // one eases back, and a height that stays different for a while (a plank one side thinks it's on) settles to the server's
       const dx = Math.abs(body.x - last.x), dy = Math.abs(body.y - last.y), bothDown = body.ground && !(last.f & 128);
       if (dx > 120 || dy > 200) Object.assign(body, { x: last.x, y: last.y, vy: 0 });
+      // on the sword and hovering: settle onto the server's spot
+      else if (last.f & 256 && !(last.f & 32) && !(self.f & 32) && (dx > 0.5 || dy > 0.5)) (body.x += (last.x - body.x) * 0.2), (body.y += (last.y - body.y) * 0.2);
       else if (bothDown && !(last.f & 32) && (dx > 0.5 || dy > 0.5)) {
         body.x += (last.x - body.x) * 0.2;
         if (dy > 0.5 && (offSince ??= now) < now - 0.35) Object.assign(body, { y: last.y, vy: 0 });
@@ -601,7 +636,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     const last = snaps[snaps.length - 1]?.P.get(myId), info = myInfo();
     if (!body || !last || last.f & 1 || !info) return;
     const c = CLASSES[CLASS];
-    const spd = c.spd * (last.f & 4 ? 0.5 : 1) * (last.f & 64 ? 0.45 : 1) * PHYS.RUN;
+    body.flying = !!(last.f & 256);
+    const spd = (me?.spd ?? c.spd) * (last.f & 4 ? 0.5 : 1) * (last.f & 64 ? 0.45 : 1) * PHYS.RUN * (body.flying ? FLY.speed : 1);
     const inp = inputDir(), wasGround = body.ground;
     stepBody(body, { ...inp, jump: inp.jump || jumpUntil > now }, spd, dt, map, now);
     if (wasGround && !body.ground) jumpUntil = 0;
@@ -837,7 +873,16 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       if (!info || e.dead) return;
       if (e.f & 8 && Math.floor(now * 10) & 1) return; // just respawned: blinking
       if (vanish.has(e.id) && now > vanish.get(e.id)) return; // gone into the light at a gate
-      p.place(sx, sy, e.face < 0);
+      // on a flying sword: the rider bobs gently over the air, a trail of qi streaming off the blade when it moves
+      const flying = !!(e.f & 256), bob = flying ? Math.round(Math.sin(now * 2.6 + e.id) * 2) : 0;
+      p.place(sx, sy + bob, e.face < 0);
+      if (flying && e.f & 32)
+        for (let i = 0; i < 26; i++) {
+          const y = Math.round(Math.sin(now * 9 - i * 0.5) * 1.5);
+          p.dot(-46 - i * 1.5, y, hex(JADE[i < 6 ? 5 : i < 14 ? 4 : 3]), 0.95 - i / 28);
+          if (i % 3 === 0) p.dot(-46 - i * 1.5, y + 2, hex(JADE[3]), 0.6 - i / 40);
+        }
+      if (flying) p.glow(0, 2, 34, hex(JADE[3]), 0.16 + 0.05 * Math.sin(now * 4));
       // a shadow, and an aura while cultivating
       if (!(e.f & 128)) shadow(p, 13);
       if (e.f & 16) {
@@ -845,7 +890,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         if (Math.random() < 0.3) texts.push({ x: e.x + (Math.random() * 30 - 15), y: e.y - 20, s: "✦", color: "#9ff8ff", at: now, rise: 40 });
       }
       const c = casts.get(e.id), age = c ? now - c.at : 9;
-      drawAvatar(p, info.look, { t: now + e.id, moving: !!(e.f & 32), air: !!(e.f & 128), meditating: !!(e.f & 16), cast: c && age < 0.6 ? { ...c, age } : null, busy: !!(e.f & 64), slow: !!(e.f & 4), flash });
+      drawAvatar(p, info.look, { t: now + e.id, moving: !flying && !!(e.f & 32), air: !flying && !!(e.f & 128), fly: flying, meditating: !!(e.f & 16), cast: c && age < 0.6 ? { ...c, age } : null, busy: !!(e.f & 64), slow: !!(e.f & 4), flash });
     } else if (e.kind === "m") {
       if (e.dead) return;
       const md = MONSTERS[e.type];

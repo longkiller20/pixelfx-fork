@@ -76,7 +76,8 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   for (const look of [{ g: "x", hair: 8, robe: 16 }, { g: "m", hair: 1.5, robe: 16 }, { g: "f", hair: 24, robe: -1 }, null, { g: "m", hair: 0, robe: 16 }, { g: "f", hair: 8, robe: 2 }])
     assert.equal((await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } })).status, 400, JSON.stringify(look));
   const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: { g: "f", hair: 34, robe: 21 } } });
-  assert.deepEqual({ ...c.data.character.look, weapon: undefined }, { g: "f", hair: 34, robe: 21, weapon: undefined });
+  assert.deepEqual({ ...c.data.character.look, weapon: undefined, sword: undefined }, { g: "f", hair: 34, robe: 21, weapon: undefined, sword: undefined });
+  assert.equal(c.data.character.look.sword, 0, "and the basic flying sword, for when flight opens");
   assert.ok(Number.isInteger(c.data.character.look.weapon), "and a weapon in hand");
   const w = (await call("/cosmetics", { token: data.token })).data;
   for (const [k, g] of [["hair", "m"], ["hair", "f"], ["robe", "m"], ["robe", "f"]])
@@ -242,7 +243,7 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
     c2.ws.close();
 
     // bảo vật (pixelfx's weapons): not in the wardrobe, can't be bought or worn; given by an admin, it shows up and is worn
-    const sp = (await adm("/t/cosmetics", { token })).data.filter((c) => c.special);
+    const sp = (await adm("/t/cosmetics", { token })).data.filter((c) => c.special && c.kind === "weapon");
     assert.equal(sp.length, 11, "all eleven pixelfx weapons seeded as bảo vật");
     const gem = sp.find((c) => c.idx === 90);
     const before = (await call("/cosmetics", { token: q2.token })).data;
@@ -492,6 +493,71 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   assert.equal(c2.msgs.find((m) => m.t === "welcome").map, "bichlac", "the map is remembered");
   c2.ws.close();
   ok("the gold arrow at the foot of the east stairs leads to Bích Lạc Lâm, its monsters there, the map remembered");
+}
+
+// ngự kiếm phi hành: locked below the realm; then on the sword, up, down to a hover over the ground, off and falling;
+// flying swords are sold only to those who can fly, and the bảo vật ones never
+{
+  const { q } = await import("../server/db.js");
+  const bal = await import("../shared/balance.js");
+  bal.applyConfig((await call("/config")).data);
+  const P = await player();
+  const [row] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [P.name]);
+  const w = (await call("/cosmetics", { token: P.token })).data;
+  const sale = w.items.find((i) => i.kind === "sword" && i.onSale && !i.starter), basic = w.items.find((i) => i.kind === "sword" && i.starter);
+  assert.ok(sale && basic, "flying swords in the wardrobe: one free, others on sale");
+  assert.ok(!w.items.some((i) => i.kind === "sword" && i.special), "bảo vật swords are not shown to those who don't own them");
+  await q("UPDATE characters SET stones = ? WHERE user_id = ?", [sale.price + 5, row.id]);
+  let r = await call("/cosmetics/buy", { token: P.token, method: "POST", body: { id: sale.id } });
+  assert.equal(r.status, 403, "no flying sword before flight opens");
+  let c = await connect(P.token);
+  await sleep(300);
+  send(c, { t: "fly", on: true });
+  await sleep(400);
+  const me0 = () => c.snap.P.find((x) => x[0] === c.id);
+  assert.ok(!(me0()[5] & 256) && c.msgs.some((m) => m.t === "toast" && /mới ngự kiếm/.test(m.m)), "below the realm: refused, and told when");
+  c.ws.close();
+  await q("UPDATE characters SET exp = ? WHERE user_id = ?", [bal.expForLevel(bal.FLY.level), row.id]);
+  c = await connect(P.token);
+  await sleep(400);
+  const ground = me0()[2];
+  send(c, { t: "fly", on: true });
+  send(c, { t: "in", dx: 0, dy: -1, jump: false, down: false });
+  await sleep(700);
+  send(c, { t: "in", dx: 0, dy: 0, jump: false, down: false });
+  // the sword glides to a stop
+  await sleep(1000);
+  let p = me0();
+  assert.ok(p[5] & 256, "on the sword");
+  assert.ok(p[2] < ground - 80, `flew up (y ${ground} -> ${p[2]})`);
+  await sleep(500);
+  assert.ok(Math.abs(me0()[2] - p[2]) < 4, "and hovers there, no gravity");
+  send(c, { t: "in", dx: 0, dy: 1, jump: false, down: false });
+  await sleep(2000);
+  send(c, { t: "in", dx: 0, dy: 0, jump: false, down: false });
+  await sleep(200);
+  p = me0();
+  assert.ok(p[2] < ground && p[2] >= ground - 12, `down to a hover just over the ground (y ${p[2]}, ground ${ground})`);
+  send(c, { t: "in", dx: 0, dy: -1, jump: false, down: false });
+  await sleep(500);
+  send(c, { t: "in", dx: 0, dy: 0, jump: false, down: false });
+  send(c, { t: "fly", on: false });
+  await sleep(1500);
+  p = me0();
+  assert.ok(!(p[5] & 256) && p[2] === ground, `off the sword: fell back to the ground (y ${p[2]})`);
+  ok("ngự kiếm: locked below the realm; flies up, hovers, stops over the ground, falls when off");
+  r = await call("/cosmetics/buy", { token: P.token, method: "POST", body: { id: sale.id, wear: true } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.character.look.sword, sale.idx, "riding the new sword");
+  const [special] = await q("SELECT id FROM cosmetics WHERE kind = 'sword' AND special = 1 LIMIT 1");
+  r = await call("/cosmetics/buy", { token: P.token, method: "POST", body: { id: special.id } });
+  assert.equal(r.status, 403, "a bảo vật sword is never sold");
+  r = await call("/cosmetics/wear", { token: P.token, method: "POST", body: { id: special.id } });
+  assert.equal(r.status, 403, "nor ridden without being given");
+  await sleep(300);
+  assert.ok(c.msgs.some((m) => m.t === "pi" && m.look?.sword === sale.idx), "everyone sees the new sword");
+  c.ws.close();
+  ok("phi kiếm: bought once flight opens and ridden at once; bảo vật swords never sold or ridden ungiven");
 }
 
 console.log(`${passed} checks passed`);

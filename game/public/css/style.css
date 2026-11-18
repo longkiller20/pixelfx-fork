@@ -72,7 +72,7 @@ input:focus { border-color: var(--gold); }
 .preview { display: flex; flex-direction: column; gap: 8px; position: sticky; top: 0; }
 .preview canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; border-radius: 12px; border: 1px solid var(--line);
   background: radial-gradient(circle at 50% 70%, #3a2f5a, #120e1c 70%); }
-.pvbar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.pvbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 4px; }
 .pvbar button, .seg button, #randLook { background: #0e0b18; color: #d8d0f0; border: 1px solid var(--line); border-radius: 8px; padding: 7px 4px; cursor: pointer; font-size: 12px; }
 .pvbar button.on, .seg button.on { border-color: var(--gold); color: var(--gold2); box-shadow: 0 0 0 1px var(--gold) inset; }
 .choices { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -396,6 +396,11 @@ body.touch .skills .sk::before { inset: 18%; }
 .skills .item .qty { font-size: 10px; right: 4px; bottom: 2px; }
 .skills .i1 { --dx: 184px; --dy: -24px; }
 .skills .i2 { --dx: 142px; --dy: -24px; }
+/* the flying sword, over the two pills where the jump button was; lit while riding */
+.skills .fly { --dx: 163px; --dy: 28px; --s: 42px; --ring: url(/xianxia/ui/ring_art_azure.png); }
+.skills .fly .ic img { width: 30px; height: 30px; object-fit: contain; image-rendering: pixelated; }
+.skills .fly.on { box-shadow: 0 0 14px #5cf0a0, 0 0 4px #c8ffe0 inset; filter: brightness(1.2); }
+.skills .fly[hidden] { display: none; }
 .skills .art .nm { font-size: 8px; bottom: 8%; padding: 0 4px; }
 .skills .art.empty { opacity: 0.55; }
 .skills .art.empty::before { content: "+"; inset: 0; display: grid; place-items: center; background: none; color: #f0e0b0; font: 700 22px/1 system-ui, sans-serif; filter: none; }

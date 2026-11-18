@@ -1,6 +1,6 @@
 // Screens: log in, make a character, play. Plus the shop, the leaderboard and the daily gift.
 import { createFrame, clearFrame, composite, painterFor } from "/pixelfx/core/index.js";
-import { ITEMS, DAILY_STONES, realmName, applyConfig, ARTS, ART_LIST, ART_SLOTS } from "/shared/balance.js";
+import { ITEMS, DAILY_STONES, realmName, applyConfig, ARTS, ART_LIST, ART_SLOTS, canFly, flyRealmName, levelFromExp } from "/shared/balance.js";
 import { ELEMENTS } from "/shared/arts-seed.js";
 import { artIcon, artLine, elementName } from "./arts.js";
 import { loadAvatars, drawAvatar, partCanvas } from "./avatar.js";
@@ -119,9 +119,10 @@ function preview(cv, look, anim, alive) {
     const p = painterFor(f);
     // the chosen move, looping: a jump arcs up and back down, a cast swings every second
     const jump = a === "jump" ? Math.max(0, Math.sin(((t % 1.1) / 1.1) * Math.PI)) : 0;
-    p.place(W / 2, H - 12 - Math.round(jump * 14), false);
+    const fly = a === "fly" ? 4 + Math.round(Math.sin(t * 2.6) * 2) : 0;
+    p.place(W / 2, H - 12 - Math.round(jump * 14) - fly, false);
     drawAvatar(p, look(), {
-      t, moving: a === "walk", air: a === "jump" && jump > 0.05,
+      t, moving: a === "walk", air: a === "jump" && jump > 0.05, fly: a === "fly",
       cast: a === "cast" ? { type: Math.floor(t / 1.2) % 2 ? "bolt" : "melee", age: t % 1.2 } : null,
     });
     composite(f, img.data, null);
@@ -506,10 +507,10 @@ $("wardBtn").addEventListener("click", async () => {
   wrap.className = "ward";
   wrap.innerHTML = `<div class="preview"><canvas width="96" height="96"></canvas>
     <div class="pvbar"><button type="button" data-anim="idle" class="on">Đứng</button><button type="button" data-anim="walk">Đi</button>
-    <button type="button" data-anim="jump">Nhảy</button><button type="button" data-anim="cast">Chiêu</button></div>
+    <button type="button" data-anim="jump">Nhảy</button><button type="button" data-anim="cast">Chiêu</button><button type="button" data-anim="fly">Bay</button></div>
     <div class="sel"><b class="nm"></b><span class="st dim"></span><button type="button" class="primary act"></button></div></div>
     <div class="choices"><div class="row"><div class="seg"><button type="button" data-k="hair" class="on">Tóc</button>
-    <button type="button" data-k="robe">Y phục</button><button type="button" data-k="weapon">Vũ khí</button></div><span class="bal"></span></div><div class="picks big"></div></div>`;
+    <button type="button" data-k="robe">Y phục</button><button type="button" data-k="weapon">Vũ khí</button><button type="button" data-k="sword">Phi kiếm</button></div><span class="bal"></span></div><div class="picks big"></div></div>`;
   const $$ = (s) => wrap.querySelector(s);
   const bal = () => ($$(".bal").textContent = `💎 ${me.character.stones} linh thạch`);
   const grid = () => {
@@ -529,11 +530,16 @@ $("wardBtn").addEventListener("click", async () => {
     b.disabled = false;
     st.textContent = "";
     if (!sel) return;
-    if (wearing(sel)) (st.textContent = "Đang mặc"), (b.hidden = true);
-    else if (has(sel)) (st.textContent = sel.special ? "★ Bảo vật" : sel.starter ? "Miễn phí" : "Đã có"), (b.textContent = "Mặc");
+    if (sel.kind === "sword" && !canFly(me.character.level ?? levelFromExp(me.character.exp))) {
+      st.textContent = `Tới cảnh giới ${flyRealmName()} mới ngự kiếm phi hành được`;
+      b.hidden = true;
+      return;
+    }
+    if (wearing(sel)) (st.textContent = sel.kind === "sword" ? "Đang dùng" : "Đang mặc"), (b.hidden = true);
+    else if (has(sel)) (st.textContent = sel.special ? "★ Bảo vật" : sel.starter ? "Miễn phí" : "Đã có"), (b.textContent = sel.kind === "sword" ? "Dùng" : "Mặc");
     else {
       st.textContent = `${sel.price} linh thạch`;
-      b.textContent = me.character.stones >= sel.price ? "Mua và mặc" : "Chưa đủ linh thạch";
+      b.textContent = me.character.stones >= sel.price ? (sel.kind === "sword" ? "Mua và dùng" : "Mua và mặc") : "Chưa đủ linh thạch";
       b.disabled = me.character.stones < sel.price;
     }
   };
@@ -565,6 +571,8 @@ $("wardBtn").addEventListener("click", async () => {
     b.addEventListener("click", () => {
       kind = b.dataset.k;
       for (const x of wrap.querySelectorAll("[data-k]")) x.classList.toggle("on", x === b);
+      // a flying sword is best seen ridden
+      if (kind === "sword") wrap.querySelector('[data-anim="fly"]').click();
       grid();
     });
   animButtons(wrap, (a) => (wAnim = a));
@@ -612,8 +620,8 @@ $("dailyBtn").addEventListener("click", async () => {
 $("helpBtn").addEventListener("click", () => {
   const d = document.createElement("div");
   d.className = "help";
-  d.innerHTML = `<p><b>Máy tính:</b> A/D hoặc ←/→ để đi, W/↑/Space để nhảy, S + nhảy để xuống khỏi ván gỗ. Chuột để ngắm. J (hoặc chuột trái) đánh thường; K/L/U/I/O (hoặc 1-5, chuột phải cho ô 1) dùng 5 công pháp trên thanh. Z: Hồi Xuân Đan, X: Tụ Khí Đan. Enter để trò chuyện.</p>
-  <p><b>Điện thoại:</b> đặt ngón tay ở nửa trái màn hình là hiện cần analog tròn: gạt trái/phải để đi, gạt lên để nhảy, gạt xuống để rơi xuyên ván gỗ hoặc đài mây; góc phải là cụm nút kiểu MOBA: nút to ở góc là Kiếm Khí Trảm (đánh thường), 5 công pháp xếp thành một vòng cung quanh nó, bên trái là 2 đan dược. Ô trống có dấu +: chạm vào để gán công pháp.</p>
+  d.innerHTML = `<p><b>Máy tính:</b> A/D hoặc ←/→ để đi, W/↑/Space để nhảy, S + nhảy để xuống khỏi ván gỗ. Chuột để ngắm. J (hoặc chuột trái) đánh thường; K/L/U/I/O (hoặc 1-5, chuột phải cho ô 1) dùng 5 công pháp trên thanh. Z: Hồi Xuân Đan, X: Tụ Khí Đan. F: ngự kiếm phi hành (khi bay, W/S để lên xuống). Enter để trò chuyện.</p>
+  <p><b>Điện thoại:</b> đặt ngón tay ở nửa trái màn hình là hiện cần analog tròn: gạt trái/phải để đi, gạt lên để nhảy, gạt xuống để rơi xuyên ván gỗ hoặc đài mây; góc phải là cụm nút kiểu MOBA: nút to ở góc là Kiếm Khí Trảm (đánh thường), 5 công pháp xếp thành một vòng cung quanh nó, bên trái là 2 đan dược, phía trên là nút phi kiếm (mở khoá từ cảnh giới admin đặt): chạm để ngự kiếm, khi bay gạt cần analog theo mọi hướng. Ô trống có dấu +: chạm vào để gán công pháp.</p>
   <p><b>Công Pháp (nút 📜):</b> hơn 200 công pháp, mỗi môn cần bí kíp riêng và tinh thạch theo hệ (môn cao cần thêm Linh Tủy), đều rơi ngẫu nhiên khi hạ yêu thú. Đủ vật phẩm thì bấm Lĩnh ngộ; gán tối đa 5 môn lên thanh, đổi lúc nào cũng được.  chiêu tự nhắm kẻ địch gần nhất.</p>
   <p><b>Y Các (👘):</b> thử và mua kiểu tóc, y phục mới bằng linh thạch; đồ đã mua mặc lại lúc nào cũng được.</p>
   <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (bệ đá dưới đĩa âm dương xoay, trước điện thờ) để tăng tu vi, tối đa mỗi ngày có hạn.</p>

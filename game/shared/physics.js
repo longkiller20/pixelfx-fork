@@ -9,6 +9,8 @@ export const PHYS = {
   HH: 56, // the body's height, for bumping heads
   JUMP_BUFFER: 0.15, // a jump pressed this long before landing (or tapped between two server ticks) still happens
   STEP: 1 / 120, // longest step: nothing moves more than 8 px at once, so nothing tunnels through a tile
+  FLY_HOVER: 10, // how high over the ground a flying sword stops
+  FLY_ACCEL: 6, // how fast a flying sword picks up and sheds speed (per second, as a share of the gap to the wanted speed)
 };
 
 /**
@@ -20,6 +22,7 @@ export function stepBody(b, input, speed, dt, M, t = 0) {
 }
 
 function step(b, inp, speed, dt, M, t) {
+  if (b.flying) return flyStep(b, inp, speed, dt, M);
   const T = M.T, HW = PHYS.HW;
   // down + jump on a plank: fall through it for a moment
   if (inp.down && inp.jump && b.ground === "plank") {
@@ -68,6 +71,46 @@ function step(b, inp, speed, dt, M, t) {
       b.vy = 0;
     } else b.y = ny;
     if (b.vy === 0) b.ground = groundUnder(b, M, c0, c1, t);
+  }
+}
+
+/**
+ * Riding a flying sword (ngự kiếm phi hành): no gravity, the stick (or the keys) steers in both directions; speed here is
+ * already the flying speed. Walls and solid ground stop the body as when walking, planks and clouds are flown through.
+ * It eases into and out of motion, so the sword glides instead of jerking.
+ */
+function flyStep(b, inp, speed, dt, M) {
+  const T = M.T, HW = PHYS.HW, k = Math.min(1, PHYS.FLY_ACCEL * dt);
+  let dx = inp.dx || 0, dy = inp.dy || 0;
+  const l = Math.hypot(dx, dy);
+  if (l > 1) (dx /= l), (dy /= l);
+  b.vx = (b.vx || 0) + (dx * speed - (b.vx || 0)) * k;
+  b.vy = (b.vy || 0) + (dy * speed - (b.vy || 0)) * k;
+  b.ground = false;
+  // across
+  const nx = Math.max(HW, Math.min(M.w - HW, b.x + b.vx * dt));
+  if (nx !== b.x) {
+    const edge = nx > b.x ? nx + HW : nx - HW, cx = Math.floor(edge / T);
+    let blocked = false;
+    for (let cy = Math.floor((b.y - PHYS.HH) / T); cy <= Math.floor((b.y - 1) / T); cy++) if (M.solid(cx, cy)) blocked = true;
+    if (!blocked) b.x = nx;
+    else (b.x = nx > b.x ? cx * T - HW - 0.01 : (cx + 1) * T + HW + 0.01), (b.vx = 0);
+  }
+  // up and down: the head stops under a ceiling (and the top of the map), the feet on solid ground
+  const ny = Math.max(PHYS.HH + 2, Math.min(M.h - 1, b.y + b.vy * dt)), c0 = Math.floor((b.x - HW + 1) / T), c1 = Math.floor((b.x + HW - 1) / T);
+  if (ny > b.y) {
+    // the sword keeps a hand's breadth over the ground, so its ornaments don't sink into it
+    const H = PHYS.FLY_HOVER, row = Math.floor((ny + H) / T), top = row * T;
+    let hit = false;
+    if (b.y + H <= top + 0.01) for (let cx = c0; cx <= c1; cx++) if (M.solid(cx, row)) hit = true;
+    if (hit) (b.y = top - H - 0.01), (b.vy = 0);
+    else b.y = ny;
+  } else if (ny < b.y) {
+    const row = Math.floor((ny - PHYS.HH) / T);
+    let hit = false;
+    for (let cx = c0; cx <= c1; cx++) if (M.solid(cx, row)) hit = true;
+    if (hit) (b.y = (row + 1) * T + PHYS.HH), (b.vy = 0);
+    else b.y = ny;
   }
 }
 

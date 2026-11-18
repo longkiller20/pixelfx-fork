@@ -91,7 +91,7 @@ const T = {
   settings: { pk: "k", order: "k", config: true, cols: { v: "num" } },
   cosmetics: {
     pk: "id", order: "kind, gender, starter DESC, sort, idx", add: true, del: true,
-    cols: { kind: "enum:hair|robe|weapon", gender: "enum:m|f|a", idx: "uint", name: "str:40", price: "uint", starter: "bool", on_sale: "bool", special: "bool", sort: "int" },
+    cols: { kind: "enum:hair|robe|weapon|sword", gender: "enum:m|f|a", idx: "uint", name: "str:40", price: "uint", starter: "bool", on_sale: "bool", special: "bool", sort: "int" },
   },
 };
 
@@ -119,9 +119,10 @@ function value(type, v, col) {
   return n;
 }
 
-// how many parts an atlas holds: hair and robes per gender (public/avatar/), weapons for everyone (public/xianxia/)
+// how many parts an atlas holds: hair and robes per gender (public/avatar/), weapons and flying swords for everyone
+// (public/xianxia/)
 const atlasCount = (kind, g) => {
-  if (kind === "weapon") return g === "a" ? JSON.parse(readFileSync(join(ROOT, "public", "xianxia", "weapons.json"), "utf8")).length : 0;
+  if (kind === "weapon" || kind === "sword") return g === "a" ? JSON.parse(readFileSync(join(ROOT, "public", "xianxia", `${kind}s.json`), "utf8")).length : 0;
   const meta = JSON.parse(readFileSync(join(ROOT, "public", "avatar", "avatar.json"), "utf8"));
   return meta[`${kind}_${g}`]?.length ?? 0;
 };
@@ -344,7 +345,7 @@ export function adminApp(world) {
   // Every edit of a player goes through store.admin*(), under the player's own lock with atomic SQL, and hands the
   // re-read character to world.refresh() while still holding that lock: an online player's running numbers, their
   // unsaved gains and the save in flight all stay right (see World.applyBase).
-  const PLAYER_COLS = `u.id, u.username, u.banned, u.ban_reason, u.created_at, c.name, c.gender, c.hair, c.robe, c.weapon, c.exp, c.stones, c.rank_points,
+  const PLAYER_COLS = `u.id, u.username, u.banned, u.ban_reason, u.created_at, c.name, c.gender, c.hair, c.robe, c.weapon, c.sword, c.exp, c.stones, c.rank_points,
     c.kills, c.deaths, c.created_at AS char_created, (c.med_day = CURDATE()) AS med_today, c.med_exp`;
   const shapePlayer = (p) => ({
     ...p, exp: p.exp === null ? null : Number(p.exp), stones: p.stones === null ? null : Number(p.stones), banned: !!p.banned,
@@ -460,7 +461,7 @@ export function adminApp(world) {
       if (!NAME_RE.test(name)) throw bad("Đạo hiệu 3-16 ký tự: chữ, số, khoảng trắng hoặc _.");
       set.name = name;
     }
-    const [cur] = await q("SELECT gender, hair, robe, weapon FROM characters WHERE user_id = ?", [id]);
+    const [cur] = await q("SELECT gender, hair, robe, weapon, sword FROM characters WHERE user_id = ?", [id]);
     if (!cur) throw bad("Người chơi này chưa có nhân vật.");
     if (b.gender !== undefined) {
       if (!GENDERS.includes(b.gender)) throw bad("Giới tính m hoặc f.");
@@ -477,6 +478,11 @@ export function adminApp(world) {
       const v = value("uint", b.weapon, "vũ khí");
       if (v >= atlasCount("weapon", "a")) throw bad(`Vũ khí ô ${v} không có.`);
       set.weapon = v;
+    }
+    if (b.sword !== undefined) {
+      const v = value("uint", b.sword, "phi kiếm");
+      if (v >= atlasCount("sword", "a")) throw bad(`Phi kiếm ô ${v} không có.`);
+      set.sword = v;
     }
     await adminLook(id, set, refresh(id));
     await log(req.admin, "player.look", id, set);

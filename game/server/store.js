@@ -9,7 +9,7 @@
 import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
 import { DEFAULT_WEAPON } from "./cosmetics-seed.js";
-import { CLASS, validLook, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, START, NAME_RE, levelFromExp, ARTS, ART_SLOTS, STARTER_ARTS } from "../shared/balance.js";
+import { CLASS, validLook, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, START, NAME_RE, levelFromExp, ARTS, ART_SLOTS, STARTER_ARTS, canFly, flyRealmName } from "../shared/balance.js";
 
 export class GameError extends Error {
   constructor(message, status = 400) {
@@ -18,7 +18,7 @@ export class GameError extends Error {
   }
 }
 
-const COLS = "user_id, name, gender, hair, robe, weapon, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots, map_id";
+const COLS = "user_id, name, gender, hair, robe, weapon, sword, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots, map_id";
 /** The bar as saved, or the starters for a character that never changed it; always ART_SLOTS long. */
 export function parseSlots(raw) {
   let a = null;
@@ -29,7 +29,7 @@ export function parseSlots(raw) {
   return Array.from({ length: ART_SLOTS }, (_, i) => (typeof a[i] === "string" ? a[i] : null));
 }
 const shape = (r) => r && {
-  userId: r.user_id, name: r.name, cls: CLASS, look: { g: r.gender === "f" ? "f" : "m", hair: Number(r.hair), robe: Number(r.robe), weapon: Number(r.weapon) }, exp: Number(r.exp), stones: Number(r.stones), rank: Number(r.rank_points),
+  userId: r.user_id, name: r.name, cls: CLASS, look: { g: r.gender === "f" ? "f" : "m", hair: Number(r.hair), robe: Number(r.robe), weapon: Number(r.weapon), sword: Number(r.sword ?? 0) }, exp: Number(r.exp), stones: Number(r.stones), rank: Number(r.rank_points),
   kills: Number(r.kills), deaths: Number(r.deaths), level: levelFromExp(Number(r.exp)),
   medLeft: Math.max(0, MEDITATE.dailyCap - (r.med_today ? Number(r.med_exp) : 0)),
   slots: parseSlots(r.art_slots),
@@ -252,7 +252,7 @@ export function adminArt(uid, key, learn) {
 }
 
 // ---------------------------------------------------------------- the wardrobe (Y Các)
-const SLOT = { hair: "hair", robe: "robe", weapon: "weapon" };
+const SLOT = { hair: "hair", robe: "robe", weapon: "weapon", sword: "sword" };
 const ITEM_COLS = "id, kind, gender, idx, name, price, starter, on_sale, special";
 // a special item (bảo vật) is never on sale and never free, whatever its other flags say
 const shapeItem = (r) => ({ id: r.id, kind: r.kind, g: r.gender, idx: r.idx, name: r.name, price: r.price, starter: !!r.starter && !r.special, onSale: !!r.on_sale && !r.special, special: !!r.special });
@@ -282,10 +282,11 @@ const itemId = (id) => {
 export function buyCosmetic(uid, id, wear) {
   id = itemId(id);
   return userLock.run(uid, () => tx(async (c) => {
-    const [ch] = await c.query("SELECT gender FROM characters WHERE user_id = ?", [uid]);
+    const [ch] = await c.query("SELECT gender, exp FROM characters WHERE user_id = ?", [uid]);
     if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
     const [it] = await c.query(`SELECT ${ITEM_COLS} FROM cosmetics WHERE id = ?`, [id]);
     if (!it) throw new GameError("Món đồ không tồn tại.");
+    if (it.kind === "sword" && !canFly(levelFromExp(Number(ch.exp)))) throw new GameError(`Tới cảnh giới ${flyRealmName()} mới ngự kiếm phi hành được.`, 403);
     if (it.gender !== ch.gender && it.gender !== "a") throw new GameError("Món này dành cho giới tính khác.");
     if (it.special) throw new GameError("Bảo vật không bán ở Y Các; chỉ có được từ hoạt động, sự kiện hay đấu giá.", 403);
     if (it.starter) throw new GameError("Món này miễn phí, cứ mặc thôi.");

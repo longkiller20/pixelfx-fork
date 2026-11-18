@@ -119,6 +119,9 @@ export const DEFAULTS = {
     "pvp.spawn_protect": [2, "Giây miễn sát thương sau khi hồi sinh"],
     "pvp.respawn": [3, "Giây chờ hồi sinh ở đấu trường"],
     "respawn.world": [4, "Giây chờ hồi sinh ngoài thế giới"],
+    "fly.realm": [2, "Cảnh giới mở khoá Ngự Kiếm Phi Hành, đếm từ 1 (1 = Luyện Khí, 2 = Trúc Cơ, 3 = Kim Đan…): tới tầng 1 của cảnh giới này là bay được"],
+    "fly.speed": [1.35, "Tốc độ bay = tốc độ đi × hệ số này"],
+    "fly.arena": [0, "1: được ngự kiếm trong đấu trường; 0: không"],
   },
 };
 
@@ -136,6 +139,8 @@ export const MONSTERS = {}; // type -> { name, hp, atk, def, spd, respawn, stone
 export const PVP = {};
 export const MEDITATE = {};
 export const START = {};
+// ngự kiếm phi hành: unlocked at level FLY.level (the first stage of realm FLY.realm), flying at FLY.speed × walking
+export const FLY = { realm: 2, level: 6, speed: 1.35, arena: false };
 export let RESPAWN_WORLD = 4, DAILY_STONES = 30, BUY_MAX = 10;
 let SET = {}, TOTAL = [0, 0], LEVELS = [[0, 1]];
 
@@ -161,6 +166,8 @@ export function checkConfig(c) {
     const v = c.settings?.[k];
     S[k] = num(Array.isArray(v) ? v[0] : v ?? d[0], `settings ${k}`, k === "exp.power" ? 0.5 : 0, k === "exp.power" ? 4 : 1e9);
   }
+  num(S["fly.realm"], "fly.realm (cảnh giới mở khoá phi hành)", 1, 100);
+  num(S["fly.speed"], "fly.speed (hệ số tốc độ bay)", 0.2, 5);
   if (!Array.isArray(c.realms) || !c.realms.length) throw new Error("Cần ít nhất một cảnh giới");
   const realms = c.realms.map((r, i) => ({ name: str(r.name, `cảnh giới ${i + 1}`, 32), stages: num(r.stages, `số tầng của ${r.name}`, 1, 20) | 0 }));
   if (realms.reduce((a, r) => a + r.stages, 0) > 500) throw new Error("Tổng số tầng tối đa 500");
@@ -281,6 +288,12 @@ export function applyConfig(c) {
   });
   Object.assign(START, { stones: S["start.stones"] | 0, hoixuan: S["start.hoixuan"] | 0 });
   RESPAWN_WORLD = S["respawn.world"];
+  {
+    // a realm past the last one means flight is locked for everyone for now
+    const r = Math.max(1, Math.round(S["fly.realm"] ?? 2));
+    const level = r > REALMS.length ? Infinity : 1 + REALMS.slice(0, r - 1).reduce((a, x) => a + x.stages, 0);
+    Object.assign(FLY, { realm: r, level, speed: S["fly.speed"] ?? 1.35, arena: (S["fly.arena"] ?? 0) >= 1 });
+  }
   DAILY_STONES = S["daily.stones"] | 0;
   BUY_MAX = Math.max(1, S["shop.buy_max"] | 0);
   return k;
@@ -295,6 +308,10 @@ export function levelFromExp(exp) {
   while (L < MAX_LEVEL && exp >= TOTAL[L + 1]) L++;
   return L;
 }
+/** Whether a character of level L may ride a flying sword. */
+export const canFly = (L) => L >= FLY.level;
+/** The realm flight opens at, by name ("Trúc Cơ"), for messages. */
+export const flyRealmName = () => REALMS[FLY.realm - 1]?.name ?? "(chưa mở)";
 export function realmName(L) {
   const [i, s] = LEVELS[Math.max(1, Math.min(MAX_LEVEL, L))];
   return `${REALMS[i].name} tầng ${s}`;
