@@ -8,7 +8,7 @@
 //   the rest walls, doors, lattice windows, pillars, lanterns, cherry trees, bamboo, clouds, water and sky are painted here
 // Everything still is painted once into one picture of the whole map; the far scenery (sky, peaks, isles, cloud) slides behind
 // at its own pace, and water moves every frame.
-import { hex, mix } from "/pixelfx/core/index.js";
+import { hex, mix } from "/hieu-ung/core/index.js";
 
 const C = (h) => hex(h);
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);

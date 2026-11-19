@@ -293,7 +293,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
       // the bar: unknown arts and the same art twice are refused; a good bar is live in the world at once
       const eq = (slots) => call("/arts/equip", { token: P.token, method: "POST", body: { slots } });
       assert.equal((await eq(["nuke", null, null, null, null])).status, 400);
-      assert.equal((await eq(["explosions_nuke", null, null, null, null])).status, 403, "not learned");
+      assert.equal((await eq(["explosions_big_explosion", null, null, null, null])).status, 403, "not learned");
       assert.equal((await eq(["fire_fireball", "fire_fireball", null, null, null])).status, 400, "not twice");
       const c3 = await connect(P.token);
       await sleep(300);
@@ -568,6 +568,19 @@ const SHOP_TEST = "Hàng thử nghiệm";
   assert.ok(c.msgs.some((m) => m.t === "pi" && m.look?.sword === sale.idx), "everyone sees the new sword");
   c.ws.close();
   ok("phi kiếm: bought once flight opens and ridden at once; bảo vật swords never sold or ridden ungiven");
+}
+
+// only skill-shaped arts: the retired ones are gone, and every effect the arts use is in the game's own public/hieu-ung
+{
+  const { RETIRED_FX, keyOf } = await import("../shared/arts-seed.js");
+  const arts = (await call("/config")).data.arts, keys = new Set(arts.map((a) => a.key));
+  for (const fx of RETIRED_FX) assert.ok(!keys.has(keyOf(fx)), `${keyOf(fx)} is gone`);
+  const list = await (await fetch(BASE + "/hieu-ung/danh-sach.json")).json();
+  for (const a of arts) if (a.fx) assert.ok(list.includes(a.fx), `${a.fx} is in public/hieu-ung`);
+  for (const fx of ["moves/pistol-shots", "weather/rain", "fire/candle"]) assert.ok(!list.includes(fx), `${fx} is not copied`);
+  assert.equal((await fetch(BASE + "/hieu-ung/fx/fire/fireball.js")).status, 200);
+  assert.equal((await fetch(BASE + "/pixelfx/core/index.js")).status, 404, "pixelfx itself isn't served");
+  ok(`only skill-shaped arts (${arts.length}); their effects, and only what the game uses, in public/hieu-ung`);
 }
 
 // an aimed zone: dragged far, it lands no farther than its reach; put on a dummy, it hits the dummy and nothing nearer

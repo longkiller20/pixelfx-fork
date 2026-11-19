@@ -3,6 +3,7 @@ import mariadb from "mariadb";
 import { config } from "./config.js";
 import { COSMETICS_SEED, WEAPONS_SEED, DEFAULT_WEAPON, SWORDS_SEED, BASIC_SWORD } from "./cosmetics-seed.js";
 import { seedConfig } from "./gameconfig.js";
+import { RETIRED_FX, keyOf } from "../shared/arts-seed.js";
 
 export const pool = mariadb.createPool({
   ...config.db,
@@ -205,7 +206,32 @@ async function retireSpecials(c) {
   await c.query(`UPDATE characters ch SET ch.weapon = ${DEFAULT_WEAPON} WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = 'weapon' AND k.idx = ch.weapon)`);
   await c.query(`UPDATE characters ch SET ch.sword = ${BASIC_SWORD} WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = 'sword' AND k.idx = ch.sword)`);
 }
-const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials]];
+/**
+ * The arts made from pixelfx effects that aren't skills (whole moves with their own fighter, props, weather, beasts,
+ * firearms, hit sparks, status marks: RETIRED_FX in shared/arts-seed.js) go, with their bí kíp, what they needed and
+ * where their books dropped. Whoever learned one loses it, and it leaves their bar; nothing else of theirs changes.
+ */
+async function retireNonSkillArts(c) {
+  const keys = RETIRED_FX.map(keyOf), books = keys.map((k) => "bk_" + k), ph = (a) => a.map(() => "?").join(",");
+  const rows = await c.query(`SELECT user_id, art_slots FROM characters WHERE art_slots IS NOT NULL`);
+  for (const r of rows) {
+    let slots;
+    try {
+      slots = JSON.parse(r.art_slots);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(slots) || !slots.some((k) => keys.includes(k))) continue;
+    await c.query("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify(slots.map((k) => (keys.includes(k) ? null : k))), r.user_id]);
+  }
+  await c.query(`DELETE FROM learned_arts WHERE art_key IN (${ph(keys)})`, keys);
+  await c.query(`DELETE FROM art_reqs WHERE art_key IN (${ph(keys)})`, keys);
+  await c.query(`DELETE FROM arts WHERE art_key IN (${ph(keys)})`, keys);
+  await c.query(`DELETE FROM monster_drops WHERE item_key IN (${ph(books)})`, books);
+  await c.query(`DELETE FROM inventory WHERE item IN (${ph(books)})`, books);
+  await c.query(`DELETE FROM items WHERE item_key IN (${ph(books)})`, books);
+}
+const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials], ["retire_non_skill_arts_2026_11", retireNonSkillArts]];
 
 export async function migrate() {
   for (const s of SCHEMA) await q(s);

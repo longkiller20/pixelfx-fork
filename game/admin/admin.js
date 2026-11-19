@@ -446,7 +446,7 @@ const VIEWS = {
       { k: "type", label: "Loại chiêu", type: "select", options: ART_TYPE }, { k: "cd", label: "Hồi chiêu (giây)", type: "number" },
       { k: "mult", label: "Hệ số sát thương (× công)", type: "number" },
       { k: "params", label: "Thông số (JSON)", wide: true, hint: "Theo loại: cận chiến {range, arc}; phóng {range, speed, r}; vùng {dist, r, delay, slow, slowDur}; quanh thân {r, delay, slow, slowDur}; lướt {dist, r}; hồi {pct}; tăng {stat: atk|def|spd, pct, dur}" },
-      { k: "fx", label: "Hiệu ứng pixelfx", hint: "vd fire/fireball; để trống = ném vũ khí đang cầm" }, { k: "fx_at", label: "Hiệu ứng vẽ ở", type: "select", options: ART_AT },
+      { k: "fx", label: "Hiệu ứng", hint: "vd fire/fireball (trong public/hieu-ung); để trống = ném vũ khí đang cầm" }, { k: "fx_at", label: "Hiệu ứng vẽ ở", type: "select", options: ART_AT },
       { k: "aimable", label: "Kéo chọn vị trí (chỉ chiêu loại vùng): người chơi giữ nút chiêu rồi kéo để đặt chỗ nổ", type: "bool" },
       { k: "aim_range", label: "Tầm kéo tối đa (px, tính từ nhân vật)", type: "number", step: 10, hint: "khi bật Kéo chọn vị trí; vd 280. Tắt thì chiêu nổ cách nhân vật dist px phía trước" },
       { k: "fx_life", label: "Dừng hiệu ứng lặp sau (giây, 0 = mặc định)", type: "number" },
@@ -508,7 +508,7 @@ const VIEWS = {
     const q = el("input", { type: "search", placeholder: "Tìm theo tên, mã hoặc hiệu ứng..." });
     const out = el("div");
     // two ways to look: the list (one row each, its editor in the modal) or the previews (every effect playing, a switch
-    // under each), to go through them all and turn off what isn't a real art; then export what is off
+    // under each), to see them all and turn any off
     const mode = el("div", { class: "seg" }, [["list", "Danh sách"], ["fx", "▶ Xem hiệu ứng"]].map(([v, l]) =>
       el("button", { type: "button", class: `small${artMode === v ? " on" : ""}`, "data-m": v, onclick: () => {
         artMode = v;
@@ -542,26 +542,6 @@ const VIEWS = {
       paint();
       return box;
     };
-    // what is off, to send on: the file names each art, its effect and what kind it is
-    const offList = () => rows.filter((r) => !r.enabled).sort((a, b) => a.sort - b.sort || a.art_key.localeCompare(b.art_key))
-      .map((r) => ({ key: r.art_key, ten: r.name, fx: r.fx, loai: r.type, he: r.element, bac: r.tier }));
-    const download = (name, text, mime) => {
-      const a = el("a", { href: URL.createObjectURL(new Blob([text], { type: mime })), download: name });
-      document.body.append(a);
-      a.click();
-      setTimeout(() => (URL.revokeObjectURL(a.href), a.remove()), 1000);
-    };
-    const stamp = () => new Date().toISOString().slice(0, 10);
-    const exportJson = () => {
-      const off = offList();
-      if (!off.length) return toast("Chưa tắt công pháp nào.", false);
-      download(`cong-phap-da-tat-${stamp()}.json`, JSON.stringify({ ngay: new Date().toISOString(), tong: rows.length, dang_bat: rows.length - off.length, da_tat: off.length, cong_phap_da_tat: off }, null, 2) + "\n", "application/json");
-    };
-    const exportTxt = () => {
-      const off = offList();
-      if (!off.length) return toast("Chưa tắt công pháp nào.", false);
-      download(`cong-phap-da-tat-${stamp()}.txt`, [`Công pháp đã tắt: ${off.length} / ${rows.length} (${new Date().toLocaleString("vi-VN")})`, "mã\ttên\thiệu ứng\tloại", ...off.map((a) => `${a.key}\t${a.ten}\t${a.fx || "-"}\t${a.loai}`)].join("\n") + "\n", "text/plain;charset=utf-8");
-    };
     const draw = () => {
       const t = q.value.trim().toLowerCase();
       const list = rows.filter((r) => (!src.value || r.source === src.value) && (!type.value || r.type === type.value) && (!elem.value || r.element === elem.value) &&
@@ -591,11 +571,9 @@ const VIEWS = {
     q.addEventListener("input", draw);
     draw();
     return [el("h2", {}, `Công pháp (${rows.length})`),
-      el("p", { class: "dim" }, "Mỗi công pháp dùng một hiệu ứng của pixelfx. Môn \"Lĩnh ngộ\": người chơi tiêu hao các vật phẩm yêu cầu (bí kíp, nguyên liệu: rơi từ yêu thú). Môn \"Chỉ qua hoạt động / sự kiện\": không học được, chỉ có khi admin phát (cho mọi người, người đang online, hoặc theo đạo hiệu), ghi chú \"Nhận ở đâu\" hiện cho người chơi. Mỗi người gán tối đa 5 môn lên thanh nút. Chiêu loại vùng có thể bật \"Kéo chọn vị trí\": người chơi giữ nút chiêu rồi kéo để đặt chỗ nổ trong tầm kéo (trên máy tính là chỗ con trỏ chuột); tắt thì chiêu nổ trước mặt như thường. Số sai sẽ bị từ chối, game không bị ảnh hưởng."),
+      el("p", { class: "dim" }, "Mỗi công pháp dùng một hiệu ứng trong public/hieu-ung (chép từ pixelfx, chỉ những hiệu ứng dạng chiêu thức). Môn \"Lĩnh ngộ\": người chơi tiêu hao các vật phẩm yêu cầu (bí kíp, nguyên liệu: rơi từ yêu thú). Môn \"Chỉ qua hoạt động / sự kiện\": không học được, chỉ có khi admin phát (cho mọi người, người đang online, hoặc theo đạo hiệu), ghi chú \"Nhận ở đâu\" hiện cho người chơi. Mỗi người gán tối đa 5 môn lên thanh nút. Chiêu loại vùng có thể bật \"Kéo chọn vị trí\": người chơi giữ nút chiêu rồi kéo để đặt chỗ nổ trong tầm kéo (trên máy tính là chỗ con trỏ chuột); tắt thì chiêu nổ trước mặt như thường. Số sai sẽ bị từ chối, game không bị ảnh hưởng."),
       el("div", { class: "grid" }, add),
-      el("div", { class: "bar" }, mode, offCount, el("span", { class: "grow" }),
-        el("button", { type: "button", class: "small", title: "Danh sách công pháp đã tắt, dạng JSON", onclick: exportJson }, "⬇ Xuất JSON đã tắt"),
-        el("button", { type: "button", class: "small", title: "Danh sách công pháp đã tắt, dạng văn bản", onclick: exportTxt }, "⬇ Xuất TXT đã tắt")),
+      el("div", { class: "bar" }, mode, offCount),
       el("div", { class: "bar" }, onSel, src, type, elem, aimSel, q), out];
   },
 
@@ -642,12 +620,12 @@ const VIEWS = {
     const F = [
       { k: "name", label: "Tên" }, { k: "style", label: "Kiểu đánh", type: "select", options: MON_STYLE },
       { k: "fly", label: "Bay (không thì đi trên mặt đất)", type: "bool" },
-      { k: "fx", label: "Hình (hiệu ứng pixelfx)", hint: "vd critters/bat; để trống = bù nhìn rơm" },
+      { k: "fx", label: "Hình (hiệu ứng)", hint: "vd critters/bat (trong public/hieu-ung); để trống = bù nhìn rơm" },
       { k: "hp", label: "Sinh lực", type: "number" }, { k: "atk", label: "Công", type: "number" }, { k: "def", label: "Thủ", type: "number" },
       { k: "spd", label: "Tốc độ (px/giây)", type: "number" }, { k: "respawn", label: "Hồi sinh (giây)", type: "number" },
       { k: "aggro", label: "Tầm phát hiện (px)", type: "number" }, { k: "reach", label: "Tầm đánh gần (px)", type: "number" },
       { k: "shot_range", label: "Tầm bắn (px, đánh xa)", type: "number" }, { k: "shot_speed", label: "Tốc độ đạn (px/giây)", type: "number" },
-      { k: "shot_fx", label: "Hình viên đạn (pixelfx)", hint: "vd fire/fireball, projectiles/laser-bolt" },
+      { k: "shot_fx", label: "Hình viên đạn (hiệu ứng)", hint: "vd fire/fireball, projectiles/laser-bolt (trong public/hieu-ung)" },
       { k: "cooldown", label: "Hồi đòn (giây)", type: "number" }, { k: "mult", label: "Hệ số sát thương", type: "number" },
       { k: "exp_base", label: "Tu vi thưởng", type: "number", step: 1 }, { k: "exp_per_level", label: "Tu vi thêm mỗi cấp người hạ", type: "number", step: 1 },
       { k: "stones", label: "Linh thạch thưởng", type: "number", step: 1 },
