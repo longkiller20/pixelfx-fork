@@ -430,6 +430,22 @@ Buff công/thủ/sinh lực/tốc độ không áp dụng ở bản đồ đấu
 
 Các lệnh `npm run admin` và `npm run cosmetics` vẫn dùng được song song với trang web.
 
+## Icon công pháp
+
+Icon của mọi hiệu ứng pixelfx (247 cái) được vẽ sẵn vào một ảnh: `public/arts/icons.png` (khoảng 160 KB) kèm `icons.json`. Nhờ vậy bảng Công Pháp và thanh chiêu hiện icon ngay, không phải vẽ hơn 200 hiệu ứng trên điện thoại.
+
+- Icon lấy khoảnh khắc hiệu ứng rực nhất, giữ cả lớp ánh sáng (lửa, tia sáng).
+- Tia lửa văng xa bị bỏ khi cắt khung, để hình chính không bị nhỏ.
+- Mũi tên và tia dài được xếp chéo cho đầy ô.
+
+Thêm hiệu ứng mới vào pixelfx thì chạy lại lệnh dưới khi server đang chạy:
+
+```bash
+node tools/arts/icons.mjs
+```
+
+Hiệu ứng chưa có trong ảnh vẫn được vẽ ngay trên trình duyệt, nên không thanh nào bị trống.
+
 ## Ngự Kiếm Phi Hành
 
 Tới cảnh giới mở khoá, người chơi đứng lên phi kiếm và bay. Khi bay:

@@ -1,5 +1,7 @@
 // Công pháp in the browser: an icon for every art, drawn from the art's own pixelfx effect, and the words for its
-// element and type. Icons are made a few at a time in idle moments and kept, so opening the list of 200+ arts never stalls.
+// element and type. The icons of every pixelfx effect are drawn ahead of time into one sheet (public/arts/icons.png, made
+// by tools/arts/icons.mjs), so they all show at once; an effect missing from it (one added later) is drawn here, a few
+// at a time, and kept.
 import { createFrame, createFx, composite, stockActor } from "/pixelfx/core/index.js";
 import { effects } from "/pixelfx/fx/index.js";
 import { ARTS } from "/shared/balance.js";
@@ -42,40 +44,80 @@ const cache = new Map(); // art key -> data URL
 const waiting = new Map(); // art key -> [callbacks]
 const queue = [];
 
+// the sheet of ready-made icons: { cell, cols, fx: { effect id: index } } and its image; loaded once
+let sheet = null;
+const sheetReady = (async () => {
+  try {
+    const meta = await fetch("/arts/icons.json").then((r) => (r.ok ? r.json() : null));
+    if (!meta) return;
+    const img = new Image();
+    img.src = `/arts/icons.png?v=${meta.v ?? 1}`;
+    await img.decode();
+    sheet = { ...meta, img };
+  } catch {}
+})();
+
 /** The art's icon as a URL; cb(url) is called when it is ready (at once if it already is). */
 export function artIcon(key, cb) {
   if (FIXED[key]) return cb(FIXED[key]);
-  if (cache.has(key)) return cb(cache.get(key));
-  if (waiting.has(key)) return waiting.get(key).push(cb);
-  waiting.set(key, [cb]);
-  queue.push(key);
-  if (queue.length === 1) setTimeout(work, 0);
+  const fx = ARTS[key]?.fx ?? "";
+  if (cache.has(fx)) return cb(cache.get(fx));
+  if (waiting.has(fx)) return waiting.get(fx).push(cb);
+  waiting.set(fx, [cb]);
+  sheetReady.then(() => {
+    const url = fromSheet(fx);
+    if (url !== null) return done(fx, url);
+    // not in the sheet: drawn here; the latest asked first, so the cards on screen fill before ones scrolled past
+    queue.unshift(fx);
+    if (queue.length === 1) setTimeout(work, 0);
+  });
+}
+
+function done(fx, url) {
+  cache.set(fx, url);
+  for (const cb of waiting.get(fx) ?? []) cb(url);
+  waiting.delete(fx);
+}
+
+/** The effect's icon cut from the sheet as a URL, or null when the sheet doesn't have it. */
+function fromSheet(fx) {
+  const i = sheet?.fx[fx];
+  if (i === undefined) return null;
+  if (i < 0) return "";
+  const c = document.createElement("canvas"), n = sheet.cell;
+  c.width = c.height = n;
+  c.getContext("2d").drawImage(sheet.img, (i % sheet.cols) * n, Math.floor(i / sheet.cols) * n, n, n, 0, 0, n, n);
+  return c.toDataURL();
 }
 
 function work() {
   const until = performance.now() + 12;
   while (queue.length && performance.now() < until) {
-    const key = queue.shift();
+    const fx = queue.shift();
     let url = "";
     try {
-      url = render(ARTS[key]?.fx);
+      url = renderIcon(fx)?.toDataURL() ?? "";
     } catch {}
-    cache.set(key, url);
-    for (const cb of waiting.get(key) ?? []) cb(url);
-    waiting.delete(key);
+    done(fx, url);
   }
-  if (queue.length) (window.requestIdleCallback ?? setTimeout)(work);
+  // a timeout too: while the game draws every frame, the browser may never be idle, and the icons would never come
+  if (queue.length) window.requestIdleCallback ? requestIdleCallback(work, { timeout: 100 }) : setTimeout(work, 16);
 }
 
-// play the effect to its fullest moment (the one with the most lit pixels of a few tries), crop it, fit it in 64 px
-function render(id) {
+/**
+ * An effect's icon on a 64 px canvas, or null when it draws nothing: the effect played to its fullest moment (the one
+ * with the most lit pixels of a few tries), cropped and fitted. Used by tools/arts/icons.mjs to make the sheet too.
+ */
+export function renderIcon(id) {
   const mod = effects[id];
-  if (!mod) return "";
+  if (!mod) return null;
   const [w, h] = mod.meta.size, [ox, oy] = mod.meta.origin ?? [w / 2, h / 2], D = mod.meta.duration ?? 1;
   const frame = createFrame(w, h);
   const fx = createFx(mod, { seed: 7, x: ox, y: oy, actor: BLANK_ACTOR });
+  // a pixel counts when it is solid colour or bright light (glows, flames and beams are mostly light)
+  const lit = (C, L, i) => C[i] >>> 24 > 140 || Math.max(L[i] & 255, (L[i] >>> 8) & 255, (L[i] >>> 16) & 255) > 70;
   let best = null, bestN = -1, t = 0;
-  for (const at of [0.35, 0.5, 0.7].map((k) => Math.min(D * k, 4))) {
+  for (const at of [0.2, 0.35, 0.5, 0.7, 0.9].map((k) => Math.min(D * k, 4))) {
     fx.update(at - t);
     t = at;
     frame.color.fill(0);
@@ -83,32 +125,40 @@ function render(id) {
     fx.draw(frame, "back");
     fx.draw(frame, "front");
     let n = 0;
-    for (let i = 0; i < frame.color.length; i++) if (frame.color[i] >>> 24 > 140) n++;
-    if (n > bestN) (bestN = n), (best = frame.color.slice());
+    for (let i = 0; i < frame.color.length; i++) if (lit(frame.color, frame.light, i)) n++;
+    if (n > bestN) (bestN = n), (best = { color: frame.color.slice(), light: frame.light.slice() });
   }
-  // the bounding box of what was drawn
-  let x0 = w, y0 = h, x1 = -1, y1 = -1;
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++)
-      if (best[y * w + x] >>> 24 > 140) {
-        if (x < x0) x0 = x;
-        if (x > x1) x1 = x;
-        if (y < y0) y0 = y;
-        if (y > y1) y1 = y;
-      }
-  if (x1 < 0) return "";
+  // the box round what was drawn, leaving out the few farthest sparks (2% each side), which would shrink the rest
+  const xs = [], ys = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (lit(best.color, best.light, y * w + x)) xs.push(x), ys.push(y);
+  if (!xs.length) return null;
+  xs.sort((a, b) => a - b);
+  ys.sort((a, b) => a - b);
+  const cut = xs.length > 60 ? Math.floor(xs.length * 0.02) : 0;
+  const x0 = xs[cut], x1 = xs[xs.length - 1 - cut], y0 = ys[cut], y1 = ys[ys.length - 1 - cut];
   const src = document.createElement("canvas");
   src.width = w;
   src.height = h;
   const img = src.getContext("2d").createImageData(w, h);
-  frame.color.set(best);
-  frame.light.fill(0);
+  // a faint wash of light or colour over the whole effect (a flash, a haze) would show as a box round the icon: dropped
+  for (let i = 0; i < best.color.length; i++) {
+    const L = best.light[i];
+    if (Math.max(L & 255, (L >>> 8) & 255, (L >>> 16) & 255) < 40) best.light[i] = 0;
+    if (best.color[i] >>> 24 < 60) best.color[i] = 0;
+  }
+  frame.color.set(best.color);
+  frame.light.set(best.light);
   composite(frame, img.data, null);
   src.getContext("2d").putImageData(img, 0, 0);
   const out = document.createElement("canvas");
   out.width = out.height = 64;
-  const c = out.getContext("2d"), bw = x1 - x0 + 1, bh = y1 - y0 + 1, k = Math.min(58 / bw, 58 / bh, 6);
+  const c = out.getContext("2d"), bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+  // a long thin thing (an arrow, a beam) is laid along the diagonal, so it fills the icon instead of a thin line across it
+  const long = Math.max(bw, bh) / Math.min(bw, bh) > 3.5;
+  const fit = long ? 80 : 58, k = Math.min(fit / Math.max(bw, bh), long ? 99 : 58 / Math.min(bw, bh), 6);
   c.imageSmoothingEnabled = k < 1;
-  c.drawImage(src, x0, y0, bw, bh, (64 - bw * k) / 2, (64 - bh * k) / 2, bw * k, bh * k);
-  return out.toDataURL();
+  c.translate(32, 32);
+  if (long) c.rotate(bw > bh ? -Math.PI / 4 : Math.PI / 4);
+  c.drawImage(src, x0, y0, bw, bh, (-bw * k) / 2, (-bh * k) / 2, bw * k, bh * k);
+  return out;
 }
