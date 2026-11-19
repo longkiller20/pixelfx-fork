@@ -69,7 +69,9 @@ function openModal(card) {
   $("modal").hidden = false;
   document.body.classList.add("noscroll");
   modal = { card, holder };
-  card.querySelector("input:not([type=checkbox]):not([readonly]), select, textarea")?.focus({ preventScroll: true });
+  card.scrollTop = 0;
+  // the first field, on a computer (a phone would pop its keyboard over the sheet)
+  if (matchMedia("(pointer: fine)").matches) card.querySelector("input:not([type=checkbox]):not([readonly]), select, textarea")?.focus({ preventScroll: true });
 }
 function closeModal() {
   if (!modal) return;
@@ -99,6 +101,18 @@ function collapsible(card, { title, sub, extra, key, isNew = false }) {
   });
   card.prepend(sum);
   return card;
+}
+/** Sub-tabs inside a card: [[label, () => content]]; a tab's content is made the first time it is shown. */
+function tabs(list) {
+  const bar = el("div", { class: "tabs", role: "tablist" }), body = el("div", { class: "tabbody" }), made = new Map();
+  const show = (i) => {
+    [...bar.children].forEach((b, j) => (b.classList.toggle("on", i === j), b.setAttribute("aria-selected", String(i === j))));
+    if (!made.has(i)) made.set(i, el("div", { class: "tabpane" }, list[i][1]()));
+    body.replaceChildren(made.get(i));
+  };
+  list.forEach(([label], i) => bar.append(el("button", { type: "button", role: "tab", onclick: () => show(i) }, label)));
+  show(0);
+  return [bar, body];
 }
 /** A part of a page as one row opening its contents in the modal (e.g. a player's buffs). */
 const section = (title, sub, ...content) => collapsible(el("div", { class: "card" }, ...content), { title, sub, key: title.replace(/\s*\(.*\)\s*$/, "") });
@@ -240,6 +254,8 @@ function start(username) {
   go(tab);
 }
 async function go(t) {
+  // the same tab drawn again after an edit: the card that was open in the modal opens again
+  const reopen = t === tab ? modal?.card.dataset.mkey : null;
   closeModal();
   if (!VIEWS[t]) t = "overview";
   tab = t;
@@ -251,6 +267,8 @@ async function go(t) {
   try {
     const view = await VIEWS[t]();
     if (tab === t) main.replaceChildren(...[view].flat());
+    const again = reopen && main.querySelector(`[data-mkey="${CSS.escape(reopen)}"]`);
+    if (again) openModal(again);
   } catch (e) {
     main.replaceChildren(el("p", { class: "err" }, e.message));
   }
@@ -435,7 +453,7 @@ const VIEWS = {
     const nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name])), opts = itemOptions(items);
     // what learning it spends: a row per item, each editable; a row to add another
     const reqBox = (r) => {
-      const box = el("div", { class: "reqs" }, el("b", {}, "Vật phẩm cần để lĩnh ngộ (tiêu hao khi học)"));
+      const box = el("div", { class: "group reqs" }, el("b", {}, "Vật phẩm cần để lĩnh ngộ"), el("span", { class: "dim" }, "Tiêu hao khi người chơi lĩnh ngộ."));
       for (const q of r.reqs) {
         const it = el("select", {}, opts.map(([v, l]) => el("option", { value: v, selected: v === q.item }, l)));
         const qty = el("input", { type: "number", min: 1, step: 1, value: q.qty, inputmode: "numeric" });
@@ -465,6 +483,8 @@ const VIEWS = {
         b.disabled = false;
         paint();
         b.closest(".artcard")?.classList.toggle("off", !r.enabled);
+        const tag = b.closest(".artcard")?.querySelector(".sum > span:not(.dim):not(.grow):not(.chev)");
+        if (tag) tag.replaceWith(status(r));
       });
       paint();
       return b;
@@ -474,29 +494,46 @@ const VIEWS = {
       const to = el("select", {}, [["names", "Theo đạo hiệu"], ["online", "Mọi người đang online"], ["all", "Mọi nhân vật"]].map(([v, l]) => el("option", { value: v }, l)));
       const names = el("input", { placeholder: "Đạo hiệu, cách nhau bằng dấu phẩy" });
       to.addEventListener("change", () => (names.hidden = to.value !== "names"));
-      return el("div", { class: "reqs" }, el("b", {}, "Phát (thưởng sự kiện, hoạt động)"),
+      return el("div", { class: "group reqs" }, el("b", {}, "Phát cho người chơi"), el("span", { class: "dim" }, "Thưởng sự kiện, hoạt động: ai có rồi thì giữ nguyên."),
         el("div", { class: "bar" }, to, names, el("button", { class: "small", type: "button", onclick: async () => {
           if (to.value !== "names" && !confirm(`Phát ${r.name} cho ${to.value === "all" ? "MỌI nhân vật" : "mọi người đang online"}?`)) return;
           const out = await guard(() => api(`/arts/${r.key}/grant`, { method: "POST", body: { to: to.value, names: names.value } }));
           if (out) toast(`Đã phát cho ${out.count} người (ai có rồi thì giữ nguyên).`);
         } }, "Phát")));
     };
-    const card = (r) => el("div", { class: `card artcard${r.enabled ? "" : " off"}` },
-      el("div", { class: "arthead" },
-        el("div", { class: "fxbox" }, fxPreview(r.fx[r.fx.length - 1] ?? r.icon, { w: 220, h: 150 })),
-        el("div", { class: "artinfo" },
-          el("div", {}, el("b", {}, r.name), " ", el("span", { class: "dim" }, `${r.key} · ${elemName(r.element)} · bậc ${r.tier} · hồi ${r.cd}s${r.aim ? ` · kéo chọn chỗ ${r.aim}px` : ""}`),
-            r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết sẵn") : null),
-          el("p", {}, r.line), el("p", { class: "dim" }, r.desc),
-          r.starter ? null : el("p", { class: "dim" }, `Lĩnh ngộ cần: ${r.reqs.map((q) => `${nameOf[q.item] ?? q.item} ×${q.qty}`).join(", ") || "không gì"}`))),
-      el("div", { class: "bar sws" },
-        toggle(r, "enabled", "✓ Đang bật", "✕ Đã tắt", "Tắt: không ai dùng, học hay mua được"),
-        r.starter ? null : toggle(r, "learnable", "📖 Học được bằng bí kíp", "★ Chỉ nhận từ sự kiện, hoạt động", "Bật: người chơi lĩnh ngộ bằng các vật phẩm yêu cầu. Tắt: chỉ nhận được qua hoạt động, sự kiện (admin phát)")),
-      r.starter ? null : reqBox(r),
-      r.starter ? null : grantBox(r));
+    // icons for the rows (public/cong-phap/<n>-<name>/icon.png)
+    const icons = (await fetch("/assets.json").then((x) => x.json()).catch(() => ({}))).arts ?? {};
+    const status = (r) => el("span", {}, !r.enabled ? el("span", { class: "tag red" }, "Đã tắt") : r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết") :
+      r.learnable ? el("span", { class: "tag green" }, "Học bằng bí kíp") : el("span", { class: "tag gold" }, "★ Sự kiện"));
+    // one row per art; clicking it opens the modal: "Chỉnh sửa" (switches, items, handing out) and "Xem trước" (its effects)
+    const card = (r) => {
+      const c = el("div", { class: `card artcard${r.enabled ? "" : " off"}` },
+        ...tabs([
+          ["Chỉnh sửa", () => [
+            el("div", { class: "artinfo" },
+              el("p", { class: "lead" }, r.line), el("p", { class: "dim" }, r.desc),
+              el("div", { class: "chips" }, ...[elemName(r.element), `Bậc ${r.tier}`, `Hồi ${r.cd}s`, r.aim ? `Kéo chọn chỗ ${r.aim}px` : null].filter(Boolean).map((t) => el("span", { class: "chip" }, t)))),
+            el("div", { class: "group" }, el("b", {}, "Công tắc"),
+              el("div", { class: "sws" },
+                toggle(r, "enabled", "✓ Đang bật", "✕ Đã tắt", "Tắt: không ai dùng hay học được"),
+                r.starter ? null : toggle(r, "learnable", "📖 Học được bằng bí kíp", "★ Chỉ nhận từ sự kiện, hoạt động", "Bật: người chơi lĩnh ngộ bằng các vật phẩm yêu cầu. Tắt: chỉ nhận được qua hoạt động, sự kiện (admin phát)"))),
+            r.starter ? el("p", { class: "dim" }, "Ai cũng biết sẵn: không cần vật phẩm, không cần phát.") : reqBox(r),
+            r.starter ? null : grantBox(r),
+          ]],
+          ["Xem trước", () => {
+            const list = [...new Set([...r.fx, r.icon].filter(Boolean))];
+            if (!list.length) return el("p", { class: "dim" }, "Phi Kiếm không có hiệu ứng riêng: trong game là vũ khí đang cầm bay đi rồi quay về.");
+            return el("div", { class: "fxlist" }, list.map((id) => el("figure", {}, fxPreview(id, { w: 320, h: 200 }), el("figcaption", { class: "dim" }, id))));
+          }],
+        ]));
+      const icon = icons[r.key] ? el("img", { class: "arti", src: `/${icons[r.key]}/icon.png`, alt: "" }) : null;
+      collapsible(c, { title: r.name, sub: `${elemName(r.element)} · bậc ${r.tier}`, extra: status(r), key: "art:" + r.key });
+      if (icon) c.querySelector(".sum").prepend(icon);
+      return c;
+    };
     return [el("h2", {}, `Công pháp (${rows.length})`),
-      el("p", { class: "dim" }, "Mỗi công pháp được thiết kế riêng trong code (shared/cong-phap.js: cách đánh ở server/cong-phap.js, hình ở public/js/cong-phap.js), nên số liệu chiến đấu không chỉnh ở đây. Công pháp không bán. Admin bật/tắt từng môn, chọn môn học được bằng vật phẩm yêu cầu hay chỉ nhận từ hoạt động, sự kiện, và đổi vật phẩm cần để lĩnh ngộ. Đổi là có hiệu lực ngay."),
-      el("div", { class: "artlist" }, rows.map(card))];
+      el("p", { class: "dim" }, "Mỗi công pháp được thiết kế riêng trong code (shared/cong-phap.js), nên số liệu chiến đấu không chỉnh ở đây. Công pháp không bán. Bấm vào một môn để bật/tắt, chọn học bằng bí kíp hay chỉ nhận từ hoạt động, sự kiện, đổi vật phẩm cần để lĩnh ngộ, phát cho người chơi, và xem trước hiệu ứng."),
+      el("div", { class: "grid" }, rows.map(card))];
   },
 
   async drops() {
