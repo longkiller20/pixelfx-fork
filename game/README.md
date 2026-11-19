@@ -4,8 +4,12 @@ Game web nhiều người chơi, nơi tu sĩ từ khắp các vũ trụ gặp nh
 tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay trong repo này. Chơi được trên máy tính lẫn điện thoại.
 
 - **Máy chủ:** Node.js + Express, WebSocket (`ws`) cho thế giới chung, MariaDB lưu dữ liệu, mặc định chạy ở cổng **5886**. Trang admin ở cổng riêng **5885** (xem phần "Trang admin").
-- **Vũ khí:** nhân vật cầm vũ khí trên tay; vũ khí vung theo đòn chém, và Phi Kiếm bay ra đúng vũ khí đang cầm. Có 90 món
-  của Xianxia Pixel Pack (5 miễn phí, còn lại bán ở Y Các), nam nữ dùng chung.
+- **Vũ khí:** nhân vật cầm vũ khí trên tay; vũ khí vung theo đòn chém, và Phi Kiếm bay ra đúng vũ khí đang cầm. Ai cũng có
+  sẵn Trường Kiếm (miễn phí), nam nữ dùng chung.
+- **Y Các đang trống hàng bán:** chỉ còn đồ miễn phí, gồm 5 tóc và 5 y phục mỗi giới tính, 1 vũ khí (Trường Kiếm), 1 phi kiếm (Thanh Vân Kiếm). Các bảo vật vẫn giữ nguyên.
+  - Đồ bán sẽ được thiết kế riêng từng món rồi thêm lại ở trang admin.
+  - Ảnh của các món cũ vẫn nằm trong atlas, nên admin có thể thêm lại món nào đó theo số `idx`.
+  - Database cũ được dọn một lần khi máy chủ khởi động (migration `retire_shop_2026_11`). Người đã mua được hoàn linh thạch. Ai đang mặc món bị xoá thì đổi sang món miễn phí đầu tiên.
 - **Bảo vật (vũ khí đặc biệt):** cả 11 vũ khí của pixelfx (Phá Quân Kiếm, Trảm Long Đại Kiếm, Ảnh Sát Chủy, Bá Vương
   Thương, Lôi Thần Chùy, U Minh Liêm, Huyết Lang Trảo, Lạc Nhật Cung, và từ các thế giới khác của đa vũ trụ: Dị Giới Hỏa
   Thương, Phích Lịch Thần Pháo, Phược Long Tiên). Bảo vật không bán và không miễn phí. Chưa được tặng thì
@@ -468,9 +472,9 @@ Khi người chơi vừa đột phá tới cảnh giới đó, game báo đã m�
 
 **Phi kiếm** là loại `sword` trong bảng `cosmetics` (tab "Tóc, áo, vũ khí & phi kiếm" của admin, chọn "Phi kiếm (bay)"):
 
-- Có 30 thanh, cắt từ ảnh `tools/swords/source.png` bằng `python3 tools/swords/build.py`, ra file `public/xianxia/swords.png` và `.json`.
+- Atlas có 30 thanh, đang dùng 8 thanh. Các thanh được cắt từ ảnh `tools/swords/source.png` bằng `python3 tools/swords/build.py`, ra file `public/xianxia/swords.png` và `.json`.
 - **Thanh Vân Kiếm** là kiếm cơ bản (`starter`): ai mở khoá bay cũng có ngay, không phải mua.
-- 22 thanh bán ở Y Các, tab "Phi kiếm", giá 600 đến 2000 linh thạch. Chỉ mua được sau khi đã mở khoá bay.
+- Hiện không bán thanh nào. Phi kiếm bán sẽ thiết kế riêng sau. Khi admin thêm phi kiếm để bán, người chơi chỉ mua được sau khi đã mở khoá bay.
 - 7 thanh là **bảo vật** (`special`): Băng Long, Xích Long, Bạch Long, Tinh Hà, Bích Long, Hỏa Long, Thái Cực Kiếm. Các thanh này không bán, chỉ có khi admin tặng ở trang người chơi (sau này qua hoạt động, sự kiện).
 - Admin đổi giá, tên, bật/tắt bán, chuyển thành bảo vật cho từng thanh. Trang người chơi đổi được phi kiếm đang dùng và tặng hoặc lấy lại phi kiếm.
 - Nhân vật lưu phi kiếm đang dùng ở cột `characters.sword`.
@@ -491,7 +495,7 @@ Danh sách tóc và y phục nằm trong bảng `cosmetics`. Mỗi dòng là m�
 Đồ người chơi đã mua nằm trong bảng `owned_cosmetics`. Khóa chính là (tài khoản, món), nên dù bấm mua dồn dập cũng chỉ bị trừ
 tiền một lần.
 
-Lần đầu chạy, máy chủ tự điền 160 món từ `server/cosmetics-seed.js`. Những lần sau, máy chủ không ghi đè: tên, giá hay trạng
+Lần đầu chạy, máy chủ tự điền đồ miễn phí và bảo vật từ `server/cosmetics-seed.js` (hiện chưa có món nào bán). Những lần sau, máy chủ không ghi đè: tên, giá hay trạng
 thái admin đã sửa đều được giữ. Game đọc bảng trực tiếp ở mỗi lần xem hoặc mua, nên sửa xong là có hiệu lực ngay, không cần
 khởi động lại. Tên món được đặt tự động theo màu; đổi tên tùy ý.
 

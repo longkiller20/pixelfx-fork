@@ -67,6 +67,14 @@ async function walkTo(c, x, y) {
 }
 
 console.log("Đa vũ trụ tu tiên: race checks against", BASE);
+// the shop is empty until things are designed for it: a few parts go on sale for the checks, and come off at the end
+const SHOP_TEST = "Hàng thử nghiệm";
+{
+  const { q } = await import("../server/db.js");
+  await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);
+  for (const [kind, g, idx, price] of [["hair", "m", 0, 150], ["robe", "m", 0, 300], ["hair", "f", 0, 150], ["sword", "a", 1, 600]])
+    await q("INSERT INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, ?, ?, ?, ?, 0, 1, 0, 0)", [kind, g, idx, `${SHOP_TEST} ${kind} ${g}`, price]);
+}
 
 {
   // the look is checked: bad genders and out-of-range parts are refused
@@ -560,5 +568,10 @@ console.log("Đa vũ trụ tu tiên: race checks against", BASE);
   ok("phi kiếm: bought once flight opens and ridden at once; bảo vật swords never sold or ridden ungiven");
 }
 
+{
+  const { q, pool } = await import("../server/db.js");
+  await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);
+  await pool.end();
+}
 console.log(`${passed} checks passed`);
 process.exit(0);

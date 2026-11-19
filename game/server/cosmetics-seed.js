@@ -1,7 +1,9 @@
-// The wardrobe a fresh database starts with: 40 hair styles and 40 robes for each gender, matching the atlases in
-// public/avatar/. Five of each are free at creation (starter); the rest are sold for spirit stones. This only seeds the
-// cosmetics table: rows already there are left alone, so prices and names changed by an admin stick (tools/cosmetics.mjs).
-export const COSMETICS_SEED = [
+// The wardrobe a fresh database starts with. Only the free things are seeded now: 5 hair styles and 5 robes for each
+// gender (chosen at creation), one weapon in hand and one flying sword; plus the bảo vật, which are only ever given. The
+// shop is empty until things designed one by one are added (in the admin site). The lists below still name every part
+// in the atlases (public/avatar/, public/xianxia/), so an admin can put one back by its idx; RETIRED_SHOP (db.js) took
+// the old shop items out of databases made before. Rows already there are left alone, so an admin's changes stick.
+const ALL_COSMETICS = [
   { kind: "hair", g: "m", idx: 0, name: "Huyền Lưu Phát", price: 300, starter: false },
   { kind: "hair", g: "m", idx: 1, name: "Lam Thiên Phát", price: 300, starter: false },
   { kind: "hair", g: "m", idx: 2, name: "Lam Lưu Phát 2", price: 500, starter: false },
@@ -163,10 +165,11 @@ export const COSMETICS_SEED = [
   { kind: "robe", g: "f", idx: 38, name: "Tử Tiên Y", price: 500, starter: false },
   { kind: "robe", g: "f", idx: 39, name: "Bạch Sa Y 2", price: 500, starter: false },
 ];
+export const COSMETICS_SEED = ALL_COSMETICS.filter((c) => c.starter);
 
 // weapons (Xianxia Pixel Pack, CC0): for everyone (gender "a"); idx is the place in public/xianxia/weapons.json
 export const DEFAULT_WEAPON = 60;
-export const WEAPONS_SEED = [
+const ALL_WEAPONS = [
   { kind: "weapon", g: "a", idx: 0, name: "Khách Binh I", price: 120, starter: false }, // blade_01_00
   { kind: "weapon", g: "a", idx: 1, name: "Khách Binh II", price: 120, starter: false }, // blade_01_01
   { kind: "weapon", g: "a", idx: 2, name: "Khách Binh III", price: 120, starter: false }, // blade_01_02
@@ -258,6 +261,8 @@ export const WEAPONS_SEED = [
   { kind: "weapon", g: "a", idx: 88, name: "Tiên Khí V", price: 800, starter: false }, // tier3_b_04
   { kind: "weapon", g: "a", idx: 89, name: "Tiên Khí VI", price: 800, starter: false }, // tier3_b_05
 ];
+// one weapon for everyone: the plain long sword
+export const WEAPONS_SEED = ALL_WEAPONS.filter((w) => w.idx === DEFAULT_WEAPON);
 
 // Bảo vật: the weapons pixelfx draws in code (tools/xianxia/pixelfx-weapons.mjs), after the pack's 90 in the atlas.
 // Special: never sold at the Y Các and never free; a player gets one only when it is given to them (by an admin now; by
@@ -278,8 +283,8 @@ export const SPECIAL_WEAPONS_SEED = [
 
 // Flying swords (phi kiếm) for ngự kiếm phi hành: public/xianxia/swords.png, cut by tools/swords/build.py, in the order of
 // the sheet they came from (6 a row). Thanh Vân Kiếm is everyone's once flight opens (starter: free, but only rideable from
-// the realm the admin sets, fly.realm); the rest sell for spirit stones, and the dragons and a few others are bảo vật,
-// only given (events, activities, an admin). An admin changes any of it in the cosmetics table afterwards.
+// the realm the admin sets, fly.realm); the dragons and a few others are bảo vật, only given (events, an admin). The ones
+// with a price were sold once and are no longer seeded (an admin can add one back by its idx).
 export const BASIC_SWORD = 0;
 export const SWORDS_SEED = [
   ["Thanh Vân Kiếm", 0, "starter"], ["Kim Phượng Kiếm", 1800], ["Tử Diễm Kiếm", 1200], ["Băng Long Kiếm", 0, "special"], ["Đào Hoa Kiếm", 800], ["Xích Long Kiếm", 0, "special"],
@@ -287,4 +292,6 @@ export const SWORDS_SEED = [
   ["Liệt Hỏa Kiếm", 1200], ["Băng Tinh Kiếm", 1200], ["Kim Liên Kiếm", 2000], ["U Minh Kiếm", 1500], ["Kim Hoàn Kiếm", 1800], ["Tinh Hà Kiếm", 0, "special"],
   ["Thủy Lãng Kiếm", 900], ["Hồ Điệp Kiếm", 1000], ["Huyền Linh Kiếm", 1300], ["Thiên Vũ Kiếm", 1600], ["Hồng Mai Kiếm", 1000], ["Bích Long Kiếm", 0, "special"],
   ["Tường Vân Kiếm", 700], ["Lam Liên Kiếm", 1100], ["Hỏa Long Kiếm", 0, "special"], ["Tử Hoa Kiếm", 900], ["Thái Cực Kiếm", 0, "special"], ["Băng Phách Kiếm", 1400],
-].map(([name, price, tag], idx) => ({ kind: "sword", g: "a", idx, name, price, starter: tag === "starter", onSale: tag !== "special", special: tag === "special" }));
+].map(([name, price, tag], idx) => ({ kind: "sword", g: "a", idx, name, price, starter: tag === "starter", onSale: tag !== "special", special: tag === "special" }))
+  // the basic sword and the bảo vật; the ones that were sold are out until redesigned
+  .filter((w) => w.starter || w.special);

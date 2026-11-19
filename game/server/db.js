@@ -139,6 +139,11 @@ const SCHEMA = [
     KEY k_user (user_id),
     CONSTRAINT fk_buff_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // one-off data changes already made to this database, by name (see ONCE in migrate())
+  `CREATE TABLE IF NOT EXISTS migrations (
+    name VARCHAR(64) PRIMARY KEY,
+    at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,
@@ -166,6 +171,32 @@ const UPGRADES = [
   `ALTER TABLE characters ADD COLUMN IF NOT EXISTS sword SMALLINT UNSIGNED NOT NULL DEFAULT ${BASIC_SWORD} AFTER weapon`,
 ];
 
+/**
+ * The shop is emptied, to be filled again with things designed one by one: every hair style, robe, weapon and flying
+ * sword that was sold goes, and so do the free weapons but the long sword. Kept: the 5 free hair styles and 5 robes per
+ * gender, the long sword (DEFAULT_WEAPON), the basic flying sword, and every bảo vật. Whoever bought what goes gets the
+ * stones back; whoever wears it changes to the first free one. Runs once per database, in one transaction.
+ */
+async function retireShop(c) {
+  // the items going, as a condition on a cosmetics row named k
+  const gone = `k.special = 0 AND (k.starter = 0 OR (k.kind = 'weapon' AND k.idx <> ${DEFAULT_WEAPON}) OR (k.kind = 'sword' AND k.idx <> ${BASIC_SWORD}))`;
+  await c.query(
+    `UPDATE characters ch JOIN (SELECT o.user_id, SUM(o.price) AS paid FROM owned_cosmetics o JOIN cosmetics k ON k.id = o.cosmetic_id
+       WHERE ${gone} GROUP BY o.user_id) r ON r.user_id = ch.user_id
+     SET ch.stones = ch.stones + r.paid WHERE r.paid > 0`,
+  );
+  await c.query(`DELETE k FROM cosmetics k WHERE ${gone}`);
+  // anything worn that is no longer in the wardrobe: the first free one instead
+  for (const kind of ["hair", "robe"])
+    await c.query(
+      `UPDATE characters ch SET ch.${kind} = (SELECT MIN(f.idx) FROM cosmetics f WHERE f.kind = '${kind}' AND f.gender = ch.gender AND f.starter = 1)
+       WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = '${kind}' AND k.gender = ch.gender AND k.idx = ch.${kind})`,
+    );
+  await c.query(`UPDATE characters ch SET ch.weapon = ${DEFAULT_WEAPON} WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = 'weapon' AND k.idx = ch.weapon)`);
+  await c.query(`UPDATE characters ch SET ch.sword = ${BASIC_SWORD} WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = 'sword' AND k.idx = ch.sword)`);
+}
+const ONCE = [["retire_shop_2026_11", retireShop]];
+
 export async function migrate() {
   for (const s of SCHEMA) await q(s);
   await seedConfig();
@@ -175,6 +206,15 @@ export async function migrate() {
     "INSERT IGNORE INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [...COSMETICS_SEED, ...WEAPONS_SEED, ...SPECIAL_WEAPONS_SEED, ...SWORDS_SEED].map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.onSale === false ? 0 : 1, c.special ? 1 : 0, c.idx]),
   );
+  for (const [name, run] of ONCE) {
+    const [done] = await q("SELECT 1 FROM migrations WHERE name = ?", [name]);
+    if (done) continue;
+    await tx(async (c) => {
+      await run(c);
+      await c.query("INSERT INTO migrations (name) VALUES (?)", [name]);
+    });
+    console.log("migration:", name);
+  }
   // whatever a character already wears is theirs to keep, even if it is now sold in the shop
   for (const kind of ["hair", "robe", "weapon", "sword"])
     await q(
