@@ -488,15 +488,14 @@ const VIEWS = {
           el("div", {}, el("b", {}, r.name), " ", el("span", { class: "dim" }, `${r.key} · ${elemName(r.element)} · bậc ${r.tier} · hồi ${r.cd}s${r.aim ? ` · kéo chọn chỗ ${r.aim}px` : ""}`),
             r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết sẵn") : null),
           el("p", {}, r.line), el("p", { class: "dim" }, r.desc),
-          r.starter ? null : el("p", { class: "dim" }, `Lĩnh ngộ cần: ${r.reqs.map((q) => `${nameOf[q.item] ?? q.item} ×${q.qty}`).join(", ") || "không gì"} · giá bán ${fmt(r.price)} linh thạch`))),
+          r.starter ? null : el("p", { class: "dim" }, `Lĩnh ngộ cần: ${r.reqs.map((q) => `${nameOf[q.item] ?? q.item} ×${q.qty}`).join(", ") || "không gì"}`))),
       el("div", { class: "bar sws" },
         toggle(r, "enabled", "✓ Đang bật", "✕ Đã tắt", "Tắt: không ai dùng, học hay mua được"),
-        r.starter ? null : toggle(r, "learnable", "📖 Học được bằng bí kíp", "★ Chỉ nhận từ sự kiện, hoạt động", "Bật: người chơi lĩnh ngộ bằng bí kíp và tinh thạch. Tắt: chỉ có khi được phát"),
-        r.starter ? null : toggle(r, "on_sale", "💎 Đang bán", "Không bán", "Bật: mua được ở bảng Công Pháp bằng linh thạch")),
+        r.starter ? null : toggle(r, "learnable", "📖 Học được bằng bí kíp", "★ Chỉ nhận từ sự kiện, hoạt động", "Bật: người chơi lĩnh ngộ bằng các vật phẩm yêu cầu. Tắt: chỉ nhận được qua hoạt động, sự kiện (admin phát)")),
       r.starter ? null : reqBox(r),
       r.starter ? null : grantBox(r));
     return [el("h2", {}, `Công pháp (${rows.length})`),
-      el("p", { class: "dim" }, "Mỗi công pháp được thiết kế riêng trong code (shared/cong-phap.js: cách đánh ở server/cong-phap.js, hình ở public/js/cong-phap.js), nên số liệu chiến đấu không chỉnh ở đây. Admin bật/tắt từng môn, chọn môn học được bằng bí kíp hay chỉ nhận từ sự kiện, hoạt động, có bán hay không, và đổi vật phẩm cần để lĩnh ngộ. Đổi là có hiệu lực ngay."),
+      el("p", { class: "dim" }, "Mỗi công pháp được thiết kế riêng trong code (shared/cong-phap.js: cách đánh ở server/cong-phap.js, hình ở public/js/cong-phap.js), nên số liệu chiến đấu không chỉnh ở đây. Công pháp không bán. Admin bật/tắt từng môn, chọn môn học được bằng vật phẩm yêu cầu hay chỉ nhận từ hoạt động, sự kiện, và đổi vật phẩm cần để lĩnh ngộ. Đổi là có hiệu lực ngay."),
       el("div", { class: "artlist" }, rows.map(card))];
   },
 

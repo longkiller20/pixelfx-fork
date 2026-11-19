@@ -324,22 +324,10 @@ const SHOP_TEST = "Hàng thử nghiệm";
       } finally {
         await adm("/t/cong_phap/diet_the_than_bao", { token, method: "PATCH", body: { learnable: true } });
       }
-      // sold: refused until an admin puts it on sale; then six buys at once take its price once
+      // arts are never sold
       const B = await player(), [bu] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [B.name]);
-      const price = CP.tam_tuyet_kiem.price;
-      await adm(`/players/${bu.id}/adjust`, { token, method: "POST", body: { field: "stones", op: "set", value: price + 500 } });
-      assert.equal((await call("/arts/buy", { token: B.token, method: "POST", body: { key: "tam_tuyet_kiem" } })).status, 403, "not on sale");
-      assert.equal((await adm("/t/cong_phap/tam_tuyet_kiem", { token, method: "PATCH", body: { on_sale: true } })).status, 200);
-      try {
-        const buys = await Promise.all(Array.from({ length: 6 }, () => call("/arts/buy", { token: B.token, method: "POST", body: { key: "tam_tuyet_kiem" } })));
-        assert.equal(buys.filter((x) => x.status === 200).length, 1, "six buys at once: one");
-        const mb = await me(B.token);
-        assert.equal(mb.character.stones, 500, "charged once");
-        assert.ok(mb.character.learned.includes("tam_tuyet_kiem"), "and known");
-        assert.equal((await call("/arts/buy", { token: B.token, method: "POST", body: { key: "luu_tinh_hoa_vu" } })).status, 403, "another art not on sale");
-      } finally {
-        await adm("/t/cong_phap/tam_tuyet_kiem", { token, method: "PATCH", body: { on_sale: false } });
-      }
+      assert.equal((await call("/arts/buy", { token: B.token, method: "POST", body: { key: "tam_tuyet_kiem" } })).status, 404, "no buying");
+      assert.equal((await adm("/t/cong_phap/tam_tuyet_kiem", { token, method: "PATCH", body: { on_sale: true } })).status, 400, "nothing to put on sale");
       // what learning spends is the admin's: Địa Chấn Cước with 2 Hậu Thổ Tinh instead of 6 is learned with 2; a starter
       // art can't be given a cost; an item an art needs can't be deleted
       const tho = (await adm("/t/cong_phap_reqs", { token })).data.find((r) => r.art_key === "dia_chan_cuoc" && r.item_key === "mat_tho");
