@@ -5,6 +5,7 @@ import { ELEMENTS } from "/shared/cong-phap.js";
 import { artIcon, artLine, elementName } from "./arts.js";
 import { loadAvatars, drawAvatar, partCanvas } from "./avatar.js";
 import { startGame } from "./game.js";
+import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange, next as nextTrack } from "./music.js";
 
 const $ = (id) => document.getElementById(id);
 const touch = matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
@@ -216,6 +217,7 @@ function play() {
   show("game");
   fitOrientation();
   $("dailyBtn").classList.toggle("ready", !state.dailyClaimed);
+  startMusic();
   game = startGame({
     token, character: state.character, inventory: state.inventory, touch, refreshConfig,
     // an empty slot on the bar opens the arts, ready to fill that slot
@@ -666,12 +668,83 @@ $("helpBtn").addEventListener("click", () => {
   panel("Hướng dẫn", d);
 });
 
-$("logoutBtn").addEventListener("click", async () => {
-  try {
-    await call("/logout", { method: "POST" });
-  } catch {}
-  logoutLocal();
-});
+// ---------------------------------------------------------------- settings (⚙): background music, logging out
+$("settingsBtn").addEventListener("click", () => settingsPanel());
+function settingsPanel() {
+  const wrap = document.createElement("div");
+  wrap.className = "setp";
+  wrap.innerHTML = `
+    <section class="sgroup">
+      <h4><img src="/xianxia/ui/ui_xianxia_item_lantern.png" alt="">Âm thanh</h4>
+      <div class="srow">
+        <div class="slbl"><b>Nhạc nền</b><small class="nowtxt"></small></div>
+        <label class="switch" title="Bật / tắt nhạc nền"><input type="checkbox" class="mon"><span></span></label>
+      </div>
+      <div class="srow vol">
+        <div class="slbl"><b>Âm lượng</b></div>
+        <span class="vico" aria-hidden="true">🔈</span>
+        <input type="range" class="slider" min="0" max="100" step="1" aria-label="Âm lượng nhạc nền">
+        <output class="vout"></output>
+      </div>
+      <div class="nowplay"><span class="disc" aria-hidden="true">♪</span><span class="ttl"></span><button type="button" class="nextbtn" title="Chuyển bài">Bài khác ⏭</button></div>
+    </section>
+    <section class="sgroup">
+      <h4><img src="/xianxia/ui/ui_xianxia_item_token.png" alt="">Tài khoản</h4>
+      <div class="srow">
+        <div class="slbl"><b class="who"></b><small>Đăng xuất khỏi thiết bị này. Nhân vật và đồ vẫn được lưu.</small></div>
+        <button type="button" class="primary logout">Đăng xuất</button>
+      </div>
+    </section>
+    <p class="credit">Nhạc nền: “Liyan” của elerya và “Asian String Suite” của bosslevelvgm (CC-BY 3.0, OpenGameArt).</p>`;
+  const $$ = (q) => wrap.querySelector(q);
+  const on = $$(".mon"), vol = $$(".slider");
+  const draw = () => {
+    const m = musicState();
+    on.checked = m.on;
+    vol.value = m.vol;
+    vol.style.setProperty("--p", `${m.vol}%`);
+    vol.disabled = !m.on;
+    $$(".vout").textContent = `${m.vol}%`;
+    $$(".vico").textContent = !m.on || m.vol === 0 ? "🔇" : m.vol < 40 ? "🔈" : m.vol < 75 ? "🔉" : "🔊";
+    $$(".nowtxt").textContent = m.on ? (m.playing ? "Đang phát" : "Bật: phát khi bạn chạm hoặc bấm phím") : "Đang tắt";
+    $$(".ttl").textContent = m.track ? `${m.track.ten} · ${m.track.tac_gia}` : "Chưa có bài nào";
+    $$(".nowplay").classList.toggle("on", m.on && m.playing);
+    $$(".nextbtn").disabled = m.count < 2;
+    wrap.classList.toggle("muted", !m.on);
+  };
+  on.addEventListener("change", () => setMusicOn(on.checked));
+  vol.addEventListener("input", () => setMusicVolume(Number(vol.value)));
+  $$(".nextbtn").addEventListener("click", () => nextTrack());
+  $$(".who").textContent = state.character?.name ?? "Tài khoản";
+  // logging out asks once more on the button itself
+  const out = $$(".logout");
+  out.addEventListener("click", async () => {
+    if (!out.classList.contains("sure")) {
+      out.classList.add("sure");
+      out.textContent = "Bấm lần nữa để đăng xuất";
+      setTimeout(() => out.isConnected && (out.classList.remove("sure"), (out.textContent = "Đăng xuất")), 3000);
+      return;
+    }
+    out.disabled = true;
+    try {
+      await call("/logout", { method: "POST" });
+    } catch {}
+    logoutLocal();
+  });
+  onMusicChange(() => wrap.isConnected && draw());
+  // how tall the panel really is (turned on a phone held upright: the width is its height)
+  const fit = () => {
+    const h = document.body.classList.contains("rotated") ? innerWidth : innerHeight;
+    wrap.classList.toggle("short", h < 521);
+    wrap.classList.toggle("tiny", h < 400);
+  };
+  fit();
+  addEventListener("resize", fit);
+  draw();
+  panel("Cài đặt", wrap);
+  // the music may start a moment later (the tap that opened this): show it
+  setTimeout(() => wrap.isConnected && draw(), 300);
+}
 $("fsBtn").addEventListener("click", goLandscape);
 
 function logoutLocal() {
