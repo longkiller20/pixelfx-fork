@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-"""Take what the game uses from the Xianxia Pixel Pack v2.1 (CC0) and put it in public/xianxia/ (the weapons atlas goes to
-tools/assets/atlases/; then run tools/assets/split.py, which gives each weapon its folder in public/vu-khi/).
+"""Take what the game uses from the Xianxia Pixel Pack v2.1 (CC0) and put it in public/xianxia/. (Weapons are no longer
+taken from it: each weapon the game has is its own folder in public/vu-khi/, drawn one by one.)
 
   python3 tools/xianxia/build.py /path/to/Xianxia_Pixel_Pack        (needs Pillow and numpy)
-  python3 tools/xianxia/build.py --pixelfx-only                     (just re-add pixelfx's weapons to the atlas)
 
   terrain.png + terrain.json   the bamboo (earth), bluestone (stone) and cloud (cloud platforms) sets, 32 px tiles,
                                one row per set, in the order of TILES below
-  weapons.png + weapons.json   all 90 weapons, scaled to the characters' size, with where the hand holds each; then
-                               pixelfx's own weapons (pixelfx-weapons.json, from pixelfx-weapons.mjs) after them
   bg/, ui/                     the buildings, far scenery and interface pieces the game uses, copied as they are
 """
 import json
@@ -21,7 +18,6 @@ from PIL import Image
 
 PACK = sys.argv[1] if len(sys.argv) > 1 else "Xianxia_Pixel_Pack"
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "public", "xianxia"))
-ATL = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "atlases"))
 SETS = ["bamboo", "bluestone", "cloud", "redclay"]
 TILES = [
     "ground_top_L", "ground_top_M", "ground_top_M2", "ground_top_M3", "ground_top_R", "ground_top_S",
@@ -117,35 +113,6 @@ def skill_icons():
         canvas.save(os.path.join(OUT, "ui", out + ".png"))
 
 
-def append_pixelfx():
-    """Add the weapons pixelfx draws (tools/xianxia/pixelfx-weapons.json) to the end of the weapons atlas, as a new row
-    below the pack's. Any pixelfx weapons already there are dropped first, so running this twice changes nothing."""
-    src = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pixelfx-weapons.json")))
-    items = [i for i in json.load(open(os.path.join(ATL, "weapons.json"))) if not i["name"].startswith("pixelfx_")]
-    sheet = np.array(Image.open(os.path.join(ATL, "weapons.png")).convert("RGBA"))
-    top = max(i["y"] + i["h"] for i in items)
-    sheet = sheet[:top]
-    row_h = max(w["h"] for w in src)
-    width = max(sheet.shape[1], sum(w["w"] + 2 for w in src))
-    grown = np.zeros((top + row_h, width, 4), np.uint8)
-    grown[:top, : sheet.shape[1]] = sheet
-    x = 0
-    for w in src:
-        for j, row in enumerate(w["px"]):
-            for k, c in enumerate(row.split(" ")):
-                if c:
-                    grown[top + j, x + k] = (int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16), 255)
-        item = {"name": w["name"], "x": x, "y": top, "w": w["w"], "h": w["h"], "gx": w["gx"], "gy": w["gy"]}
-        if w.get("long") is not None:  # set only where the length alone would decide wrong (a bow, a whip)
-            item["long"] = w["long"]
-        items.append(item)
-        x += w["w"] + 2
-    Image.fromarray(grown).save(os.path.join(ATL, "weapons.png"), optimize=True)
-    with open(os.path.join(ATL, "weapons.json"), "w") as f:
-        json.dump(items, f, separators=(",", ":"))
-    print("pixelfx weapons", len(src), "added; atlas", grown.shape[1], "x", grown.shape[0], len(items), "items")
-
-
 def main():
     os.makedirs(os.path.join(OUT, "bg"), exist_ok=True)
     os.makedirs(os.path.join(OUT, "ui"), exist_ok=True)
@@ -157,43 +124,14 @@ def main():
     atlas.save(os.path.join(OUT, "terrain.png"), optimize=True)
     with open(os.path.join(OUT, "terrain.json"), "w") as f:
         json.dump({"size": 32, "sets": SETS, "tiles": TILES}, f)
-    # weapons: scaled, packed in rows, each with its grip (the hand's place: a fifth of the way along the shaft)
-    names = sorted(n[:-4] for n in os.listdir(os.path.join(PACK, "weapons")) if n.endswith(".png"))
-    parts = [shrink(np.array(Image.open(os.path.join(PACK, "weapons", n + ".png")).convert("RGBA")), WEAPON_SCALE) for n in names]
-    cw, ch = max(p.shape[1] for p in parts), max(p.shape[0] for p in parts)
-    cols = 10
-    rows = (len(parts) + cols - 1) // cols
-    sheet = np.zeros((rows * ch, cols * cw, 4), np.uint8)
-    items = []
-    for k, (n, p) in enumerate(zip(names, parts)):
-        h, w = p.shape[:2]
-        x0, y0 = (k % cols) * cw, (k // cols) * ch
-        sheet[y0 : y0 + h, x0 : x0 + w] = p
-        # the grip: for a sword-sized weapon on the handle, just behind the guard when there is one (a column much taller
-        # than the handle's), else near the butt end; at the height the shaft runs through there
-        heights = [(p[:, x, 3] > 0).sum() for x in range(w)]
-        near = heights[: max(3, int(w * 0.45))]
-        handle = float(np.median([v for v in near if v > 0] or [1]))
-        guard = max(range(len(near)), key=lambda x: near[x])
-        if w > 62:  # polearms and staves: held a quarter of the way up the shaft
-            gx = round(w * 0.25)
-        else:
-            gx = max(2, guard - 3) if near[guard] >= handle * 1.8 and guard >= 5 else max(2, round(w * 0.14))
-        col = np.nonzero(p[:, gx, 3])[0]
-        gy = int(round(col.mean())) if len(col) else h // 2
-        items.append({"name": n, "x": x0, "y": y0, "w": w, "h": h, "gx": gx, "gy": gy})
-    Image.fromarray(sheet).save(os.path.join(ATL, "weapons.png"), optimize=True)
-    with open(os.path.join(ATL, "weapons.json"), "w") as f:
-        json.dump(items, f, separators=(",", ":"))
     for n in BG:
         shutil.copy(os.path.join(PACK, "backgrounds", n + ".png"), os.path.join(OUT, "bg", n + ".png"))
     for n in UI:
         shutil.copy(os.path.join(PACK, "ui", n + ".png"), os.path.join(OUT, "ui", n + ".png"))
     skill_icons()
-    append_pixelfx()
     shutil.copy(os.path.join(PACK, "LICENSE.txt"), os.path.join(OUT, "LICENSE.txt"))
-    print("terrain", atlas.size, "weapons", sheet.shape[1], "x", sheet.shape[0], len(items), "items")
+    print("terrain", atlas.size)
 
 
 if __name__ == "__main__":
-    append_pixelfx() if PACK == "--pixelfx-only" else main()
+    main()

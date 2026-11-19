@@ -579,7 +579,7 @@ export function adminApp(world) {
   });
 
   app.use("/api", r);
-  // the page, plus the hair and robe atlases for thumbnails
+  // the page, plus the parts' pictures (one folder each) for the thumbnails
   // the pictures of parts and arts (one folder each), and their list, for the thumbnails
   app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type("application/json").send(assetsJson()));
   for (const d of [...Object.keys(PART_DIRS), ART_DIR, "nhan-vat"]) app.use(`/${d}`, express.static(join(ROOT, "public", d), { maxAge: 0 }));

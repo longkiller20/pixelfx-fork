@@ -10,7 +10,7 @@
 //   npm run cosmetics -- give <username> <id>      hand an item to a player (an event prize, a refund)
 //
 // idx is the number of the part's folder: public/toc-nam/<idx>-<name>/hinh.png (toc-nu, y-phuc-nam, y-phuc-nu, vu-khi, phi-kiem). To add
-// a new style, put its folder there (hinh.png + thong-tin.json, see tools/assets/split.py), then add it here.
+// a new style, put its folder there (hinh.png + thong-tin.json, see the README), then add it here.
 import { pool, migrate } from "../server/db.js";
 
 const [cmd, ...a] = process.argv.slice(2);
