@@ -363,6 +363,13 @@ Hình nhân vật nằm ở `public/avatar/`. Bù nhìn và mọi hiệu ứng �
 
 ## Trang admin (cổng 5885)
 
+Mọi danh sách đều hiện mỗi món một dòng: tên, vài chữ tóm tắt, các nhãn. Áp dụng cho cảnh giới, vật phẩm, công pháp, rơi đồ, yêu thú, đánh thường, cài đặt, tóc/áo/vũ khí/phi kiếm.
+
+- Bấm vào dòng thì bảng chỉnh sửa mở trong một modal. Đóng bằng ✕, phím Esc, hoặc bấm ra ngoài. Trên điện thoại modal chiếm cả màn hình.
+- Trang một người chơi cũng vậy: phần đầu (đang ở đâu, sinh lực, các nút thao tác trực tiếp) luôn hiện. Các phần còn lại mỗi phần một dòng, có tóm tắt sẵn:
+  - Tài nguyên, Buff riêng, Túi đồ, Công pháp, Tên & ngoại hình, Đồ đang có, Tài khoản, Lịch sử.
+  - Thêm buff, cộng linh thạch hay tặng đồ thì modal vẫn mở với số liệu mới, để chỉnh tiếp.
+
 Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nhưng trên một cổng riêng, nên chặn hoặc mở cổng này riêng được.
 
 **Đăng nhập lần đầu:**

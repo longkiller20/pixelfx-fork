@@ -55,6 +55,54 @@ async function guard(fn, okMsg) {
   }
 }
 
+// ---------------------------------------------------------------- one line per thing; its editor in a modal
+// Every list (realms, items, arts, monsters, the wardrobe, settings...) and every part of a player's page shows as a
+// single line: name, a few words, its tags. Clicking the line lifts the whole card (its form, its buttons, whatever the
+// tab put in it) into a modal over the page; closing puts it back where it was.
+let modal = null; // { card, holder } while one is open
+function openModal(card) {
+  closeModal();
+  const holder = document.createComment("modal");
+  card.replaceWith(holder);
+  card.classList.add("open");
+  $("modalBox").replaceChildren(card);
+  $("modal").hidden = false;
+  document.body.classList.add("noscroll");
+  modal = { card, holder };
+  card.querySelector("input:not([type=checkbox]):not([readonly]), select, textarea")?.focus({ preventScroll: true });
+}
+function closeModal() {
+  if (!modal) return;
+  const { card, holder } = modal;
+  modal = null;
+  card.classList.remove("open");
+  if (holder.isConnected) holder.replaceWith(card);
+  else card.remove();
+  $("modal").hidden = true;
+  document.body.classList.remove("noscroll");
+}
+$("modal").addEventListener("click", (e) => e.target === $("modal") && closeModal());
+addEventListener("keydown", (e) => e.key === "Escape" && modal && closeModal());
+/**
+ * Make `card` a one-line row: `.sum` shows title, sub and extra (tags, small buttons); a click on it (not on a button
+ * in it) opens the card in the modal. key: names the card so a page that redraws itself can open it again.
+ */
+function collapsible(card, { title, sub, extra, key, isNew = false }) {
+  card.classList.add("rec");
+  if (key) card.dataset.mkey = key;
+  const sum = el("div", { class: "sum" }, el("b", {}, title ?? ""), sub ? el("span", { class: "dim" }, sub) : null, el("span", { class: "grow" }), extra ?? null,
+    el("span", { class: "chev", "aria-hidden": "true" }, isNew ? "+" : "›"),
+    el("button", { type: "button", class: "x ghost small", title: "Đóng", onclick: (e) => (e.stopPropagation(), closeModal()) }, "✕"));
+  sum.addEventListener("click", (e) => {
+    if (card.classList.contains("open") || e.target.closest("button, select, input, a")) return;
+    openModal(card);
+  });
+  card.prepend(sum);
+  return card;
+}
+/** A part of a page as one row opening its contents in the modal (e.g. a player's buffs). */
+const section = (title, sub, ...content) => collapsible(el("div", { class: "card" }, ...content), { title, sub, key: title.replace(/\s*\(.*\)\s*$/, "") });
+
 /**
  * One editable record as a card. fields: [{ k, label, type: text|number|bool|select|textarea, options: [[v, label]], step,
  * hint, wide, readonly }]. onSave(changes) gets only what changed; onDelete optional. Returns the card.
@@ -92,10 +140,10 @@ function record({ title, sub, fields, row = {}, onSave, onDelete, extra, isNew =
     }
     return out;
   }
-  const head = el("div", { class: "head" }, el("b", {}, title ?? ""), sub ? el("span", { class: "dim" }, sub) : null, el("span", { class: "grow" }), extra ?? null);
   const save = el("button", { class: "primary small", type: "submit" }, saveLabel ?? (isNew ? "Thêm" : "Lưu"));
   const actions = el("div", { class: "actions" }, onDelete ? el("button", { type: "button", class: "danger small", onclick: () => onDelete() }, "Xóa") : null, save);
-  card.append(head, box, actions);
+  card.append(box, actions);
+  collapsible(card, { title, sub, extra, isNew });
   card.addEventListener("submit", async (e) => {
     e.preventDefault();
     const c = changes();
@@ -195,6 +243,7 @@ function start(username) {
   go(tab);
 }
 async function go(t) {
+  closeModal();
   if (!VIEWS[t]) t = "overview";
   tab = t;
   if (location.hash.slice(1) !== t) history.replaceState(null, "", `#${t}`);
@@ -574,8 +623,9 @@ const VIEWS = {
       el("div", { class: "grid" }, Object.entries(groups).map(([g, list]) => {
         const card = el("div", { class: "card" }, el("h3", {}, NAMES[g] ?? g));
         for (const r of list) {
+          const shown = r.k === "fly.realm" ? realms[r.v - 1]?.name ?? "Khoá" : fmt(r.v);
           const f = record({
-            title: r.k, row: r,
+            title: r.note || r.k, sub: `${r.k} = ${shown}`, row: r,
             // the realm flight opens at: picked by name (stored as its number, counted from 1)
             fields: [r.k === "fly.realm"
               ? { k: "v", label: "Cảnh giới mở khoá Ngự Kiếm Phi Hành (tới tầng 1 cảnh giới này là bay được)", type: "select", wide: true,
@@ -626,7 +676,7 @@ const VIEWS = {
           onSave: async (c) => (await guard(() => api(`/t/cosmetics/${r.id}`, { method: "PATCH", body: c }), "Đã lưu.")) && (await refresh()),
           onDelete: async () => confirm(`Xóa ${r.name}? ${r.owners} người đang có món này sẽ mất nó.`) && (await guard(() => api(`/t/cosmetics/${r.id}`, { method: "DELETE" }), "Đã xóa.")) && (await refresh()),
         });
-        card.prepend(el("div", { class: "head" }, thumb(r.kind, r.gender, r.idx)));
+        card.prepend(el("div", { class: "thumbhead" }, thumb(r.kind, r.gender, r.idx)));
         return card;
       }));
     };
@@ -742,6 +792,9 @@ async function playerView(id) {
 
   function draw(np) {
     p = np;
+    // a part open in the modal stays open across the redraw an edit causes
+    const reopen = modal?.card.dataset.mkey;
+    closeModal();
     const parts = [el("button", { class: "ghost", onclick: () => go("players") }, "← Danh sách")];
     // ---- header: who, where, right now (the live part refreshes itself while they're online)
     const liveHolder = el("div");
@@ -755,7 +808,7 @@ async function playerView(id) {
 
     if (p.name !== null) {
       // ---- numbers, one at a time
-      const res = el("div", { class: "card" }, el("h3", {}, "Tài nguyên & chỉ số"),
+      const res = section("Tài nguyên & chỉ số", `${p.realm} · 💎 ${fmt(p.stones)} linh thạch`,
         el("p", { class: "dim" }, p.online ? "Đang online: mỗi thay đổi đi chung hàng đợi với việc lưu tiến trình, mua đồ, dùng đan của người này, nên không bao giờ ghi đè hay mất phần họ vừa kiếm được." : "Mỗi thay đổi là một phép cộng/trừ nguyên tử trong database; trừ không bao giờ xuống dưới 0."));
       for (const [field, label, col] of RES)
         res.append(stepper(label, p[col], field === "exp" ? p.realm : null, (op, value) => act(() => api(`/players/${p.id}/adjust`, { method: "POST", body: { field, op, value } }), `${label}: đã cập nhật.`)));
@@ -774,7 +827,7 @@ async function playerView(id) {
       const note = el("input", { placeholder: "ghi chú (vd: thưởng sự kiện)" });
       const sum = {};
       for (const b of p.buffs) sum[b.stat] = (sum[b.stat] ?? 0) + b.pct;
-      parts.push(el("div", { class: "card" }, el("h3", {}, "Buff riêng"),
+      parts.push(section("Buff riêng", p.buffs.length ? Object.entries(sum).map(([k, v]) => `${BUFFS[k]?.[0] ?? k} ${v > 0 ? "+" : ""}${v}%`).join(" · ") : "chưa có buff nào",
         el("p", { class: "dim" }, "Mỗi buff tăng (hoặc giảm) một chỉ số theo %, có hạn hoặc vĩnh viễn; nhiều buff cùng chỉ số thì cộng dồn. Công/Thủ/Sinh lực/Tốc độ không áp dụng ở đấu trường PvP để giữ công bằng."),
         Object.keys(sum).length ? el("div", { class: "chips" }, Object.entries(sum).map(([k, v]) => el("span", { class: `tag ${v > 0 ? "green" : "red"}` }, `${BUFFS[k]?.[0] ?? k} ${v > 0 ? "+" : ""}${v}%`))) : null,
         el("div", { class: "list" }, p.buffs.length ? p.buffs.map((b) => el("div", { class: "buff" },
@@ -789,7 +842,7 @@ async function playerView(id) {
           el("div", { class: "list" }, p.expiredBuffs.map((b) => el("div", { class: "dim" }, `${BUFFS[b.stat]?.[0] ?? b.stat} ${b.pct}% · hết ${when(b.expires_at)}${b.note ? ` · ${b.note}` : ""} · bởi ${b.created_by}`)))) : null));
 
       // ---- the bag: the pills, and every book or material they hold; any item can be given from the picker
-      const bag = el("div", { class: "card" }, el("h3", {}, "Túi đồ"));
+      const bag = section("Túi đồ", `${Object.values(p.inventory).filter((n) => n > 0).length} loại vật phẩm`);
       for (const it of items.filter((i) => (i.kind ?? "pill") === "pill" || (p.inventory[i.item_key] ?? 0) > 0))
         bag.append(stepper(it.name, p.inventory[it.item_key] ?? 0, it.kind === "pill" ? (it.on_sale ? null : "ngừng bán") : it.kind === "book" ? "bí kíp" : "nguyên liệu", (op, value) => act(() => api(`/players/${p.id}/items`, { method: "POST", body: { item: it.item_key, op, value } }), `${it.name}: đã cập nhật.`)));
       const give = el("select", {}, ITEM_KIND.map(([k, l]) => el("optgroup", { label: l }, items.filter((i) => (i.kind ?? "pill") === k).map((i) => el("option", { value: i.item_key }, i.name)))));
@@ -801,7 +854,7 @@ async function playerView(id) {
       const known = new Set(p.learned);
       const artName = (k) => arts.find((a) => a.art_key === k)?.name ?? k;
       const teach = el("select", {}, arts.filter((a) => !a.starter && !known.has(a.art_key)).map((a) => el("option", { value: a.art_key }, `${a.name} (bậc ${a.tier})`)));
-      parts.push(el("div", { class: "card" }, el("h3", {}, `Công pháp (${p.learned.length} đã lĩnh ngộ)`),
+      parts.push(section(`Công pháp (${p.learned.length} đã lĩnh ngộ)`, `thanh nút: ${p.slots.filter(Boolean).map(artName).join(", ") || "trống"}`,
         el("p", { class: "dim" }, `Thanh nút: ${p.slots.map((k, i) => `${i + 1}. ${k ? artName(k) : "trống"}`).join(" · ")}`),
         el("div", { class: "chips" }, p.learned.length ? p.learned.map((k) => el("span", { class: "chip" }, el("span", {}, artName(k)),
           el("button", { class: "small danger", title: "Lấy lại", onclick: () => confirm(`Lấy lại ${artName(k)}? (Không hoàn vật phẩm.)`) && act(() => api(`/players/${p.id}/arts`, { method: "POST", body: { key: k, learn: false } }), "Đã lấy lại.") }, "✕")))
@@ -832,7 +885,7 @@ async function playerView(id) {
       };
       gsel.addEventListener("change", drawPicks);
       drawPicks();
-      parts.push(el("div", { class: "card" }, el("h3", {}, "Tên & ngoại hình"),
+      parts.push(section("Tên & ngoại hình", `${p.name} · ${p.gender === "f" ? "nữ" : "nam"}`,
         el("p", { class: "dim" }, "Đổi xong mọi người trong game thấy ngay, người chơi không phải vào lại. Admin chọn được mọi kiểu, kể cả kiểu người này chưa mua."),
         el("div", { class: "fields" }, el("label", {}, "Đạo hiệu", nm), el("label", {}, "Giới tính", gsel)),
         pickBox,
@@ -855,7 +908,7 @@ async function playerView(id) {
       const pick = el("select", {},
         el("optgroup", { label: "★ Bảo vật (chỉ tặng)" }, giftable.filter((c) => c.special).map((c) => el("option", { value: c.id }, label(c)))),
         el("optgroup", { label: "Đồ bán ở Y Các" }, giftable.filter((c) => !c.special).map((c) => el("option", { value: c.id }, label(c)))));
-      parts.push(el("div", { class: "card" }, el("h3", {}, `Tóc, y phục, vũ khí & phi kiếm đang có (${p.owned.length})`),
+      parts.push(section(`Tóc, y phục, vũ khí & phi kiếm đang có (${p.owned.length})`, p.owned.length ? p.owned.map((o) => o.name).slice(0, 4).join(", ") + (p.owned.length > 4 ? "…" : "") : "chỉ đồ miễn phí",
         el("div", { class: "chips" }, p.owned.length ? p.owned.map((o) => el("span", { class: "chip" }, thumb(o.kind, o.gender, o.idx, ""), el("span", {}, o.special ? "★ " : "", o.name, el("small", { class: "dim" }, o.special ? " · bảo vật" : ` · trả ${fmt(o.paid)}`)),
           el("button", { class: "small danger", title: "Lấy lại", onclick: () => confirm(`Lấy lại ${o.name} của người này?`) && act(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: o.id, own: false } }), "Đã lấy lại.") }, "✕")))
           : el("span", { class: "dim" }, "Chưa mua món nào (các món miễn phí ai cũng có).")),
@@ -865,7 +918,7 @@ async function playerView(id) {
     // ---- the account
     const reason = el("input", { placeholder: "Lý do khóa (người chơi sẽ thấy)", value: p.ban_reason ?? "" });
     const pw = el("input", { placeholder: "Mật khẩu mới cho người chơi (6-72 ký tự)", type: "text", autocomplete: "off" });
-    parts.push(el("div", { class: "card" }, el("h3", {}, "Tài khoản"),
+    parts.push(section("Tài khoản", p.banned ? "đang bị khóa" : "khóa, đặt lại mật khẩu, xóa",
       el("div", { class: "bar" }, reason, el("button", { class: p.banned ? "small" : "small danger", onclick: () => act(() => api(`/players/${p.id}/ban`, { method: "POST", body: { banned: !p.banned, reason: reason.value } }), p.banned ? "Đã mở khóa." : "Đã khóa tài khoản.") }, p.banned ? "Mở khóa" : "Khóa tài khoản")),
       el("div", { class: "bar" }, pw, el("button", { class: "small", onclick: async () => (await guard(() => api(`/players/${p.id}/password`, { method: "POST", body: { password: pw.value } }), "Đã đặt lại mật khẩu.")) && (pw.value = "") }, "Đặt lại mật khẩu")),
       el("div", { class: "actions" }, el("button", { class: "small danger", onclick: async () => {
@@ -876,12 +929,14 @@ async function playerView(id) {
 
     // ---- history
     const table = (heads, rows) => el("div", { class: "scrollx" }, el("table", { class: "simple" }, el("tr", {}, heads.map((h) => el("th", {}, h))), rows));
-    parts.push(el("div", { class: "card" }, el("h3", {}, "Lịch sử"),
+    parts.push(section("Lịch sử", `${p.history.length} lần admin chỉnh · ${p.pvp.length} trận PvP · ${p.buys.length} lần mua`,
       el("details", { open: true }, el("summary", {}, `Admin đã chỉnh (${p.history.length})`), p.history.length ? el("div", { class: "list" }, p.history.map(logItem)) : el("p", { class: "dim" }, "Chưa có.")),
       el("details", {}, el("summary", {}, `PvP gần đây (${p.pvp.length})`), table(["Người hạ", "Người bị hạ", "Thưởng", "Lúc"], p.pvp.map((x) => el("tr", {}, el("td", {}, x.killer ?? x.killer_id), el("td", {}, x.victim ?? x.victim_id), el("td", {}, x.rewarded ? "có" : "không"), el("td", {}, when(x.at)))))),
       el("details", {}, el("summary", {}, `Mua ở Đan Các (${p.buys.length})`), table(["Món", "SL", "Giá", "Lúc"], p.buys.map((b) => el("tr", {}, el("td", {}, b.item), el("td", {}, b.qty), el("td", {}, fmt(b.price)), el("td", {}, when(b.created_at))))))));
 
     main.replaceChildren(el("div", { class: "list" }, parts));
+    const again = reopen && main.querySelector(`[data-mkey="${CSS.escape(reopen)}"]`);
+    if (again) openModal(again);
     // while they're online, keep the live box fresh (only that box: whatever is being typed elsewhere stays)
     clearTimeout(timer);
     const tick = async () => {
