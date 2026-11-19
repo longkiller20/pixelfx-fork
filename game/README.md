@@ -436,7 +436,13 @@ Mọi danh sách đều hiện mỗi món một dòng: tên, vài chữ tóm t�
   - Trang đang xem được nhớ theo tab và bộ lọc: lưu một món ở trang 4 thì vẫn ở trang 4. Tìm kiếm mới thì quay về trang 1.
 - Tab nào cũng có ô tìm kiếm (tìm theo tên, mã, hiệu ứng, ý nghĩa…). Cài đặt lọc được theo nhóm, Yêu thú lọc được theo kiểu đánh. Nhật ký tìm trong các dòng đã tải, nút "Tải thêm" lấy các dòng cũ hơn.
 - Danh sách người chơi lấy tối đa 500 người mỗi lần tìm. Muốn ra người cụ thể thì gõ tên.
-- Bấm vào dòng thì bảng chỉnh sửa mở trong một modal. Đóng bằng ✕, phím Esc, hoặc bấm ra ngoài. Trên điện thoại modal chiếm cả màn hình.
+- Bấm vào dòng thì bảng chỉnh sửa mở trong một modal. Đóng bằng ✕, phím Esc, hoặc bấm ra ngoài.
+  - Máy tính: hộp ở giữa màn hình, thanh tiêu đề và nút Lưu/Xóa luôn hiện, các ô nhập cuộn ở giữa, xếp 2 cột.
+  - Điện thoại: tấm trượt lên từ đáy (gần cả màn hình), các ô nhập 1 cột, nút Lưu luôn ở dưới tầm ngón tay.
+  - Ô có/không là công tắc gạt. Lưu một phần nhỏ bên trong (vd vật phẩm lĩnh ngộ) thì modal vẫn mở lại đúng chỗ.
+  - Công pháp: danh sách chỉ có tên, icon và trạng thái. Bấm vào một môn, modal có 2 tab: **Chỉnh sửa** (công tắc,
+    vật phẩm lĩnh ngộ, phát cho người chơi) và **Xem trước** (từng hiệu ứng của môn chạy lặp lại). Hiệu ứng chỉ chạy khi mở
+    tab Xem trước.
 - Trang một người chơi cũng vậy: phần đầu (đang ở đâu, sinh lực, các nút thao tác trực tiếp) luôn hiện. Các phần còn lại mỗi phần một dòng, có tóm tắt sẵn:
   - Tài nguyên, Buff riêng, Túi đồ, Công pháp, Tên & ngoại hình, Đồ đang có, Tài khoản, Lịch sử.
   - Thêm buff, cộng linh thạch hay tặng đồ thì modal vẫn mở với số liệu mới, để chỉnh tiếp.
@@ -546,7 +552,7 @@ Bù nhìn rơm cắm cố định: trúng đòn được nhưng không bị đ�
 - **Vật phẩm cần để lĩnh ngộ:** mỗi dòng một vật phẩm và số lượng; sửa, bỏ, thêm. Môn ai cũng biết thì không có. Vật phẩm
   đang được môn nào cần thì không xóa được ở tab Vật phẩm.
 - **Phát:** cho mọi nhân vật, mọi người đang online, hoặc theo đạo hiệu.
-- Mỗi môn có khung hiệu ứng chạy thử. Số liệu chiến đấu (sát thương, hồi chiêu, tầm…) không chỉnh ở đây: muốn
+- Tab Xem trước trong modal của mỗi môn chạy thử các hiệu ứng của nó. Số liệu chiến đấu (sát thương, hồi chiêu, tầm…) không chỉnh ở đây: muốn
   đổi thì sửa code.
 
 **Thêm môn mới** là việc của code: thêm một mục trong `shared/cong-phap.js`, viết cách đánh trong `server/cong-phap.js` và
