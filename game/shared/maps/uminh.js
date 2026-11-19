@@ -33,6 +33,8 @@ export const UMINH = {
   id: "uminh",
   name: "U Minh Cổ Mộ",
   sub: "Nghĩa địa cổ dưới trăng tròn. Âm hồn lang thang giữa mộ, quỷ hỏa trôi quanh lăng, huyết bức treo mình trong rừng chết.",
+  // its own background music, always this one (public/nhac-nen/5-forgottentombambience/)
+  music: "5-forgottentombambience",
   cell: 32,
   pvp: false,
   theme: {

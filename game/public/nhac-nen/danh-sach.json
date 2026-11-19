@@ -1,4 +1,27 @@
 [
-  { "dir": "1-liyan", "ten": "Liyan", "tac_gia": "elerya" },
-  { "dir": "2-asianstringsuite", "ten": "Asian String Suite", "tac_gia": "bosslevelvgm" }
+ {
+  "dir": "1-liyan",
+  "ten": "Liyan",
+  "tac_gia": "elerya"
+ },
+ {
+  "dir": "2-asianstringsuite",
+  "ten": "Asian String Suite",
+  "tac_gia": "bosslevelvgm"
+ },
+ {
+  "dir": "3-asianduet",
+  "ten": "Asian Duet",
+  "tac_gia": "elerya"
+ },
+ {
+  "dir": "4-lavaareatheme",
+  "ten": "Lava Area Theme",
+  "tac_gia": "Wolfgang"
+ },
+ {
+  "dir": "5-forgottentombambience",
+  "ten": "Forgotten Tomb Ambience",
+  "tac_gia": "kindland"
+ }
 ]

@@ -31,6 +31,8 @@ export const LINHTHUY = {
   id: "linhthuy",
   name: "Linh Thủy Đàm",
   sub: "Hồ linh thủy mênh mông. Đàn ngư yêu vọt khỏi mặt nước, thủy mẫu tinh lơ lửng trên hồ, nhuyễn yêu bò trong đầm lau.",
+  // its own background music, always this one (public/nhac-nen/3-asianduet/)
+  music: "3-asianduet",
   cell: 32,
   pvp: false,
   theme: {

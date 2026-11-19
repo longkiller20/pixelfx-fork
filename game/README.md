@@ -14,11 +14,20 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật đang đứng.
 - **Cài đặt (nút ⚙, cuối thanh menu):**
-  - **Nhạc nền:** công tắc bật/tắt, thanh kéo âm lượng 0-100%, tên bài đang phát và nút "Bài khác".
-    - Hai bài nhạc Á Đông phát nối nhau, chuyển bài có giảm dần rồi tăng dần âm lượng.
+  - **Nhạc nền:** công tắc bật/tắt, thanh kéo âm lượng 0-100%, tên bài và tên bản đồ đang ở.
+    - **Mỗi bản đồ một bài riêng**, phát lặp lại khi còn ở đó; người chơi không đổi bài được. Qua bản đồ khác thì bài cũ nhỏ
+      dần, bài mới to dần.
+    - | Bản đồ | Bài |
+      | --- | --- |
+      | Tân Thủ Thôn | Liyan |
+      | Bích Lạc Lâm | Asian String Suite |
+      | Linh Thủy Đàm | Asian Duet |
+      | Huyết Diễm Ma Uyên | Lava Area Theme |
+      | U Minh Cổ Mộ | Forgotten Tomb Ambience |
+    - Bài của bản đồ ghi ở `music` trong `shared/maps/<bản đồ>.js` (tên thư mục trong `public/nhac-nen/`). Đổi bài cho một bản
+      đồ, hay cho bản đồ mới một bài: thêm thư mục nhạc, một dòng trong `public/nhac-nen/danh-sach.json`, rồi sửa `music`.
     - Trình duyệt chỉ cho phát tiếng sau lần chạm hoặc bấm phím đầu tiên, nên nhạc bắt đầu từ lúc đó.
     - Bật/tắt và âm lượng lưu trên thiết bị (localStorage), mở lại game vẫn giữ.
-    - Thêm bài: một thư mục mới trong `public/nhac-nen/` và một dòng trong `public/nhac-nen/danh-sach.json`.
   - **Đăng xuất:** nút đăng xuất chuyển vào đây (bấm 2 lần để chắc chắn), không còn nằm trên thanh menu.
 - **Nhân vật (nút 👤, phím C):** bên trái là nhân vật đang đứng trong bộ đồ đang mặc, 4 ô trang bị quanh nhân vật (tóc, y
   phục, vũ khí, phi kiếm), tên, cảnh giới và chỉ số (sinh lực, công, thủ, tốc độ, linh thạch, điểm đấu trường, hạ/bại).
@@ -352,10 +361,14 @@ Nguồn tài nguyên:
   `public/maps/tiles/CREDITS.md`; nếu game có màn hình giới thiệu (credits), nên ghi thêm "Crisisworks (OpenGameArt)".
 - **Ghi công đầy đủ:** `public/maps/tiles/CREDITS.md`.
 - **Vẽ bằng code** trong `public/js/scenery.js`: nhà, cổng chào, đèn đá, cây anh đào, trúc, cầu, nước, thác, bầu trời.
-- **Nhạc nền** (trong `public/nhac-nen/`, mỗi bài một thư mục `<số>-<tên>/` có `nhac.mp3` và `thong-tin.json`), giấy phép
-  **CC-BY 3.0**, nên phải ghi tên tác giả (đã ghi ở cuối bảng Cài đặt trong game):
-  - *Liyan* của **elerya** (Audibert jd), OpenGameArt: https://opengameart.org/content/liyan
-  - *Asian String Suite* của **bosslevelvgm**, OpenGameArt: https://opengameart.org/content/asian-string-suite
+- **Nhạc nền** (trong `public/nhac-nen/`, mỗi bài một thư mục `<số>-<tên>/` có `nhac.mp3` và `thong-tin.json`), tải từ
+  OpenGameArt. Bài CC-BY phải ghi tên tác giả (đã ghi ở cuối bảng Cài đặt trong game):
+  - *Liyan* và *Asian Duet* của **elerya** (Audibert jd), **CC-BY 3.0**: https://opengameart.org/content/liyan,
+    https://opengameart.org/content/asian-duet
+  - *Asian String Suite* của **bosslevelvgm**, **CC-BY 3.0**: https://opengameart.org/content/asian-string-suite
+  - *Lava Area Theme* của **Wolfgang**, **CC-BY 4.0**: https://opengameart.org/content/lava-area-theme
+  - *Forgotten Tomb Ambience* của **kindland**, **CC0**: https://opengameart.org/content/forgoten-tomb-ambience
+  - Đã chỉnh âm lượng cho các bài đều nhau và đổi sang mp3 (ghi trong `thong-tin.json` của từng bài).
 
 ## Cấu trúc
 

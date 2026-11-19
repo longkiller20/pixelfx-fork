@@ -1,11 +1,13 @@
-// Background music: the tracks in public/nhac-nen/ (danh-sach.json lists them, one folder each), played one after the
-// other with a short fade between, round and round. On or off and the volume are the player's own, kept on this device
-// (localStorage). Browsers only let sound start after a tap or a key, so it waits for the first one.
+// Background music: every map has its own track (`music` in shared/maps/<map>.js, a folder of public/nhac-nen/), played
+// on a loop while you are there; going to another map fades one out and the other in. The player only chooses on or off
+// and how loud (kept on this device, in localStorage); which track plays is the map's. Browsers only let sound start
+// after a tap or a key, so it waits for the first one.
 const KEY = "dvtt.music";
-let list = [], at = 0, audio = null, fadeTimer = 0, started = false, onChange = () => {};
+let names = {}, want = "", audio = null, fadeTimer = 0, unlocked = false, onChange = () => {};
 const prefs = (() => {
   try {
-    return { on: true, vol: 50, ...JSON.parse(localStorage.getItem(KEY) || "{}") };
+    const p = JSON.parse(localStorage.getItem(KEY) || "{}");
+    return { on: p.on !== false, vol: Number.isFinite(p.vol) ? p.vol : 50 };
   } catch {
     return { on: true, vol: 50 };
   }
@@ -17,38 +19,47 @@ const save = () => {
 };
 // a gentler curve than linear: half way on the slider sounds about half as loud
 const level = () => Math.pow(prefs.vol / 100, 2) * 0.9;
+const url = (dir) => `/nhac-nen/${dir}/nhac.mp3`;
 
-/** Start (when on) once the browser allows it. Call once the game is up. */
-export async function startMusic() {
-  if (started) return;
-  started = true;
-  try {
-    list = await fetch("/nhac-nen/danh-sach.json").then((r) => r.json());
-  } catch {
-    list = [];
-  }
-  if (!list.length) return;
-  at = Math.floor(Math.random() * list.length);
+/** Get ready (the track names), and start once the browser allows it. Call once the game is up. */
+export function startMusic() {
+  fetch("/nhac-nen/danh-sach.json")
+    .then((r) => r.json())
+    .then((list) => ((names = Object.fromEntries(list.map((t) => [t.dir, t]))), onChange()))
+    .catch(() => {});
   const go = () => {
     removeEventListener("pointerdown", go);
     removeEventListener("keydown", go);
+    unlocked = true;
     if (prefs.on) play();
   };
   addEventListener("pointerdown", go);
   addEventListener("keydown", go);
 }
 
+/** The map's track: called whenever the player arrives on a map. */
+export function setMapMusic(dir) {
+  if (dir === want) return;
+  want = dir || "";
+  if (!audio || audio.paused) return void (audio && (audio.src = want ? url(want) : ""), onChange());
+  // playing: the old one fades out, the map's fades in
+  fadeTo(0, 0.8, () => {
+    audio.src = want ? url(want) : "";
+    if (want) play();
+    else audio.pause();
+  });
+}
+
 function play() {
-  if (!list.length) return;
+  if (!want || !unlocked) return onChange();
   if (!audio) {
     audio = new Audio();
     audio.preload = "auto";
-    // a track ends: the next one
-    audio.addEventListener("ended", () => next());
+    audio.loop = true;
   }
-  if (!audio.src) audio.src = `/nhac-nen/${list[at].dir}/nhac.mp3`;
+  if (!audio.src.endsWith(url(want))) audio.src = url(want);
   audio.volume = 0;
-  audio.play().then(() => fadeTo(level(), 1.2)).catch(() => {});
+  audio.play().then(() => (fadeTo(level(), 1.2), onChange())).catch(() => onChange());
   onChange();
 }
 
@@ -67,24 +78,11 @@ function fadeTo(v, sec, then) {
   }, 1000 / 30);
 }
 
-/** The next track (a short fade out, then the next one fades in). */
-export function next() {
-  if (!list.length) return;
-  at = (at + 1) % list.length;
-  const load = () => {
-    if (!audio) return;
-    audio.src = `/nhac-nen/${list[at].dir}/nhac.mp3`;
-    if (prefs.on) play();
-    else onChange();
-  };
-  audio && !audio.paused ? fadeTo(0, 0.6, load) : load();
-}
-
 export function setMusicOn(on) {
   prefs.on = !!on;
   save();
   if (on) play();
-  else if (audio) fadeTo(0, 0.5, () => audio.pause());
+  else if (audio) fadeTo(0, 0.5, () => (audio.pause(), onChange()));
   onChange();
 }
 export function setMusicVolume(v) {
@@ -96,7 +94,7 @@ export function setMusicVolume(v) {
   }
   onChange();
 }
-/** What the settings panel shows. */
-export const musicState = () => ({ on: prefs.on, vol: prefs.vol, playing: !!audio && !audio.paused, track: list[at] ?? null, count: list.length });
+/** What the settings panel shows: on/off, volume, whether it is playing, and the map's track. */
+export const musicState = () => ({ on: prefs.on, vol: prefs.vol, playing: !!audio && !audio.paused, track: names[want] ?? (want ? { dir: want, ten: want, tac_gia: "" } : null) });
 /** Called whenever the state changes (the settings panel redraws). */
 export const onMusicChange = (fn) => (onChange = fn ?? (() => {}));
