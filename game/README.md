@@ -508,6 +508,22 @@ Khi chiêu đang bật:
 - **Server kiểm tra lại mọi thứ:** điểm ở ngoài tầm thì bị kéo vào trong tầm. Điểm ngắm vào trong đất thì được đẩy lên mặt đất. Có mặt đất hay ván gỗ trong vòng 3 ô bên dưới thì chiêu rơi xuống đó, không thì nổ giữa không trung.
   - Màn hình người chơi dùng đúng cách tính này (`zoneLanding` trong `shared/physics.js`), nên vòng vàng hiện đúng chỗ chiêu sẽ nổ.
 
+## Xem hiệu ứng công pháp và tắt chiêu không dùng
+
+Trong trang admin, tab **Công pháp**:
+- Nút **▶ Xem hiệu ứng**: mỗi công pháp một ô, hiệu ứng pixelfx của nó chạy lặp lại (giống trong game), kèm tên, mã, loại và tên hiệu ứng.
+  - Ô tự phóng to vào chỗ hiệu ứng thật sự vẽ, nên tia lửa nhỏ cũng nhìn rõ.
+  - Mỗi trang 10 ô; bộ lọc và ô tìm kiếm dùng chung với chế độ danh sách.
+- Nút dưới mỗi ô bật hoặc tắt chiêu ngay (cột `arts.enabled`).
+  - Chiêu đã tắt hiện mờ, viền đỏ; người chơi không học, không dùng được chiêu đó nữa (đang gán trên thanh nút thì bấm không ra gì).
+  - Bấm lại để bật.
+- Bộ lọc **Đang bật / Đã tắt** để xem lại những chiêu đã tắt.
+- Nút **⬇ Xuất JSON đã tắt** và **⬇ Xuất TXT đã tắt** tải về danh sách chiêu đã tắt (mã, tên, hiệu ứng, loại; JSON có thêm hệ và bậc).
+  Gửi file này để dọn: bỏ hẳn các chiêu đã tắt, còn hiệu ứng của các chiêu giữ lại thì đưa vào thư mục `public` của game.
+- Ở chế độ **Danh sách**, mở một công pháp ra cũng thấy hiệu ứng chạy ở đầu bảng sửa.
+
+Hiệu ứng xem trước tải từ thư viện pixelfx (`/pixelfx`, cũng như game), chỉ khi mở tab Công pháp.
+
 ## Icon công pháp
 
 Icon của mỗi công pháp được vẽ sẵn vào thư mục riêng: `public/cong-phap/<số>-<tên>/icon.png`. Nhờ vậy bảng Công Pháp và thanh chiêu hiện icon ngay, không phải vẽ hơn 200 hiệu ứng trên điện thoại. Muốn đổi icon một môn, chỉ cần thay file `icon.png` trong thư mục của môn đó.
