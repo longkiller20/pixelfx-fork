@@ -633,7 +633,7 @@ const VIEWS = {
     for (const s of [kind, g, state]) s.addEventListener("change", draw);
     q.addEventListener("input", draw);
     draw();
-    return [el("h2", {}, "Tóc, Y phục, Vũ khí & Phi kiếm"), el("p", { class: "dim" }, "Tóc và áo \"Miễn phí\" được chọn lúc tạo nhân vật; vũ khí miễn phí ai cũng dùng được trong Y Các. Còn lại bán ở Y Các trong game. Vũ khí và phi kiếm dùng chung cho nam và nữ. \"Bảo vật\" (vd. các vũ khí của pixelfx, các phi kiếm rồng) không bán và không miễn phí: chỉ có khi được tặng, ở trang người chơi (sau này từ hoạt động, sự kiện, đấu giá). Phi kiếm dùng để Ngự Kiếm Phi Hành: phi kiếm \"Miễn phí\" là cái cơ bản ai mở khoá bay cũng có; cảnh giới mở khoá đặt ở Thiết lập, dòng fly.realm."), el("div", { class: "bar" }, kind, g, state, q), grid];
+    return [el("h2", {}, "Tóc, Y phục, Vũ khí & Phi kiếm"), el("p", { class: "dim" }, "Tóc và áo \"Miễn phí\" được chọn lúc tạo nhân vật; vũ khí miễn phí ai cũng dùng được trong Y Các. Còn lại bán ở Y Các trong game. Vũ khí và phi kiếm dùng chung cho nam và nữ. \"Bảo vật\" không bán và không miễn phí: chỉ có khi được tặng, ở trang người chơi (sau này từ hoạt động, sự kiện, đấu giá). Phi kiếm dùng để Ngự Kiếm Phi Hành: phi kiếm \"Miễn phí\" là cái cơ bản ai mở khoá bay cũng có; cảnh giới mở khoá đặt ở Thiết lập, dòng fly.realm."), el("div", { class: "bar" }, kind, g, state, q), grid];
   },
 
   async admins() {

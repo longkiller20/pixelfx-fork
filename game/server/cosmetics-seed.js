@@ -1,6 +1,6 @@
 // The wardrobe a fresh database starts with. Only the free things are seeded now: 5 hair styles and 5 robes for each
-// gender (chosen at creation), one weapon in hand and one flying sword; plus the bảo vật, which are only ever given. The
-// shop is empty until things designed one by one are added (in the admin site). The lists below still name every part
+// gender (chosen at creation), one weapon in hand and one flying sword. The shop and the bảo vật (only ever given) are
+// empty until things designed one by one are added (in the admin site). The lists below still name every part
 // in the atlases (public/avatar/, public/xianxia/), so an admin can put one back by its idx; RETIRED_SHOP (db.js) took
 // the old shop items out of databases made before. Rows already there are left alone, so an admin's changes stick.
 const ALL_COSMETICS = [
@@ -267,7 +267,8 @@ export const WEAPONS_SEED = ALL_WEAPONS.filter((w) => w.idx === DEFAULT_WEAPON);
 // Bảo vật: the weapons pixelfx draws in code (tools/xianxia/pixelfx-weapons.mjs), after the pack's 90 in the atlas.
 // Special: never sold at the Y Các and never free; a player gets one only when it is given to them (by an admin now; by
 // events, activities and the auction house later). Changed by an admin later, a row is left alone.
-export const SPECIAL_WEAPONS_SEED = [
+// pixelfx's weapons, once bảo vật; no longer seeded (RETIRED in db.js), kept here as the record of their atlas places
+export const SPECIAL_WEAPONS = [
   { idx: 90, name: "Phá Quân Kiếm" }, // pixelfx sword
   { idx: 91, name: "Trảm Long Đại Kiếm" }, // pixelfx greatsword
   { idx: 92, name: "Ảnh Sát Chủy" }, // pixelfx dagger
@@ -293,5 +294,5 @@ export const SWORDS_SEED = [
   ["Thủy Lãng Kiếm", 900], ["Hồ Điệp Kiếm", 1000], ["Huyền Linh Kiếm", 1300], ["Thiên Vũ Kiếm", 1600], ["Hồng Mai Kiếm", 1000], ["Bích Long Kiếm", 0, "special"],
   ["Tường Vân Kiếm", 700], ["Lam Liên Kiếm", 1100], ["Hỏa Long Kiếm", 0, "special"], ["Tử Hoa Kiếm", 900], ["Thái Cực Kiếm", 0, "special"], ["Băng Phách Kiếm", 1400],
 ].map(([name, price, tag], idx) => ({ kind: "sword", g: "a", idx, name, price, starter: tag === "starter", onSale: tag !== "special", special: tag === "special" }))
-  // the basic sword and the bảo vật; the ones that were sold are out until redesigned
-  .filter((w) => w.starter || w.special);
+  // only the basic sword; the ones that were sold and the bảo vật are out until redesigned
+  .filter((w) => w.starter);
