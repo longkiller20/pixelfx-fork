@@ -705,6 +705,52 @@ const SHOP_TEST = "Hàng thử nghiệm";
   ok("each art its own way: Phi Kiếm comes back, Lôi Ấn Trận strikes three times where dragged, spikes run along the ground, Tam Tuyệt Kiếm cuts four times planted, six meteors fall, the great blast goes off after gathering");
 }
 
+// a cheating client: the server decides every art. It sends forged messages straight down the socket and gets nothing
+// for them: no art it hasn't learned (even put on its bar behind the server's back), no slot that
+// doesn't exist, no cast before the cooldown is over however fast it taps, no damage or position of its own making,
+// nothing while dead; a zone asked for far away lands at the art's reach
+{
+  const { q } = await import("../server/db.js");
+  const bal = await import("../shared/balance.js");
+  bal.applyConfig((await call("/config")).data);
+  const P = await player();
+  const [row] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [P.name]);
+  // the bar written straight into the database with an art never learned: the API would refuse it, the world must too
+  assert.equal((await call("/arts/equip", { token: P.token, method: "POST", body: { slots: ["luu_tinh_hoa_vu", null, null, null, null] } })).status, 403);
+  await q("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify(["luu_tinh_hoa_vu", "phikiem", null, null, null]), row.id]);
+  const c = await connect(P.token);
+  await sleep(400);
+  const casts = () => c.msgs.filter((m) => m.t === "s").flatMap((m) => m.E).filter((e) => e.e === "cast" && e.id === c.id);
+  const hitsBy = () => c.msgs.filter((m) => m.t === "s").flatMap((m) => m.E).filter((e) => e.e === "hit" && e.by === c.id);
+  const me0 = c.snap.P.find((x) => x[0] === c.id);
+  // unlearned art, slots out of range, junk in every field, a forged hit
+  for (const m of [
+    { t: "cast", s: 1, ax: 1, ay: 0 },
+    { t: "cast", s: 6, ax: 1, ay: 0 }, { t: "cast", s: -1 }, { t: "cast", s: 99 }, { t: "cast", s: "1; drop" },
+    { t: "cast", s: 3, ax: 1 }, // an empty slot
+    { t: "hit", id: 1, d: 99999 }, { t: "dmg", target: 1, amount: 99999 }, { t: "pos", x: 10, y: 10 }, { t: "me", hp: 1e9, atk: 1e9 },
+    { t: "in", dx: 1e9, x: 10, y: 10 }, { t: "in", dx: NaN },
+  ]) send(c, m);
+  send(c, { t: "in", dx: 0, jump: false, down: false });
+  await sleep(500);
+  assert.equal(casts().filter((e) => e.a === "luu_tinh_hoa_vu").length, 0, "an art not learned is never cast, even on the bar");
+  assert.equal(casts().length, 0, `no slot outside the bar, no empty slot (${JSON.stringify(casts())})`);
+  assert.equal(hitsBy().length, 0, "no hit a client claims");
+  const me1 = c.snap.P.find((x) => x[0] === c.id);
+  assert.ok(Math.abs(me1[1] - me0[1]) < 30, "no position a client claims");
+  assert.ok(c.me.atk < 1e6 && c.me.hp <= c.me.maxHp, "no numbers a client claims");
+  // fifty taps of Phi Kiếm in a burst: one cast, the rest wait out the cooldown
+  for (let i = 0; i < 50; i++) send(c, { t: "cast", s: 2, ax: 1, ay: 0 });
+  await sleep(600);
+  assert.equal(casts().filter((e) => e.a === "phikiem").length, 1, `one cast per cooldown (${casts().length})`);
+  // and the basic attack too: twenty taps, one cut
+  for (let i = 0; i < 20; i++) send(c, { t: "cast", s: 0, ax: 1, ay: 0 });
+  await sleep(150);
+  assert.equal(casts().filter((e) => e.s === 0).length, 1, "the basic attack waits its cooldown as well");
+  c.ws.close();
+  ok("a cheating client gets nothing: no unlearned art (even on its bar), no slot beyond the bar, no claimed hit, place or number, one cast per cooldown however fast it taps");
+}
+
 {
   const { q, pool } = await import("../server/db.js");
   await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);

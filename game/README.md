@@ -236,6 +236,20 @@ Có HTTPS thì game tự dùng `wss://`.
 Máy chủ là nơi duy nhất quyết định mọi thứ. Client chỉ gửi "đang bấm hướng nào, ra chiêu nào, ngắm đâu". Vị trí, tốc độ, hồi
 chiêu, tầm đánh, sát thương, phần thưởng đều do máy chủ tính, nên sửa client không gian lận được.
 
+Với công pháp, mỗi lần client xin ra chiêu, máy chủ (`World.cast` trong `server/world.js`) kiểm tra:
+
+- Ô chiêu phải là số nguyên từ 0 đến 5. Chuỗi, số lẻ, `null` đều bị bỏ qua.
+- Môn trong ô phải là môn người chơi đã lĩnh ngộ (hoặc môn mặc định) và đang bật. Kể cả khi ai đó ghi thẳng môn chưa học
+  vào thanh chiêu, máy chủ vẫn không cho ra.
+- Còn sống, không đang dịch chuyển, không bị khoá vì đang ra chiêu khác, và đã hết hồi chiêu. Bấm 50 lần một lúc vẫn chỉ ra một chiêu.
+- Hướng ngắm được chuẩn hoá, độ dốc bị giới hạn. Điểm kéo tới của chiêu vùng bị kéo về trong tầm của môn đó.
+- Sát thương tính từ chỉ số của nhân vật trên máy chủ. Ai trúng, trúng lúc nào, bị đẩy bay hay bị giữ chân đều do
+  `server/cong-phap.js` quyết định. Client chỉ vẽ hiệu ứng theo sự kiện máy chủ gửi về.
+- Mỗi kết nối gửi tối đa khoảng 40 tin mỗi giây. Gửi quá nhiều thì bị ngắt.
+
+Bài test `test/race.mjs` có một phần giả làm client gian lận, gửi tin giả thẳng qua WebSocket: ra môn chưa học, ô không
+tồn tại, tự báo trúng đòn hay vị trí, bấm liên tục. Máy chủ không chấp nhận tin nào.
+
 Chống tranh chấp khi nhiều yêu cầu đến cùng lúc (`server/store.js`):
 
 - **Tiền và vật phẩm chỉ đổi bằng câu lệnh có điều kiện:** `stones = stones - 40 WHERE stones >= 40`, `qty = qty - 1 WHERE qty > 0`.

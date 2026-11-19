@@ -317,8 +317,9 @@ export class World {
         return this.setFlying(p, m.on === true);
       case "cast": {
         // 0 is the basic attack, 1-5 the arts on the bar
-        const i = m.s | 0;
-        if (i < 0 || i > ART_SLOTS) return;
+        // (a whole number, nothing else: "1; x", 1.5 or null are not slots)
+        const i = m.s;
+        if (!Number.isInteger(i) || i < 0 || i > ART_SLOTS) return;
         // aim mostly along the ground: at most a gentle slope up or down
         let ax = num(m.ax) ? m.ax : p.face, ay = num(m.ay) ? clamp(m.ay, -Math.abs(ax) * 0.6 - 0.01, Math.abs(ax) * 0.6 + 0.01) : 0;
         const l = Math.hypot(ax, ay);
