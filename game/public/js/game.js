@@ -1153,6 +1153,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     use,
     inventory: () => inv,
     arts: () => arts,
+    // the latest "me" (level, hp, atk, def, spd, stones, rank...), for the character panel
+    me: () => me,
     // the panel changed the bar: show it now (the server confirms with an "arts" message too)
     setArts(v) {
       arts = { slots: v.slots, learned: v.learned };

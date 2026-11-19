@@ -535,9 +535,9 @@ $("wardBtn").addEventListener("click", async () => {
   const bal = () => ($$(".bal").textContent = `💎 ${me.character.stones} linh thạch`);
   const PER = 10;
   const grid = () => {
-    // what you wear first, then what is yours (bảo vật, then the free ones), then the shop from cheapest; 10 to a page
+    // a shop: what can be bought first (cheapest first), then what is already yours; 10 to a page
     const items = w.items.filter((it) => it.kind === kind && (it.g === g || it.g === "a") && (it.onSale || has(it)));
-    const rank = (it) => (wearing(it) ? 0 : has(it) ? (it.special ? 1 : 2) : 3);
+    const rank = (it) => (has(it) ? (it.special ? 1 : 2) : 0);
     items.sort((a, b) => rank(a) - rank(b) || a.price - b.price || a.idx - b.idx);
     const pages = Math.max(1, Math.ceil(items.length / PER)), at = Math.min(page[kind] ?? 0, pages - 1);
     page[kind] = at;
@@ -561,7 +561,7 @@ $("wardBtn").addEventListener("click", async () => {
       sel = it;
       trying[it.kind] = it.idx;
       side();
-    }, (it) => (wearing(it) ? "✓" : it.special ? "★" : ""), (it) => !has(it));
+    }, (it) => (has(it) ? "✓" : ""), (it) => !has(it));
   };
   const side = () => {
     const b = $$(".act"), st = $$(".st");
@@ -570,33 +570,31 @@ $("wardBtn").addEventListener("click", async () => {
     b.disabled = false;
     st.textContent = "";
     if (!sel) return;
-    if (sel.kind === "sword" && !canFly(me.character.level ?? levelFromExp(me.character.exp))) {
+    if (sel.kind === "sword" && !has(sel) && !canFly(me.character.level ?? levelFromExp(me.character.exp))) {
       st.textContent = `Tới cảnh giới ${flyRealmName()} mới ngự kiếm phi hành được`;
       b.hidden = true;
       return;
     }
-    if (wearing(sel)) (st.textContent = sel.kind === "sword" ? "Đang dùng" : "Đang mặc"), (b.hidden = true);
-    else if (has(sel)) (st.textContent = sel.special ? "★ Bảo vật" : sel.starter ? "Miễn phí" : "Đã có"), (b.textContent = sel.kind === "sword" ? "Dùng" : "Mặc");
+    // yours: only marked as yours (wearing it happens in the character panel, 👤)
+    if (has(sel)) (st.textContent = `Đã sở hữu${sel.special ? " · ★ Bảo vật" : ""}`), (b.hidden = true);
     // not yours yet: the price shows only when buying, in the confirmation
     else (st.textContent = "Chưa sở hữu"), (b.textContent = "Mua");
   };
   $$(".act").addEventListener("click", async () => {
     const it = sel, b = $$(".act");
     if (!it) return;
-    if (!has(it) && !(await buyConfirm(it, me.character.stones))) return;
+    if (has(it) || !(await buyConfirm(it, me.character.stones))) return;
     b.disabled = true;
     try {
-      if (has(it)) me.character = (await call("/cosmetics/wear", { method: "POST", body: { id: it.id } })).character;
-      else {
-        const out = await call("/cosmetics/buy", { method: "POST", body: { id: it.id, wear: true } });
+      {
+        const out = await call("/cosmetics/buy", { method: "POST", body: { id: it.id, wear: false } });
         me.character = out.character;
         w = { items: out.items, owned: out.owned };
         owned.clear();
         for (const id of out.owned) owned.add(id);
-        flash(`Đã mua ${it.name}!`);
+        flash(`Đã mua ${it.name}! Mặc ở bảng Nhân vật 👤.`);
       }
       state.character = me.character;
-      Object.assign(trying, me.character.look);
       bal();
       grid();
     } catch (err) {
@@ -709,3 +707,244 @@ if (token) {
   enter().catch(() => show("auth"));
   if (touch) $("fsBtn").classList.add("pulse");
 } else show("auth");
+
+// ---------------------------------------------------------------- the character (👤, C): who you are, what you wear, your bag
+// Left: the character standing in what they wear, its four equipment slots round it, and their numbers. Right: their
+// things, in tabs (all, equipment, items), as a grid of slots a page at a time; picking one shows it below with what can
+// be done with it: wear it (anything you own), use it (a pill). Buying happens at the Y Các; wearing happens here.
+const KIND_NAME = { hair: "Tóc", robe: "Y phục", weapon: "Vũ khí", sword: "Phi kiếm" };
+const ITEM_KIND_NAME = { pill: "Đan dược", book: "Bí kíp", material: "Nguyên liệu" };
+const itemIcon = (id) => {
+  const it = ITEMS[id];
+  const pic = it?.kind === "book" ? "jade_slip" : it?.kind === "material" ? (id === "mat_linhtuy" ? "lingzhi" : "spirit_stone")
+    : { hoixuan: "pill_bottle", tukhi: "furnace" }[id] ?? (it?.heal ? "peach" : "gourd");
+  return `/xianxia/ui/ui_xianxia_item_${pic}.png`;
+};
+$("charBtn").addEventListener("click", () => charPanel());
+addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() !== "c" || e.repeat || !game || /input|textarea/i.test(document.activeElement?.tagName ?? "")) return;
+  if (!$("panel").hidden && $("panel").querySelector(".charp")) return void ($("panel").hidden = true);
+  charPanel();
+});
+async function charPanel(startTab = "all") {
+  if (!game) return;
+  let w, me;
+  try {
+    [w, me] = await Promise.all([call("/cosmetics"), call("/me")]);
+  } catch (err) {
+    return flash(err.message);
+  }
+  if (!me.character) return;
+  state.character = me.character;
+  const ch = () => state.character, g = ch().look.g, PER = 20;
+  let tab = startTab, kind = "", page = 0, sel = null;
+  const owned = new Set(w.owned);
+  const mine = () => w.items.filter((it) => (it.g === g || it.g === "a") && (it.starter || owned.has(it.id)));
+  const wearing = (it) => ch().look[it.kind] === it.idx;
+  const bag = () => Object.entries(game.inventory()).filter(([k, n]) => n > 0 && ITEMS[k]).sort((a, b) => (ITEMS[a[0]].sort ?? 0) - (ITEMS[b[0]].sort ?? 0));
+
+  const wrap = document.createElement("div");
+  wrap.className = "charp";
+  wrap.innerHTML = `
+    <section class="cleft">
+      <div class="stage">
+        <div class="slots l"></div>
+        <div class="fig"><canvas width="96" height="104"></canvas><div class="plinth"></div></div>
+        <div class="slots r"></div>
+      </div>
+      <div class="ident"><b class="nm"></b><span class="realm"></span></div>
+      <div class="cstats"></div>
+    </section>
+    <section class="cright">
+      <div class="ctabs" role="tablist"></div>
+      <div class="cfilter"></div>
+      <div class="cgrid"></div>
+      <div class="cpager"></div>
+      <div class="cdetail"></div>
+    </section>`;
+  const $$ = (s) => wrap.querySelector(s);
+
+  // ---- left: the figure, its slots, its numbers
+  function drawLeft() {
+    const m = game.me() ?? {};
+    $$(".nm").textContent = ch().name;
+    $$(".realm").textContent = realmName(m.lv ?? ch().level ?? levelFromExp(ch().exp));
+    for (const [side, kinds] of [["l", ["hair", "robe"]], ["r", ["weapon", "sword"]]]) {
+      const box = $$(`.slots.${side}`);
+      box.replaceChildren();
+      for (const k of kinds) {
+        const it = w.items.find((x) => x.kind === k && (x.g === g || x.g === "a") && x.idx === ch().look[k]);
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "eslot";
+        b.title = `${KIND_NAME[k]}: ${it?.name ?? "—"} (bấm để đổi)`;
+        if (it) b.append(partCanvas(k, it.g, it.idx));
+        b.append(Object.assign(document.createElement("small"), { textContent: KIND_NAME[k] }));
+        b.addEventListener("click", () => ((tab = "equip"), (kind = k), (page = 0), (sel = it ?? null), drawRight()));
+        box.append(b);
+      }
+    }
+    const rows = [
+      ["item_peach", "Sinh lực", m.maxHp ? `${m.hp}/${m.maxHp}` : "—"], ["status_burn", "Công", m.atk ?? "—"], ["status_golden_shield", "Thủ", m.def ?? "—"],
+      ["status_swift", "Tốc độ", m.spd ?? "—"], ["item_spirit_stone", "Linh thạch", (m.stones ?? ch().stones ?? 0).toLocaleString("vi-VN")],
+      ["item_token", "Đấu trường", m.rank ?? ch().rank ?? 0], ["status_bleed", "Hạ / Bại", `${m.kills ?? 0} / ${m.deaths ?? 0}`],
+    ];
+    $$(".cstats").replaceChildren(...rows.map(([ic, l, v]) => {
+      const d = document.createElement("div");
+      d.innerHTML = `<img src="/xianxia/ui/ui_xianxia_${ic}.png" alt=""><span>${l}</span><b></b>`;
+      d.querySelector("b").textContent = v;
+      return d;
+    }));
+  }
+
+  // ---- right: tabs, filters, the grid of slots, the pager, the picked thing
+  const entries = () => {
+    const eq = mine().filter((it) => !kind || it.kind === kind).map((it) => ({ t: "eq", it }))
+      .sort((a, b) => wearing(b.it) - wearing(a.it) || "hair robe weapon sword".indexOf(a.it.kind) - "hair robe weapon sword".indexOf(b.it.kind) || a.it.idx - b.it.idx);
+    const its = bag().map(([k, n]) => ({ t: "item", k, n }));
+    return tab === "equip" ? eq : tab === "items" ? its : [...eq, ...its];
+  };
+  function drawRight() {
+    const tabs = $$(".ctabs");
+    tabs.replaceChildren(...[["all", "Tất cả"], ["equip", "Trang bị"], ["items", "Vật phẩm"]].map(([v, l]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = l;
+      b.className = v === tab ? "on" : "";
+      b.addEventListener("click", () => ((tab = v), (page = 0), (sel = null), tab !== "equip" && (kind = ""), drawRight()));
+      return b;
+    }));
+    const f = $$(".cfilter");
+    f.replaceChildren();
+    f.hidden = tab !== "equip";
+    if (tab === "equip")
+      for (const [v, l] of [["", "Tất cả"], ["hair", "Tóc"], ["robe", "Y phục"], ["weapon", "Vũ khí"], ["sword", "Phi kiếm"]]) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = l;
+        b.className = v === kind ? "on" : "";
+        b.addEventListener("click", () => ((kind = v), (page = 0), (sel = null), drawRight()));
+        f.append(b);
+      }
+    const list = entries(), pages = Math.max(1, Math.ceil(list.length / PER));
+    page = Math.min(page, pages - 1);
+    const grid = $$(".cgrid");
+    grid.replaceChildren();
+    const shown = list.slice(page * PER, page * PER + PER);
+    for (const e of shown) {
+      const b = document.createElement("button");
+      b.type = "button";
+      const on = sel && (e.t === "eq" ? sel.it?.id === e.it.id : sel.k === e.k);
+      if (e.t === "eq") {
+        b.className = `cell eq${wearing(e.it) ? " worn" : ""}${on ? " on" : ""}`;
+        b.title = e.it.name;
+        b.append(partCanvas(e.it.kind, e.it.g, e.it.idx));
+        if (wearing(e.it)) b.append(Object.assign(document.createElement("i"), { className: "mark", textContent: "✓" }));
+        b.append(Object.assign(document.createElement("em"), { className: "kind", textContent: KIND_NAME[e.it.kind] }));
+      } else {
+        b.className = `cell item k-${ITEMS[e.k].kind}${on ? " on" : ""}`;
+        b.title = ITEMS[e.k].name;
+        b.append(Object.assign(new Image(), { src: itemIcon(e.k), alt: "" }), Object.assign(document.createElement("i"), { className: "qty", textContent: e.n }));
+      }
+      b.addEventListener("click", () => ((sel = e), drawRight()));
+      grid.append(b);
+    }
+    // empty slots to the end of the page: the bag keeps its shape
+    for (let i = shown.length; i < PER; i++) grid.append(Object.assign(document.createElement("span"), { className: "cell empty" }));
+    const pg = $$(".cpager");
+    pg.replaceChildren();
+    if (pages > 1) {
+      const btn = (label, to) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = label;
+        b.disabled = to < 0 || to >= pages;
+        b.className = to === page && label !== "‹" && label !== "›" ? "on" : "";
+        b.addEventListener("click", () => ((page = to), drawRight()));
+        return b;
+      };
+      pg.append(btn("‹", page - 1));
+      for (let i = 0; i < pages; i++) pg.append(btn(String(i + 1), i));
+      pg.append(btn("›", page + 1));
+    }
+    pg.append(Object.assign(document.createElement("span"), { className: "count", textContent: `${list.length} món` }));
+    drawDetail();
+  }
+  function drawDetail() {
+    const d = $$(".cdetail");
+    d.replaceChildren();
+    if (!sel) {
+      d.innerHTML = `<p class="hint">Chọn một món để xem. Mua thêm tóc, y phục, vũ khí, phi kiếm ở Y Các 👘; đan dược ở Đan Các ⚗.</p>`;
+      return;
+    }
+    const pic = document.createElement("div");
+    pic.className = "dpic";
+    const txt = document.createElement("div");
+    txt.className = "dtxt";
+    const act = document.createElement("div");
+    act.className = "dact";
+    const h = document.createElement("b"), sub = document.createElement("span"), p = document.createElement("p");
+    txt.append(h, sub, p);
+    if (sel.t === "eq") {
+      const it = sel.it;
+      pic.append(partCanvas(it.kind, it.g, it.idx));
+      h.textContent = it.name;
+      sub.textContent = `${KIND_NAME[it.kind]}${it.special ? " · ★ Bảo vật" : it.starter ? " · Miễn phí" : ""}`;
+      p.textContent = wearing(it) ? (it.kind === "sword" ? "Đang dùng để ngự kiếm." : "Đang mặc.") : "Đã sở hữu.";
+      const b = document.createElement("button");
+      b.className = "primary";
+      const locked = it.kind === "sword" && !canFly(game.me()?.lv ?? levelFromExp(ch().exp));
+      b.textContent = wearing(it) ? (it.kind === "sword" ? "Đang dùng" : "Đang mặc") : it.kind === "sword" ? "Dùng" : "Trang bị";
+      b.disabled = wearing(it) || locked;
+      if (locked && !wearing(it)) p.textContent = `Tới cảnh giới ${flyRealmName()} mới ngự kiếm phi hành được.`;
+      b.addEventListener("click", async () => {
+        b.disabled = true;
+        try {
+          state.character = (await call("/cosmetics/wear", { method: "POST", body: { id: it.id } })).character;
+          Object.assign(look2, state.character.look);
+          flash(`Đã trang bị ${it.name}.`);
+          drawLeft();
+          drawRight();
+        } catch (err) {
+          alertIn(wrap, err.message);
+          b.disabled = false;
+        }
+      });
+      act.append(b);
+    } else {
+      const it = ITEMS[sel.k];
+      pic.append(Object.assign(new Image(), { src: itemIcon(sel.k), alt: "" }));
+      h.textContent = it.name;
+      sub.textContent = `${ITEM_KIND_NAME[it.kind] ?? it.kind} · còn ${game.inventory()[sel.k] ?? 0}`;
+      p.textContent = it.desc ?? "";
+      if (it.kind === "pill") {
+        const b = document.createElement("button");
+        b.className = "primary";
+        b.textContent = "Dùng";
+        b.addEventListener("click", () => {
+          game.use(sel.k);
+          b.disabled = true;
+          setTimeout(() => {
+            if (!(game.inventory()[sel.k] > 0)) sel = null;
+            drawLeft();
+            drawRight();
+          }, 700);
+        });
+        act.append(b);
+      } else if (it.kind === "book" || it.kind === "material") {
+        const b = document.createElement("button");
+        b.textContent = "Công Pháp 📜";
+        b.title = "Bí kíp và nguyên liệu dùng để lĩnh ngộ công pháp";
+        b.addEventListener("click", () => artsPanel());
+        act.append(b);
+      }
+    }
+    d.append(pic, txt, act);
+  }
+
+  const look2 = { ...ch().look };
+  drawLeft();
+  drawRight();
+  panel("Nhân vật", wrap);
+  preview($$(".fig canvas"), () => look2, () => !$("panel").hidden && wrap.isConnected, () => false);
+}
