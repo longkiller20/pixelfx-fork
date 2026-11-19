@@ -13,8 +13,8 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Database cũ được dọn một lần khi máy chủ khởi động (migration `retire_shop_2026_11`, rồi `retire_specials_2026_11`). Người đã mua được hoàn linh thạch. Ai đang mặc món bị xoá thì đổi sang món miễn phí.
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật cử động: đứng, đi, nhảy, xuất chiêu.
-- **Y Các (nút 👘 trong game):** bán 35 kiểu tóc và 35 bộ y phục còn lại của mỗi giới, giá 150 / 300 / 500 linh thạch tùy độ cầu
-  kỳ. Thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
+- **Y Các (nút 👘 trong game):** các tab tóc, y phục, vũ khí, phi kiếm. Hiện chỉ có đồ miễn phí. Khi admin thêm đồ bán, người chơi
+  thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
   - Mọi nhân vật dựng từ cùng một thân gốc, nên tóc và áo nào cũng mặc vừa.
   - Có rig và hoạt ảnh: thân trên thở và nhún, tay áo xoay quanh vai, vạt áo và tóc bay theo bước chạy, hai chân bước.
 - **Yêu thú:** cả 12 critters của pixelfx đều đã có chỉ số trong database, nhưng chưa đặt lên bản đồ nào; sẽ có khi có
