@@ -10,6 +10,9 @@ import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
 import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
 import { CAST, stepReturning } from "./cong-phap.js";
 import * as store from "./store.js";
+import { sectOf } from "./tong-mon.js";
+import { SECT } from "../shared/balance.js";
+import { sectBonus } from "../shared/tong-mon.js";
 import { userFromToken } from "./auth.js";
 import { KeyedLock } from "./lock.js";
 
@@ -46,13 +49,15 @@ export class World {
 
   // ---------------------------------------------------------------- arriving and leaving
   /** A player logging in onto this map (the Universe has checked the token and loaded the character). */
-  admit(ws, ch, inv, buffs) {
+  admit(ws, ch, inv, buffs, sect = null) {
     const p = {
       id: nextId(), kind: "p", userId: ch.userId, ws, name: ch.name, cls: ch.cls, look: ch.look,
       ...this.spawnPoint(), face: 1, in: { dx: 0, dy: 0, jump: false, down: false }, flying: false, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
       hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
       cd: [0], artCd: {}, slots: ch.slots, learned: new Set(ch.learned), tbuffs: {}, busyUntil: 0, rootUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
       medAcc: 0, meditating: false, base: null, pend: zero(), fly: zero(), level: 1, medLeft: 0, saving: null, gone: false, buffs,
+      // their Tông Môn as the database says (server/tong-mon.js sectOf): its bonus counts in stats(), its name shows over them
+      sect,
     };
     this.applyBase(p, ch, true);
     ws.player = p;
@@ -273,7 +278,12 @@ export class World {
       const x = e.tbuffs?.[stat];
       return x && x.until > this.t ? x.pct / 100 : 0;
     };
-    const b = (stat) => Math.max(0.1, (this.map.pvp ? 1 : 1 + this.buff(e, stat) / 100) + tb(stat));
+    // and the sect's: its level (hp, atk, def) and, while it stands, the Hộ Sơn Đại Trận (atk), in the open world only
+    const sb = (stat) => {
+      if (this.map.pvp || !e.sect || stat === "spd") return 0;
+      return (sectBonus(e.sect.level, SECT) + (stat === "atk" && e.sect.arrayUntil > Date.now() ? SECT.arrayAtk : 0)) / 100;
+    };
+    const b = (stat) => Math.max(0.1, (this.map.pvp ? 1 : 1 + this.buff(e, stat) / 100) + tb(stat) + sb(stat));
     return {
       maxHp: Math.round(c.hp * m * b("hp")), atk: c.atk * m * b("atk"), def: c.def * m * b("def"),
       spd: c.spd * b("spd") * (e.slowUntil > this.t ? 0.5 : 1) * (e.busyUntil > this.t ? 0.45 : 1),
@@ -297,6 +307,7 @@ export class World {
       // walking speed before a slow or a cast's pause (the browser applies those itself from the snapshot's flags)
       spd: +(st.spd / (p.slowUntil > this.t ? 0.5 : 1) / (p.busyUntil > this.t ? 0.45 : 1)).toFixed(2),
       cd: this.cooldowns(p),
+      sect: p.sect ? { id: p.sect.id, name: p.sect.name, rank: p.sect.rank, level: p.sect.level, bonus: this.map.pvp ? 0 : sectBonus(p.sect.level, SECT), array: Math.max(0, Math.round((p.sect.arrayUntil - Date.now()) / 1000)) } : null,
       respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
       buffs: (p.buffs ?? []).filter((x) => x.until === null || x.until > Date.now()).map((x) => ({ stat: x.stat, pct: x.pct, left: x.until === null ? null : Math.round((x.until - Date.now()) / 1000) })),
     });
@@ -331,9 +342,14 @@ export class World {
       }
       case "chat": {
         if (typeof m.m !== "string" || this.t < p.chatAt) return;
-        const text = m.m.replace(/[\u0000-\u001f\u007f<>]/g, "").trim().slice(0, 120);
+        const text = m.m.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff<>]/g, "").trim().slice(0, 120);
         if (!text) return;
         p.chatAt = this.t + 1;
+        // the sect's own channel: only its members, wherever they are, see it
+        if (m.ch === "s") {
+          if (!p.sect) return send(p.ws, { t: "toast", m: "Đạo hữu chưa ở tông môn nào." });
+          return this.u?.sectChat(p.sect.id, { t: "chat", ch: "s", n: p.name, m: text });
+        }
         // chat reaches everyone, on every map
         return this.u ? this.u.broadcast({ t: "chat", n: p.name, m: text }) : this.broadcast({ t: "chat", n: p.name, m: text });
       }
@@ -869,7 +885,7 @@ export class World {
 
 const zero = () => ({ exp: 0, stones: 0, rank: 0, kills: 0, deaths: 0, med: 0 });
 const rnd = (a, b) => a + Math.random() * (b - a);
-const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level });
+const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level, sect: p.sect ? { n: p.sect.name, e: p.sect.emblem, r: p.sect.rank } : null });
 // a client that can't keep up (more than 1 MB queued) skips snapshots instead of growing the server's memory
 function sendRaw(ws, msg) {
   if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 1 << 20) ws.send(msg);
@@ -975,9 +991,10 @@ export class Universe {
       }
       const inv = await store.inventory(uid);
       const buffs = await store.activeBuffs(uid);
+      const sect = await sectOf(uid);
       if (ws.readyState !== WebSocket.OPEN) return;
       // back on the map they were last on (at its arrival point), or the starter town
-      (this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs);
+      (this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect);
     });
   }
 
@@ -1014,6 +1031,48 @@ export class Universe {
     to.enter(p, inv, at);
     to.ev({ e: "warp", id: p.id, x: Math.round(at.x), y: Math.round(at.y), out: 0 });
     store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
+  }
+
+  // ---- Tông Môn: the API changed a sect; the world takes it for whoever is online
+  /** Save what this player earned and hasn't written yet (before spending stones from the database). */
+  async flushUser(uid) {
+    const p = this.players.get(uid);
+    if (p) await p.world.save(p);
+  }
+  /** Read these players' sect again (joined, left, kicked, rank, level, the array...): their bonus, the name over them, their panel. */
+  async syncSect(uids) {
+    const all = this.players;
+    await Promise.all([...new Set(uids)].map(async (uid) => {
+      const p = all.get(uid);
+      if (!p) return;
+      const s = await sectOf(uid);
+      if (p.gone) return;
+      const shown = JSON.stringify(info(p));
+      p.sect = s;
+      if (JSON.stringify(info(p)) !== shown) p.world.broadcast({ t: "pi", ...info(p) });
+      p.world.sendMe(p);
+      send(p.ws, { t: "sect" });
+    }));
+  }
+  /** Tell members online that their sect changed (their panel reloads), but not `except`. */
+  sectPing(uids, except = null) {
+    const all = this.players;
+    for (const uid of uids) if (uid !== except) send(all.get(uid)?.ws, { t: "sect" });
+  }
+  sectToast(uids, m, except = null) {
+    const all = this.players;
+    for (const uid of uids) if (uid !== except) send(all.get(uid)?.ws, { t: "toast", m, ch: "s" }), send(all.get(uid)?.ws, { t: "sect" });
+  }
+  toastUser(uid, m, big = false) {
+    send(this.players.get(uid)?.ws, { t: "toast", m, ...(big ? { big: 1 } : {}) });
+  }
+  async nameOf(uid) {
+    return this.players.get(uid)?.name ?? (await store.loadCharacter(uid))?.name ?? "?";
+  }
+  /** A line on the sect channel, to its members online on every map. */
+  sectChat(sectId, msg) {
+    const raw = JSON.stringify(msg);
+    for (const w of this.worlds.values()) for (const p of w.players.values()) if (p.sect?.id === sectId) sendRaw(p.ws, raw);
   }
 
   // ---- the same calls the API and the admin site made on the one world, now for wherever the player is

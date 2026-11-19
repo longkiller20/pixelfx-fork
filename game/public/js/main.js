@@ -5,6 +5,7 @@ import { ELEMENTS } from "/shared/cong-phap.js";
 import { artIcon, artLine, elementName } from "./arts.js";
 import { loadAvatars, drawAvatar, partCanvas } from "./avatar.js";
 import { startGame } from "./game.js";
+import { initSect } from "./tong-mon.js";
 import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange } from "./music.js";
 
 const $ = (id) => document.getElementById(id);
@@ -222,6 +223,8 @@ function play() {
     token, character: state.character, inventory: state.inventory, touch, refreshConfig,
     // an empty slot on the bar opens the arts, ready to fill that slot
     openArts: (slot) => artsPanel(slot),
+    onSect: () => sect.onSect(),
+    onSectChat: (m) => sect.onChat(m),
     onFatal: (msg, relog) => {
       game = null;
       $("fatalMsg").textContent = msg;
@@ -793,6 +796,15 @@ const itemIcon = (id) => {
   return `/xianxia/ui/ui_xianxia_item_${pic}.png`;
 };
 $("charBtn").addEventListener("click", () => charPanel());
+
+// ---------------------------------------------------------------- Tông Môn (🏯, T): public/js/tong-mon.js
+const sect = initSect({ call, uuid, panel, flash, game: () => game, itemIcon });
+$("sectBtn").addEventListener("click", () => sect.open());
+addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() !== "t" || e.repeat || !game || /input|textarea|select/i.test(document.activeElement?.tagName ?? "")) return;
+  if (!$("panel").hidden && $("panel").querySelector(".sectp")) return void ($("panel").hidden = true);
+  sect.open();
+});
 addEventListener("keydown", (e) => {
   if (e.key.toLowerCase() !== "c" || e.repeat || !game || /input|textarea/i.test(document.activeElement?.tagName ?? "")) return;
   if (!$("panel").hidden && $("panel").querySelector(".charp")) return void ($("panel").hidden = true);

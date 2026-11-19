@@ -16,6 +16,7 @@ import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, a
 import { userLock } from "./lock.js";
 import { MAPS as MAP_DEFS, mapInfo } from "../shared/maps/index.js";
 import { CONG_PHAP } from "../shared/cong-phap.js";
+import * as sects from "./tong-mon.js";
 
 const MAPS = Object.keys(MAP_DEFS).map((id) => mapInfo(id));
 
@@ -87,6 +88,8 @@ const T = {
   monster_drops: { pk: "id", order: "monster, id", config: true, add: true, del: true, cols: { monster: "str:16", item_key: "str:32", chance: "num", min_qty: "uint", max_qty: "uint" } },
   skills: { pk: "slot", order: "slot", config: true, cols: { name: "str:40", type: "enum:melee|bolt|zone", cd: "num", mult: "num", params: "json" } },
   settings: { pk: "k", order: "k", config: true, cols: { v: "num" } },
+  // the sect treasure house (Tông Môn Bảo Khố): what members buy with cống hiến
+  sect_shop: { pk: "item_key", pkType: "key", order: "sort, item_key", add: true, del: true, cols: { cost: "uint", min_level: "uint", daily_limit: "uint", on_sale: "bool", sort: "int" } },
   cosmetics: {
     pk: "id", order: "kind, gender, starter DESC, sort, idx", add: true, del: true,
     cols: { kind: "enum:hair|robe|weapon|sword", gender: "enum:m|f|a", idx: "uint", name: "str:40", price: "uint", starter: "bool", on_sale: "bool", special: "bool", sort: "int" },
@@ -301,6 +304,9 @@ export function adminApp(world) {
       const key = String(body[t.pk] ?? "").trim();
       if (!/^[a-z0-9_]{2,32}$/.test(key)) throw bad("Mã: 2-32 ký tự chữ thường không dấu, số, _.");
       row[t.pk] = key;
+      // the treasure house sells only items the game has
+      if (name === "sect_shop" && !(await q("SELECT 1 FROM items WHERE item_key = ?", [key])).length) throw bad(`Chưa có vật phẩm "${key}" (thêm nó ở tab Vật phẩm trước).`);
+      if (name === "sect_shop" && row.cost === undefined) throw bad("Thiếu giá (cống hiến).");
     }
     checkFx(name, row);
     if (name === "realms" && row.sort === undefined) row.sort = Number((await q("SELECT COALESCE(MAX(sort), 0) + 10 AS s FROM realms"))[0].s);
@@ -596,6 +602,29 @@ export function adminApp(world) {
     console.error("admin", err);
     res.status(500).json({ error: "Lỗi máy chủ, hãy thử lại." });
   });
+
+  // ---- Tông Môn: every sect, one in full; edit it, its members, or end it. The world is told at once (bonus, names).
+  r.get("/sects", wrap(async (req, res) => res.json(await sects.adminList())));
+  r.get("/sects/:id", wrap(async (req, res) => res.json(await sects.adminOne(req.params.id))));
+  r.patch("/sects/:id", wrap(async (req, res) => {
+    const out = await sects.adminEdit(req.params.id, req.body);
+    await log(req.admin, "sect.edit", out.before.name, Object.fromEntries(Object.entries(out.set).map(([k, v]) => [k, [out.before[k], v]])));
+    await world.syncSect(out.uids);
+    res.json({ ok: true });
+  }));
+  r.post("/sects/:id/member", wrap(async (req, res) => {
+    const out = await sects.adminMember(req.params.id, req.body?.uid, req.body?.action, req.body?.rank);
+    await log(req.admin, `sect.${req.body?.action === "remove" ? "remove" : "rank"}`, out.name, { sect: Number(req.params.id), rank: req.body?.rank });
+    await world.syncSect(out.uids);
+    res.json({ ok: true });
+  }));
+  r.delete("/sects/:id", wrap(async (req, res) => {
+    const out = await sects.adminDisband(req.params.id);
+    await log(req.admin, "sect.disband", out.name, { members: out.uids.length });
+    await world.syncSect(out.uids);
+    world.sectToast?.(out.uids, `Tông môn ${out.name} đã bị ban quản trị giải tán.`);
+    res.json({ ok: true });
+  }));
 
   app.use("/api", r);
   // the page, plus the parts' pictures (one folder each) for the thumbnails
