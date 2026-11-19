@@ -365,6 +365,10 @@ Hình nhân vật nằm ở `public/avatar/`. Bù nhìn và mọi hiệu ứng �
 
 Mọi danh sách đều hiện mỗi món một dòng: tên, vài chữ tóm tắt, các nhãn. Áp dụng cho cảnh giới, vật phẩm, công pháp, rơi đồ, yêu thú, đánh thường, cài đặt, tóc/áo/vũ khí/phi kiếm.
 
+- Mỗi trang 10 mục. Bên dưới có nút ‹ 1 2 3 … › và tổng số mục.
+  - Trang đang xem được nhớ theo tab và bộ lọc: lưu một món ở trang 4 thì vẫn ở trang 4. Tìm kiếm mới thì quay về trang 1.
+- Tab nào cũng có ô tìm kiếm (tìm theo tên, mã, hiệu ứng, ý nghĩa…). Cài đặt lọc được theo nhóm, Yêu thú lọc được theo kiểu đánh. Nhật ký tìm trong các dòng đã tải, nút "Tải thêm" lấy các dòng cũ hơn.
+- Danh sách người chơi lấy tối đa 500 người mỗi lần tìm. Muốn ra người cụ thể thì gõ tên.
 - Bấm vào dòng thì bảng chỉnh sửa mở trong một modal. Đóng bằng ✕, phím Esc, hoặc bấm ra ngoài. Trên điện thoại modal chiếm cả màn hình.
 - Trang một người chơi cũng vậy: phần đầu (đang ở đâu, sinh lực, các nút thao tác trực tiếp) luôn hiện. Các phần còn lại mỗi phần một dòng, có tóm tắt sẵn:
   - Tài nguyên, Buff riêng, Túi đồ, Công pháp, Tên & ngoại hình, Đồ đang có, Tài khoản, Lịch sử.

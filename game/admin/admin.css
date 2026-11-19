@@ -169,3 +169,11 @@ body.noscroll { overflow: hidden; }
   #modalBox .rec.open { border-radius: 0; min-height: 100dvh; }
   .rec:not(.open) .sum .dim { flex-basis: 100%; order: 3; white-space: nowrap; }
 }
+
+/* lists a page at a time */
+.grid:has(> .row), .grid:has(> .logitem) { grid-template-columns: 1fr; gap: 6px; }
+.pager { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; margin: 12px 0 4px; }
+.pager button { min-width: 38px; }
+.pager button.on { background: var(--gold); color: #2a1604; border-color: var(--gold); font-weight: 700; }
+.pager .count { margin-left: 8px; }
+@media (max-width: 640px) { .pager button { min-width: 34px; padding: 4px 8px; } .pager .count { flex-basis: 100%; text-align: center; margin: 0; } }
