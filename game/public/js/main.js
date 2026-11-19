@@ -313,8 +313,8 @@ function artsPanel(startSlot = -1) {
   bag.className = "bag";
   const st = () => game.arts(), inv = () => game.inventory();
   const known = (a) => a.starter || st().learned.includes(a.key);
-  // the admin's switches: learnable with its bí kíp, sold; neither = only given (events, activities)
-  const ev = (a) => !a.starter && !a.learnable && !a.onSale;
+  // learned with its items, or (an admin's switch) only given by events and activities; never bought
+  const ev = (a) => !a.starter && !a.learnable;
   const can = (a) => a.learnable && a.reqs.every((r) => (inv()[r.item] ?? 0) >= r.qty);
   const icon = (key, img) => artIcon(key, (url) => url && (img.src = url));
 
@@ -404,7 +404,6 @@ function artsPanel(startSlot = -1) {
       const h = document.createElement("h4");
       h.innerHTML = `${a.name} <small>· ${elementName(a.element)} · bậc ${a.tier}</small>`;
       if (ev(a)) h.append(Object.assign(document.createElement("span"), { className: "evtag", textContent: "★ Sự kiện" }));
-      else if (a.onSale && !k) h.append(Object.assign(document.createElement("span"), { className: "evtag sale", textContent: "Có bán" }));
       const line = document.createElement("p");
       line.textContent = artLine(a) + (a.desc ? `. ${a.desc}` : "");
       body.append(h, line);
@@ -413,7 +412,7 @@ function artsPanel(startSlot = -1) {
         note.className = "evnote";
         note.textContent = "Chỉ nhận được qua hoạt động, sự kiện.";
         body.append(note);
-      } else if (!k && a.learnable) {
+      } else if (!k) {
         const req = document.createElement("div");
         req.className = "req";
         for (const r of a.reqs) {
@@ -434,8 +433,6 @@ function artsPanel(startSlot = -1) {
       } else if (ev(a)) {
         b.textContent = "Chỉ qua sự kiện";
         b.disabled = true;
-      } else if (!a.learnable) {
-        b.hidden = true;
       } else {
         b.textContent = "Lĩnh ngộ";
         b.disabled = !can(a);
@@ -455,30 +452,6 @@ function artsPanel(startSlot = -1) {
         });
       }
       acts.append(b);
-      // on sale: bought with spirit stones; the price shows in the confirmation
-      if (!k && a.onSale) {
-        const buy = document.createElement("button");
-        buy.textContent = "Mua";
-        buy.className = "primary";
-        buy.addEventListener("click", async () => {
-          buy.disabled = true;
-          try {
-            const stones = (await call("/me")).character?.stones ?? 0, pic = new Image();
-            icon(a.key, pic);
-            if (!(await buyConfirm({ title: "Mua công pháp", name: a.name, price: a.price, pic }, stones))) return;
-            const out = await call("/arts/buy", { method: "POST", body: { key: a.key } });
-            game.setArts(out.character);
-            state.character = out.character;
-            flash(`Đã có ${a.name}!`);
-            draw();
-          } catch (err) {
-            alertIn(wrap, err.message);
-          } finally {
-            buy.disabled = false;
-          }
-        });
-        acts.append(buy);
-      }
       body.append(acts);
       card.append(img, body);
       list.append(card);
@@ -507,20 +480,17 @@ function artsPanel(startSlot = -1) {
   panel(`Công Pháp (${ART_LIST.filter(known).length}/${ART_LIST.length} đã lĩnh ngộ)`, wrap);
 }
 
-/**
- * A purchase confirmation over the panel (Y Các, the Công Pháp panel): the thing (pic: a canvas or image), its name, its
- * price and what is left after. Resolves true to buy.
- */
+/** The Y Các purchase confirmation, over the panel: the item, its price and what is left after. Resolves true to buy. */
 function buyConfirm(it, stones) {
   return new Promise((done) => {
     const short = it.price - stones;
     const box = document.createElement("div");
     box.className = "buyask";
-    box.innerHTML = `<div class="card" role="dialog" aria-modal="true"><h4>${it.title ?? "Mua vật phẩm"}</h4><div class="pic"></div><b class="nm"></b>
+    box.innerHTML = `<div class="card" role="dialog" aria-modal="true"><h4>Mua vật phẩm</h4><div class="pic"></div><b class="nm"></b>
       <div class="price">Giá: <b>💎 ${it.price}</b> linh thạch</div>
       <div class="after ${short > 0 ? "bad" : "dim"}">${short > 0 ? `Thiếu ${short} linh thạch (đang có ${stones})` : `Đang có ${stones} → còn ${stones - it.price}`}</div>
       <div class="btns"><button type="button" class="no">Huỷ</button><button type="button" class="primary yes">Mua</button></div></div>`;
-    box.querySelector(".pic").append(it.pic ?? partCanvas(it.kind, it.g, it.idx));
+    box.querySelector(".pic").append(partCanvas(it.kind, it.g, it.idx));
     box.querySelector(".nm").textContent = it.name;
     const yes = box.querySelector(".yes");
     yes.disabled = short > 0;

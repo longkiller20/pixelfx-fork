@@ -43,12 +43,10 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   Hai môn ai cũng biết sẵn: Phi Kiếm, Lôi Ấn Trận. Bốn môn phải có được: Địa Chấn Cước, Tam Tuyệt Kiếm, Lưu Tinh Hỏa Vũ,
   Diệt Thế Thần Bạo.
   - Mỗi môn có cách đánh, nhịp ra đòn và hình ảnh riêng, không còn dùng chung vài kiểu chiêu với số liệu trong database.
-  - Admin bật/tắt môn, chọn học được bằng bí kíp hay chỉ nhận từ sự kiện, hoạt động, có bán không, và đổi vật phẩm cần để
-    lĩnh ngộ. Số liệu chiến đấu nằm trong code.
+  - Công pháp không bán. Có được bằng hai cách: lĩnh ngộ bằng vật phẩm yêu cầu, hoặc (khi admin tắt học bằng bí kíp) chỉ
+    nhận qua hoạt động, sự kiện. Admin bật/tắt môn, chọn một trong hai cách đó, và đổi vật phẩm cần để lĩnh ngộ. Số liệu chiến đấu nằm trong code.
   - **Lĩnh ngộ:** mặc định tiêu hao bí kíp riêng của môn, tinh thạch cùng hệ (6 cho bậc 2, 10 cho bậc 3) và Linh Tủy (1
     hoặc 3). Admin đổi được danh sách này cho từng môn.
-  - **Mua:** khi admin bật bán, môn đó có nút Mua trong bảng Công Pháp. Giá (linh thạch) đặt trong code và chỉ hiện ở hộp
-    xác nhận.
   - **Rơi đồ:** tinh thạch 4%, Linh Tủy 1%, bí kíp 0,1-0,3% tùy bậc, khi hạ yêu thú. Bù nhìn rơm không rơi gì.
   - Database cũ: mọi môn khác được bỏ một lần khi máy chủ khởi động, cùng bí kíp (cả trong túi), chỗ rơi, và khỏi người đã
     học, khỏi thanh nút. Hai bảng `arts`, `art_reqs` cũ cũng bỏ; môn nào trước đó đang tắt hay chỉ nhận từ sự kiện thì giữ
@@ -458,7 +456,7 @@ Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nh�
 | Người chơi | Tìm theo tên; lọc người đang online hoặc bị khóa. Xem chi tiết từng người (bảng bên dưới) |
 | Cảnh giới | Thêm, đổi tên, số tầng, đổi thứ tự (↑ ↓), xóa; hiện khoảng cấp của từng cảnh giới |
 | Vật phẩm | Đan dược, bí kíp, nguyên liệu: lọc theo loại, tìm; thêm, sửa giá, công dụng, thời gian hồi, mô tả, bật/tắt bán, xóa |
-| Công pháp | 6 môn thiết kế trong code: xem hiệu ứng; công tắc bật/tắt, học được bằng bí kíp hay chỉ nhận từ sự kiện, bán hay không; sửa vật phẩm cần để lĩnh ngộ; phát cho người chơi |
+| Công pháp | 6 môn thiết kế trong code: xem hiệu ứng; công tắc bật/tắt, học được bằng bí kíp hay chỉ nhận từ sự kiện; sửa vật phẩm cần để lĩnh ngộ; phát cho người chơi |
 | Rơi đồ | Danh sách rơi của từng yêu thú (hoặc `*` mọi yêu thú): vật phẩm, trọng số (kèm % mỗi lần rơi), số lượng ít nhất và nhiều nhất |
 | Yêu thú | Thêm, sửa, xóa yêu thú: hình, kiểu đánh (gần, xa, đứng yên), bay, chỉ số, tầm bắn và đạn, phần thưởng, tỉ lệ rơi đồ; số món trong danh sách rơi |
 | Đánh thường | Tên, thời gian hồi, sát thương và tầm của Kiếm Khí Trảm |
@@ -527,7 +525,7 @@ Với hai môn này:
 ## Công pháp: mỗi môn một lối đánh
 
 Mỗi môn được viết riêng, ở ba chỗ:
-- `shared/cong-phap.js`: tên, hệ, bậc, hồi chiêu, mô tả, vật phẩm lĩnh ngộ ban đầu, giá bán, các hiệu ứng nó dùng.
+- `shared/cong-phap.js`: tên, hệ, bậc, hồi chiêu, mô tả, vật phẩm lĩnh ngộ ban đầu, các hiệu ứng nó dùng.
 - `server/cong-phap.js`: cách đánh (máy chủ quyết định trúng ai, lúc nào, mạnh bao nhiêu).
 - `public/js/cong-phap.js`: hình ảnh từng giai đoạn và rung màn hình.
 
@@ -545,11 +543,10 @@ Bù nhìn rơm cắm cố định: trúng đòn được nhưng không bị đ�
 **Admin (tab Công pháp)**, đổi là có hiệu lực ngay (bảng `cong_phap` và `cong_phap_reqs`):
 - **Bật / Tắt:** tắt thì không ai dùng, học hay mua được (đang gán trên thanh thì bấm không ra gì).
 - **Học được bằng bí kíp / Chỉ nhận từ sự kiện, hoạt động:** tắt học thì môn đó chỉ có khi admin phát.
-- **Đang bán / Không bán:** bật thì bảng Công Pháp có nút Mua (giá trong code).
 - **Vật phẩm cần để lĩnh ngộ:** mỗi dòng một vật phẩm và số lượng; sửa, bỏ, thêm. Môn ai cũng biết thì không có. Vật phẩm
   đang được môn nào cần thì không xóa được ở tab Vật phẩm.
 - **Phát:** cho mọi nhân vật, mọi người đang online, hoặc theo đạo hiệu.
-- Mỗi môn có khung hiệu ứng chạy thử. Số liệu chiến đấu (sát thương, hồi chiêu, tầm…) và giá bán không chỉnh ở đây: muốn
+- Mỗi môn có khung hiệu ứng chạy thử. Số liệu chiến đấu (sát thương, hồi chiêu, tầm…) không chỉnh ở đây: muốn
   đổi thì sửa code.
 
 **Thêm môn mới** là việc của code: thêm một mục trong `shared/cong-phap.js`, viết cách đánh trong `server/cong-phap.js` và
@@ -657,7 +654,7 @@ Các bảng trong database:
 | `items` (tiếp) | Cột `kind`: `pill` (đan dược, dùng được), `book` (bí kíp), `material` (nguyên liệu). |
 | `skills` | Đánh thường (J): tên, thời gian hồi, hệ số sát thương, tầm (`params`). |
 | `cong_phap_reqs` | Vật phẩm (và số lượng) cần để lĩnh ngộ từng công pháp, mỗi dòng một món; admin sửa ở tab Công pháp. |
-| `cong_phap` | Công tắc của admin cho từng công pháp: `enabled`, `learnable` (học bằng bí kíp; tắt = chỉ nhận từ sự kiện), `on_sale`. Bản thân công pháp nằm trong code (`shared/cong-phap.js`). |
+| `cong_phap` | Công tắc của admin cho từng công pháp: `enabled`, `learnable` (học bằng vật phẩm yêu cầu; tắt = chỉ nhận qua hoạt động, sự kiện). Công pháp không bán. Bản thân công pháp nằm trong code (`shared/cong-phap.js`). |
 | `monster_drops` | Rơi đồ: `monster` (hoặc `*` cho mọi yêu thú có `common_drops`), vật phẩm, `chance` (trọng số: mỗi lần rơi chọn 1 món theo tỉ lệ `chance` / tổng), `min_qty`, `max_qty`. |
 | `monsters` (tiếp) | `fx` (hình, một hiệu ứng trong `public/hieu-ung/`, vd `critters/bat`), `style` (`melee`, `ranged`, `none`), `fly`, `shot_range`, `shot_speed`, `shot_fx` (đạn của con đánh xa), `drop_rate` (tỉ lệ một lần hạ có rơi đồ). |
 | `learned_arts`, `characters.art_slots` | Công pháp người chơi đã lĩnh ngộ, và 5 ô trên thanh (JSON). |

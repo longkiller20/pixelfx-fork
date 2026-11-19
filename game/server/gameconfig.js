@@ -49,13 +49,14 @@ export const CONFIG_SCHEMA = [
     params VARCHAR(500) NOT NULL DEFAULT '{}'
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   // công pháp: each art is designed in code (shared/cong-phap.js); a row holds only an admin's switches for it: on or off,
-  // learnable with its bí kíp (off: only given, by events and activities), sold for its price in the Công Pháp panel
+  // learnable with its bí kíp (off: only given, by events and activities); arts are never sold
   `CREATE TABLE IF NOT EXISTS cong_phap (
     art_key VARCHAR(32) NOT NULL PRIMARY KEY,
     enabled TINYINT(1) NOT NULL DEFAULT 1,
-    learnable TINYINT(1) NOT NULL DEFAULT 1,
-    on_sale TINYINT(1) NOT NULL DEFAULT 0
+    learnable TINYINT(1) NOT NULL DEFAULT 1
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // arts were once sold: no more
+  "ALTER TABLE cong_phap DROP COLUMN IF EXISTS on_sale",
   // what learning an art spends, an item per row (an admin's to change; an art's first list is in shared/cong-phap.js)
   `CREATE TABLE IF NOT EXISTS cong_phap_reqs (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -183,7 +184,7 @@ export async function readConfig(conn = null) {
       fx: m.fx ?? "", style: m.style ?? "melee", fly: !!m.fly, range: m.shot_range ?? 0, shotSpeed: m.shot_speed ?? 0, shotFx: m.shot_fx ?? "", dropRate: m.drop_rate ?? 0,
     })),
     // the admin's switches for each art (the arts themselves are in shared/cong-phap.js)
-    arts: arts.map((a) => ({ key: a.art_key, enabled: !!a.enabled, learnable: !!a.learnable, onSale: !!a.on_sale })),
+    arts: arts.map((a) => ({ key: a.art_key, enabled: !!a.enabled, learnable: !!a.learnable })),
     reqs: reqs.map((r) => ({ art: r.art_key, item: r.item_key, qty: Number(r.qty) })),
     drops: drops.map((d) => ({ monster: d.monster, item: d.item_key, chance: d.chance, min: Number(d.min_qty), max: Number(d.max_qty) })),
     skills: skills.map((s) => ({ slot: s.slot, name: s.name, type: s.type, cd: s.cd, mult: s.mult, params: s.params })),

@@ -89,18 +89,12 @@ export function api(world) {
     res.json({ character });
   }));
 
-  // công pháp: learn one (spends its items), buy one an admin put on sale, or set the five on the bar. The world takes the new bar at once.
+  // công pháp: learn one (spends its items; arts are never sold), or set the five on the bar. The world takes the new bar at once.
   r.post("/arts/learn", requireAuth, writeLimit, wrap(async (req, res) => {
     const character = await store.learnArt(req.userId, req.body?.key);
     world.refresh(req.userId, character);
     world.sendInv(req.userId);
     res.json({ character, inventory: await store.inventory(req.userId) });
-  }));
-
-  r.post("/arts/buy", requireAuth, writeLimit, wrap(async (req, res) => {
-    const character = await store.buyArt(req.userId, req.body?.key);
-    world.refresh(req.userId, character);
-    res.json({ character });
   }));
 
   r.post("/arts/equip", requireAuth, writeLimit, wrap(async (req, res) => {

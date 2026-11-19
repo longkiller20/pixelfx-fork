@@ -1,8 +1,8 @@
 // Công pháp: every art is designed here, one by one, in code; none is a row of numbers any more. Each has its own way
 // of fighting (server/cong-phap.js), its own look (public/js/cong-phap.js) and these facts, read by the server and the
 // browser alike. The database keeps only what an admin decides for each: on or off, learnable with its bí kíp or only
-// given (events, activities), sold in the Công Pháp panel or not (table cong_phap), and what learning it spends
-// (table cong_phap_reqs).
+// given by events and activities (table cong_phap), and what learning it spends (table cong_phap_reqs). Arts are never
+// sold.
 //
 //   key      the art's code (the arts table, learned_arts, the bar)
 //   starter  known by everyone from the start, on a new character's bar; never learned, bought or given
@@ -15,7 +15,6 @@
 //   line     what it does, in a line, for the Công Pháp panel
 //   reqs     what learning it spends at first (its bí kíp, essence of its element, Linh Tủy); an admin changes it on the
 //            admin site after that (table cong_phap_reqs)
-//   price    spirit stones, when an admin puts it on sale
 
 export const ELEMENTS = {
   kim: { name: "Kim", mat: "mat_kim", matName: "Huyền Thiết Tinh", matDesc: "Tinh hoa kim loại, dùng lĩnh ngộ công pháp hệ Kim (đao kiếm, quyền cước)." },
@@ -54,29 +53,29 @@ export const CONG_PHAP = [
     key: "dia_chan_cuoc", name: "Địa Chấn Cước", element: "tho", tier: 2, cd: 10, aim: 0, pose: "melee", icon: "nature/earth-spike", fx: ["impacts/ground-slam", "nature/earth-spike"],
     desc: "Dậm chân xuống đất, chấn lực chạy dọc mặt đất làm từng cột đá nối nhau trồi lên, hất tung kẻ địch đang đứng trên đất.",
     line: "Chấn lực chạy dọc mặt đất: 5 cột đá nối nhau trồi lên phía trước · hất tung, làm chậm · không trúng kẻ đang bay",
-    reqs: reqs("dia_chan_cuoc", "tho", 6, 1), price: 3000,
+    reqs: reqs("dia_chan_cuoc", "tho", 6, 1),
   },
   {
     key: "tam_tuyet_kiem", name: "Tam Tuyệt Kiếm", element: "kim", tier: 2, cd: 7, aim: 0, pose: "melee", icon: "melee/sword-slash", fx: ["melee/sword-slash", "melee/double-slash", "melee/heavy-cleave"],
     desc: "Ba nhát kiếm liền mạch vừa chém vừa tiến: một đường chém, hai đường chéo nhau, rồi hai tay bổ xuống đất hất văng đối thủ.",
     line: "Liên trảm 3 thức, vừa đánh vừa tiến · nhát cuối mạnh nhất, đánh bật lùi · đứng tấn trong lúc ra chiêu",
-    reqs: reqs("tam_tuyet_kiem", "kim", 6, 1), price: 3000,
+    reqs: reqs("tam_tuyet_kiem", "kim", 6, 1),
   },
   {
     key: "luu_tinh_hoa_vu", name: "Lưu Tinh Hỏa Vũ", element: "hoa", tier: 3, cd: 16, aim: 320, aimR: 100, aimDist: 160, pose: "zone", icon: "fire/fireball", fx: ["fire/meteor"],
     desc: "Gọi một trận mưa thiên thạch rực lửa trút xuống vùng đã chọn; đá rơi lệch nhau, chỗ rơi cháy âm ỉ một lúc.",
     line: "Kéo chọn chỗ · 6 thiên thạch rơi rải rác trong 2 giây · chỗ rơi còn cháy, đốt thêm 3 lần",
-    reqs: reqs("luu_tinh_hoa_vu", "hoa", 10, 3), price: 8000,
+    reqs: reqs("luu_tinh_hoa_vu", "hoa", 10, 3),
   },
   {
     key: "diet_the_than_bao", name: "Diệt Thế Thần Bạo", element: "bao", tier: 3, cd: 45, aim: 0, pose: "zone", icon: "explosions/nuke", fx: ["lightning/charge-up", "explosions/nuke"],
     desc: "Đứng yên tụ toàn bộ linh lực, hút kẻ địch xung quanh lại, rồi kích nổ một vụ bạo phá hủy diệt trước mặt.",
     line: "Tụ lực 1,6 giây (đứng yên, hút kẻ địch lại gần) · đại bạo cực mạnh ở giữa, yếu dần ra rìa, hất văng · hồi 45s",
-    reqs: reqs("diet_the_than_bao", "bao", 10, 3), price: 12000,
+    reqs: reqs("diet_the_than_bao", "bao", 10, 3),
   },
 ];
 
-export const CONG_PHAP_BY_KEY = Object.fromEntries(CONG_PHAP.map((a, i) => [a.key, { ...a, sort: i + 1, reqs: a.reqs ?? [], price: a.price ?? 0, starter: !!a.starter }]));
+export const CONG_PHAP_BY_KEY = Object.fromEntries(CONG_PHAP.map((a, i) => [a.key, { ...a, sort: i + 1, reqs: a.reqs ?? [], starter: !!a.starter }]));
 /** Every effect the arts draw. */
 export const CONG_PHAP_FX = [...new Set(CONG_PHAP.flatMap((a) => [...a.fx, a.icon].filter(Boolean)))];
 

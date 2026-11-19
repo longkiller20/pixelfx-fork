@@ -78,9 +78,9 @@ const T = {
       cooldown: "num", mult: "num", common_drops: "bool", fx: "str:48", style: "enum:melee|ranged|none", fly: "bool", shot_range: "num", shot_speed: "num", shot_fx: "str:48", drop_rate: "num",
     },
   },
-  // công pháp are designed in code (shared/cong-phap.js): an admin only switches each on or off, learnable with its bí
-  // kíp or only given (events, activities), and sold or not
-  cong_phap: { pk: "art_key", pkType: "key", order: "art_key", config: true, cols: { enabled: "bool", learnable: "bool", on_sale: "bool" } },
+  // công pháp are designed in code (shared/cong-phap.js): an admin only switches each on or off, and learnable with its
+  // bí kíp or only given (events, activities); never sold
+  cong_phap: { pk: "art_key", pkType: "key", order: "art_key", config: true, cols: { enabled: "bool", learnable: "bool" } },
   // and what learning each spends, an item per row
   cong_phap_reqs: { pk: "id", order: "art_key, id", config: true, add: true, del: true, cols: { art_key: "str:32", item_key: "str:32", qty: "uint" } },
   // what monsters drop
@@ -430,7 +430,7 @@ export function adminApp(world) {
     const sw = Object.fromEntries((await q("SELECT * FROM cong_phap")).map((r) => [r.art_key, r])), reqs = await q("SELECT id, art_key, item_key, qty FROM cong_phap_reqs ORDER BY id");
     res.json(CONG_PHAP.map((a) => ({
       key: a.key, name: a.name, desc: a.desc, line: a.line, element: a.element, tier: a.tier, cd: a.cd, aim: a.aim, starter: !!a.starter, icon: a.icon, fx: a.fx,
-      reqs: reqs.filter((r) => r.art_key === a.key).map((r) => ({ id: r.id, item: r.item_key, qty: Number(r.qty) })), price: a.price ?? 0, enabled: !!(sw[a.key]?.enabled ?? 1), learnable: !!(sw[a.key]?.learnable ?? 1), on_sale: !!sw[a.key]?.on_sale,
+      reqs: reqs.filter((r) => r.art_key === a.key).map((r) => ({ id: r.id, item: r.item_key, qty: Number(r.qty) })), enabled: !!(sw[a.key]?.enabled ?? 1), learnable: !!(sw[a.key]?.learnable ?? 1),
     })));
   }));
   // an event's reward: give an art to everyone, everyone online, or a list of đạo hiệu; who is online gets it at once

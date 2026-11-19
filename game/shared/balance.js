@@ -123,7 +123,7 @@ export let MAX_LEVEL = 1;
 export const CLASS = "tu";
 export const CLASSES = { tu: { name: "Tu Sĩ", hp: 0, atk: 0, def: 0, spd: 0, skills: [] } };
 export const ITEMS = {}; // key -> { name, kind, desc, price, heal, cd, onSale, sort, exp(L) }
-export const ARTS = {}; // key -> shared/cong-phap.js's art, plus the admin's switches: enabled, learnable, onSale (and source)
+export const ARTS = {}; // key -> shared/cong-phap.js's art, plus the admin's switches: enabled, learnable (and source)
 export const ART_LIST = []; // the enabled arts in display order
 export const STARTER_ARTS = []; // known by everyone; what a fresh bar holds
 export const DROPS = {}; // monster type or "*" -> [{ item, chance, min, max }]
@@ -203,7 +203,7 @@ export function checkConfig(c) {
   for (const t of MONSTER_TYPES) if (!monsters[t]) throw new Error(`Thiếu yêu thú ${t}`);
   for (const m of c.monsters ?? []) if (monsters[m.type]) monsters[m.type].commonDrops = m.commonDrops !== false && m.commonDrops !== 0;
   // the arts are the ones designed in code; the database only switches each: on or off, learnable with its bí kíp (or
-  // only given: events, activities), sold or not. An art without a row is on, learnable, not sold.
+  // only given: events, activities). An art without a row is on and learnable. Arts are never sold.
   const arts = {}, sw = Object.fromEntries((c.arts ?? []).map((a) => [a.key, a]));
   // what learning each spends: the admin's list (cong_phap_reqs), or the art's own first list before the database is read
   const need = {};
@@ -218,7 +218,7 @@ export function checkConfig(c) {
     // an item it needs that isn't there (only before the database is read): it can't be learned until it is
     const reqs = c.reqs ? need[def.key] ?? [] : def.reqs;
     const learnable = !def.starter && on(a.learnable, true) && reqs.every((r) => items[r.item]);
-    arts[def.key] = { ...def, reqs, enabled: on(a.enabled, true), learnable, source: def.starter ? "starter" : learnable ? "learn" : "event", onSale: !def.starter && on(a.onSale, false) };
+    arts[def.key] = { ...def, reqs, enabled: on(a.enabled, true), learnable, source: def.starter ? "starter" : learnable ? "learn" : "event" };
   }
   const drops = {};
   for (const d of c.drops ?? []) {
