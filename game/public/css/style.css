@@ -512,3 +512,6 @@ body.rotated .ward .seg button { padding: 4px 8px; font-size: 12px; }
 .ward .sel .nm, .ward .sel .st { overflow-wrap: anywhere; }
 .ward .sel .act { white-space: nowrap; font-size: 13px; }
 .ward .sel .act { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+/* the parts and the page buttons in the middle of their column */
+.ward .picks.big { justify-content: center; }
+.ward .wpager { justify-content: center; }
