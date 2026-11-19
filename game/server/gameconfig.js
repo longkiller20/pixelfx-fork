@@ -167,13 +167,9 @@ async function seedArts(freshMonsters = []) {
     ART_ITEMS_SEED.map((i) => [i.key, i.name, i.kind, i.desc, i.sort]),
   );
   await q("UPDATE monsters SET common_drops = 0 WHERE type = 'dummy'");
-  // the whole moves are drawn 1.65x now, so their target stands 96 px ahead, not 70 (only rows an admin left as seeded)
-  await q("UPDATE arts SET params = JSON_SET(params, '$.dist', 96) WHERE fx LIKE 'moves/%' AND type = 'zone' AND JSON_VALUE(params, '$.dist') = 70");
   // the drag-to-aim switch first lived in params as "aim": moved to its own columns
   await q(`UPDATE arts SET aimable = JSON_VALUE(params, '$.aim') > 0, aim_range = IF(JSON_VALUE(params, '$.aim') > 0, JSON_VALUE(params, '$.aim'), aim_range),
     params = JSON_REMOVE(params, '$.aim') WHERE JSON_VALUE(params, '$.aim') IS NOT NULL`);
-  // a campfire, a fountain or the weather stays where it was called up instead of walking along with the caster
-  await q("UPDATE arts SET fx_at = 'target' WHERE fx_at = 'self' AND fx IN ('fire/brazier', 'fire/campfire', 'fire/candle', 'fire/torch', 'water/fountain', 'weather/aurora', 'weather/cherry-blossoms', 'weather/god-rays', 'weather/clouds')");
   await q("UPDATE arts SET fx_life = 10 WHERE fx = 'holy/halo' AND fx_life = 4");
   // each new monster's own list: the essence of its element, a little Linh Tủy, a Hồi Xuân Đan, and the bí kíp of its
   // element's arts (rarer the higher the tier). A weight, not a chance: one item is picked per drop.

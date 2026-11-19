@@ -1,8 +1,8 @@
 // A công pháp's effect, playing over and over on a small canvas, for the admin site: the same pixelfx effect the game
 // draws, so an admin can see what an art looks like before turning it on or off. One animation loop runs every preview
 // on the page; a preview off screen or taken off the page costs nothing.
-import { createFrame, createFx, composite, stockActor } from "/pixelfx/core/index.js";
-import { effects } from "/pixelfx/fx/index.js";
+import { createFrame, createFx, composite, stockActor } from "/hieu-ung/core/index.js";
+import { effects } from "/hieu-ung/fx/index.js";
 
 // effects that dress a character get an invisible one, as in the game
 const stock = stockActor(2);

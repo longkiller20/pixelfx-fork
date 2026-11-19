@@ -1,6 +1,6 @@
 // The game in the browser: it shows what the server says is happening, and sends what the player presses.
-import { createFrame, clearFrame, createFx, composite, painterFor, hex, WHITE } from "/pixelfx/core/index.js";
-import { effects } from "/pixelfx/fx/index.js";
+import { createFrame, clearFrame, createFx, composite, painterFor, hex, WHITE } from "/hieu-ung/core/index.js";
+import { effects } from "/hieu-ung/fx/index.js";
 import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL, ARTS, ART_SLOTS, FLY, canFly, flyRealmName } from "/shared/balance.js";
 import { artIcon, artScale, BLANK_ACTOR } from "./arts.js";
 import { mapInfo } from "/shared/maps/index.js";

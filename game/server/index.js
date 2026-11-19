@@ -43,8 +43,7 @@ app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type(
 app.get("/health", (req, res) => res.json({ ok: true, online: world.online }));
 const statics = { maxAge: "1h", index: false, fallthrough: true };
 app.use("/shared", express.static(join(ROOT, "shared"), statics));
-// the pixel effects and sprites come straight from the pixelfx library this game lives in
-app.use("/pixelfx", express.static(join(ROOT, "..", "src"), statics));
+// the pixel effects are in public/hieu-ung/ (copied from pixelfx by tools/hieu-ung.mjs: only the ones the game uses)
 app.use(express.static(join(ROOT, "public"), { ...statics, index: "index.html", maxAge: 0 }));
 app.use((req, res) => res.status(404).json({ error: "Không tìm thấy." }));
 

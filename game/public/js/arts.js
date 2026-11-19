@@ -1,8 +1,8 @@
 // Công pháp in the browser: an icon for every art, and the words for its element and type. Each art's icon is its own
 // picture, public/cong-phap/<n>-<name>/icon.png (drawn ahead from its pixelfx effect by tools/arts/icons.mjs, or by an
 // artist), so they all show at once; an art with no folder (one added since) has its icon drawn here, a few at a time.
-import { createFrame, createFx, composite, stockActor } from "/pixelfx/core/index.js";
-import { effects } from "/pixelfx/fx/index.js";
+import { createFrame, createFx, composite, stockActor } from "/hieu-ung/core/index.js";
+import { effects } from "/hieu-ung/fx/index.js";
 import { ARTS } from "/shared/balance.js";
 import { ELEMENTS } from "/shared/arts-seed.js";
 

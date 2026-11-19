@@ -38,11 +38,16 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Admin thêm, sửa, xóa yêu thú (hình, kiểu đánh, bay, chỉ số, tầm bắn, đạn, tỉ lệ rơi). Để thử khi chưa có map, ở
     trang người chơi có nút "Thả quái thử": thả một con cạnh người đang online; con đó chết là mất, không hồi sinh.
 - **Đánh thường:** Kiếm Khí Trảm, nút to ở góc (J), ai cũng có.
-- **Công Pháp (nút 📜):** 215 công pháp, mỗi hiệu ứng có thể làm chiêu của pixelfx là một môn (chỉ bỏ ui, chuyển cảnh và
-  vật phẩm nhặt). Có 7 kiểu: cận chiến, phóng xa, vùng phía trước, vùng quanh thân, lướt tới, hồi sinh lực, tăng chỉ số
+- **Công Pháp (nút 📜):** 111 công pháp, chỉ lấy những hiệu ứng pixelfx có dạng chiêu thức: chém, phép, đạn, nổ, khiên,
+  hồi máu.
+  - Không lấy: đòn trọn bộ tự vẽ người đánh (moves), đồ vật (lửa trại, nến, thùng thuốc nổ), thời tiết, cảnh vật, thú
+    (để làm yêu thú), súng ống, tia lửa khi trúng đòn, dấu hiệu trạng thái, giao diện.
+  - Database cũ: 104 môn không phải chiêu thức được bỏ một lần khi máy chủ khởi động (cùng bí kíp, yêu cầu và rơi đồ của
+    chúng; ai đã học thì mất môn đó và nó rời thanh nút).
+  - Có 7 kiểu: cận chiến, phóng xa, vùng phía trước, vùng quanh thân, lướt tới, hồi sinh lực, tăng chỉ số
   tạm thời. Mỗi môn có hệ (Kim, Hỏa, Thủy, Băng, Lôi, Mộc, Thổ, Quang, Ám, Huyền, Phong, Dị Giới, Bạo, Ngự Thú) và bậc 1-3.
   - **Lĩnh ngộ:** tiêu hao bí kíp riêng của môn đó, cộng 3/6/10 tinh thạch của hệ theo bậc, và 1/3 Linh Tủy cho bậc 2/3.
-    Có sẵn 213 bí kíp, 14 loại tinh thạch và Linh Tủy.
+    Có sẵn 109 bí kíp, 14 loại tinh thạch và Linh Tủy.
   - **Rơi đồ:** mọi vật phẩm trên rơi ngẫu nhiên khi hạ yêu thú (tinh thạch 4%, Linh Tủy 1%, bí kíp 0,1-0,6% tùy bậc).
     Bù nhìn rơm không rơi gì. Yêu thú để săn sẽ có sau.
   - **Thanh 5 ô:** gán tối đa 5 môn, đổi lúc nào cũng được. Hồi chiêu đi theo môn, nên đổi ô không làm mới hồi chiêu.
@@ -355,6 +360,7 @@ game/
   public/                trang game: canvas, giao diện, điều khiển; public/js/scenery.js vẽ bản đồ; public/maps/tiles/ tileset
   public/js/avatar.js    rig và hoạt ảnh nhân vật (thân gốc + tóc + y phục)
   public/nhan-vat/       thân gốc của nhân vật (than-goc.png)
+  public/hieu-ung/       các hiệu ứng game dùng, chép từ pixelfx (tools/hieu-ung.mjs)
   public/toc-nam/ toc-nu/ y-phuc-nam/ y-phuc-nu/ vu-khi/ phi-kiem/ cong-phap/
                          mỗi món, mỗi công pháp một thư mục (xem "Hình ảnh: mỗi món một thư mục")
   server/assets.js       liệt kê các thư mục hình đó, phục vụ ở /assets.json
@@ -367,8 +373,31 @@ game/
   test/race.mjs          kiểm tra tranh chấp, tường và lối ra
 ```
 
-Hình nhân vật nằm trong các thư mục ở `public/` (bên dưới). Bù nhìn và mọi hiệu ứng đến từ `../src` (pixelfx): máy chủ phục vụ thư mục đó ở đường dẫn
-`/pixelfx`, nên phải giữ nguyên game trong repo này.
+Hình nhân vật nằm trong các thư mục ở `public/` (bên dưới). Hiệu ứng nằm trong `public/hieu-ung/` (xem "Hiệu ứng: chỉ những gì game dùng").
+
+## Hiệu ứng: chỉ những gì game dùng
+
+Game không tải cả thư viện pixelfx (`../src`, hơn 250 hiệu ứng). `tools/hieu-ung.mjs` chép vào `public/hieu-ung/` đúng những
+hiệu ứng game dùng (132 cái, khoảng 2 MB):
+- hiệu ứng của mọi công pháp trong `shared/arts-seed.js`;
+- mọi hiệu ứng có tên trong code và dữ liệu game: hình yêu thú và đạn của chúng, cảnh vật trên bản đồ, cổng dịch chuyển,
+  lên cấp, cột sáng rơi đồ…;
+- những hiệu ứng đã có sẵn trong thư mục (một hiệu ứng admin đã chọn cho môn mới không bị mất).
+
+| Trong `public/hieu-ung/` | Là gì |
+| --- | --- |
+| `core/` | bộ máy vẽ của pixelfx (khung hình, cọ vẽ, màu…) |
+| `fx/<loại>/<tên>.js` | từng hiệu ứng, cùng các file phụ nó cần (`_lib.js`) |
+| `fx/index.js` | danh sách hiệu ứng theo mã (`fire/fireball`), do công cụ tạo |
+| `danh-sach.json` | cùng danh sách đó, để máy chủ kiểm tra |
+
+Lệnh (chạy trong `game/`, cần thư mục `src/` của pixelfx ở cạnh):
+- `node tools/hieu-ung.mjs`: cập nhật thư mục.
+- `node tools/hieu-ung.mjs fire/candle shadow/curse`: thêm hiệu ứng này (để dùng cho công pháp hay yêu thú mới).
+- `node tools/hieu-ung.mjs --lam-moi`: chỉ giữ những gì game đang dùng, bỏ phần còn lại.
+
+Trang admin chỉ cho đặt hiệu ứng có trong `public/hieu-ung/` (cho công pháp và hình, đạn của yêu thú). Hiệu ứng chưa có thì
+báo lệnh cần chạy để chép nó vào. Vì game đã có bản chép riêng, máy chủ chạy được mà không cần `../src`.
 
 ## Hình ảnh: mỗi món một thư mục
 
@@ -380,7 +409,7 @@ Mỗi loại đồ và công pháp có một thư mục trong `game/public/`. B�
 | `y-phuc-nam/`, `y-phuc-nu/` | 5 bộ y phục nam, 5 bộ nữ | `y-phuc-nu/21-xichsay/` |
 | `vu-khi/` | vũ khí cầm tay (Trường Kiếm) | `vu-khi/60-truongkiem/` |
 | `phi-kiem/` | phi kiếm để bay (Thanh Vân Kiếm) | `phi-kiem/0-thanhvankiem/` |
-| `cong-phap/` | icon công pháp | `cong-phap/1-phikiem/` |
+| `cong-phap/` | icon công pháp (111 môn) | `cong-phap/1-phikiem/` |
 | `nhan-vat/` | thân gốc của mọi nhân vật | `nhan-vat/than-goc.png` |
 
 **Món đồ** (tóc, áo, vũ khí, phi kiếm) có hai file:
@@ -435,7 +464,7 @@ Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nh�
 | Người chơi | Tìm theo tên; lọc người đang online hoặc bị khóa. Xem chi tiết từng người (bảng bên dưới) |
 | Cảnh giới | Thêm, đổi tên, số tầng, đổi thứ tự (↑ ↓), xóa; hiện khoảng cấp của từng cảnh giới |
 | Vật phẩm | Đan dược, bí kíp, nguyên liệu: lọc theo loại, tìm; thêm, sửa giá, công dụng, thời gian hồi, mô tả, bật/tắt bán, xóa |
-| Công pháp | 215 môn: lọc theo loại, hệ, tìm; sửa tên, hệ, bậc, loại chiêu, hồi chiêu, sát thương, thông số, hiệu ứng pixelfx và chỗ vẽ, bật/tắt; sửa từng vật phẩm yêu cầu và số lượng, thêm, bỏ; thêm môn mới, xóa |
+| Công pháp | 111 môn: lọc theo loại, hệ, tìm; sửa tên, hệ, bậc, loại chiêu, hồi chiêu, sát thương, thông số, hiệu ứng và chỗ vẽ, bật/tắt; sửa từng vật phẩm yêu cầu và số lượng, thêm, bỏ; thêm môn mới, xóa |
 | Rơi đồ | Danh sách rơi của từng yêu thú (hoặc `*` mọi yêu thú): vật phẩm, trọng số (kèm % mỗi lần rơi), số lượng ít nhất và nhiều nhất |
 | Yêu thú | Thêm, sửa, xóa yêu thú: hình, kiểu đánh (gần, xa, đứng yên), bay, chỉ số, tầm bắn và đạn, phần thưởng, tỉ lệ rơi đồ; số món trong danh sách rơi |
 | Đánh thường | Tên, thời gian hồi, sát thương và tầm của Kiếm Khí Trảm |
@@ -508,21 +537,19 @@ Khi chiêu đang bật:
 - **Server kiểm tra lại mọi thứ:** điểm ở ngoài tầm thì bị kéo vào trong tầm. Điểm ngắm vào trong đất thì được đẩy lên mặt đất. Có mặt đất hay ván gỗ trong vòng 3 ô bên dưới thì chiêu rơi xuống đó, không thì nổ giữa không trung.
   - Màn hình người chơi dùng đúng cách tính này (`zoneLanding` trong `shared/physics.js`), nên vòng vàng hiện đúng chỗ chiêu sẽ nổ.
 
-## Xem hiệu ứng công pháp và tắt chiêu không dùng
+## Xem hiệu ứng công pháp, bật và tắt
 
 Trong trang admin, tab **Công pháp**:
-- Nút **▶ Xem hiệu ứng**: mỗi công pháp một ô, hiệu ứng pixelfx của nó chạy lặp lại (giống trong game), kèm tên, mã, loại và tên hiệu ứng.
+- Nút **▶ Xem hiệu ứng**: mỗi công pháp một ô, hiệu ứng của nó chạy lặp lại (giống trong game), kèm tên, mã, loại và tên hiệu ứng.
   - Ô tự phóng to vào chỗ hiệu ứng thật sự vẽ, nên tia lửa nhỏ cũng nhìn rõ.
   - Mỗi trang 10 ô; bộ lọc và ô tìm kiếm dùng chung với chế độ danh sách.
 - Nút dưới mỗi ô bật hoặc tắt chiêu ngay (cột `arts.enabled`).
   - Chiêu đã tắt hiện mờ, viền đỏ; người chơi không học, không dùng được chiêu đó nữa (đang gán trên thanh nút thì bấm không ra gì).
   - Bấm lại để bật.
 - Bộ lọc **Đang bật / Đã tắt** để xem lại những chiêu đã tắt.
-- Nút **⬇ Xuất JSON đã tắt** và **⬇ Xuất TXT đã tắt** tải về danh sách chiêu đã tắt (mã, tên, hiệu ứng, loại; JSON có thêm hệ và bậc).
-  Gửi file này để dọn: bỏ hẳn các chiêu đã tắt, còn hiệu ứng của các chiêu giữ lại thì đưa vào thư mục `public` của game.
 - Ở chế độ **Danh sách**, mở một công pháp ra cũng thấy hiệu ứng chạy ở đầu bảng sửa.
 
-Hiệu ứng xem trước tải từ thư viện pixelfx (`/pixelfx`, cũng như game), chỉ khi mở tab Công pháp.
+Hiệu ứng xem trước tải từ `public/hieu-ung/` (bản game dùng), chỉ khi mở tab Công pháp.
 
 ## Icon công pháp
 
@@ -627,7 +654,7 @@ Các bảng trong database:
 | `arts` | Công pháp: `source` (`learn`: lĩnh ngộ bằng vật phẩm; `event`: chỉ admin phát, cho hoạt động, sự kiện, đấu giá) và `source_note` (nhận ở đâu); tên, hệ, bậc, loại (`melee`, `bolt`, `zone`, `nova`, `dash`, `heal`, `buff`), hồi chiêu, hệ số, `params` (JSON, theo loại), hiệu ứng pixelfx (`fx`) và chỗ vẽ (`fx_at`: `front`, `self`, `target`, `bolt`), `starter` (ai cũng biết), `enabled`. Danh sách đầu nằm ở `shared/arts-seed.js`. |
 | `art_reqs` | Mỗi dòng là một vật phẩm (và số lượng) cần để lĩnh ngộ một công pháp. |
 | `monster_drops` | Rơi đồ: `monster` (hoặc `*` cho mọi yêu thú có `common_drops`), vật phẩm, `chance` (trọng số: mỗi lần rơi chọn 1 món theo tỉ lệ `chance` / tổng), `min_qty`, `max_qty`. |
-| `monsters` (tiếp) | `fx` (hình pixelfx, vd `critters/bat`), `style` (`melee`, `ranged`, `none`), `fly`, `shot_range`, `shot_speed`, `shot_fx` (đạn của con đánh xa), `drop_rate` (tỉ lệ một lần hạ có rơi đồ). |
+| `monsters` (tiếp) | `fx` (hình, một hiệu ứng trong `public/hieu-ung/`, vd `critters/bat`), `style` (`melee`, `ranged`, `none`), `fly`, `shot_range`, `shot_speed`, `shot_fx` (đạn của con đánh xa), `drop_rate` (tỉ lệ một lần hạ có rơi đồ). |
 | `learned_arts`, `characters.art_slots` | Công pháp người chơi đã lĩnh ngộ, và 5 ô trên thanh (JSON). |
 | `settings` | Các con số còn lại, mỗi dòng có ghi chú ý nghĩa: chỉ số gốc nhân vật, đường tu vi, quà mỗi ngày, quà tân thủ, tu luyện, thưởng PvP, thời gian hồi sinh… |
 

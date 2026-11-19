@@ -1,5 +1,5 @@
 // What the monsters look like. Players are drawn by avatar.js.
-import { TARGET_SPRITE, WHITE } from "/pixelfx/core/index.js";
+import { TARGET_SPRITE, WHITE } from "/hieu-ung/core/index.js";
 
 // ---- the straw dummy
 const DUMMY_PX = [];

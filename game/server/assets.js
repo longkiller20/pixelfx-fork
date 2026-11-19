@@ -62,3 +62,18 @@ export const assetsJson = () => (assets(), json);
 export const hasPart = (kind, g, idx) => !!assets().parts[`${kind}_${g}`]?.[idx];
 /** The idx numbers there are for a kind, in order. */
 export const partIdx = (kind, g) => Object.keys(assets().parts[`${kind}_${g}`] ?? {}).map(Number).sort((a, b) => a - b);
+
+// the pixel effects the game has: public/hieu-ung/danh-sach.json, written by tools/hieu-ung.mjs (read again every few seconds)
+let fxList = null, fxAt = 0;
+/** Whether the game has effect `id` ("fire/fireball") in public/hieu-ung/. */
+export function hasFx(id) {
+  if (!fxList || Date.now() - fxAt > 5000) {
+    try {
+      fxList = new Set(JSON.parse(readFileSync(join(PUB, "hieu-ung", "danh-sach.json"), "utf8")));
+    } catch {
+      fxList = new Set();
+    }
+    fxAt = Date.now();
+  }
+  return fxList.has(id);
+}

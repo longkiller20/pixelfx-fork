@@ -6,7 +6,7 @@
 // Every part is a list of pixels in the base figure's own grid (29 x 63, feet at the bottom middle), so a pose is just
 // offsets: the upper body breathes and bobs, the front sleeve turns about its shoulder when casting, the skirt and the hair sway, the boots
 // step. Nothing here is a canned frame: it all follows the character's state.
-import { WHITE, mix, hex } from "/pixelfx/core/index.js";
+import { WHITE, mix, hex } from "/hieu-ung/core/index.js";
 
 export const GENDERS = ["m", "f"];
 const BW = 29, BH = 63, OX = 15; // the base grid, and the x of the line between the feet

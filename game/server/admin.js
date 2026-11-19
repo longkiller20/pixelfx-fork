@@ -8,7 +8,7 @@ import { join } from "node:path";
 import express from "express";
 import { q, tx, isDup } from "./db.js";
 import { ROOT, config } from "./config.js";
-import { assetsJson, hasPart, PART_DIRS, ART_DIR } from "./assets.js";
+import { assetsJson, hasPart, hasFx, PART_DIRS, ART_DIR } from "./assets.js";
 import { hashPassword, verifyPassword, dummyVerify, rateLimit } from "./auth.js";
 import { readConfig, loadConfig } from "./gameconfig.js";
 import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS } from "../shared/balance.js";
@@ -259,6 +259,14 @@ export function adminApp(world) {
       throw bad(`Không có hình số ${row.idx}: cần thư mục public/${folderOf(row.kind, row.gender)}/${row.idx}-tenmon/ có hinh.png (và thong-tin.json).`);
   };
 
+  // an effect must be one the game has (public/hieu-ung/); empty is fine (an art throws the weapon, a monster is a dummy)
+  const FX_COLS = { arts: ["fx"], monsters: ["fx", "shot_fx"] };
+  const checkFx = (name, row) => {
+    for (const k of FX_COLS[name] ?? [])
+      if (row[k] && !hasFx(row[k]))
+        throw bad(`Game chưa có hiệu ứng "${row[k]}". Chép nó từ pixelfx vào public/hieu-ung bằng lệnh: node tools/hieu-ung.mjs ${row[k]}`);
+  };
+
   r.get("/t/:table", wrap(async (req, res) => {
     const t = tableOf(req.params.table);
     const extra = req.params.table === "settings" ? ", note" : req.params.table === "cosmetics" ? ", (SELECT COUNT(*) FROM owned_cosmetics o WHERE o.cosmetic_id = cosmetics.id) AS owners" : "";
@@ -274,6 +282,7 @@ export function adminApp(world) {
       const [before] = await c.query(`SELECT * FROM ${name} WHERE ${t.pk} = ?`, [pk]);
       if (!before) throw bad("Không tìm thấy dòng này.", 404);
       if (name === "cosmetics") checkCosmetic({ ...before, ...Object.fromEntries(set) });
+      checkFx(name, Object.fromEntries(set));
       await c.query(`UPDATE ${name} SET ${set.map(([k]) => `${k} = ?`).join(", ")} WHERE ${t.pk} = ?`, [...set.map(([, v]) => v), pk]);
       if (t.config) await checkInside(c);
       await log(req.admin, `${name}.edit`, pk, Object.fromEntries(set.map(([k, v]) => [k, [before[k], v]])));
@@ -295,6 +304,7 @@ export function adminApp(world) {
       if (!/^[a-z0-9_]{2,32}$/.test(key)) throw bad("Mã: 2-32 ký tự chữ thường không dấu, số, _.");
       row[t.pk] = key;
     }
+    checkFx(name, row);
     if (name === "realms" && row.sort === undefined) row.sort = Number((await q("SELECT COALESCE(MAX(sort), 0) + 10 AS s FROM realms"))[0].s);
     if (name === "cosmetics") {
       for (const k of ["kind", "gender", "idx", "name"]) if (row[k] === undefined) throw bad(`Thiếu ${k}.`);
@@ -584,8 +594,8 @@ export function adminApp(world) {
   app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type("application/json").send(assetsJson()));
   for (const d of [...Object.keys(PART_DIRS), ART_DIR, "nhan-vat"]) app.use(`/${d}`, express.static(join(ROOT, "public", d), { maxAge: 0 }));
   app.use("/xianxia", express.static(join(ROOT, "public", "xianxia"), { maxAge: "1h" }));
-  // the pixel effects, for the công pháp previews (the same pixelfx library the game draws them with)
-  app.use("/pixelfx", express.static(join(ROOT, "..", "src"), { maxAge: 0 }));
+  // the pixel effects, for the công pháp previews: the game's own copy (public/hieu-ung/)
+  app.use("/hieu-ung", express.static(join(ROOT, "public", "hieu-ung"), { maxAge: 0 }));
   app.use(express.static(join(ROOT, "admin"), { index: "index.html", maxAge: 0 }));
   app.use((req, res) => res.status(404).json({ error: "Không tìm thấy." }));
   return app;
