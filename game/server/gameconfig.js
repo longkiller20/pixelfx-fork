@@ -56,6 +56,14 @@ export const CONFIG_SCHEMA = [
     learnable TINYINT(1) NOT NULL DEFAULT 1,
     on_sale TINYINT(1) NOT NULL DEFAULT 0
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // what learning an art spends, an item per row (an admin's to change; an art's first list is in shared/cong-phap.js)
+  `CREATE TABLE IF NOT EXISTS cong_phap_reqs (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    art_key VARCHAR(32) NOT NULL,
+    item_key VARCHAR(32) NOT NULL,
+    qty INT UNSIGNED NOT NULL DEFAULT 1,
+    UNIQUE KEY uq_cp_req (art_key, item_key)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   // what a monster may drop when killed: monster '*' means every monster with common drops on
   `CREATE TABLE IF NOT EXISTS monster_drops (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -124,11 +132,15 @@ export async function seedConfig() {
 async function seedArts(freshMonsters = []) {
   const [{ n }] = await q("SELECT COUNT(*) AS n FROM monster_drops");
   const first = !Number(n);
-  await pool.batch("INSERT IGNORE INTO cong_phap (art_key) VALUES (?)", CONG_PHAP.map((a) => [a.key]));
+  // an art new to this database: its switches, and (once its items exist, below) its first list of what learning spends
+  const had = new Set((await q("SELECT art_key FROM cong_phap")).map((r) => r.art_key)), fresh = CONG_PHAP.filter((a) => !had.has(a.key));
+  if (fresh.length) await pool.batch("INSERT IGNORE INTO cong_phap (art_key) VALUES (?)", fresh.map((a) => [a.key]));
   await pool.batch(
     "INSERT IGNORE INTO items (item_key, name, kind, description, price, heal, exp_base, exp_per_level, cooldown, on_sale, sort) VALUES (?, ?, ?, ?, 0, 0, 0, 0, 1, 0, ?)",
     ART_ITEMS_SEED.map((i) => [i.key, i.name, i.kind, i.desc, i.sort]),
   );
+  const reqs = fresh.flatMap((a) => (a.reqs ?? []).map((r) => [a.key, r.item, r.qty]));
+  if (reqs.length) await pool.batch("INSERT IGNORE INTO cong_phap_reqs (art_key, item_key, qty) VALUES (?, ?, ?)", reqs);
   await q("UPDATE monsters SET common_drops = 0 WHERE type = 'dummy'");
   // each new monster's own list: the essence of its element, a little Linh Tủy, a Hồi Xuân Đan, and the bí kíp of its
   // element's arts (rarer the higher the tier). A weight, not a chance: one item is picked per drop.
@@ -149,13 +161,14 @@ async function seedArts(freshMonsters = []) {
 /** Read the config tables into a config object (not yet checked). conn: a connection inside a transaction, optional. */
 export async function readConfig(conn = null) {
   const Q = (sql) => (conn ?? pool).query(sql);
-  const [realms, items, monsters, skills, settings, arts, drops] = await Promise.all([
+  const [realms, items, monsters, skills, settings, arts, reqs, drops] = await Promise.all([
     Q("SELECT name, stages FROM realms ORDER BY sort, id"),
     Q("SELECT * FROM items ORDER BY sort, item_key"),
     Q("SELECT * FROM monsters"),
     Q("SELECT * FROM skills ORDER BY slot"),
     Q("SELECT k, v FROM settings"),
     Q("SELECT * FROM cong_phap"),
+    Q("SELECT art_key, item_key, qty FROM cong_phap_reqs ORDER BY id"),
     Q("SELECT monster, item_key, chance, min_qty, max_qty FROM monster_drops ORDER BY id"),
   ]);
   return {
@@ -171,6 +184,7 @@ export async function readConfig(conn = null) {
     })),
     // the admin's switches for each art (the arts themselves are in shared/cong-phap.js)
     arts: arts.map((a) => ({ key: a.art_key, enabled: !!a.enabled, learnable: !!a.learnable, onSale: !!a.on_sale })),
+    reqs: reqs.map((r) => ({ art: r.art_key, item: r.item_key, qty: Number(r.qty) })),
     drops: drops.map((d) => ({ monster: d.monster, item: d.item_key, chance: d.chance, min: Number(d.min_qty), max: Number(d.max_qty) })),
     skills: skills.map((s) => ({ slot: s.slot, name: s.name, type: s.type, cd: s.cd, mult: s.mult, params: s.params })),
     settings: Object.fromEntries(settings.map((s) => [s.k, s.v])),

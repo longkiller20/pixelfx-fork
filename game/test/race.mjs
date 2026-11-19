@@ -340,6 +340,20 @@ const SHOP_TEST = "Hàng thử nghiệm";
       } finally {
         await adm("/t/cong_phap/tam_tuyet_kiem", { token, method: "PATCH", body: { on_sale: false } });
       }
+      // what learning spends is the admin's: Địa Chấn Cước with 2 Hậu Thổ Tinh instead of 6 is learned with 2; a starter
+      // art can't be given a cost; an item an art needs can't be deleted
+      const tho = (await adm("/t/cong_phap_reqs", { token })).data.find((r) => r.art_key === "dia_chan_cuoc" && r.item_key === "mat_tho");
+      await give(bu.id, [{ item: "bk_dia_chan_cuoc", qty: 1 }, { item: "mat_tho", qty: 2 }, { item: "mat_linhtuy", qty: 1 }]);
+      assert.equal((await call("/arts/learn", { token: B.token, method: "POST", body: { key: "dia_chan_cuoc" } })).status, 409, "6 needed, 2 in the bag");
+      assert.equal((await adm(`/t/cong_phap_reqs/${tho.id}`, { token, method: "PATCH", body: { qty: 2 } })).status, 200);
+      try {
+        assert.equal((await call("/arts/learn", { token: B.token, method: "POST", body: { key: "dia_chan_cuoc" } })).status, 200, "the admin's 2 is enough");
+        assert.ok(!(await me(B.token)).inventory.mat_tho, "and 2 were spent");
+      } finally {
+        await adm(`/t/cong_phap_reqs/${tho.id}`, { token, method: "PATCH", body: { qty: tho.qty } });
+      }
+      assert.equal((await adm("/t/cong_phap_reqs", { token, method: "POST", body: { art_key: "phikiem", item_key: "mat_kim", qty: 1 } })).status, 400, "known by all: no cost");
+      assert.equal((await adm("/t/items/bk_dia_chan_cuoc", { token, method: "DELETE" })).status, 400, "a bí kíp in use stays");
 
       // drops: a dummy set to always drop two Huyền Thiết Tinh; break it and they are in the bag
       const row = (await adm("/t/monster_drops", { token, method: "POST", body: { monster: "dummy", item_key: "mat_kim", chance: 1, min_qty: 2, max_qty: 2 } })).data;

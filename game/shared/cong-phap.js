@@ -1,7 +1,8 @@
 // Công pháp: every art is designed here, one by one, in code; none is a row of numbers any more. Each has its own way
 // of fighting (server/cong-phap.js), its own look (public/js/cong-phap.js) and these facts, read by the server and the
-// browser alike. The database keeps only an admin's switches for each (the arts table): on or off, learnable with its
-// bí kíp or only given (events, activities), and sold in the Công Pháp panel or not.
+// browser alike. The database keeps only what an admin decides for each: on or off, learnable with its bí kíp or only
+// given (events, activities), sold in the Công Pháp panel or not (table cong_phap), and what learning it spends
+// (table cong_phap_reqs).
 //
 //   key      the art's code (the arts table, learned_arts, the bar)
 //   starter  known by everyone from the start, on a new character's bar; never learned, bought or given
@@ -12,7 +13,8 @@
 //   icon     the effect its icon is drawn from (public/cong-phap/<n>-<name>/icon.png)
 //   fx       every effect it draws (copied into public/hieu-ung/ by tools/hieu-ung.mjs)
 //   line     what it does, in a line, for the Công Pháp panel
-//   reqs     what learning it spends (its bí kíp, essence of its element, Linh Tủy)
+//   reqs     what learning it spends at first (its bí kíp, essence of its element, Linh Tủy); an admin changes it on the
+//            admin site after that (table cong_phap_reqs)
 //   price    spirit stones, when an admin puts it on sale
 
 export const ELEMENTS = {

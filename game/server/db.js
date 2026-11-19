@@ -239,7 +239,12 @@ async function artsInCode(c) {
   await c.query("DROP TABLE IF EXISTS arts");
 }
 // (retire_non_skill_arts_2026_11, which took out the arts that weren't skills, is part of arts_in_code_2026_11 now)
-const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials], ["arts_in_code_2026_11", artsInCode]];
+/** What learning each art spends moved into the database (cong_phap_reqs), for an admin to change: the arts' first lists. */
+async function artReqs(c) {
+  const rows = CONG_PHAP.flatMap((a) => (a.reqs ?? []).map((r) => [a.key, r.item, r.qty]));
+  if (rows.length) await c.batch("INSERT IGNORE INTO cong_phap_reqs (art_key, item_key, qty) VALUES (?, ?, ?)", rows);
+}
+const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials], ["arts_in_code_2026_11", artsInCode], ["cong_phap_reqs_2026_11", artReqs]];
 
 export async function migrate() {
   for (const s of SCHEMA) await q(s);
