@@ -784,17 +784,27 @@ async function charPanel(startTab = "all") {
         box.append(b);
       }
     }
-    const rows = [
-      ["item_peach", "Sinh lực", m.maxHp ? `${m.hp}/${m.maxHp}` : "—"], ["status_burn", "Công", m.atk ?? "—"], ["status_golden_shield", "Thủ", m.def ?? "—"],
-      ["status_swift", "Tốc độ", m.spd ?? "—"], ["item_spirit_stone", "Linh thạch", (m.stones ?? ch().stones ?? 0).toLocaleString("vi-VN")],
-      ["item_token", "Đấu trường", m.rank ?? ch().rank ?? 0], ["status_bleed", "Hạ / Bại", `${m.kills ?? 0} / ${m.deaths ?? 0}`],
-    ];
-    $$(".cstats").replaceChildren(...rows.map(([ic, l, v]) => {
+    // sinh lực on a row of its own with its bar; the rest as tiles, the name over the value, so nothing runs into anything
+    const fmtN = (n) => Number(n ?? 0).toLocaleString("vi-VN");
+    const hp = document.createElement("div");
+    hp.className = "hprow";
+    hp.innerHTML = `<img src="/xianxia/ui/ui_xianxia_item_peach.png" alt=""><span>Sinh lực</span><b></b><i><u></u></i>`;
+    hp.querySelector("b").textContent = m.maxHp ? `${fmtN(m.hp)} / ${fmtN(m.maxHp)}` : "—";
+    hp.querySelector("u").style.width = `${m.maxHp ? Math.max(0, Math.min(100, (m.hp / m.maxHp) * 100)) : 0}%`;
+    const tiles = [
+      ["status_burn", "Công", fmtN(m.atk)], ["status_golden_shield", "Thủ", fmtN(m.def)], ["status_swift", "Tốc độ", fmtN(m.spd)],
+      ["item_spirit_stone", "Linh thạch", fmtN(m.stones ?? ch().stones)], ["item_token", "Đấu trường", fmtN(m.rank ?? ch().rank)],
+      ["status_bleed", "Hạ / Bại", `${fmtN(m.kills)} / ${fmtN(m.deaths)}`],
+    ].map(([ic, l, v]) => {
       const d = document.createElement("div");
-      d.innerHTML = `<img src="/xianxia/ui/ui_xianxia_${ic}.png" alt=""><span>${l}</span><b></b>`;
+      d.className = "tile";
+      d.title = `${l}: ${v}`;
+      d.innerHTML = `<img src="/xianxia/ui/ui_xianxia_${ic}.png" alt=""><span></span><b></b>`;
+      d.querySelector("span").textContent = l;
       d.querySelector("b").textContent = v;
       return d;
-    }));
+    });
+    $$(".cstats").replaceChildren(hp, ...tiles);
   }
 
   // ---- right: tabs, filters, the grid of slots, the pager, the picked thing
@@ -943,6 +953,14 @@ async function charPanel(startTab = "all") {
   }
 
   const look2 = { ...ch().look };
+  // how tall the panel really is (the game turned on its side on a phone held upright: the width is its height)
+  const fit = () => {
+    const h = document.body.classList.contains("rotated") ? innerWidth : innerHeight;
+    wrap.classList.toggle("short", h < 521);
+    wrap.classList.toggle("tiny", h < 400);
+  };
+  fit();
+  addEventListener("resize", fit);
   drawLeft();
   drawRight();
   panel("Nhân vật", wrap);
