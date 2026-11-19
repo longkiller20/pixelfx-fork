@@ -15,6 +15,7 @@ import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE,
 import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem, adminArt, loadCharacter, grantArtMany } from "./store.js";
 import { userLock } from "./lock.js";
 import { MAPS as MAP_DEFS, mapInfo } from "../shared/maps/index.js";
+import { CONG_PHAP } from "../shared/cong-phap.js";
 
 const MAPS = Object.keys(MAP_DEFS).map((id) => mapInfo(id));
 
@@ -77,15 +78,10 @@ const T = {
       cooldown: "num", mult: "num", common_drops: "bool", fx: "str:48", style: "enum:melee|ranged|none", fly: "bool", shot_range: "num", shot_speed: "num", shot_fx: "str:48", drop_rate: "num",
     },
   },
-  // công pháp, what each needs to learn, and what monsters drop (see shared/arts-seed.js)
-  arts: {
-    pk: "art_key", pkType: "key", order: "sort, art_key", config: true, add: true, del: true,
-    cols: {
-      name: "str:30", description: "str:200", element: "str:8", tier: "uint", type: "enum:melee|bolt|zone|nova|dash|heal|buff", cd: "num", mult: "num",
-      params: "json", fx: "str:48", fx_at: "enum:front|self|target|bolt", fx_life: "num", fx_scale: "num", aimable: "bool", aim_range: "uint", starter: "bool", source: "enum:learn|event", source_note: "str:100", enabled: "bool", sort: "int",
-    },
-  },
-  art_reqs: { pk: "id", order: "art_key, id", config: true, add: true, del: true, cols: { art_key: "str:32", item_key: "str:32", qty: "uint" } },
+  // công pháp are designed in code (shared/cong-phap.js): an admin only switches each on or off, learnable with its bí
+  // kíp or only given (events, activities), and sold or not
+  cong_phap: { pk: "art_key", pkType: "key", order: "art_key", config: true, cols: { enabled: "bool", learnable: "bool", on_sale: "bool" } },
+  // what monsters drop
   monster_drops: { pk: "id", order: "monster, id", config: true, add: true, del: true, cols: { monster: "str:16", item_key: "str:32", chance: "num", min_qty: "uint", max_qty: "uint" } },
   skills: { pk: "slot", order: "slot", config: true, cols: { name: "str:40", type: "enum:melee|bolt|zone", cd: "num", mult: "num", params: "json" } },
   settings: { pk: "k", order: "k", config: true, cols: { v: "num" } },
@@ -260,7 +256,7 @@ export function adminApp(world) {
   };
 
   // an effect must be one the game has (public/hieu-ung/); empty is fine (an art throws the weapon, a monster is a dummy)
-  const FX_COLS = { arts: ["fx"], monsters: ["fx", "shot_fx"] };
+  const FX_COLS = { monsters: ["fx", "shot_fx"] };
   const checkFx = (name, row) => {
     for (const k of FX_COLS[name] ?? [])
       if (row[k] && !hasFx(row[k]))
@@ -332,8 +328,11 @@ export function adminApp(world) {
       const [before] = await c.query(`SELECT * FROM ${name} WHERE ${t.pk} = ?`, [pk]);
       if (!before) throw bad("Không tìm thấy dòng này.", 404);
       await c.query(`DELETE FROM ${name} WHERE ${t.pk} = ?`, [pk]);
-      // an art takes what it needed with it; who learned it keeps the row (harmless) until it comes back
-      if (name === "arts") await c.query("DELETE FROM art_reqs WHERE art_key = ?", [pk]);
+      // a bí kíp or essence an art needs stays (the arts are in code)
+      if (name === "items") {
+        const by = CONG_PHAP.filter((a) => (a.reqs ?? []).some((r) => r.item === pk)).map((a) => a.name);
+        if (by.length) throw bad(`Không xóa được: ${by.join(", ")} cần vật phẩm này để lĩnh ngộ.`);
+      }
       // a monster takes its drop list with it; one a map places can't go
       if (name === "monsters") {
         const used = MAPS.filter((m) => m.mobs.some((x) => x.type === pk)).map((m) => m.name);
@@ -423,6 +422,14 @@ export function adminApp(world) {
     await log(req.admin, "player.item", id, { item, op, value: v });
     await world.sendInv(id);
     res.json(await playerDetail(id));
+  }));
+  // the arts as designed in code, each with the admin's switches (cong_phap)
+  r.get("/cong-phap", wrap(async (req, res) => {
+    const sw = Object.fromEntries((await q("SELECT * FROM cong_phap")).map((r) => [r.art_key, r]));
+    res.json(CONG_PHAP.map((a) => ({
+      key: a.key, name: a.name, desc: a.desc, line: a.line, element: a.element, tier: a.tier, cd: a.cd, aim: a.aim, starter: !!a.starter, icon: a.icon, fx: a.fx,
+      reqs: a.reqs ?? [], price: a.price ?? 0, enabled: !!(sw[a.key]?.enabled ?? 1), learnable: !!(sw[a.key]?.learnable ?? 1), on_sale: !!sw[a.key]?.on_sale,
+    })));
   }));
   // an event's reward: give an art to everyone, everyone online, or a list of đạo hiệu; who is online gets it at once
   r.post("/arts/:key/grant", wrap(async (req, res) => {

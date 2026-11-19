@@ -256,7 +256,6 @@ async function go(t) {
   }
 }
 const reload = () => go(tab);
-let artMode = "list"; // the công pháp tab: "list" (rows) or "fx" (every effect playing, to switch them on and off)
 
 // ---------------------------------------------------------------- the tabs
 const SKILL_PARAMS = { melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur"] };
@@ -264,15 +263,8 @@ const PARAM_LABEL = { range: "Tầm (px)", arc: "Góc chém (radian)", speed: "T
 const SKILL_TYPE = [["melee", "Cận chiến"], ["bolt", "Phóng (đạn bay)"], ["zone", "Trận pháp (vùng)"]];
 
 // công pháp
-const ART_TYPE = [["melee", "Cận chiến (cung chém trước mặt)"], ["bolt", "Phóng xa (đạn bay)"], ["zone", "Vùng phía trước"], ["nova", "Vùng quanh thân"], ["dash", "Lướt tới"], ["heal", "Hồi sinh lực"], ["buff", "Tăng chỉ số tạm thời"]];
-const ART_AT = [["front", "Trước mặt"], ["self", "Trên người (đi theo)"], ["target", "Nơi chiêu rơi xuống"], ["bolt", "Bay theo viên đạn"]];
-const ART_PARAM_HINT = {
-  melee: '{"range": 64, "arc": 1.4}', bolt: '{"range": 300, "speed": 380, "r": 12}', zone: '{"dist": 120, "r": 60, "delay": 0.5, "slow": 0, "slowDur": 0}',
-  nova: '{"r": 90, "delay": 0.2, "slow": 0, "slowDur": 0}', dash: '{"dist": 140, "r": 26}', heal: '{"pct": 0.2}', buff: '{"stat": "atk", "pct": 20, "dur": 8}',
-};
 const ELEMENTS = [["kim", "Kim"], ["hoa", "Hỏa"], ["thuy", "Thủy"], ["bang", "Băng"], ["loi", "Lôi"], ["moc", "Mộc"], ["tho", "Thổ"], ["quang", "Quang"], ["am", "Ám"], ["huyen", "Huyền"], ["phong", "Phong"], ["di", "Dị Giới"], ["bao", "Bạo"], ["thu", "Ngự Thú"]];
 const MON_STYLE = [["melee", "Đánh gần (lao tới)"], ["ranged", "Đánh xa (bắn)"], ["none", "Đứng yên (bù nhìn)"]];
-const ART_SOURCE = [["learn", "Lĩnh ngộ bằng vật phẩm"], ["event", "Chỉ qua hoạt động / sự kiện / đấu giá (admin phát)"]];
 const ITEM_KIND = [["pill", "Đan dược (dùng được)"], ["book", "Bí kíp"], ["material", "Nguyên liệu"]];
 /**
  * A long list 10 at a time, with page buttons under it. key: the filters the list was made with; the page is remembered
@@ -438,143 +430,57 @@ const VIEWS = {
   },
 
   async arts() {
-    // the effect previews (pixelfx) load only here, so the other tabs stay light
-    const [rows, reqs, items, { fxPreview }] = await Promise.all([api("/t/arts"), api("/t/art_reqs"), api("/t/items"), import("/fxpreview.js")]);
-    const opts = itemOptions(items), nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name]));
-    const F = [
-      { k: "name", label: "Tên" }, { k: "element", label: "Hệ", type: "select", options: ELEMENTS }, { k: "tier", label: "Bậc (1-9)", type: "number", step: 1 },
-      { k: "type", label: "Loại chiêu", type: "select", options: ART_TYPE }, { k: "cd", label: "Hồi chiêu (giây)", type: "number" },
-      { k: "mult", label: "Hệ số sát thương (× công)", type: "number" },
-      { k: "params", label: "Thông số (JSON)", wide: true, hint: "Theo loại: cận chiến {range, arc}; phóng {range, speed, r}; vùng {dist, r, delay, slow, slowDur}; quanh thân {r, delay, slow, slowDur}; lướt {dist, r}; hồi {pct}; tăng {stat: atk|def|spd, pct, dur}" },
-      { k: "fx", label: "Hiệu ứng", hint: "vd fire/fireball (trong public/hieu-ung); để trống = ném vũ khí đang cầm" }, { k: "fx_at", label: "Hiệu ứng vẽ ở", type: "select", options: ART_AT },
-      { k: "aimable", label: "Kéo chọn vị trí (chỉ chiêu loại vùng): người chơi giữ nút chiêu rồi kéo để đặt chỗ nổ", type: "bool" },
-      { k: "aim_range", label: "Tầm kéo tối đa (px, tính từ nhân vật)", type: "number", step: 10, hint: "khi bật Kéo chọn vị trí; vd 280. Tắt thì chiêu nổ cách nhân vật dist px phía trước" },
-      { k: "fx_life", label: "Dừng hiệu ứng lặp sau (giây, 0 = mặc định)", type: "number" },
-      { k: "fx_scale", label: "Phóng to hiệu ứng (0 = tự động)", type: "number", step: 0.05, hint: "tự động: 1.65 trên người / trước mặt, 1.2-1.4 vùng xa, 1.3 đạn bay" }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
-      { k: "source", label: "Cách có được", type: "select", options: ART_SOURCE },
-      { k: "source_note", label: "Nhận ở đâu (người chơi thấy)", hint: "vd: Sự kiện Trung Thu, Đấu giá, Hoạt động Tông môn" },
-      { k: "starter", label: "Ai cũng biết sẵn (không cần vật phẩm)", type: "bool" }, { k: "enabled", label: "Đang mở", type: "bool" },
-      { k: "description", label: "Mô tả", type: "textarea", wide: true },
-    ];
-    const save = (key) => async (c) => {
-      if (c.params !== undefined) {
-        try {
-          c.params = JSON.parse(c.params);
-        } catch {
-          return toast("Thông số phải là JSON, vd {\"range\": 64, \"arc\": 1.4}", false);
-        }
-      }
-      if (await guard(() => api(key ? `/t/arts/${key}` : "/t/arts", { method: key ? "PATCH" : "POST", body: c }), key ? "Đã lưu." : "Đã thêm.")) reload();
+    // each art is designed in code (shared/cong-phap.js): here only its switches, its effect playing, and handing it out
+    const [rows, items, { fxPreview }] = await Promise.all([api("/cong-phap"), api("/t/items"), import("/fxpreview.js")]);
+    const nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name]));
+    const elemName = (e) => ELEMENTS.find((x) => x[0] === e)?.[1] ?? e;
+    // a switch: saved at once
+    const toggle = (r, col, on, off, label) => {
+      const b = el("button", { type: "button", class: "small sw" });
+      const paint = () => {
+        b.classList.toggle("on", !!r[col]);
+        b.textContent = r[col] ? on : off;
+        b.title = label;
+      };
+      b.addEventListener("click", async () => {
+        b.disabled = true;
+        const v = !r[col];
+        if ((await guard(() => api(`/t/cong_phap/${r.key}`, { method: "PATCH", body: { [col]: v } }), `${r.name}: ${v ? on : off}.`)) !== undefined) r[col] = v;
+        b.disabled = false;
+        paint();
+        b.closest(".artcard")?.classList.toggle("off", !r.enabled);
+      });
+      paint();
+      return b;
     };
-    // what an art needs: one row per item, each editable; a row to add another
-    const reqBox = (key) => {
-      const mine = reqs.filter((r) => r.art_key === key);
-      const box = el("div", { class: "reqs" }, el("b", {}, "Vật phẩm cần để lĩnh ngộ (tiêu hao khi học)"));
-      for (const r of mine) {
-        const it = el("select", {}, opts.map(([v, l]) => el("option", { value: v, selected: v === r.item_key }, l)));
-        const qty = el("input", { type: "number", min: 1, step: 1, value: r.qty, inputmode: "numeric" });
-        box.append(el("div", { class: "bar" }, it, qty,
-          el("button", { class: "small", type: "button", onclick: async () => (await guard(() => api(`/t/art_reqs/${r.id}`, { method: "PATCH", body: { item_key: it.value, qty: Number(qty.value) } }), "Đã lưu.")) && reload() }, "Lưu"),
-          el("button", { class: "small danger", type: "button", onclick: async () => confirm(`Bỏ yêu cầu ${nameOf[r.item_key] ?? r.item_key}?`) && (await guard(() => api(`/t/art_reqs/${r.id}`, { method: "DELETE" }), "Đã bỏ.")) && reload() }, "✕")));
-      }
-      if (!mine.length) box.append(el("span", { class: "dim" }, "Không cần gì: ai lĩnh ngộ cũng được (nên bật \"Ai cũng biết sẵn\" hoặc thêm yêu cầu)."));
-      const it = el("select", {}, opts.map(([v, l]) => el("option", { value: v, selected: v === "bk_" + key }, l)));
-      const qty = el("input", { type: "number", min: 1, step: 1, value: 1, inputmode: "numeric" });
-      box.append(el("div", { class: "bar" }, it, qty, el("button", { class: "small", type: "button", onclick: async () => (await guard(() => api("/t/art_reqs", { method: "POST", body: { art_key: key, item_key: it.value, qty: Number(qty.value) } }), "Đã thêm yêu cầu.")) && reload() }, "+ Thêm")));
-      return box;
-    };
-    const add = record({
-      title: "Thêm công pháp", isNew: true, row: { element: "kim", tier: 1, type: "melee", cd: 3, mult: 1.3, params: ART_PARAM_HINT.melee, fx: "melee/sword-slash", fx_at: "front", fx_life: 0, aimable: 0, aim_range: 280, sort: 500, starter: 0, enabled: 1 },
-      fields: [{ k: "art_key", label: "Mã (chữ thường, không dấu)", hint: "vd: thanh_long_tram" }, ...F],
-      onSave: save(null),
-    });
-    // hand an art out: to everyone, everyone online, or some players by đạo hiệu (an event's reward, an auction's prize)
+    // hand an art out: to everyone, everyone online, or some players by đạo hiệu (an event's reward, an activity's prize)
     const grantBox = (r) => {
       const to = el("select", {}, [["names", "Theo đạo hiệu"], ["online", "Mọi người đang online"], ["all", "Mọi nhân vật"]].map(([v, l]) => el("option", { value: v }, l)));
       const names = el("input", { placeholder: "Đạo hiệu, cách nhau bằng dấu phẩy" });
       to.addEventListener("change", () => (names.hidden = to.value !== "names"));
-      return el("div", { class: "reqs" }, el("b", {}, r.source === "event" ? "Phát công pháp (thưởng sự kiện, đấu giá...)" : "Truyền thẳng (không tiêu vật phẩm)"),
+      return el("div", { class: "reqs" }, el("b", {}, "Phát (thưởng sự kiện, hoạt động)"),
         el("div", { class: "bar" }, to, names, el("button", { class: "small", type: "button", onclick: async () => {
           if (to.value !== "names" && !confirm(`Phát ${r.name} cho ${to.value === "all" ? "MỌI nhân vật" : "mọi người đang online"}?`)) return;
-          const out = await guard(() => api(`/arts/${r.art_key}/grant`, { method: "POST", body: { to: to.value, names: names.value } }));
+          const out = await guard(() => api(`/arts/${r.key}/grant`, { method: "POST", body: { to: to.value, names: names.value } }));
           if (out) toast(`Đã phát cho ${out.count} người (ai có rồi thì giữ nguyên).`);
         } }, "Phát")));
     };
-    const src = el("select", {}, [["", "Mọi nguồn"], ...ART_SOURCE].map(([v, l]) => el("option", { value: v }, l)));
-    const type = el("select", {}, [["", "Mọi loại"], ...ART_TYPE].map(([v, l]) => el("option", { value: v }, l)));
-    const elem = el("select", {}, [["", "Mọi hệ"], ...ELEMENTS].map(([v, l]) => el("option", { value: v }, l)));
-    const aimSel = el("select", {}, [["", "Kéo / không kéo"], ["1", "🎯 Kéo chọn vị trí"], ["0", "Vùng không kéo"]].map(([v, l]) => el("option", { value: v }, l)));
-    const onSel = el("select", {}, [["", "Bật và tắt"], ["1", "Đang bật"], ["0", "Đã tắt"]].map(([v, l]) => el("option", { value: v }, l)));
-    const q = el("input", { type: "search", placeholder: "Tìm theo tên, mã hoặc hiệu ứng..." });
-    const out = el("div");
-    // two ways to look: the list (one row each, its editor in the modal) or the previews (every effect playing, a switch
-    // under each), to see them all and turn any off
-    const mode = el("div", { class: "seg" }, [["list", "Danh sách"], ["fx", "▶ Xem hiệu ứng"]].map(([v, l]) =>
-      el("button", { type: "button", class: `small${artMode === v ? " on" : ""}`, "data-m": v, onclick: () => {
-        artMode = v;
-        for (const b of mode.children) b.classList.toggle("on", b.dataset.m === v);
-        draw();
-      } }, l)));
-    const offCount = el("span", { class: "dim" });
-    const counts = () => (offCount.textContent = `Đang bật ${rows.filter((r) => r.enabled).length} · đã tắt ${rows.filter((r) => !r.enabled).length}`);
-    const setOn = async (r, on) => {
-      const ok = await guard(() => api(`/t/arts/${r.art_key}`, { method: "PATCH", body: { enabled: on } }), on ? `Đã bật ${r.name}.` : `Đã tắt ${r.name}.`);
-      if (ok !== undefined) r.enabled = on ? 1 : 0;
-      counts();
-      return ok !== undefined;
-    };
-    const tile = (r) => {
-      const sw = el("button", { type: "button", class: "small" });
-      const box = el("div", { class: "fxtile" }, fxPreview(r.fx, { w: 200, h: 140 }),
-        el("div", { class: "fxname" }, el("b", {}, r.name), el("span", { class: "dim" }, `${r.art_key} · ${(ART_TYPE.find((x) => x[0] === r.type)?.[1] ?? r.type).replace(/ \(.*/, "")}`)),
-        el("span", { class: "dim fxid" }, r.fx || "(ném vũ khí)"), sw);
-      const paint = () => {
-        box.classList.toggle("off", !r.enabled);
-        sw.className = `small ${r.enabled ? "" : "danger"}`;
-        sw.textContent = r.enabled ? "✓ Đang bật · bấm để tắt" : "✕ Đã tắt · bấm để bật";
-      };
-      sw.addEventListener("click", async () => {
-        sw.disabled = true;
-        await setOn(r, !r.enabled);
-        sw.disabled = false;
-        paint();
-      });
-      paint();
-      return box;
-    };
-    const draw = () => {
-      const t = q.value.trim().toLowerCase();
-      const list = rows.filter((r) => (!src.value || r.source === src.value) && (!type.value || r.type === type.value) && (!elem.value || r.element === elem.value) &&
-        (!onSel.value || String(r.enabled ? 1 : 0) === onSel.value) &&
-        (!aimSel.value || (aimSel.value === "1" ? !!r.aimable : r.type === "zone" && !r.aimable)) && (!t || r.name.toLowerCase().includes(t) || r.art_key.includes(t) || r.fx.includes(t)));
-      counts();
-      if (artMode === "fx") {
-        const [box, nav] = paged(list, tile, `fx|${src.value}|${type.value}|${elem.value}|${onSel.value}|${aimSel.value}|${t}`);
-        box.className = "fxgrid";
-        return out.replaceChildren(box, nav);
-      }
-      out.replaceChildren(...paged(list, (r) => {
-        const card = record({
-          title: r.name, sub: `${r.art_key} · ${ELEMENTS.find((e) => e[0] === r.element)?.[1] ?? r.element} · bậc ${r.tier}`, row: r, fields: F,
-          extra: el("span", {}, r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết") : r.source === "event" ? el("span", { class: "tag gold" }, `★ ${r.source_note || "Sự kiện"}`) : null, " ", r.aimable ? el("span", { class: "tag" }, `🎯 Kéo ${r.aim_range}px`) : null, " ", r.enabled ? null : el("span", { class: "tag red" }, "Đang khóa")),
-          onSave: save(r.art_key),
-          onDelete: async () => confirm(`Xóa hẳn ${r.name}? Người đã lĩnh ngộ sẽ không dùng được nữa. Muốn tạm ẩn thì bỏ chọn "Đang mở".`) && (await guard(() => api(`/t/arts/${r.art_key}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
-        });
-        // the effect playing, at the top of the editor
-        card.insertBefore(el("div", { class: "fxhead" }, fxPreview(r.fx, { w: 240, h: 150 })), card.querySelector(".fields"));
-        if (!r.starter && r.source !== "event") card.insertBefore(reqBox(r.art_key), card.querySelector(".actions"));
-        if (!r.starter) card.insertBefore(grantBox(r), card.querySelector(".actions"));
-        return card;
-      }, `${src.value}|${type.value}|${elem.value}|${onSel.value}|${aimSel.value}|${t}`));
-    };
-    for (const s of [src, type, elem, aimSel, onSel]) s.addEventListener("change", draw);
-    q.addEventListener("input", draw);
-    draw();
+    const card = (r) => el("div", { class: `card artcard${r.enabled ? "" : " off"}` },
+      el("div", { class: "arthead" },
+        el("div", { class: "fxbox" }, fxPreview(r.fx[r.fx.length - 1] ?? r.icon, { w: 220, h: 150 })),
+        el("div", { class: "artinfo" },
+          el("div", {}, el("b", {}, r.name), " ", el("span", { class: "dim" }, `${r.key} · ${elemName(r.element)} · bậc ${r.tier} · hồi ${r.cd}s${r.aim ? ` · kéo chọn chỗ ${r.aim}px` : ""}`),
+            r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết sẵn") : null),
+          el("p", {}, r.line), el("p", { class: "dim" }, r.desc),
+          r.starter ? null : el("p", { class: "dim" }, `Lĩnh ngộ cần: ${r.reqs.map((q) => `${nameOf[q.item] ?? q.item} ×${q.qty}`).join(", ")} · giá bán ${fmt(r.price)} linh thạch`))),
+      el("div", { class: "bar sws" },
+        toggle(r, "enabled", "✓ Đang bật", "✕ Đã tắt", "Tắt: không ai dùng, học hay mua được"),
+        r.starter ? null : toggle(r, "learnable", "📖 Học được bằng bí kíp", "★ Chỉ nhận từ sự kiện, hoạt động", "Bật: người chơi lĩnh ngộ bằng bí kíp và tinh thạch. Tắt: chỉ có khi được phát"),
+        r.starter ? null : toggle(r, "on_sale", "💎 Đang bán", "Không bán", "Bật: mua được ở bảng Công Pháp bằng linh thạch")),
+      r.starter ? null : grantBox(r));
     return [el("h2", {}, `Công pháp (${rows.length})`),
-      el("p", { class: "dim" }, "Mỗi công pháp dùng một hiệu ứng trong public/hieu-ung (chép từ pixelfx, chỉ những hiệu ứng dạng chiêu thức). Môn \"Lĩnh ngộ\": người chơi tiêu hao các vật phẩm yêu cầu (bí kíp, nguyên liệu: rơi từ yêu thú). Môn \"Chỉ qua hoạt động / sự kiện\": không học được, chỉ có khi admin phát (cho mọi người, người đang online, hoặc theo đạo hiệu), ghi chú \"Nhận ở đâu\" hiện cho người chơi. Mỗi người gán tối đa 5 môn lên thanh nút. Chiêu loại vùng có thể bật \"Kéo chọn vị trí\": người chơi giữ nút chiêu rồi kéo để đặt chỗ nổ trong tầm kéo (trên máy tính là chỗ con trỏ chuột); tắt thì chiêu nổ trước mặt như thường. Số sai sẽ bị từ chối, game không bị ảnh hưởng."),
-      el("div", { class: "grid" }, add),
-      el("div", { class: "bar" }, mode, offCount),
-      el("div", { class: "bar" }, onSel, src, type, elem, aimSel, q), out];
+      el("p", { class: "dim" }, "Mỗi công pháp được thiết kế riêng trong code (shared/cong-phap.js: cách đánh ở server/cong-phap.js, hình ở public/js/cong-phap.js), nên số liệu không chỉnh ở đây. Admin chỉ bật/tắt từng môn, chọn môn học được bằng bí kíp hay chỉ nhận từ sự kiện, hoạt động, và có bán hay không. Đổi là có hiệu lực ngay."),
+      el("div", { class: "artlist" }, rows.map(card))];
   },
 
   async drops() {
@@ -847,7 +753,7 @@ const ACTIONS = {
 };
 function logItem(l) {
   const [t, a] = l.action.split(".");
-  const what = ACTIONS[l.action] ?? `${{ realms: "cảnh giới", items: "vật phẩm", monsters: "yêu thú", skills: "đánh thường", settings: "cài đặt", cosmetics: "tóc/áo", arts: "công pháp", art_reqs: "yêu cầu công pháp", monster_drops: "rơi đồ" }[t] ?? t} · ${{ edit: "sửa", add: "thêm", del: "xóa" }[a] ?? a}`;
+  const what = ACTIONS[l.action] ?? `${{ realms: "cảnh giới", items: "vật phẩm", monsters: "yêu thú", skills: "đánh thường", settings: "cài đặt", cosmetics: "tóc/áo", arts: "công pháp", cong_phap: "công pháp", art_reqs: "yêu cầu công pháp", monster_drops: "rơi đồ" }[t] ?? t} · ${{ edit: "sửa", add: "thêm", del: "xóa" }[a] ?? a}`;
   return el("div", { class: "logitem" }, el("b", {}, l.admin), ` ${what} `, l.target ? el("span", { class: "tag" }, l.target) : null, el("span", { class: "dim" }, ` · ${when(l.at)}`),
     l.detail ? el("div", {}, el("code", {}, l.detail)) : null);
 }
@@ -866,7 +772,7 @@ const ago = (ms) => {
 
 async function playerView(id) {
   const main = $("main");
-  const [first, items, cos, realms, arts, mons] = await Promise.all([api(`/players/${id}`), api("/t/items"), (async () => (await loadAtlas(), api("/t/cosmetics")))(), api("/t/realms"), api("/t/arts"), api("/t/monsters")]);
+  const [first, items, cos, realms, arts, mons] = await Promise.all([api(`/players/${id}`), api("/t/items"), (async () => (await loadAtlas(), api("/t/cosmetics")))(), api("/t/realms"), api("/cong-phap"), api("/t/monsters")]);
   // drop a monster by the player to try it (one killed this way never comes back)
   const summonSel = el("select", {}, mons.filter((m) => m.style !== "none").map((m) => el("option", { value: m.type }, `${m.name} (${m.style === "ranged" ? "đánh xa" : "đánh gần"})`)));
   // levels by realm, for the "straight to a realm" picker
@@ -968,8 +874,8 @@ async function playerView(id) {
 
       // ---- công pháp: what they learned, the bar; teach or take back without spending anything
       const known = new Set(p.learned);
-      const artName = (k) => arts.find((a) => a.art_key === k)?.name ?? k;
-      const teach = el("select", {}, arts.filter((a) => !a.starter && !known.has(a.art_key)).map((a) => el("option", { value: a.art_key }, `${a.name} (bậc ${a.tier})`)));
+      const artName = (k) => arts.find((a) => a.key === k)?.name ?? k;
+      const teach = el("select", {}, arts.filter((a) => !a.starter && !known.has(a.key)).map((a) => el("option", { value: a.key }, `${a.name} (bậc ${a.tier})`)));
       parts.push(section(`Công pháp (${p.learned.length} đã lĩnh ngộ)`, `thanh nút: ${p.slots.filter(Boolean).map(artName).join(", ") || "trống"}`,
         el("p", { class: "dim" }, `Thanh nút: ${p.slots.map((k, i) => `${i + 1}. ${k ? artName(k) : "trống"}`).join(" · ")}`),
         el("div", { class: "chips" }, p.learned.length ? p.learned.map((k) => el("span", { class: "chip" }, el("span", {}, artName(k)),

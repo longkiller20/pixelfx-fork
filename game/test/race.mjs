@@ -269,61 +269,76 @@ const SHOP_TEST = "Hàng thử nghiệm";
     // công pháp: learning spends every required item exactly once, even when the same learn (or two arts that need the
     // same essence) arrive together; the bar holds only known arts, none twice; a monster's drop lands in the bag
     {
+      const { CONG_PHAP_BY_KEY: CP } = await import("../shared/cong-phap.js");
+      const give = async (uid, reqs) => { for (const r of reqs) await adm(`/players/${uid}/items`, { token, method: "POST", body: { item: r.item, op: "add", value: r.qty } }); };
       const P = await player(), [pu] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [P.name]);
       const m0 = await me(P.token);
       assert.deepEqual(m0.character.slots, ["phikiem", "loian", null, null, null], "a fresh bar: the two arts everyone knows");
-      assert.equal((await call("/arts/learn", { token: P.token, method: "POST", body: { key: "fire_fireball" } })).status, 409, "nothing in the bag: refused");
-      const art = (await adm("/t/art_reqs", { token })).data.filter((r) => r.art_key === "fire_fireball");
-      for (const r of art) await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: r.item_key, op: "add", value: r.qty } });
-      const tries = await Promise.all(Array.from({ length: 6 }, () => call("/arts/learn", { token: P.token, method: "POST", body: { key: "fire_fireball" } })));
+      assert.equal((await call("/arts/learn", { token: P.token, method: "POST", body: { key: "tam_tuyet_kiem" } })).status, 409, "nothing in the bag: refused");
+      await give(pu.id, CP.tam_tuyet_kiem.reqs);
+      const tries = await Promise.all(Array.from({ length: 6 }, () => call("/arts/learn", { token: P.token, method: "POST", body: { key: "tam_tuyet_kiem" } })));
       assert.equal(tries.filter((x) => x.status === 200).length, 1, "six learns at once: one goes through");
       const after = await me(P.token);
-      assert.ok(after.character.learned.includes("fire_fireball") && after.character.slots[2] === "fire_fireball", "learned, and on the first empty slot");
-      for (const r of art) assert.equal(after.inventory[r.item_key] ?? 0, 0, `${r.item_key} spent once`);
-      // two other arts and a repeat of one, all at once: each learned once, every item spent exactly once
-      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "bk_fire_spirit_flame", op: "add", value: 1 } });
-      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "bk_fire_flame_pillar", op: "add", value: 1 } });
-      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "mat_am", op: "add", value: 3 } });
-      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "mat_hoa", op: "add", value: 6 } });
-      await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: "mat_linhtuy", op: "add", value: 1 } });
-      const two = await Promise.all(["fire_spirit_flame", "fire_flame_pillar", "fire_spirit_flame"].map((key) => call("/arts/learn", { token: P.token, method: "POST", body: { key } })));
+      assert.ok(after.character.learned.includes("tam_tuyet_kiem") && after.character.slots[2] === "tam_tuyet_kiem", "learned, and on the first empty slot");
+      for (const r of CP.tam_tuyet_kiem.reqs) assert.equal(after.inventory[r.item] ?? 0, 0, `${r.item} spent once`);
+      // two other arts and a repeat of one, all at once: each learned once, every item (Linh Tủy both need) spent exactly once
+      await give(pu.id, [...CP.dia_chan_cuoc.reqs, ...CP.luu_tinh_hoa_vu.reqs]);
+      const two = await Promise.all(["dia_chan_cuoc", "luu_tinh_hoa_vu", "dia_chan_cuoc"].map((key) => call("/arts/learn", { token: P.token, method: "POST", body: { key } })));
       assert.equal(two.filter((x) => x.status === 200).length, 2, "two arts, once each; the repeat is refused");
       const inv2 = (await me(P.token)).inventory;
-      assert.ok(!inv2.mat_am && !inv2.mat_hoa && !inv2.mat_linhtuy, "every essence spent exactly once");
+      assert.ok(!inv2.mat_tho && !inv2.mat_hoa && !inv2.mat_linhtuy, "every essence spent exactly once");
       // the bar: unknown arts and the same art twice are refused; a good bar is live in the world at once
       const eq = (slots) => call("/arts/equip", { token: P.token, method: "POST", body: { slots } });
       assert.equal((await eq(["nuke", null, null, null, null])).status, 400);
-      assert.equal((await eq(["explosions_big_explosion", null, null, null, null])).status, 403, "not learned");
-      assert.equal((await eq(["fire_fireball", "fire_fireball", null, null, null])).status, 400, "not twice");
+      assert.equal((await eq(["diet_the_than_bao", null, null, null, null])).status, 403, "not learned");
+      assert.equal((await eq(["tam_tuyet_kiem", "tam_tuyet_kiem", null, null, null])).status, 400, "not twice");
       const c3 = await connect(P.token);
       await sleep(300);
-      assert.equal((await eq(["fire_fireball", "phikiem", null, "fire_flame_pillar", null])).status, 200);
+      assert.equal((await eq(["tam_tuyet_kiem", "phikiem", null, "luu_tinh_hoa_vu", null])).status, 200);
       await sleep(200);
-      assert.deepEqual(c3.msgs.filter((m) => m.t === "arts").pop().slots, ["fire_fireball", "phikiem", null, "fire_flame_pillar", null], "the online player's bar changed");
+      assert.deepEqual(c3.msgs.filter((m) => m.t === "arts").pop().slots, ["tam_tuyet_kiem", "phikiem", null, "luu_tinh_hoa_vu", null], "the online player's bar changed");
       send(c3, { t: "cast", s: 1, ax: 1, ay: 0 });
       send(c3, { t: "cast", s: 3, ax: 1, ay: 0 }); // an empty slot does nothing
       await sleep(300);
       const casts = c3.msgs.filter((m) => m.t === "s").flatMap((m) => m.E).filter((e) => e.e === "cast" && e.id === c3.id);
-      assert.deepEqual(casts.map((e) => e.a), ["fire_fireball"], "slot 1 casts the fireball; the empty slot nothing");
+      assert.deepEqual(casts.map((e) => e.a), ["tam_tuyet_kiem"], "slot 1 casts Tam Tuyệt Kiếm; the empty slot nothing");
       assert.ok(c3.me.cd[1] > 1, "and its cooldown runs");
       // an admin takes it back: it leaves the bar too
-      await adm(`/players/${pu.id}/arts`, { token, method: "POST", body: { key: "fire_fireball", learn: false } });
+      await adm(`/players/${pu.id}/arts`, { token, method: "POST", body: { key: "tam_tuyet_kiem", learn: false } });
       assert.equal((await me(P.token)).character.slots[0], null);
-      // an art only events give: learning it is refused even with every item in the bag; the admin hands it out by
+      // an admin can only switch an art: its numbers are in code
+      assert.equal((await adm("/t/cong_phap/diet_the_than_bao", { token, method: "PATCH", body: { cd: 1 } })).status, 400, "no numbers to edit");
+      assert.equal((await adm("/t/cong_phap", { token, method: "POST", body: { art_key: "moi", enabled: true } })).status, 400, "no new arts from the admin site");
+      // switched to "only given": learning it is refused even with every item in the bag; the admin hands it out by
       // đạo hiệu (twice at once: one row), and the player online has it straight away
-      assert.equal((await adm("/t/arts/fire_meteor", { token, method: "PATCH", body: { source: "event", source_note: "Sự kiện thử" } })).status, 200);
+      assert.equal((await adm("/t/cong_phap/diet_the_than_bao", { token, method: "PATCH", body: { learnable: false } })).status, 200);
       try {
-        for (const r of (await adm("/t/art_reqs", { token })).data.filter((x) => x.art_key === "fire_meteor"))
-          await adm(`/players/${pu.id}/items`, { token, method: "POST", body: { item: r.item_key, op: "add", value: r.qty } });
-        assert.equal((await call("/arts/learn", { token: P.token, method: "POST", body: { key: "fire_meteor" } })).status, 403, "event-only: can't be learned");
-        const g = await Promise.all([1, 2].map(() => adm("/arts/fire_meteor/grant", { token, method: "POST", body: { to: "names", names: P.name } })));
+        await give(pu.id, CP.diet_the_than_bao.reqs);
+        assert.equal((await call("/arts/learn", { token: P.token, method: "POST", body: { key: "diet_the_than_bao" } })).status, 403, "event-only: can't be learned");
+        const g = await Promise.all([1, 2].map(() => adm("/arts/diet_the_than_bao/grant", { token, method: "POST", body: { to: "names", names: P.name } })));
         assert.ok(g.every((x) => x.status === 200), "given by đạo hiệu");
         await sleep(200);
-        assert.ok(c3.msgs.filter((m) => m.t === "arts").pop().learned.includes("fire_meteor"), "the online player has it at once");
-        assert.equal(Number((await q("SELECT COUNT(*) AS n FROM learned_arts WHERE user_id = ? AND art_key = 'fire_meteor'", [pu.id]))[0].n), 1, "one row");
-        assert.equal((await me(P.token)).inventory.bk_fire_meteor, 1, "and its items were not spent");
+        assert.ok(c3.msgs.filter((m) => m.t === "arts").pop().learned.includes("diet_the_than_bao"), "the online player has it at once");
+        assert.equal(Number((await q("SELECT COUNT(*) AS n FROM learned_arts WHERE user_id = ? AND art_key = 'diet_the_than_bao'", [pu.id]))[0].n), 1, "one row");
+        assert.equal((await me(P.token)).inventory.bk_diet_the_than_bao, 1, "and its items were not spent");
       } finally {
-        await adm("/t/arts/fire_meteor", { token, method: "PATCH", body: { source: "learn", source_note: "" } });
+        await adm("/t/cong_phap/diet_the_than_bao", { token, method: "PATCH", body: { learnable: true } });
+      }
+      // sold: refused until an admin puts it on sale; then six buys at once take its price once
+      const B = await player(), [bu] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [B.name]);
+      const price = CP.tam_tuyet_kiem.price;
+      await adm(`/players/${bu.id}/adjust`, { token, method: "POST", body: { field: "stones", op: "set", value: price + 500 } });
+      assert.equal((await call("/arts/buy", { token: B.token, method: "POST", body: { key: "tam_tuyet_kiem" } })).status, 403, "not on sale");
+      assert.equal((await adm("/t/cong_phap/tam_tuyet_kiem", { token, method: "PATCH", body: { on_sale: true } })).status, 200);
+      try {
+        const buys = await Promise.all(Array.from({ length: 6 }, () => call("/arts/buy", { token: B.token, method: "POST", body: { key: "tam_tuyet_kiem" } })));
+        assert.equal(buys.filter((x) => x.status === 200).length, 1, "six buys at once: one");
+        const mb = await me(B.token);
+        assert.equal(mb.character.stones, 500, "charged once");
+        assert.ok(mb.character.learned.includes("tam_tuyet_kiem"), "and known");
+        assert.equal((await call("/arts/buy", { token: B.token, method: "POST", body: { key: "luu_tinh_hoa_vu" } })).status, 403, "another art not on sale");
+      } finally {
+        await adm("/t/cong_phap/tam_tuyet_kiem", { token, method: "PATCH", body: { on_sale: false } });
       }
 
       // drops: a dummy set to always drop two Huyền Thiết Tinh; break it and they are in the bag
@@ -570,96 +585,122 @@ const SHOP_TEST = "Hàng thử nghiệm";
   ok("phi kiếm: bought once flight opens and ridden at once; bảo vật swords never sold or ridden ungiven");
 }
 
-// only skill-shaped arts: the retired ones are gone, and every effect the arts use is in the game's own public/hieu-ung
+// the arts are the six designed in code; every effect they draw is in the game's own public/hieu-ung, nothing else of pixelfx
 {
-  const { RETIRED_FX, keyOf } = await import("../shared/arts-seed.js");
-  const arts = (await call("/config")).data.arts, keys = new Set(arts.map((a) => a.key));
-  for (const fx of RETIRED_FX) assert.ok(!keys.has(keyOf(fx)), `${keyOf(fx)} is gone`);
+  const { CONG_PHAP } = await import("../shared/cong-phap.js");
+  const arts = (await call("/config")).data.arts;
+  assert.deepEqual(arts.map((a) => a.key).sort(), CONG_PHAP.map((a) => a.key).sort(), "the switches cover exactly the arts in code");
+  assert.deepEqual(CONG_PHAP.map((a) => a.key), ["phikiem", "loian", "dia_chan_cuoc", "tam_tuyet_kiem", "luu_tinh_hoa_vu", "diet_the_than_bao"]);
   const list = await (await fetch(BASE + "/hieu-ung/danh-sach.json")).json();
-  for (const a of arts) if (a.fx) assert.ok(list.includes(a.fx), `${a.fx} is in public/hieu-ung`);
-  for (const fx of ["moves/pistol-shots", "weather/rain", "fire/candle"]) assert.ok(!list.includes(fx), `${fx} is not copied`);
-  assert.equal((await fetch(BASE + "/hieu-ung/fx/fire/fireball.js")).status, 200);
+  for (const a of CONG_PHAP) for (const fx of [...a.fx, a.icon].filter(Boolean)) assert.ok(list.includes(fx), `${fx} is in public/hieu-ung`);
+  for (const fx of ["moves/pistol-shots", "weather/rain", "fire/candle", "ice/ice-lance"]) assert.ok(!list.includes(fx), `${fx} is not copied`);
   assert.equal((await fetch(BASE + "/pixelfx/core/index.js")).status, 404, "pixelfx itself isn't served");
-  ok(`only skill-shaped arts (${arts.length}); their effects, and only what the game uses, in public/hieu-ung`);
+  ok(`the ${CONG_PHAP.length} arts designed in code; their effects, and only what the game uses, in public/hieu-ung`);
 }
 
-// an aimed zone: dragged far, it lands no farther than its reach; put on a dummy, it hits the dummy and nothing nearer
+// each art fights its own way, tried on the straw dummies: Phi Kiếm cuts on the way out and on the way back; Lôi Ấn Trận
+// lands where it is dragged (never beyond its reach) and strikes three times; Địa Chấn Cước runs a line of spikes along
+// the ground; Tam Tuyệt Kiếm plants the caster and cuts four times; Lưu Tinh Hỏa Vũ drops six meteors round the spot;
+// Diệt Thế Thần Bạo plants the caster, then goes off 1.6 s later
 {
   const { q } = await import("../server/db.js");
   const bal = await import("../shared/balance.js");
   bal.applyConfig((await call("/config")).data);
-  const key = "explosions_small_explosion", art = bal.ARTS[key];
-  assert.ok(art && art.type === "zone" && art.aim > 0, "Tiểu Bạo Phù can be aimed");
   const P = await player();
   const [row] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [P.name]);
-  await q("INSERT INTO learned_arts (user_id, art_key) VALUES (?, ?)", [row.id, key]);
-  await q("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify([key, null, null, null, null]), row.id]);
+  const KEYS = ["dia_chan_cuoc", "tam_tuyet_kiem", "luu_tinh_hoa_vu", "diet_the_than_bao"];
+  for (const k of KEYS) await q("INSERT INTO learned_arts (user_id, art_key) VALUES (?, ?)", [row.id, k]);
   const c = await connect(P.token);
   await sleep(400);
   const events = () => c.msgs.filter((m) => m.t === "s").flatMap((m) => m.E);
   const at = () => c.snap.P.find((x) => x[0] === c.id);
-  let p = at();
-  // far to the right and up in the sky: pulled in to the reach
-  send(c, { t: "cast", s: 1, ax: 1, ay: 0, tx: p[1] + 2000, ty: p[2] - 900 });
-  await sleep(400);
-  const e1 = events().find((e) => e.e === "art" && e.id === c.id && e.a === key);
-  assert.ok(e1, "cast");
-  const d1 = Math.hypot(e1.x - p[1], e1.y - (p[2] - 30));
-  assert.ok(d1 <= art.aim + 2 && d1 > art.aim - 40, `landed at its reach, not where asked (${Math.round(d1)} px, reach ${art.aim})`);
-  // walk to within reach of a standing dummy, then put the zone on it
-  const d = c.snap.M.find((m) => m[1] === "dummy" && !(m[6] & 1));
-  for (let i = 0; i < 120; i++) {
+  const bar = async (slots) => assert.equal((await call("/arts/equip", { token: P.token, method: "POST", body: { slots } })).status, 200);
+  // stand `gap` px left of a standing dummy, facing it
+  let d = c.snap.M.find((m) => m[1] === "dummy" && !(m[6] & 1)), p;
+  const stand = async (gap) => {
+    d = c.snap.M.find((m) => m[0] === d[0]);
+    for (let i = 0; i < 160; i++) {
+      p = at();
+      const dx = d[2] - gap - p[1];
+      if (Math.abs(dx) < 6) break;
+      send(c, { t: "in", dx: Math.sign(dx), jump: false, down: false });
+      await sleep(50);
+    }
+    send(c, { t: "in", dx: 0, jump: false, down: false });
+    await sleep(300);
     p = at();
-    const dx = d[2] - 200 - p[1];
-    if (Math.abs(dx) < 8) break;
-    send(c, { t: "in", dx: Math.sign(dx), jump: false, down: false });
-    await sleep(50);
-  }
-  send(c, { t: "in", dx: 0, jump: false, down: false });
-  await sleep(art.cd * 1000 + 200);
-  const n0 = events().length;
-  send(c, { t: "cast", s: 1, ax: 1, ay: 0, tx: d[2], ty: d[3] - 20 });
-  await sleep((art.delay + 0.5) * 1000);
-  const after = events().slice(n0);
-  const e2 = after.find((e) => e.e === "art" && e.id === c.id);
-  assert.ok(e2 && Math.abs(e2.x - d[2]) < 4 && Math.abs(e2.y - d[3]) < 4, `landed on the dummy, on the ground (${e2?.x},${e2?.y} vs ${d[2]},${d[3]})`);
-  assert.ok(after.some((e) => e.e === "hit" && e.id === d[0]), "and hit it, 200 px away");
-  ok("aimed zone: lands where it is put within its reach, settles on the ground, hits what is there; never beyond its reach");
-
-  // the admin's switch, per art: off, the same art lands its usual distance ahead wherever it is aimed; only zones take it
-  const ADMIN = process.env.ADMIN_URL ?? BASE.replace(/:\d+$/, ":5885");
-  const { hashPassword } = await import("../server/auth.js");
-  const an = "t_aim_" + uid();
-  await q("INSERT INTO admins (username, pass_hash, must_change) VALUES (?, ?, 0)", [an, await hashPassword("tamthoi123")]);
-  const adm = async (path, o = {}) => {
-    const r = await fetch(ADMIN + "/api" + path, { method: o.method ?? "GET", headers: { "content-type": "application/json", ...(o.token ? { authorization: `Bearer ${o.token}` } : {}) }, body: o.body && JSON.stringify(o.body) });
-    return { status: r.status, data: await r.json().catch(() => ({})) };
   };
-  try {
-    const token = (await adm("/login", { method: "POST", body: { username: an, password: "tamthoi123" } })).data.token;
-    assert.equal((await adm("/t/arts/phikiem", { token, method: "PATCH", body: { aimable: true } })).status, 400, "a bolt can't be made aimable");
-    assert.equal((await adm(`/t/arts/${key}`, { token, method: "PATCH", body: { aimable: false } })).status, 200);
-    await sleep(art.cd * 1000 + 300);
-    p = at();
-    const n1 = events().length;
-    send(c, { t: "cast", s: 1, ax: 1, ay: 0, tx: p[1] - 250, ty: p[2] - 100 });
-    await sleep(400);
-    const e3 = events().slice(n1).find((e) => e.e === "art" && e.id === c.id);
-    assert.ok(e3 && Math.abs(e3.x - (p[1] + art.dist)) < 4 && e3.y === p[2], `switched off: its usual spot ahead (${e3?.x} vs ${p[1] + art.dist})`);
-    assert.equal((await adm(`/t/arts/${key}`, { token, method: "PATCH", body: { aimable: true, aim_range: 150 } })).status, 200);
-    await sleep(art.cd * 1000 + 300);
-    p = at();
-    const n2 = events().length;
-    send(c, { t: "cast", s: 1, ax: 1, ay: 0, tx: p[1] + 2000, ty: p[2] - 30 });
-    await sleep(400);
-    const e4 = events().slice(n2).find((e) => e.e === "art" && e.id === c.id);
-    assert.ok(e4 && Math.abs(e4.x - (p[1] + 150)) < 4, `back on with a 150 px reach (${e4?.x - p[1]} px)`);
-  } finally {
-    await q("UPDATE arts SET aimable = 1, aim_range = 280 WHERE art_key = ?", [key]);
-    await q("DELETE FROM admins WHERE username = ?", [an]);
-  }
+  await stand(120);
+  const castAndWatch = async (slot, extra, ms) => {
+    const n0 = events().length;
+    send(c, { t: "cast", s: slot, ax: 1, ay: 0, ...extra });
+    await sleep(ms);
+    return events().slice(n0);
+  };
+  const hits = (ev) => ev.filter((e) => e.e === "hit" && e.by === c.id && e.id === d[0]).length;
+
+  // Phi Kiếm (slot 1): out through the dummy, back through it again
+  let ev = await castAndWatch(1, {}, 1400);
+  assert.equal(hits(ev), 2, `Phi Kiếm: a cut out and a cut back (${hits(ev)})`);
+  // Lôi Ấn Trận (slot 2): dragged far up and away, it lands at its reach; on the dummy, three strikes
+  ev = await castAndWatch(2, { tx: p[1] + 2000, ty: p[2] - 900 }, 300);
+  const seal = ev.find((e) => e.e === "art" && e.a === "loian" && e.ph === "seal");
+  const d1 = Math.hypot(seal.x - p[1], seal.y - (p[2] - 30));
+  assert.ok(d1 <= bal.ARTS.loian.aim + 2 && d1 > bal.ARTS.loian.aim - 40, `Lôi Ấn Trận: at its reach, not where asked (${Math.round(d1)} px)`);
+  await sleep(bal.ARTS.loian.cd * 1000);
+  ev = await castAndWatch(2, { tx: d[2], ty: d[3] - 20 }, 1700);
+  const seal2 = ev.find((e) => e.e === "art" && e.a === "loian");
+  assert.ok(seal2 && Math.abs(seal2.x - d[2]) < 4 && Math.abs(seal2.y - d[3]) < 4, `Lôi Ấn Trận: on the dummy, on the ground (${seal2?.x},${seal2?.y} vs ${d[2]},${d[3]})`);
+  assert.equal(hits(ev), 3, "and three strikes");
+
+  // the four others on slots 1, 3, 4, 5
+  await bar(["tam_tuyet_kiem", "loian", "dia_chan_cuoc", "luu_tinh_hoa_vu", "diet_the_than_bao"]);
+  await sleep(300);
+  // Tam Tuyệt Kiếm, up close: four cuts (the second form cuts twice), planted while it lasts
+  await stand(45);
+  const x0 = at()[1];
+  const n0 = events().length;
+  send(c, { t: "cast", s: 1, ax: 1, ay: 0 });
+  await sleep(400);
+  assert.ok(at()[5] & 512, "Tam Tuyệt Kiếm: planted");
+  // the key held back while planted moves nothing
+  send(c, { t: "in", dx: -1, jump: false, down: false });
+  await sleep(850);
+  send(c, { t: "in", dx: 0, jump: false, down: false });
+  await sleep(450);
+  ev = events().slice(n0);
+  assert.equal(hits(ev), 4, `Tam Tuyệt Kiếm: four cuts (${hits(ev)})`);
+  assert.ok(at()[1] >= x0, "it stepped forward, not back with the key held");
+  // Địa Chấn Cước: spikes one after another along the ground, a stride apart, and the dummy hit once
+  await stand(120);
+  ev = await castAndWatch(3, {}, 1400);
+  const spikes = ev.filter((e) => e.e === "art" && e.a === "dia_chan_cuoc" && e.ph === "spike");
+  assert.ok(spikes.length >= 2 && spikes.length <= 5 && spikes.every((s, i) => !i || s.x - spikes[i - 1].x === 46), `Địa Chấn Cước: a line of spikes (${spikes.map((s) => s.x).join(",")})`);
+  assert.equal(hits(ev), 1, "the dummy thrown once");
+  // Lưu Tinh Hỏa Vũ: six meteors round the spot over two seconds
+  d = c.snap.M.find((m) => m[0] === d[0]);
+  ev = await castAndWatch(4, { tx: d[2], ty: d[3] - 20 }, 2400);
+  const met = ev.filter((e) => e.e === "art" && e.a === "luu_tinh_hoa_vu");
+  assert.equal(met.length, 6, "Lưu Tinh Hỏa Vũ: six meteors");
+  assert.ok(met.every((m) => Math.abs(m.x - d[2]) <= 110), "all round the spot");
+  assert.ok(hits(ev) >= 2, "and some fall on the dummy");
+  // Diệt Thế Thần Bạo: planted, the blast 1.6 s later, ahead of the caster
+  await sleep(300);
+  const n5 = events().length;
+  send(c, { t: "cast", s: 5, ax: 1, ay: 0 });
+  await sleep(500);
+  assert.ok(at()[5] & 512, "Diệt Thế Thần Bạo: planted while it gathers");
+  assert.ok(!events().slice(n5).some((e) => e.ph === "boom"), "not yet");
+  await sleep(1500);
+  ev = events().slice(n5);
+  const boom = ev.find((e) => e.e === "art" && e.a === "diet_the_than_bao" && e.ph === "boom");
+  assert.ok(boom && boom.x > at()[1], "then the blast, ahead");
+  // (the first dummy may lie broken by the meteors: any straw dummy will do)
+  const dummies = new Set(c.snap.M.filter((m) => m[1] === "dummy").map((m) => m[0]));
+  assert.ok(ev.some((e) => e.e === "hit" && e.by === c.id && dummies.has(e.id) && e.d > 50), "a dummy caught in it");
+  assert.ok(c.me.cd[5] > 30, "and a long wait before the next");
   c.ws.close();
-  ok("the admin switches dragging per art: off lands ahead as usual, a new reach applies at once, only zones can have it");
+  ok("each art its own way: Phi Kiếm comes back, Lôi Ấn Trận strikes three times where dragged, spikes run along the ground, Tam Tuyệt Kiếm cuts four times planted, six meteors fall, the great blast goes off after gathering");
 }
 
 {

@@ -4,10 +4,8 @@
 import { createFrame, createFx, composite, stockActor } from "/hieu-ung/core/index.js";
 import { effects } from "/hieu-ung/fx/index.js";
 import { ARTS } from "/shared/balance.js";
-import { ELEMENTS } from "/shared/arts-seed.js";
+import { ELEMENTS } from "/shared/cong-phap.js";
 
-export const TYPE_NAME = { melee: "Cận chiến", bolt: "Phóng xa", zone: "Vùng", nova: "Quanh thân", dash: "Lướt", heal: "Hồi phục", buff: "Tăng lực" };
-export const STAT_NAME = { atk: "Công", def: "Thủ", spd: "Tốc độ" };
 export const elementName = (e) => ELEMENTS[e]?.name ?? e;
 // arts that have no effect of their own keep the pack's icons
 export const FIXED = { phikiem: "/xianxia/ui/skill_s2.png", loian: "/xianxia/ui/skill_s3.png" };
@@ -29,14 +27,9 @@ export function artScale(a) {
   return Math.max(...(meta?.size ?? [0])) > 260 ? 1.2 : 1.4;
 }
 
-/** One line about what an art does, from its numbers. */
+/** One line about what an art does (each art's own words, shared/cong-phap.js) and how long it takes to come back. */
 export function artLine(a) {
-  const parts = [TYPE_NAME[a.type] ?? a.type, `hồi ${a.cd}s`];
-  if (a.mult) parts.push(`${Math.round(a.mult * 100)}% công`);
-  if (a.type === "heal") parts.push(`hồi ${Math.round(a.pct * 100)}% sinh lực`);
-  if (a.type === "buff") parts.push(`+${a.pct}% ${STAT_NAME[a.stat] ?? a.stat} trong ${a.dur}s`);
-  if (a.slow) parts.push(`làm chậm ${a.slowDur}s`);
-  return parts.join(" · ");
+  return `${a.line} · hồi ${String(a.cd).replace(".", ",")}s`;
 }
 
 const cache = new Map(); // art key -> data URL
@@ -56,7 +49,7 @@ export function artIcon(key, cb) {
   if (!folders) return void foldersReady.then(() => artIcon(key, cb));
   if (FIXED[key]) return cb(FIXED[key]);
   // no folder for it (an art added since): drawn here; the latest asked first, so the cards on screen fill first
-  const fx = ARTS[key]?.fx ?? "";
+  const fx = ARTS[key]?.icon ?? "";
   if (cache.has(fx)) return cb(cache.get(fx));
   if (waiting.has(fx)) return waiting.get(fx).push(cb);
   waiting.set(fx, [cb]);

@@ -36,33 +36,25 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Rơi đồ: mỗi lần hạ, tung "tỉ lệ rơi đồ" của con đó. Trúng thì rơi đúng 1 món trong danh sách admin cài cho con đó,
     chọn theo trọng số. Danh sách có sẵn: tinh thạch cùng hệ, Linh Tủy, Hồi Xuân Đan và bí kíp công pháp cùng hệ.
   - Admin thêm, sửa, xóa yêu thú (hình, kiểu đánh, bay, chỉ số, tầm bắn, đạn, tỉ lệ rơi). Để thử khi chưa có map, ở
-    trang người chơi có nút "Thả quái thử": thả một con cạnh người đang online; con đó chết là mất, không hồi sinh.
+    trang người chơi có nút "Thả quái thử": thả một con cạnh người đang online; con đó chỉ đánh người đó, chết là mất,
+    không hồi sinh, và biến mất khi người đó rời bản đồ.
 - **Đánh thường:** Kiếm Khí Trảm, nút to ở góc (J), ai cũng có.
-- **Công Pháp (nút 📜):** 111 công pháp, chỉ lấy những hiệu ứng pixelfx có dạng chiêu thức: chém, phép, đạn, nổ, khiên,
-  hồi máu.
-  - Không lấy: đòn trọn bộ tự vẽ người đánh (moves), đồ vật (lửa trại, nến, thùng thuốc nổ), thời tiết, cảnh vật, thú
-    (để làm yêu thú), súng ống, tia lửa khi trúng đòn, dấu hiệu trạng thái, giao diện.
-  - Database cũ: 104 môn không phải chiêu thức được bỏ một lần khi máy chủ khởi động (cùng bí kíp, yêu cầu và rơi đồ của
-    chúng; ai đã học thì mất môn đó và nó rời thanh nút).
-  - Có 7 kiểu: cận chiến, phóng xa, vùng phía trước, vùng quanh thân, lướt tới, hồi sinh lực, tăng chỉ số
-  tạm thời. Mỗi môn có hệ (Kim, Hỏa, Thủy, Băng, Lôi, Mộc, Thổ, Quang, Ám, Huyền, Phong, Dị Giới, Bạo, Ngự Thú) và bậc 1-3.
-  - **Lĩnh ngộ:** tiêu hao bí kíp riêng của môn đó, cộng 3/6/10 tinh thạch của hệ theo bậc, và 1/3 Linh Tủy cho bậc 2/3.
-    Có sẵn 109 bí kíp, 14 loại tinh thạch và Linh Tủy.
-  - **Rơi đồ:** mọi vật phẩm trên rơi ngẫu nhiên khi hạ yêu thú (tinh thạch 4%, Linh Tủy 1%, bí kíp 0,1-0,6% tùy bậc).
-    Bù nhìn rơm không rơi gì. Yêu thú để săn sẽ có sau.
+- **Công Pháp (nút 📜):** 6 công pháp, mỗi môn được thiết kế riêng trong code (xem "Công pháp: mỗi môn một lối đánh").
+  Hai môn ai cũng biết sẵn: Phi Kiếm, Lôi Ấn Trận. Bốn môn phải có được: Địa Chấn Cước, Tam Tuyệt Kiếm, Lưu Tinh Hỏa Vũ,
+  Diệt Thế Thần Bạo.
+  - Mỗi môn có cách đánh, nhịp ra đòn và hình ảnh riêng, không còn dùng chung vài kiểu chiêu với số liệu trong database.
+  - Admin chỉ bật/tắt: môn có đang mở không, học được bằng bí kíp hay chỉ nhận từ sự kiện, hoạt động, và có bán không.
+  - **Lĩnh ngộ:** tiêu hao bí kíp riêng của môn, tinh thạch cùng hệ (6 cho bậc 2, 10 cho bậc 3) và Linh Tủy (1 hoặc 3).
+  - **Mua:** khi admin bật bán, môn đó có nút Mua trong bảng Công Pháp. Giá (linh thạch) đặt trong code và chỉ hiện ở hộp
+    xác nhận.
+  - **Rơi đồ:** tinh thạch 4%, Linh Tủy 1%, bí kíp 0,1-0,3% tùy bậc, khi hạ yêu thú. Bù nhìn rơm không rơi gì.
+  - Database cũ: mọi môn khác được bỏ một lần khi máy chủ khởi động, cùng bí kíp (cả trong túi), chỗ rơi, và khỏi người đã
+    học, khỏi thanh nút. Hai bảng `arts`, `art_reqs` cũ cũng bỏ; môn nào trước đó đang tắt hay chỉ nhận từ sự kiện thì giữ
+    nguyên như vậy.
   - **Thanh 5 ô:** gán tối đa 5 môn, đổi lúc nào cũng được. Hồi chiêu đi theo môn, nên đổi ô không làm mới hồi chiêu.
     Phi Kiếm và Lôi Ấn Trận ai cũng biết sẵn và nằm ở 2 ô đầu của nhân vật mới.
-  - Icon của mỗi môn vẽ từ chính hiệu ứng pixelfx của nó.
-  - Hiệu ứng được phóng to cho khớp nhân vật. pixelfx vẽ cho nhân vật mẫu cao 38 px, nhân vật game cao 63 px, nên hiệu
-    ứng trên người hoặc trước mặt to gấp 1,65: khiên, hào quang và vòng bảo vệ bao trọn nhân vật. Hiệu ứng cỡ cảnh vật
-    (thiên thạch, bão) phóng 1,2-1,4, đạn bay 1,3. Admin chỉnh riêng từng môn bằng `fx_scale`.
-  - Hào quang tăng chỉ số kéo dài đúng bằng thời gian buff. Lửa trại, suối hay thời tiết đứng yên ở chỗ gọi ra, không
-    đi theo người.
-  - Admin sửa được công pháp, vật phẩm yêu cầu, vật phẩm và tỉ lệ rơi; truyền hoặc lấy lại công pháp của từng người.
-  - **Công pháp sự kiện:** ở tab Công pháp, admin đổi "Cách có được" của một môn thành "Chỉ qua hoạt động / sự kiện /
-    đấu giá" và ghi "Nhận ở đâu" (vd "Sự kiện Trung Thu"). Môn đó không lĩnh ngộ được kể cả khi đủ vật phẩm. Người chơi
-    thấy dấu ★ Sự kiện và dòng "Chỉ nhận được qua ...". Admin phát môn đó cho mọi nhân vật, mọi người đang online, hoặc
-    theo danh sách đạo hiệu. Ai có rồi thì giữ nguyên; ai đang online thì dùng được ngay.
+  - Icon của mỗi môn vẽ từ một hiệu ứng của nó (`icon` trong `shared/cong-phap.js`).
+
 - **Góc nhìn đi ngang** (side-scroller), khớp với cách pixelfx vẽ nhân vật và hiệu ứng: đi trái/phải, nhảy, đứng trên đài
   mây, rơi theo trọng lực.
 - **Bản đồ hiện có: Tân Thủ Thôn,** thôn khởi đầu dài 128 ô (mỗi ô 32 px). Đi từ tây sang đông:
@@ -378,8 +370,8 @@ Hình nhân vật nằm trong các thư mục ở `public/` (bên dưới). Hi�
 ## Hiệu ứng: chỉ những gì game dùng
 
 Game không tải cả thư viện pixelfx (`../src`, hơn 250 hiệu ứng). `tools/hieu-ung.mjs` chép vào `public/hieu-ung/` đúng những
-hiệu ứng game dùng (132 cái, khoảng 2 MB):
-- hiệu ứng của mọi công pháp trong `shared/arts-seed.js`;
+hiệu ứng game dùng (48 cái):
+- các hiệu ứng mà công pháp dùng (`fx` và `icon` trong `shared/cong-phap.js`);
 - mọi hiệu ứng có tên trong code và dữ liệu game: hình yêu thú và đạn của chúng, cảnh vật trên bản đồ, cổng dịch chuyển,
   lên cấp, cột sáng rơi đồ…;
 - những hiệu ứng đã có sẵn trong thư mục (một hiệu ứng admin đã chọn cho môn mới không bị mất).
@@ -396,7 +388,7 @@ Lệnh (chạy trong `game/`, cần thư mục `src/` của pixelfx ở cạnh):
 - `node tools/hieu-ung.mjs fire/candle shadow/curse`: thêm hiệu ứng này (để dùng cho công pháp hay yêu thú mới).
 - `node tools/hieu-ung.mjs --lam-moi`: chỉ giữ những gì game đang dùng, bỏ phần còn lại.
 
-Trang admin chỉ cho đặt hiệu ứng có trong `public/hieu-ung/` (cho công pháp và hình, đạn của yêu thú). Hiệu ứng chưa có thì
+Trang admin chỉ cho đặt hiệu ứng có trong `public/hieu-ung/` (cho hình và đạn của yêu thú). Hiệu ứng chưa có thì
 báo lệnh cần chạy để chép nó vào. Vì game đã có bản chép riêng, máy chủ chạy được mà không cần `../src`.
 
 ## Hình ảnh: mỗi món một thư mục
@@ -409,7 +401,7 @@ Mỗi loại đồ và công pháp có một thư mục trong `game/public/`. B�
 | `y-phuc-nam/`, `y-phuc-nu/` | 5 bộ y phục nam, 5 bộ nữ | `y-phuc-nu/21-xichsay/` |
 | `vu-khi/` | vũ khí cầm tay (Trường Kiếm) | `vu-khi/60-truongkiem/` |
 | `phi-kiem/` | phi kiếm để bay (Thanh Vân Kiếm) | `phi-kiem/0-thanhvankiem/` |
-| `cong-phap/` | icon công pháp (111 môn) | `cong-phap/1-phikiem/` |
+| `cong-phap/` | icon công pháp (6 môn) | `cong-phap/1-phikiem/` |
 | `nhan-vat/` | thân gốc của mọi nhân vật | `nhan-vat/than-goc.png` |
 
 **Món đồ** (tóc, áo, vũ khí, phi kiếm) có hai file:
@@ -464,7 +456,7 @@ Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nh�
 | Người chơi | Tìm theo tên; lọc người đang online hoặc bị khóa. Xem chi tiết từng người (bảng bên dưới) |
 | Cảnh giới | Thêm, đổi tên, số tầng, đổi thứ tự (↑ ↓), xóa; hiện khoảng cấp của từng cảnh giới |
 | Vật phẩm | Đan dược, bí kíp, nguyên liệu: lọc theo loại, tìm; thêm, sửa giá, công dụng, thời gian hồi, mô tả, bật/tắt bán, xóa |
-| Công pháp | 111 môn: lọc theo loại, hệ, tìm; sửa tên, hệ, bậc, loại chiêu, hồi chiêu, sát thương, thông số, hiệu ứng và chỗ vẽ, bật/tắt; sửa từng vật phẩm yêu cầu và số lượng, thêm, bỏ; thêm môn mới, xóa |
+| Công pháp | 6 môn thiết kế trong code: xem hiệu ứng; công tắc bật/tắt, học được bằng bí kíp hay chỉ nhận từ sự kiện, bán hay không; phát cho người chơi |
 | Rơi đồ | Danh sách rơi của từng yêu thú (hoặc `*` mọi yêu thú): vật phẩm, trọng số (kèm % mỗi lần rơi), số lượng ít nhất và nhiều nhất |
 | Yêu thú | Thêm, sửa, xóa yêu thú: hình, kiểu đánh (gần, xa, đứng yên), bay, chỉ số, tầm bắn và đạn, phần thưởng, tỉ lệ rơi đồ; số món trong danh sách rơi |
 | Đánh thường | Tên, thời gian hồi, sát thương và tầm của Kiếm Khí Trảm |
@@ -514,52 +506,60 @@ Buff công/thủ/sinh lực/tốc độ không áp dụng ở bản đồ đấu
 
 Các lệnh `npm run admin` và `npm run cosmetics` vẫn dùng được song song với trang web.
 
-## Chiêu vùng kéo chọn vị trí
+## Chiêu kéo chọn vị trí
 
-Admin bật hoặc tắt việc kéo chọn vị trí cho **từng chiêu**, ở tab Công pháp của trang admin:
+Hai môn đặt được chỗ nổ bằng cách kéo: **Lôi Ấn Trận** (tầm 280 px) và **Lưu Tinh Hỏa Vũ** (tầm 320 px). Môn nào kéo được
+và tầm bao xa là một phần thiết kế của môn đó (`aim`, `aimR`, `aimDist` trong `shared/cong-phap.js`), không chỉnh ở admin.
 
-- **"Kéo chọn vị trí":** công tắc bật/tắt. Chỉ dùng được cho chiêu loại vùng; bật cho loại khác thì bị từ chối.
-- **"Tầm kéo tối đa":** đơn vị px, tính từ nhân vật.
-- Các chiêu đang bật có nhãn 🎯 kèm tầm kéo.
-- Bộ lọc "Kéo / không kéo" giúp tìm nhanh chiêu nào đang bật, chiêu vùng nào đang tắt.
-- Dữ liệu nằm ở cột `arts.aimable` và `arts.aim_range`. Sửa xong là có hiệu lực ngay trong game.
-- Mặc định: bật cho 86 chiêu vùng nổ tại chỗ (`fx_at` = `target`), tầm 280 px. Tắt cho 7 chiêu kiểu thế võ.
-- Chiêu đã tắt thì luôn nổ cách nhân vật `dist` px phía trước, như trước đây.
-
-Khi chiêu đang bật:
+Với hai môn này:
 
 - **Điện thoại:** giữ nút chiêu rồi kéo theo hướng muốn ném.
   - Kéo 90 px là tới hết tầm.
-  - Vòng xanh quanh nhân vật là tầm tối đa. Vòng vàng là chỗ chiêu sẽ nổ, đúng bán kính `r`, có đường chấm nối từ nhân vật tới.
+  - Vòng xanh quanh nhân vật là tầm tối đa. Vòng vàng là vùng chiêu sẽ rơi xuống, có đường chấm nối từ nhân vật tới.
   - Thả tay để tung chiêu.
   - Chạm nhanh, không kéo, thì chiêu tự rơi vào kẻ địch gần nhất trong tầm; không có kẻ địch thì nổ ở chỗ cũ phía trước.
 - **Máy tính:** chiêu nổ ở chỗ con trỏ chuột, bị kéo về trong tầm nếu chuột ở quá xa.
 - **Server kiểm tra lại mọi thứ:** điểm ở ngoài tầm thì bị kéo vào trong tầm. Điểm ngắm vào trong đất thì được đẩy lên mặt đất. Có mặt đất hay ván gỗ trong vòng 3 ô bên dưới thì chiêu rơi xuống đó, không thì nổ giữa không trung.
   - Màn hình người chơi dùng đúng cách tính này (`zoneLanding` trong `shared/physics.js`), nên vòng vàng hiện đúng chỗ chiêu sẽ nổ.
 
-## Xem hiệu ứng công pháp, bật và tắt
+## Công pháp: mỗi môn một lối đánh
 
-Trong trang admin, tab **Công pháp**:
-- Nút **▶ Xem hiệu ứng**: mỗi công pháp một ô, hiệu ứng của nó chạy lặp lại (giống trong game), kèm tên, mã, loại và tên hiệu ứng.
-  - Ô tự phóng to vào chỗ hiệu ứng thật sự vẽ, nên tia lửa nhỏ cũng nhìn rõ.
-  - Mỗi trang 10 ô; bộ lọc và ô tìm kiếm dùng chung với chế độ danh sách.
-- Nút dưới mỗi ô bật hoặc tắt chiêu ngay (cột `arts.enabled`).
-  - Chiêu đã tắt hiện mờ, viền đỏ; người chơi không học, không dùng được chiêu đó nữa (đang gán trên thanh nút thì bấm không ra gì).
-  - Bấm lại để bật.
-- Bộ lọc **Đang bật / Đã tắt** để xem lại những chiêu đã tắt.
-- Ở chế độ **Danh sách**, mở một công pháp ra cũng thấy hiệu ứng chạy ở đầu bảng sửa.
+Mỗi môn được viết riêng, ở ba chỗ:
+- `shared/cong-phap.js`: tên, hệ, bậc, hồi chiêu, mô tả, cần gì để lĩnh ngộ, giá bán, các hiệu ứng nó dùng.
+- `server/cong-phap.js`: cách đánh (máy chủ quyết định trúng ai, lúc nào, mạnh bao nhiêu).
+- `public/js/cong-phap.js`: hình ảnh từng giai đoạn và rung màn hình.
 
-Hiệu ứng xem trước tải từ `public/hieu-ung/` (bản game dùng), chỉ khi mở tab Công pháp.
+| Môn | Hệ, bậc | Lối đánh |
+| --- | --- | --- |
+| Phi Kiếm | Kim 1, ai cũng biết | Ném vũ khí đang cầm bay thẳng, xuyên tới 3 kẻ địch (mỗi lần xuyên yếu đi), hết tầm hay chạm tường thì bay ngược về tay và chém thêm lần nữa trên đường về. Hồi 2,5s. |
+| Lôi Ấn Trận | Lôi 1, ai cũng biết | Kéo chọn chỗ (280 px). Khắc lôi ấn xuống đất, ấn tụ điện rồi giáng 3 đạo sét liên tiếp; đạo cuối làm chậm 2,5s. Hồi 9s. |
+| Địa Chấn Cước | Thổ 2 | Dậm chân, chấn lực chạy dọc mặt đất: 5 cột đá nối nhau trồi lên phía trước, mỗi cột cách 46 px, theo độ dốc của đất, gặp tường hay vực thì dừng. Kẻ đứng trên đất bị hất tung và làm chậm; kẻ đang bay không bị gì. Mỗi kẻ trúng một lần. Hồi 10s. |
+| Tam Tuyệt Kiếm | Kim 2 | Ba thức liền, mỗi thức tiến một bước: chém, chém chéo đôi (2 nhát), hai tay bổ xuống đất (mạnh nhất, đánh bật lùi). Đứng tấn 1,5s, không di chuyển được. Hồi 7s. |
+| Lưu Tinh Hỏa Vũ | Hỏa 3 | Kéo chọn chỗ (320 px). 6 thiên thạch rơi rải rác quanh vùng trong 2 giây, mỗi viên nổ một vùng nhỏ; chỗ rơi còn cháy, đốt thêm 3 lần. Hồi 16s. |
+| Diệt Thế Thần Bạo | Bạo 3 | Đứng yên tụ lực 1,6s, hút kẻ địch xung quanh lại gần; rồi đại bạo trước mặt: giữa vụ nổ cực mạnh, ra rìa yếu dần, hất văng và làm chậm. Gục trước khi nổ thì xịt. Hồi 45s. |
+
+Bù nhìn rơm cắm cố định: trúng đòn được nhưng không bị đẩy hay hất đi.
+
+**Admin (tab Công pháp)** chỉ có công tắc, đổi là có hiệu lực ngay (bảng `cong_phap`):
+- **Bật / Tắt:** tắt thì không ai dùng, học hay mua được (đang gán trên thanh thì bấm không ra gì).
+- **Học được bằng bí kíp / Chỉ nhận từ sự kiện, hoạt động:** tắt học thì môn đó chỉ có khi admin phát.
+- **Đang bán / Không bán:** bật thì bảng Công Pháp có nút Mua (giá trong code).
+- **Phát:** cho mọi nhân vật, mọi người đang online, hoặc theo đạo hiệu.
+- Mỗi môn có khung hiệu ứng chạy thử. Số liệu (sát thương, hồi chiêu, tầm…) không chỉnh ở đây: muốn đổi thì sửa code.
+
+**Thêm môn mới** là việc của code: thêm một mục trong `shared/cong-phap.js`, viết cách đánh trong `server/cong-phap.js` và
+hình ảnh trong `public/js/cong-phap.js`. Sau đó chạy `node tools/hieu-ung.mjs` (chép hiệu ứng nó dùng) và
+`node tools/arts/icons.mjs` (vẽ icon). Máy chủ khởi động lại sẽ tự thêm dòng công tắc và bí kíp của môn đó.
 
 ## Icon công pháp
 
-Icon của mỗi công pháp được vẽ sẵn vào thư mục riêng: `public/cong-phap/<số>-<tên>/icon.png`. Nhờ vậy bảng Công Pháp và thanh chiêu hiện icon ngay, không phải vẽ hơn 200 hiệu ứng trên điện thoại. Muốn đổi icon một môn, chỉ cần thay file `icon.png` trong thư mục của môn đó.
+Icon của mỗi công pháp được vẽ sẵn vào thư mục riêng: `public/cong-phap/<số>-<tên>/icon.png`. Nhờ vậy bảng Công Pháp và thanh chiêu hiện icon ngay, không phải vẽ trên điện thoại. Muốn đổi icon một môn, chỉ cần thay file `icon.png` trong thư mục của môn đó.
 
 - Icon lấy khoảnh khắc hiệu ứng rực nhất, giữ cả lớp ánh sáng (lửa, tia sáng).
 - Tia lửa văng xa bị bỏ khi cắt khung, để hình chính không bị nhỏ.
 - Mũi tên và tia dài được xếp chéo cho đầy ô.
 
-Thêm công pháp mới hoặc đổi hiệu ứng của một môn thì chạy lại lệnh dưới khi server đang chạy:
+Thêm công pháp mới hoặc đổi `icon` của một môn thì chạy lại lệnh dưới khi server đang chạy:
 
 ```bash
 node tools/arts/icons.mjs
@@ -651,8 +651,7 @@ Các bảng trong database:
 | `monsters` | Chỉ số yêu thú `dummy` (bù nhìn) và `ghost` (âm hồn): sinh lực, công, thủ, tốc, thưởng, tầm đánh… |
 | `items` (tiếp) | Cột `kind`: `pill` (đan dược, dùng được), `book` (bí kíp), `material` (nguyên liệu). |
 | `skills` | Đánh thường (J): tên, thời gian hồi, hệ số sát thương, tầm (`params`). |
-| `arts` | Công pháp: `source` (`learn`: lĩnh ngộ bằng vật phẩm; `event`: chỉ admin phát, cho hoạt động, sự kiện, đấu giá) và `source_note` (nhận ở đâu); tên, hệ, bậc, loại (`melee`, `bolt`, `zone`, `nova`, `dash`, `heal`, `buff`), hồi chiêu, hệ số, `params` (JSON, theo loại), hiệu ứng pixelfx (`fx`) và chỗ vẽ (`fx_at`: `front`, `self`, `target`, `bolt`), `starter` (ai cũng biết), `enabled`. Danh sách đầu nằm ở `shared/arts-seed.js`. |
-| `art_reqs` | Mỗi dòng là một vật phẩm (và số lượng) cần để lĩnh ngộ một công pháp. |
+| `cong_phap` | Công tắc của admin cho từng công pháp: `enabled`, `learnable` (học bằng bí kíp; tắt = chỉ nhận từ sự kiện), `on_sale`. Bản thân công pháp nằm trong code (`shared/cong-phap.js`). |
 | `monster_drops` | Rơi đồ: `monster` (hoặc `*` cho mọi yêu thú có `common_drops`), vật phẩm, `chance` (trọng số: mỗi lần rơi chọn 1 món theo tỉ lệ `chance` / tổng), `min_qty`, `max_qty`. |
 | `monsters` (tiếp) | `fx` (hình, một hiệu ứng trong `public/hieu-ung/`, vd `critters/bat`), `style` (`melee`, `ranged`, `none`), `fly`, `shot_range`, `shot_speed`, `shot_fx` (đạn của con đánh xa), `drop_rate` (tỉ lệ một lần hạ có rơi đồ). |
 | `learned_arts`, `characters.art_slots` | Công pháp người chơi đã lĩnh ngộ, và 5 ô trên thanh (JSON). |
@@ -696,7 +695,7 @@ Dùng SQL trực tiếp cũng được, ví dụ `UPDATE settings SET v = 50 WHE
 - Đan mới hiện ở Đan Các, có nút "Dùng" ngay trong Đan Các. Hai nút dùng nhanh trên màn hình chơi vẫn dành cho Hồi Xuân Đan và Tụ Khí Đan.
 - Muốn bỏ một loại đan, hãy tắt bán (`on_sale 0`) thay vì xóa, để người chơi đã mua vẫn dùng được.
 - Thêm hoặc bớt cảnh giới sẽ đổi cấp tối đa. Tu vi của người chơi giữ nguyên; cấp và tên cảnh giới tự tính lại theo danh sách mới.
-- Loại yêu thú và loại chiêu (`melee`, `bolt`, `zone`) gắn với hình vẽ và cơ chế trong code. Admin đổi được mọi con số và tên, còn thêm loại mới thì cần sửa code.
+- Loại yêu thú và loại đánh thường (`melee`, `bolt`, `zone`) gắn với hình vẽ và cơ chế trong code. Công pháp thì nằm hẳn trong code. Admin đổi được mọi con số và tên, còn thêm loại mới thì cần sửa code.
 
 ## Mở rộng
 

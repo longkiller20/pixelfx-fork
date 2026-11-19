@@ -531,3 +531,4 @@ body.rotated .ward .seg button { padding: 4px 8px; font-size: 12px; }
 .buyask .btns { display: flex; gap: 8px; margin-top: 4px; width: 100%; }
 .buyask .btns button { flex: 1; padding: 7px 10px; }
 .buyask .yes:disabled { opacity: 0.45; filter: grayscale(0.8); cursor: not-allowed; }
+.artp .evtag.sale { background: #10402a; color: #8af0b8; }

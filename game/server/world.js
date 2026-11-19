@@ -8,6 +8,7 @@ import {
 } from "../shared/balance.js";
 import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
 import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
+import { CAST, stepReturning } from "./cong-phap.js";
 import * as store from "./store.js";
 import { userFromToken } from "./auth.js";
 import { KeyedLock } from "./lock.js";
@@ -50,7 +51,7 @@ export class World {
       id: nextId(), kind: "p", userId: ch.userId, ws, name: ch.name, cls: ch.cls, look: ch.look,
       ...this.spawnPoint(), face: 1, in: { dx: 0, dy: 0, jump: false, down: false }, flying: false, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
       hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
-      cd: [0], artCd: {}, slots: ch.slots, learned: new Set(ch.learned), tbuffs: {}, busyUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
+      cd: [0], artCd: {}, slots: ch.slots, learned: new Set(ch.learned), tbuffs: {}, busyUntil: 0, rootUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
       medAcc: 0, meditating: false, base: null, pend: zero(), fly: zero(), level: 1, medLeft: 0, saving: null, gone: false, buffs,
     };
     this.applyBase(p, ch, true);
@@ -370,7 +371,8 @@ export class World {
   hostile(att, e) {
     if (!e || e.dead) return false;
     // monsters only go for players, and not one who just appeared
-    if (att.kind === "m") return e.kind === "p" && !e.gone && e.protectUntil <= this.t;
+    // (a trial monster only its own player)
+    if (att.kind === "m") return e.kind === "p" && !e.gone && e.protectUntil <= this.t && (!att.forUid || e.userId === att.forUid);
     if (e.kind === "m") return true;
     if (e.kind !== "p" || e === att || att.kind !== "p") return false;
     return this.map.pvp && e.protectUntil <= this.t;
@@ -402,6 +404,10 @@ export class World {
     return dmg;
   }
 
+  newId() {
+    return nextId();
+  }
+
   cast(p, i, ax, ay, to = null) {
     if (p.dead || p.busyUntil > this.t || p.warping) return;
     const t = this.t;
@@ -423,64 +429,32 @@ export class World {
     if (Math.abs(ax) > 0.15) p.face = ax > 0 ? 1 : -1;
     const st = this.stats(p), key = i === 0 ? "" : sk.key, dir = Math.sign(ax || p.face) || 1;
     this.ev({ e: "cast", id: p.id, s: i, a: key, ax: +ax.toFixed(2), ay: +ay.toFixed(2) });
-    // where the art's effect is drawn, for everyone: on the caster, before them, where the zone lands
-    const show = (x, y) => key && this.ev({ e: "art", id: p.id, a: key, x: Math.round(x), y: Math.round(y), f: dir });
-    // hit everyone hostile within r of (x, y) after `delay`, slowing them if the art does
-    const burst = (x, y, delay) => {
-      this.at(t + delay, () => {
-        if (p.gone) return;
-        for (const e of this.targetsOf(p))
-          if (Math.hypot(e.x - x, e.y - y) <= sk.r + PLAYER_R) {
-            if (sk.slow) e.slowUntil = this.t + sk.slowDur;
-            this.damage(p, this.stats(p).atk, e, sk.mult);
-          }
-      });
-    };
+    // an art fights its own way (server/cong-phap.js)
+    if (i > 0) {
+      CAST[key]?.(this, p, { t, dir, ax, ay, to: sk.aim > 0 ? to : null, aim: sk.aim, atk: st.atk });
+      return void this.sendMe(p);
+    }
+    // the basic attack: a cut in front (or, as an admin may set it, a bolt or a zone ahead)
     switch (sk.type) {
       case "melee":
-        show(p.x, p.y);
         this.cone(p, p.x, p.y, ax, ay, sk.range, sk.arc, st.atk, sk.mult);
         break;
       case "bolt":
-        show(p.x, p.y);
-        this.bolts.push({ id: nextId(), owner: p, art: key, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
+        this.bolts.push({ id: nextId(), owner: p, art: "", x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
         break;
       case "zone": {
-        let x = clamp(p.x + dir * sk.dist, 20, this.map.w - 20), y = p.y;
-        // aimed: anywhere within the art's reach of the caster, settling onto the ground below if there is some close
-        const aimed = !!(sk.aim > 0 && to);
-        if (aimed) [x, y] = this.zoneSpot(p, to, sk.aim);
-        if (key) show(sk.at === "target" || aimed ? x : p.x, sk.at === "target" || aimed ? y : p.y);
-        else this.ev({ e: "fx", k: "thunder", x: Math.round(x), y: Math.round(y) });
-        burst(x, y, sk.delay);
+        const x = clamp(p.x + dir * sk.dist, 20, this.map.w - 20), y = p.y;
+        this.ev({ e: "fx", k: "thunder", x: Math.round(x), y: Math.round(y) });
+        this.at(t + sk.delay, () => {
+          if (p.gone) return;
+          for (const e of this.targetsOf(p))
+            if (Math.hypot(e.x - x, e.y - y) <= sk.r + PLAYER_R) {
+              if (sk.slow) e.slowUntil = this.t + sk.slowDur;
+              this.damage(p, st.atk, e, sk.mult);
+            }
+        });
         break;
       }
-      case "nova":
-        show(p.x, p.y);
-        burst(p.x, p.y, sk.delay);
-        break;
-      case "dash": {
-        // rush forward until a wall, hitting everyone along the line once
-        show(p.x, p.y);
-        const x0 = p.x, step = 4 * dir;
-        let x = p.x;
-        for (let d = 0; d < sk.dist; d += 4) {
-          if (!fits(x + step, p.y, this.map)) break;
-          x += step;
-        }
-        p.x = x;
-        const lo = Math.min(x0, x), hi = Math.max(x0, x);
-        for (const e of this.targetsOf(p)) if (e.x >= lo - sk.r && e.x <= hi + sk.r && Math.abs(e.y - p.y) <= sk.r + 40) this.damage(p, st.atk, e, sk.mult);
-        break;
-      }
-      case "heal":
-        show(p.x, p.y);
-        p.hpFrac = Math.min(1, p.hpFrac + sk.pct);
-        break;
-      case "buff":
-        show(p.x, p.y);
-        p.tbuffs[sk.stat] = { pct: sk.pct, until: t + sk.dur };
-        break;
     }
     this.sendMe(p);
   }
@@ -536,6 +510,7 @@ export class World {
     e.flying = false;
     e.respawnAt = this.t + (this.map.pvp ? PVP.respawn : RESPAWN_WORLD);
     e.busyUntil = 0;
+    e.rootUntil = 0;
     if (owner && owner !== e) {
       const key = `${owner.userId}:${e.userId}`, last = this.pairs.get(key);
       const rewarded = last === undefined || this.t - last > PVP.repeatCooldown;
@@ -645,12 +620,14 @@ export class World {
       }
       return;
     }
-    const st = this.stats(p), inp = p.in;
+    const st = this.stats(p);
+    // planted by an art (Tam Tuyệt Kiếm, Diệt Thế Thần Bạo): no moving or jumping until it ends
+    const inp = p.rootUntil > t ? { dx: 0, dy: 0, jump: false, down: false } : p.in;
     // the realm needed went up (an admin's edit), or the exp went down: off the sword
     if (p.flying && (!canFly(p.level) || (this.map.pvp && !FLY.arena))) this.setFlying(p, false);
     p.moving = Math.abs(inp.dx) > 0.05 || (p.flying && Math.abs(inp.dy) > 0.05);
     const wasGround = p.ground;
-    stepBody(p, { ...inp, jump: inp.jump || p.jumpUntil > t }, st.spd * PHYS.RUN * (p.flying ? FLY.speed : 1), DT, this.map, t);
+    stepBody(p, { ...inp, jump: inp.jump || (p.jumpUntil > t && !(p.rootUntil > t)) }, st.spd * PHYS.RUN * (p.flying ? FLY.speed : 1), DT, this.map, t);
     if (wasGround && !p.ground) p.jumpUntil = 0;
     if (p.moving && p.busyUntil <= t) p.face = inp.dx > 0 ? 1 : -1;
     // a map's burning ground (the abyss's lava): touching it sears off a share of sinh lực and throws the player back out
@@ -741,6 +718,8 @@ export class World {
     if (!p || !MONSTERS[type]) return null;
     const d = MONSTERS[type], x = clamp(p.x + p.face * 160, 30, this.map.w - 30);
     const m = this.addMonster(type, x, d.fly ? p.y - 40 : p.y, true);
+    // a trial monster is that player's alone: it goes for nobody else, and is gone when they leave the map
+    m.forUid = uid;
     this.ev({ e: "spawn", id: m.id });
     return m;
   }
@@ -758,7 +737,7 @@ export class World {
       }
       return;
     }
-    if (m.temp && t - m.bornAt > 300) return void this.ents.delete(m.id);
+    if (m.temp && (t - m.bornAt > 300 || (m.forUid && !this.players.has(m.forUid)))) return void this.ents.delete(m.id);
     if (d.style === "none") {
       // straw dummies heal back slowly when left alone
       if (t - m.lastHurt > 4) m.hpFrac = Math.min(1, m.hpFrac + 0.1 * DT);
@@ -766,7 +745,7 @@ export class World {
     }
     const spd = d.spd * (m.slowUntil > t ? 0.5 : 1);
     // pick a prey: whoever hit it, or anyone close, as long as they're out of the safe zone and not too far from its home
-    const ok = (p) => p && !p.gone && !p.dead && p.kind === "p" && p.protectUntil <= t && Math.hypot(p.x - m.home.x, p.y - m.home.y) < Math.max(d.aggro, 60) * 3;
+    const ok = (p) => p && !p.gone && !p.dead && p.kind === "p" && p.protectUntil <= t && (!m.forUid || p.userId === m.forUid) && Math.hypot(p.x - m.home.x, p.y - m.home.y) < Math.max(d.aggro, 60) * 3;
     const sense = Math.max(d.aggro, d.style === "ranged" ? d.range : 0);
     if (!ok(m.target) || Math.hypot(m.target.x - m.x, m.target.y - m.y) > sense * 1.6) {
       m.target = null;
@@ -833,6 +812,10 @@ export class World {
     const keep = [];
     for (const b of this.bolts) {
       if (b.owner.gone) continue;
+      if (b.hit) {
+        if (stepReturning(this, b, DT)) keep.push(b);
+        continue;
+      }
       const s = Math.hypot(b.vx, b.vy) * DT;
       b.x += b.vx * DT;
       b.y += b.vy * DT;
@@ -862,7 +845,7 @@ export class World {
     const t = this.t, P = [], M = [], B = [];
     for (const p of this.players.values())
       P.push([p.id, Math.round(p.x), Math.round(p.y), p.face, Math.round(Math.max(0, p.hpFrac) * 1000),
-        (p.dead ? 1 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128) | (p.flying ? 256 : 0)]);
+        (p.dead ? 1 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128) | (p.flying ? 256 : 0) | (p.rootUntil > t ? 512 : 0)]);
     for (const m of this.ents.values())
       if (m.kind === "m") M.push([m.id, m.type, Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
     // the thrower's id: a flying sword is drawn as the weapon its owner holds

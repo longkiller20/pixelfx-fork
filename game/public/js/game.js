@@ -3,6 +3,7 @@ import { createFrame, clearFrame, createFx, composite, painterFor, hex, WHITE } 
 import { effects } from "/hieu-ung/fx/index.js";
 import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL, ARTS, ART_SLOTS, FLY, canFly, flyRealmName } from "/shared/balance.js";
 import { artIcon, artScale, BLANK_ACTOR } from "./arts.js";
+import { ART_FX } from "./cong-phap.js";
 import { mapInfo } from "/shared/maps/index.js";
 import { drawDummy } from "./art.js";
 import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
@@ -211,8 +212,20 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       }
     }
   }
-  // the avatar's casting pose for an art's type
-  const POSE = { melee: "melee", dash: "melee", bolt: "bolt", zone: "zone", nova: "zone", heal: "zone", buff: "zone" };
+  // the avatar's casting pose for the basic attack's type (an art names its own: pose)
+  const POSE = { melee: "melee", bolt: "bolt", zone: "zone" };
+  // what an art's look may do (see public/js/cong-phap.js)
+  let shakeAmp = 0, shakeUntil = 0, shakeFor = 1;
+  const artHelp = {
+    fx: (id, x, y, o = {}) => addFx(id, x, y, { flip: !!o.flip }, o.follow ?? null, o.life ?? 0, o.k ?? 1),
+    shake(amp, sec, x, y) {
+      // only when it happens on or near your screen
+      if (x < camX - 200 || x > camX + VW + 200 || y < camY - 200 || y > camY + VH + 300) return;
+      const now = performance.now() / 1000;
+      if (amp >= shakeAmp * Math.max(0, (shakeUntil - now) / shakeFor)) (shakeAmp = amp), (shakeUntil = now + sec), (shakeFor = sec);
+    },
+    later: (sec, fn) => setTimeout(fn, sec * 1000),
+  };
   function onEvent(e, s) {
     const now = performance.now() / 1000;
     switch (e.e) {
@@ -221,21 +234,15 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         if (!p || !info) break;
         const sk = e.a ? ARTS[e.a] : CLASSES[CLASS].skills[0];
         if (!sk) break;
-        casts.set(e.id, { s: e.s, type: POSE[sk.type] ?? "zone", at: now });
+        casts.set(e.id, { s: e.s, type: e.a ? sk.pose ?? "zone" : POSE[sk.type] ?? "melee", at: now });
         // the basic attack's jade crescent; an art draws its own effect (the "art" event)
         if (!e.a) addFx("melee/sword-slash", p.x + e.ax * 10, p.y - 2, { flip: e.ax < 0, palette: JADE }, null, 0, 1.4);
         break;
       }
-      case "art": {
-        const a = ARTS[e.a];
-        if (!a?.fx || a.at === "bolt") break;
-        // an aura that loops (a shield, a halo, rage) lasts as long as the buff it shows
-        const flip = e.f < 0, k = artScale(a), life = a.life || (a.type === "buff" && effects[a.fx]?.meta.loop ? a.dur : 0);
-        if (a.at === "front") addFx(a.fx, e.x + e.f * 6, e.y, { flip }, null, life, k);
-        else if (a.at === "self") addFx(a.fx, e.x, e.y, { flip }, e.id, life, k);
-        else addFx(a.fx, e.x, e.y, { flip }, null, life, k);
+      case "art":
+        // each art draws itself (public/js/cong-phap.js)
+        ART_FX[e.a]?.(e, artHelp);
         break;
-      }
       case "drop":
         addFx("pickups/loot-beam", e.x, e.y, {}, null, 1.4);
         break;
@@ -489,7 +496,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   /** The art in slot i when it is a zone that can be aimed, else null. */
   const aimArt = (i) => {
     const a = i > 0 && ARTS[arts.slots[i - 1]];
-    return a && a.type === "zone" && a.aim > 0 ? a : null;
+    return a && a.aim > 0 ? a : null;
   };
   /** A point pulled in to `reach` px of your chest. */
   function clampAim(to, reach) {
@@ -520,7 +527,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       const d = Math.hypot(e.x - self.x, e.y - 30 - (self.y - 30));
       if (d < bd) (bd = d), (best = e);
     }
-    return best ? { x: best.x, y: best.y - 10 } : { x: self.x + (self.face < 0 ? -1 : 1) * a.dist, y: self.y - 10 };
+    return best ? { x: best.x, y: best.y - 10 } : { x: self.x + (self.face < 0 ? -1 : 1) * (a.aimDist ?? 120), y: self.y - 10 };
   }
   // while dragging: the reach as a dotted ring round you, and the zone where it will land
   const AIM_C = hex("#7ff0ff"), AIM_IN = hex("#ffd84a");
@@ -549,7 +556,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     const at = aimSpot(aiming);
     if (!at) return;
     const to = landing(at);
-    const tx = to.x - camX, ty = to.y - camY, r = a.r, pulse = 0.5 + 0.5 * Math.sin(now * 8);
+    const tx = to.x - camX, ty = to.y - camY, r = a.aimR ?? 50, pulse = 0.5 + 0.5 * Math.sin(now * 8);
     for (let y = -r; y <= r; y++)
       for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r) p.blend(Math.round(tx + x), Math.round(ty + y), AIM_IN, 0.16 + 0.06 * pulse);
     ring(tx, ty, r, AIM_IN, 0.9);
@@ -750,8 +757,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     const c = CLASSES[CLASS];
     body.flying = !!(last.f & 256);
     const spd = (me?.spd ?? c.spd) * (last.f & 4 ? 0.5 : 1) * (last.f & 64 ? 0.45 : 1) * PHYS.RUN * (body.flying ? FLY.speed : 1);
-    const inp = inputDir(), wasGround = body.ground;
-    stepBody(body, { ...inp, jump: inp.jump || jumpUntil > now }, spd, dt, map, now);
+    // planted by an art: still, as on the server
+    const inp = last.f & 512 ? { dx: 0, dy: 0, jump: false, down: false } : inputDir(), wasGround = body.ground;
+    stepBody(body, { ...inp, jump: inp.jump || (jumpUntil > now && !(last.f & 512)) }, spd, dt, map, now);
     if (wasGround && !body.ground) jumpUntil = 0;
   }
 
@@ -903,6 +911,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       camFY += (ty - camFY) * (1 - Math.exp(-dt * 6));
       camX = Math.round(camFX);
       camY = Math.round(camFY);
+      // a heavy art landing near you shakes the view, fading out
+      if (shakeUntil > now) {
+        const k = shakeAmp * ((shakeUntil - now) / shakeFor);
+        camX += Math.round((Math.random() * 2 - 1) * k);
+        camY += Math.round((Math.random() * 2 - 1) * k);
+      }
     }
     scene.paint(bgBuf, VW, VH, camX, camY, now);
     clearFrame(frame);
@@ -938,7 +952,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     const live = new Set();
     for (const b of snaps[snaps.length - 1]?.B ?? []) {
       // a monster's shot ("@type") rides its own effect too
-      const a = b[6]?.[0] === "@" ? { fx: MONSTERS[b[6].slice(1)]?.shotFx, at: "bolt", scale: 1.1 } : b[6] && ARTS[b[6]];
+      const a = b[6]?.[0] === "@" ? { fx: MONSTERS[b[6].slice(1)]?.shotFx, at: "bolt", scale: 1.1 } : null;
       if (!a || !a.fx) drawBolt(p, b, now);
       else if (a.at === "bolt") {
         // the art's own effect rides the projectile, turned the way it flies

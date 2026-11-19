@@ -12,6 +12,7 @@
 //  - Levels make you stronger in the open world (up to about 2x at the top), but on PvP maps the bonus is squeezed to
 //    at most +10%, so a newcomer can still beat a veteran there. Healing pills can't be used on PvP maps.
 //  - Rewards for killing the same player again are cut off for a while, so friends can't farm each other.
+import { CONG_PHAP_BY_KEY } from "./cong-phap.js";
 
 export const TICK_HZ = 20;
 // Maps (size, walls, spawn, the spirit vein, the ways out) live in shared/maps/.
@@ -45,22 +46,9 @@ export const mitigate = (def) => 100 / (100 + def);
 // Skill types the server knows: melee (an arc in front: range, arc), bolt (a projectile: range, speed, r), zone (an area
 // some way ahead that hits after a beat and slows: dist, r, delay, slow, slowDur). cd in seconds, mult x attack, px.
 export const SKILL_PARAMS = { melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur"] };
-// Công pháp (arts): learned with items, up to ART_SLOTS of them on the bar at once. Each type's numbers (see
-// shared/arts-seed.js); `stat` is the one string among them.
-export const ART_PARAMS = {
-  melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur"], nova: ["r", "delay", "slow", "slowDur"],
-  dash: ["dist", "r"], heal: ["pct"], buff: ["stat", "pct", "dur"],
-};
+// Công pháp (arts): each designed in code (shared/cong-phap.js); up to ART_SLOTS of them on the bar at once.
 export const ART_SLOTS = 5;
-export const ART_AT = ["front", "self", "target", "bolt"];
-// learn: spend its items in the Công Pháp panel; event: only given (activities, events, the auction house... by an admin now)
-export const ART_SOURCES = ["learn", "event"];
 export const ITEM_KINDS = ["pill", "book", "material"];
-const PARAM_MAX = { arc: 6.3, slow: 0.95, pct: 500, dur: 600 };
-// params an art may leave out, and what they are then
-const PARAM_DEFAULT = {};
-// the types whose arts can be dragged to a spot (an admin switches it on per art: aimable, aimRange)
-export const AIM_TYPES = ["zone"];
 // Monsters: any type an admin adds, drawn with a pixelfx effect (`fx`, the critters), or as a straw dummy. The maps place
 // them by type, so the types a map uses must exist. style: melee (rushes in and strikes at `reach`), ranged (keeps its
 // distance and shoots `shotFx` within `range`), none (stands, like the dummies). fly: hovers and goes where it likes;
@@ -74,7 +62,7 @@ export const MONSTER_STYLES = ["melee", "ranged", "none"];
 const M = (fx, style, fly, dropRate, range = 0, shotSpeed = 0, shotFx = "") => ({ fx, style, fly, dropRate, range, shotSpeed, shotFx, commonDrops: fx === "critters/ghost" });
 export const DEFAULTS = {
   realms: ["Luyện Khí", "Trúc Cơ", "Kim Đan", "Nguyên Anh", "Hóa Thần", "Luyện Hư", "Hợp Thể", "Đại Thừa", "Độ Kiếp"].map((name) => ({ name, stages: 5 })),
-  // the basic attack on the big button; every other art is in the arts table (shared/arts-seed.js)
+  // the basic attack on the big button; the arts are designed in shared/cong-phap.js
   skills: [{ slot: 0, name: "Kiếm Khí Trảm", type: "melee", cd: 0.6, mult: 0.85, params: { range: 54, arc: 1.4 } }],
   items: [
     { key: "hoixuan", name: "Hồi Xuân Đan", desc: "Hồi 40% sinh lực. Không dùng được trong đấu trường", price: 12, heal: 0.4, expBase: 0, expPerLevel: 0, cd: 15, onSale: true, sort: 1 },
@@ -135,7 +123,7 @@ export let MAX_LEVEL = 1;
 export const CLASS = "tu";
 export const CLASSES = { tu: { name: "Tu Sĩ", hp: 0, atk: 0, def: 0, spd: 0, skills: [] } };
 export const ITEMS = {}; // key -> { name, kind, desc, price, heal, cd, onSale, sort, exp(L) }
-export const ARTS = {}; // key -> { key, name, desc, element, tier, type, cd, mult, ...params, fx, at, life, starter, sort, reqs: [{ item, qty }] }
+export const ARTS = {}; // key -> shared/cong-phap.js's art, plus the admin's switches: enabled, learnable, onSale (and source)
 export const ART_LIST = []; // the enabled arts in display order
 export const STARTER_ARTS = []; // known by everyone; what a fresh bar holds
 export const DROPS = {}; // monster type or "*" -> [{ item, chance, min, max }]
@@ -214,44 +202,14 @@ export function checkConfig(c) {
   }
   for (const t of MONSTER_TYPES) if (!monsters[t]) throw new Error(`Thiếu yêu thú ${t}`);
   for (const m of c.monsters ?? []) if (monsters[m.type]) monsters[m.type].commonDrops = m.commonDrops !== false && m.commonDrops !== 0;
-  const arts = {};
-  for (const a of c.arts ?? []) {
-    const key = str(a.key, "mã công pháp", 32);
-    if (!/^[a-z0-9_]+$/.test(key)) throw new Error(`Mã công pháp "${key}": chỉ chữ thường không dấu, số, _`);
-    if (!ART_PARAMS[a.type]) throw new Error(`Công pháp ${key}: loại "${a.type}" không có (${Object.keys(ART_PARAMS).join(", ")})`);
-    if (a.source && !ART_SOURCES.includes(a.source)) throw new Error(`Công pháp ${key}: nguồn "${a.source}" không có (${ART_SOURCES.join(", ")})`);
-    if (!ART_AT.includes(a.at)) throw new Error(`Công pháp ${key}: vị trí hiệu ứng "${a.at}" không có (${ART_AT.join(", ")})`);
-    if (a.fx && !/^[a-z]+\/[a-z0-9-]+$/.test(a.fx)) throw new Error(`Công pháp ${key}: hiệu ứng "${a.fx}" sai dạng (vd fire/fireball)`);
-    let params;
-    try {
-      params = typeof a.params === "string" ? JSON.parse(a.params) : a.params ?? {};
-    } catch {
-      throw new Error(`Công pháp ${key}: params không phải JSON`);
-    }
-    const out = {
-      key, name: str(a.name, `tên công pháp ${key}`, 30), desc: String(a.desc ?? "").slice(0, 200), element: String(a.element ?? ""), tier: num(a.tier ?? 1, `bậc ${key}`, 1, 9) | 0,
-      type: a.type, cd: num(a.cd, `hồi chiêu ${key}`, 0.1, 3600), mult: num(a.mult ?? 0, `hệ số ${key}`, 0, 50), fx: String(a.fx ?? ""), at: a.at,
-      source: a.source ?? "learn", sourceNote: String(a.sourceNote ?? "").slice(0, 100),
-      // aim: how far from the caster the player may drag it (px); 0 = it can't be dragged, it lands where its type says
-      aim: 0,
-      life: num(a.life ?? 0, `thời gian hiệu ứng ${key}`, 0, 60), scale: num(a.scale ?? 0, `cỡ hiệu ứng ${key}`, 0, 6), starter: !!a.starter, enabled: a.enabled !== false && a.enabled !== 0, sort: Number(a.sort) || 0, reqs: [],
-    };
-    for (const p of ART_PARAMS[a.type]) {
-      if (p === "stat") {
-        if (!["atk", "def", "spd"].includes(params.stat)) throw new Error(`Công pháp ${key}: stat phải là atk, def hoặc spd`);
-        out.stat = params.stat;
-      } else out[p] = num(params[p] ?? PARAM_DEFAULT[p], `công pháp ${key} ${p}`, 0, PARAM_MAX[p] ?? 5000);
-    }
-    if (a.aimable) {
-      if (!AIM_TYPES.includes(a.type)) throw new Error(`Công pháp ${key}: chỉ chiêu loại vùng mới kéo chọn vị trí được (đang là ${a.type})`);
-      out.aim = num(a.aimRange ?? 280, `tầm kéo của ${key}`, 20, 1200);
-    }
-    arts[key] = out;
-  }
-  for (const r of c.reqs ?? []) {
-    if (!arts[r.art]) throw new Error(`Yêu cầu: công pháp "${r.art}" không có`);
-    if (!items[r.item]) throw new Error(`Yêu cầu của ${r.art}: vật phẩm "${r.item}" không có`);
-    arts[r.art].reqs.push({ item: r.item, qty: num(r.qty, `số lượng ${r.item} cho ${r.art}`, 1, 9999) | 0 });
+  // the arts are the ones designed in code; the database only switches each: on or off, learnable with its bí kíp (or
+  // only given: events, activities), sold or not. An art without a row is on, learnable, not sold.
+  const arts = {}, sw = Object.fromEntries((c.arts ?? []).map((a) => [a.key, a]));
+  for (const def of Object.values(CONG_PHAP_BY_KEY)) {
+    const a = sw[def.key] ?? {}, on = (v, d) => (v === undefined || v === null ? d : v === true || v === 1 || v === "1");
+    // an item it needs that isn't there (only before the database is read): it can't be learned until it is
+    const learnable = !def.starter && on(a.learnable, true) && def.reqs.every((r) => items[r.item]);
+    arts[def.key] = { ...def, enabled: on(a.enabled, true), learnable, source: def.starter ? "starter" : learnable ? "learn" : "event", onSale: !def.starter && on(a.onSale, false) };
   }
   const drops = {};
   for (const d of c.drops ?? []) {
