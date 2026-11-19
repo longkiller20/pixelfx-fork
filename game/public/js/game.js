@@ -7,7 +7,7 @@ import { mapInfo } from "/shared/maps/index.js";
 import { drawDummy } from "./art.js";
 import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
 import { buildScene } from "./scenery.js";
-import { stepBody, PHYS } from "/shared/physics.js";
+import { stepBody, PHYS, zoneLanding } from "/shared/physics.js";
 
 // each buff's status icon (Xianxia Pixel Pack)
 const BUFF_ICON = { hp: "item_peach", atk: "status_burn", def: "status_golden_shield", spd: "status_swift", exp: "item_jade_slip", stones: "item_spirit_stone", med: "item_lingzhi" };
@@ -339,7 +339,34 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     if (e.button === 2) cast(1);
   });
   view.addEventListener("contextmenu", (e) => e.preventDefault());
-  for (const b of document.querySelectorAll("[data-skill]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), cast(+b.dataset.skill)));
+  // a zone art that can be aimed: press its button and drag the way you want it to land, as far as you drag (the full
+  // reach at AIM_DRAG px), and let go; a tap without dragging puts it on the nearest enemy (or the usual spot ahead)
+  const AIM_DRAG = 90;
+  for (const b of document.querySelectorAll("[data-skill]")) {
+    const i = +b.dataset.skill;
+    b.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      if (!aimArt(i)) return cast(i);
+      try {
+        b.setPointerCapture(e.pointerId);
+      } catch {}
+      const o = appXY(e);
+      aiming = { i, id: e.pointerId, x0: o.x, y0: o.y, dragged: false, to: null };
+    });
+    b.addEventListener("pointermove", (e) => {
+      if (!aiming || aiming.id !== e.pointerId) return;
+      const o = appXY(e), dx = o.x - aiming.x0, dy = o.y - aiming.y0;
+      if (Math.hypot(dx, dy) > 10) aiming.dragged = true;
+      aiming.drag = { dx, dy };
+    });
+    b.addEventListener("pointerup", (e) => {
+      if (!aiming || aiming.id !== e.pointerId) return;
+      const a = aiming;
+      aiming = null;
+      cast(a.i, a.dragged ? aimSpot(a) : null);
+    });
+    b.addEventListener("pointercancel", () => (aiming = null));
+  }
   for (const b of document.querySelectorAll("[data-item]")) b.addEventListener("pointerdown", (e) => (e.preventDefault(), use(b.dataset.item)));
   // ngự kiếm phi hành: on and off the flying sword (F); the button shows once the realm for it is reached
   const flyBtn = $("flyBtn");
@@ -444,13 +471,98 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     }
     return best ? { ax: best.x - self.x, ay: best.y - self.y } : { ax: lastDir.x, ay: lastDir.y };
   }
-  function cast(i) {
+  function cast(i, to = null) {
     // an empty slot opens the list of arts, to put one there
     if (i > 0 && !arts.slots[i - 1]) return openArts?.(i - 1);
     if (!me || me.respawn > 0) return;
     if (me.cd[i] > 0.05) return;
+    const a = aimArt(i), self = drawn.get(myId);
+    if (a && self) {
+      // an aimed zone: where it was dragged, else the mouse on a computer, else the nearest enemy in reach, else ahead
+      to ??= mouse && !touch ? clampAim({ x: mouse.x + camX, y: mouse.y + camY }, a.aim) : autoSpot(a);
+      return send({ t: "cast", s: i, ax: to.x - self.x || lastDir.x, ay: 0, tx: Math.round(to.x), ty: Math.round(to.y) });
+    }
     send({ t: "cast", s: i, ...aim() });
   }
+  // ---- aimed zones
+  let aiming = null; // { i, id, x0, y0, dragged, drag: { dx, dy } } while a finger drags an art's button
+  /** The art in slot i when it is a zone that can be aimed, else null. */
+  const aimArt = (i) => {
+    const a = i > 0 && ARTS[arts.slots[i - 1]];
+    return a && a.type === "zone" && a.aim > 0 ? a : null;
+  };
+  /** A point pulled in to `reach` px of your chest. */
+  function clampAim(to, reach) {
+    const self = drawn.get(myId), cx = self.x, cy = self.y - 30;
+    let dx = to.x - cx, dy = to.y - cy;
+    const d = Math.hypot(dx, dy);
+    if (d > reach) (dx *= reach / d), (dy *= reach / d);
+    return { x: cx + dx, y: cy + dy };
+  }
+  /** Where a drag puts the zone: the drag's way and share of AIM_DRAG, times the art's reach. */
+  function aimSpot(a) {
+    const art = aimArt(a.i), self = drawn.get(myId);
+    if (!art || !self || !a.drag) return null;
+    const k = art.aim / AIM_DRAG;
+    return clampAim({ x: self.x + a.drag.dx * k, y: self.y - 30 + a.drag.dy * k }, art.aim);
+  }
+  /** Where the zone will burst: the same settling onto the ground as the server's, inside the map. */
+  function landing(to) {
+    const x = Math.max(20, Math.min(map.w - 20, to.x)), y = Math.max(40, Math.min(map.h - 2, to.y));
+    return { x, y: zoneLanding(map, x, y) };
+  }
+  /** No drag: the nearest enemy within reach, else the art's usual spot ahead. */
+  function autoSpot(a) {
+    const self = drawn.get(myId), arena = !!map?.pvp;
+    let best = null, bd = a.aim;
+    for (const e of drawn.values()) {
+      if (e.id === myId || e.dead || e.kind === "s" || (e.kind === "p" && !arena)) continue;
+      const d = Math.hypot(e.x - self.x, e.y - 30 - (self.y - 30));
+      if (d < bd) (bd = d), (best = e);
+    }
+    return best ? { x: best.x, y: best.y - 10 } : { x: self.x + (self.face < 0 ? -1 : 1) * a.dist, y: self.y - 10 };
+  }
+  // while dragging: the reach as a dotted ring round you, and the zone where it will land
+  const AIM_C = hex("#7ff0ff"), AIM_IN = hex("#ffd84a");
+  function drawAim(p, now) {
+    const a = aiming && aimArt(aiming.i), self = drawn.get(myId);
+    if (!a || !self) return;
+    p.place(0, 0, false);
+    p.fade = 1;
+    p.lightK = 1;
+    // a soft ring (2 px, translucent) a step at a time, with brighter beads turning slowly round it
+    const ring = (x, y, r, c, al) => {
+      const n = Math.max(32, Math.round(r * 6.3));
+      for (let k = 0; k < n; k++) {
+        const t = (k / n) * Math.PI * 2, cs = Math.cos(t), sn = Math.sin(t);
+        p.blend(Math.round(x + cs * r), Math.round(y + sn * r), c, al);
+        p.blend(Math.round(x + cs * (r - 1)), Math.round(y + sn * (r - 1)), c, al * 0.6);
+      }
+    };
+    const cx = self.x - camX, cy = self.y - 30 - camY;
+    ring(cx, cy, a.aim, AIM_C, 0.45);
+    for (let k = 0; k < 12; k++) {
+      const t = (k / 12) * Math.PI * 2 + now * 0.6;
+      p.dot(Math.round(cx + Math.cos(t) * a.aim), Math.round(cy + Math.sin(t) * a.aim), AIM_C, 1);
+    }
+    if (!aiming.dragged) return;
+    const at = aimSpot(aiming);
+    if (!at) return;
+    const to = landing(at);
+    const tx = to.x - camX, ty = to.y - camY, r = a.r, pulse = 0.5 + 0.5 * Math.sin(now * 8);
+    for (let y = -r; y <= r; y++)
+      for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r) p.blend(Math.round(tx + x), Math.round(ty + y), AIM_IN, 0.16 + 0.06 * pulse);
+    ring(tx, ty, r, AIM_IN, 0.9);
+    ring(tx, ty, Math.max(4, r * 0.15), AIM_IN, 0.9);
+    // a dotted line from you to it
+    const L = Math.hypot(tx - cx, ty - cy);
+    for (let d = 14; d < L - r; d += 7) {
+      const x = Math.round(cx + ((tx - cx) * d) / L), y = Math.round(cy + ((ty - cy) * d) / L);
+      p.blend(x, y, AIM_IN, 0.85);
+      p.blend(x + 1, y, AIM_IN, 0.85);
+    }
+  }
+
   function use(item) {
     if ((inv[item] ?? 0) <= 0) return toast(`Hết ${ITEMS[item].name}. Mua thêm ở Đan Các.`);
     send({ t: "use", item });
@@ -844,6 +956,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     for (const f of fxs) if (on(f.x, f.y)) drawFx(f.fx, "front", f.x, f.y, f.k);
     for (const a of ambient) if (on(a.x, a.y, 260)) drawFx(a.fx, "front", a.x, a.y, a.k);
     drawPortalArrows(p, now, on);
+    drawAim(p, now);
     drawPetals(p, now, dt);
     if (screenFx) {
       // hold it shut while waiting for the new map; then let it open and finish

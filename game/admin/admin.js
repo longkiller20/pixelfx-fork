@@ -220,7 +220,7 @@ const SKILL_TYPE = [["melee", "Cận chiến"], ["bolt", "Phóng (đạn bay)"],
 const ART_TYPE = [["melee", "Cận chiến (cung chém trước mặt)"], ["bolt", "Phóng xa (đạn bay)"], ["zone", "Vùng phía trước"], ["nova", "Vùng quanh thân"], ["dash", "Lướt tới"], ["heal", "Hồi sinh lực"], ["buff", "Tăng chỉ số tạm thời"]];
 const ART_AT = [["front", "Trước mặt"], ["self", "Trên người (đi theo)"], ["target", "Nơi chiêu rơi xuống"], ["bolt", "Bay theo viên đạn"]];
 const ART_PARAM_HINT = {
-  melee: '{"range": 64, "arc": 1.4}', bolt: '{"range": 300, "speed": 380, "r": 12}', zone: '{"dist": 120, "r": 60, "delay": 0.5, "slow": 0, "slowDur": 0}',
+  melee: '{"range": 64, "arc": 1.4}', bolt: '{"range": 300, "speed": 380, "r": 12}', zone: '{"dist": 120, "r": 60, "delay": 0.5, "slow": 0, "slowDur": 0, "aim": 280}',
   nova: '{"r": 90, "delay": 0.2, "slow": 0, "slowDur": 0}', dash: '{"dist": 140, "r": 26}', heal: '{"pct": 0.2}', buff: '{"stat": "atk", "pct": 20, "dur": 8}',
 };
 const ELEMENTS = [["kim", "Kim"], ["hoa", "Hỏa"], ["thuy", "Thủy"], ["bang", "Băng"], ["loi", "Lôi"], ["moc", "Mộc"], ["tho", "Thổ"], ["quang", "Quang"], ["am", "Ám"], ["huyen", "Huyền"], ["phong", "Phong"], ["di", "Dị Giới"], ["bao", "Bạo"], ["thu", "Ngự Thú"]];
@@ -365,7 +365,7 @@ const VIEWS = {
       { k: "name", label: "Tên" }, { k: "element", label: "Hệ", type: "select", options: ELEMENTS }, { k: "tier", label: "Bậc (1-9)", type: "number", step: 1 },
       { k: "type", label: "Loại chiêu", type: "select", options: ART_TYPE }, { k: "cd", label: "Hồi chiêu (giây)", type: "number" },
       { k: "mult", label: "Hệ số sát thương (× công)", type: "number" },
-      { k: "params", label: "Thông số (JSON)", wide: true, hint: "Theo loại: cận chiến {range, arc}; phóng {range, speed, r}; vùng {dist, r, delay, slow, slowDur}; quanh thân {r, delay, slow, slowDur}; lướt {dist, r}; hồi {pct}; tăng {stat: atk|def|spd, pct, dur}" },
+      { k: "params", label: "Thông số (JSON)", wide: true, hint: "Theo loại: cận chiến {range, arc}; phóng {range, speed, r}; vùng {dist, r, delay, slow, slowDur, aim} (aim: tầm kéo chọn vị trí, px; 0 = luôn nổ cách dist phía trước); quanh thân {r, delay, slow, slowDur}; lướt {dist, r}; hồi {pct}; tăng {stat: atk|def|spd, pct, dur}" },
       { k: "fx", label: "Hiệu ứng pixelfx", hint: "vd fire/fireball; để trống = ném vũ khí đang cầm" }, { k: "fx_at", label: "Hiệu ứng vẽ ở", type: "select", options: ART_AT },
       { k: "fx_life", label: "Dừng hiệu ứng lặp sau (giây, 0 = mặc định)", type: "number" },
       { k: "fx_scale", label: "Phóng to hiệu ứng (0 = tự động)", type: "number", step: 0.05, hint: "tự động: 1.65 trên người / trước mặt, 1.2-1.4 vùng xa, 1.3 đạn bay" }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
