@@ -220,7 +220,7 @@ const SKILL_TYPE = [["melee", "Cận chiến"], ["bolt", "Phóng (đạn bay)"],
 const ART_TYPE = [["melee", "Cận chiến (cung chém trước mặt)"], ["bolt", "Phóng xa (đạn bay)"], ["zone", "Vùng phía trước"], ["nova", "Vùng quanh thân"], ["dash", "Lướt tới"], ["heal", "Hồi sinh lực"], ["buff", "Tăng chỉ số tạm thời"]];
 const ART_AT = [["front", "Trước mặt"], ["self", "Trên người (đi theo)"], ["target", "Nơi chiêu rơi xuống"], ["bolt", "Bay theo viên đạn"]];
 const ART_PARAM_HINT = {
-  melee: '{"range": 64, "arc": 1.4}', bolt: '{"range": 300, "speed": 380, "r": 12}', zone: '{"dist": 120, "r": 60, "delay": 0.5, "slow": 0, "slowDur": 0, "aim": 280}',
+  melee: '{"range": 64, "arc": 1.4}', bolt: '{"range": 300, "speed": 380, "r": 12}', zone: '{"dist": 120, "r": 60, "delay": 0.5, "slow": 0, "slowDur": 0}',
   nova: '{"r": 90, "delay": 0.2, "slow": 0, "slowDur": 0}', dash: '{"dist": 140, "r": 26}', heal: '{"pct": 0.2}', buff: '{"stat": "atk", "pct": 20, "dur": 8}',
 };
 const ELEMENTS = [["kim", "Kim"], ["hoa", "Hỏa"], ["thuy", "Thủy"], ["bang", "Băng"], ["loi", "Lôi"], ["moc", "Mộc"], ["tho", "Thổ"], ["quang", "Quang"], ["am", "Ám"], ["huyen", "Huyền"], ["phong", "Phong"], ["di", "Dị Giới"], ["bao", "Bạo"], ["thu", "Ngự Thú"]];
@@ -365,8 +365,10 @@ const VIEWS = {
       { k: "name", label: "Tên" }, { k: "element", label: "Hệ", type: "select", options: ELEMENTS }, { k: "tier", label: "Bậc (1-9)", type: "number", step: 1 },
       { k: "type", label: "Loại chiêu", type: "select", options: ART_TYPE }, { k: "cd", label: "Hồi chiêu (giây)", type: "number" },
       { k: "mult", label: "Hệ số sát thương (× công)", type: "number" },
-      { k: "params", label: "Thông số (JSON)", wide: true, hint: "Theo loại: cận chiến {range, arc}; phóng {range, speed, r}; vùng {dist, r, delay, slow, slowDur, aim} (aim: tầm kéo chọn vị trí, px; 0 = luôn nổ cách dist phía trước); quanh thân {r, delay, slow, slowDur}; lướt {dist, r}; hồi {pct}; tăng {stat: atk|def|spd, pct, dur}" },
+      { k: "params", label: "Thông số (JSON)", wide: true, hint: "Theo loại: cận chiến {range, arc}; phóng {range, speed, r}; vùng {dist, r, delay, slow, slowDur}; quanh thân {r, delay, slow, slowDur}; lướt {dist, r}; hồi {pct}; tăng {stat: atk|def|spd, pct, dur}" },
       { k: "fx", label: "Hiệu ứng pixelfx", hint: "vd fire/fireball; để trống = ném vũ khí đang cầm" }, { k: "fx_at", label: "Hiệu ứng vẽ ở", type: "select", options: ART_AT },
+      { k: "aimable", label: "Kéo chọn vị trí (chỉ chiêu loại vùng): người chơi giữ nút chiêu rồi kéo để đặt chỗ nổ", type: "bool" },
+      { k: "aim_range", label: "Tầm kéo tối đa (px, tính từ nhân vật)", type: "number", step: 10, hint: "khi bật Kéo chọn vị trí; vd 280. Tắt thì chiêu nổ cách nhân vật dist px phía trước" },
       { k: "fx_life", label: "Dừng hiệu ứng lặp sau (giây, 0 = mặc định)", type: "number" },
       { k: "fx_scale", label: "Phóng to hiệu ứng (0 = tự động)", type: "number", step: 0.05, hint: "tự động: 1.65 trên người / trước mặt, 1.2-1.4 vùng xa, 1.3 đạn bay" }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
       { k: "source", label: "Cách có được", type: "select", options: ART_SOURCE },
@@ -402,7 +404,7 @@ const VIEWS = {
       return box;
     };
     const add = record({
-      title: "Thêm công pháp", isNew: true, row: { element: "kim", tier: 1, type: "melee", cd: 3, mult: 1.3, params: ART_PARAM_HINT.melee, fx: "melee/sword-slash", fx_at: "front", fx_life: 0, sort: 500, starter: 0, enabled: 1 },
+      title: "Thêm công pháp", isNew: true, row: { element: "kim", tier: 1, type: "melee", cd: 3, mult: 1.3, params: ART_PARAM_HINT.melee, fx: "melee/sword-slash", fx_at: "front", fx_life: 0, aimable: 0, aim_range: 280, sort: 500, starter: 0, enabled: 1 },
       fields: [{ k: "art_key", label: "Mã (chữ thường, không dấu)", hint: "vd: thanh_long_tram" }, ...F],
       onSave: save(null),
     });
@@ -421,15 +423,17 @@ const VIEWS = {
     const src = el("select", {}, [["", "Mọi nguồn"], ...ART_SOURCE].map(([v, l]) => el("option", { value: v }, l)));
     const type = el("select", {}, [["", "Mọi loại"], ...ART_TYPE].map(([v, l]) => el("option", { value: v }, l)));
     const elem = el("select", {}, [["", "Mọi hệ"], ...ELEMENTS].map(([v, l]) => el("option", { value: v }, l)));
+    const aimSel = el("select", {}, [["", "Kéo / không kéo"], ["1", "🎯 Kéo chọn vị trí"], ["0", "Vùng không kéo"]].map(([v, l]) => el("option", { value: v }, l)));
     const q = el("input", { type: "search", placeholder: "Tìm theo tên, mã hoặc hiệu ứng..." });
     const out = el("div");
     const draw = () => {
       const t = q.value.trim().toLowerCase();
-      const list = rows.filter((r) => (!src.value || r.source === src.value) && (!type.value || r.type === type.value) && (!elem.value || r.element === elem.value) && (!t || r.name.toLowerCase().includes(t) || r.art_key.includes(t) || r.fx.includes(t)));
+      const list = rows.filter((r) => (!src.value || r.source === src.value) && (!type.value || r.type === type.value) && (!elem.value || r.element === elem.value) &&
+        (!aimSel.value || (aimSel.value === "1" ? !!r.aimable : r.type === "zone" && !r.aimable)) && (!t || r.name.toLowerCase().includes(t) || r.art_key.includes(t) || r.fx.includes(t)));
       out.replaceChildren(...paged(list, (r) => {
         const card = record({
           title: r.name, sub: `${r.art_key} · ${ELEMENTS.find((e) => e[0] === r.element)?.[1] ?? r.element} · bậc ${r.tier}`, row: r, fields: F,
-          extra: el("span", {}, r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết") : r.source === "event" ? el("span", { class: "tag gold" }, `★ ${r.source_note || "Sự kiện"}`) : null, " ", r.enabled ? null : el("span", { class: "tag red" }, "Đang khóa")),
+          extra: el("span", {}, r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết") : r.source === "event" ? el("span", { class: "tag gold" }, `★ ${r.source_note || "Sự kiện"}`) : null, " ", r.aimable ? el("span", { class: "tag" }, `🎯 Kéo ${r.aim_range}px`) : null, " ", r.enabled ? null : el("span", { class: "tag red" }, "Đang khóa")),
           onSave: save(r.art_key),
           onDelete: async () => confirm(`Xóa hẳn ${r.name}? Người đã lĩnh ngộ sẽ không dùng được nữa. Muốn tạm ẩn thì bỏ chọn "Đang mở".`) && (await guard(() => api(`/t/arts/${r.art_key}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
         });
@@ -438,12 +442,12 @@ const VIEWS = {
         return card;
       }, 12));
     };
-    for (const s of [src, type, elem]) s.addEventListener("change", draw);
+    for (const s of [src, type, elem, aimSel]) s.addEventListener("change", draw);
     q.addEventListener("input", draw);
     draw();
     return [el("h2", {}, `Công pháp (${rows.length})`),
-      el("p", { class: "dim" }, "Mỗi công pháp dùng một hiệu ứng của pixelfx. Môn \"Lĩnh ngộ\": người chơi tiêu hao các vật phẩm yêu cầu (bí kíp, nguyên liệu: rơi từ yêu thú). Môn \"Chỉ qua hoạt động / sự kiện\": không học được, chỉ có khi admin phát (cho mọi người, người đang online, hoặc theo đạo hiệu), ghi chú \"Nhận ở đâu\" hiện cho người chơi. Mỗi người gán tối đa 5 môn lên thanh nút. Số sai sẽ bị từ chối, game không bị ảnh hưởng."),
-      el("div", { class: "grid" }, add), el("div", { class: "bar" }, src, type, elem, q), out];
+      el("p", { class: "dim" }, "Mỗi công pháp dùng một hiệu ứng của pixelfx. Môn \"Lĩnh ngộ\": người chơi tiêu hao các vật phẩm yêu cầu (bí kíp, nguyên liệu: rơi từ yêu thú). Môn \"Chỉ qua hoạt động / sự kiện\": không học được, chỉ có khi admin phát (cho mọi người, người đang online, hoặc theo đạo hiệu), ghi chú \"Nhận ở đâu\" hiện cho người chơi. Mỗi người gán tối đa 5 môn lên thanh nút. Chiêu loại vùng có thể bật \"Kéo chọn vị trí\": người chơi giữ nút chiêu rồi kéo để đặt chỗ nổ trong tầm kéo (trên máy tính là chỗ con trỏ chuột); tắt thì chiêu nổ trước mặt như thường. Số sai sẽ bị từ chối, game không bị ảnh hưởng."),
+      el("div", { class: "grid" }, add), el("div", { class: "bar" }, src, type, elem, aimSel, q), out];
   },
 
   async drops() {
