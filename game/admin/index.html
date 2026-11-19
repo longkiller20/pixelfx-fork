@@ -10,6 +10,7 @@
 <body>
 <section id="login" class="screen center" hidden>
   <form id="loginForm" class="box">
+    <span class="logo big" aria-hidden="true">道</span>
     <h1>Quản trị</h1>
     <p class="dim">Đa Vũ Trụ Tu Tiên</p>
     <label>Tài khoản <input id="lUser" autocomplete="username" required></label>
@@ -33,27 +34,33 @@
 </section>
 
 <section id="app" class="screen" hidden>
-  <header>
-    <b>⚙ Quản trị</b>
-    <span class="dim" id="who"></span>
-    <span class="grow"></span>
-    <button id="myPw" class="ghost small">Đổi mật khẩu</button>
-    <button id="logout" class="ghost small">Thoát</button>
-  </header>
-  <nav id="tabs">
-    <button data-tab="overview">Tổng quan</button>
-    <button data-tab="players">Người chơi</button>
-    <button data-tab="realms">Cảnh giới</button>
-    <button data-tab="items">Vật phẩm</button>
-    <button data-tab="arts">Công pháp</button>
-    <button data-tab="drops">Rơi đồ</button>
-    <button data-tab="monsters">Yêu thú</button>
-    <button data-tab="skills">Đánh thường</button>
-    <button data-tab="settings">Cài đặt</button>
-    <button data-tab="cosmetics">Tóc, áo, vũ khí &amp; phi kiếm</button>
-    <button data-tab="admins">Admin</button>
-    <button data-tab="log">Nhật ký</button>
-  </nav>
+  <!-- a sidebar on a computer; on a phone a bar on top with the sections as a row that scrolls sideways -->
+  <aside id="side">
+    <div class="brand"><span class="logo" aria-hidden="true">道</span><div><b>Quản trị</b><small>Đa Vũ Trụ Tu Tiên</small></div></div>
+    <nav id="tabs">
+      <span class="navgroup">Tổng quát</span>
+      <button data-tab="overview"><i aria-hidden="true">📊</i><span>Tổng quan</span></button>
+      <button data-tab="players"><i aria-hidden="true">👥</i><span>Người chơi</span></button>
+      <span class="navgroup">Nội dung game</span>
+      <button data-tab="realms"><i aria-hidden="true">🏔️</i><span>Cảnh giới</span></button>
+      <button data-tab="items"><i aria-hidden="true">💊</i><span>Vật phẩm</span></button>
+      <button data-tab="arts"><i aria-hidden="true">📜</i><span>Công pháp</span></button>
+      <button data-tab="drops"><i aria-hidden="true">🎁</i><span>Rơi đồ</span></button>
+      <button data-tab="monsters"><i aria-hidden="true">👹</i><span>Yêu thú</span></button>
+      <button data-tab="skills"><i aria-hidden="true">⚔️</i><span>Đánh thường</span></button>
+      <button data-tab="cosmetics"><i aria-hidden="true">👘</i><span>Tóc, áo, vũ khí &amp; phi kiếm</span></button>
+      <span class="navgroup">Hệ thống</span>
+      <button data-tab="settings"><i aria-hidden="true">⚙️</i><span>Cài đặt</span></button>
+      <button data-tab="admins"><i aria-hidden="true">🛡️</i><span>Admin</span></button>
+      <button data-tab="log"><i aria-hidden="true">🧾</i><span>Nhật ký</span></button>
+    </nav>
+    <div class="me">
+      <span class="avatar" aria-hidden="true">👤</span>
+      <div class="who"><b id="who"></b><small>Quản trị viên</small></div>
+      <button id="myPw" class="ghost icon" title="Đổi mật khẩu" aria-label="Đổi mật khẩu">🔑</button>
+      <button id="logout" class="ghost icon" title="Thoát" aria-label="Thoát">⏻</button>
+    </div>
+  </aside>
   <main id="main"></main>
 </section>
 <div id="modal" hidden><div id="modalBox" role="dialog" aria-modal="true"></div></div>
