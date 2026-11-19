@@ -125,8 +125,9 @@ function preview(cv, look, alive, onSword = () => false) {
   };
   requestAnimationFrame(step);
 }
-/** A grid of part thumbnails: pick(item) on click; badge(item) is an optional corner label (a price, a tick). */
-function partGrid(box, items, isOn, pick, badge = () => "") {
+/** A grid of part thumbnails: pick(item) on click; badge(item) is an optional corner label (a tick, a star); dim(item)
+ *  greys out what is not yours yet. */
+function partGrid(box, items, isOn, pick, badge = () => "", dim = () => false) {
   box.innerHTML = "";
   for (const it of items) {
     const b = document.createElement("button");
@@ -141,6 +142,7 @@ function partGrid(box, items, isOn, pick, badge = () => "") {
       b.append(s);
     }
     b.classList.toggle("on", isOn(it));
+    b.classList.toggle("dim", dim(it));
     b.addEventListener("click", () => {
       pick(it);
       [...box.children].forEach((x, i) => x.classList.toggle("on", isOn(items[i])));
@@ -228,14 +230,16 @@ function play() {
 }
 
 // the panels
+const closeAsk = () => document.querySelector(".buyask")?.end(false);
 function panel(title, body) {
+  closeAsk();
   $("panelTitle").textContent = title;
   const b = $("panelBody");
   b.innerHTML = "";
   b.append(body);
   $("panel").hidden = false;
 }
-$("panelClose").addEventListener("click", () => ($("panel").hidden = true));
+$("panelClose").addEventListener("click", () => (closeAsk(), ($("panel").hidden = true)));
 
 $("shopBtn").addEventListener("click", async () => {
   const wrap = document.createElement("div");
@@ -475,6 +479,36 @@ function artsPanel(startSlot = -1) {
   panel(`Công Pháp (${ART_LIST.filter(known).length}/${ART_LIST.length} đã lĩnh ngộ)`, wrap);
 }
 
+/** The Y Các purchase confirmation, over the panel: the item, its price and what is left after. Resolves true to buy. */
+function buyConfirm(it, stones) {
+  return new Promise((done) => {
+    const short = it.price - stones;
+    const box = document.createElement("div");
+    box.className = "buyask";
+    box.innerHTML = `<div class="card" role="dialog" aria-modal="true"><h4>Mua vật phẩm</h4><div class="pic"></div><b class="nm"></b>
+      <div class="price">Giá: <b>💎 ${it.price}</b> linh thạch</div>
+      <div class="after ${short > 0 ? "bad" : "dim"}">${short > 0 ? `Thiếu ${short} linh thạch (đang có ${stones})` : `Đang có ${stones} → còn ${stones - it.price}`}</div>
+      <div class="btns"><button type="button" class="no">Huỷ</button><button type="button" class="primary yes">Mua</button></div></div>`;
+    box.querySelector(".pic").append(partCanvas(it.kind, it.g, it.idx));
+    box.querySelector(".nm").textContent = it.name;
+    const yes = box.querySelector(".yes");
+    yes.disabled = short > 0;
+    const end = (v) => {
+      box.remove();
+      removeEventListener("keydown", key);
+      done(v);
+    };
+    const key = (e) => e.key === "Escape" && end(false);
+    box.end = end;
+    addEventListener("keydown", key);
+    yes.addEventListener("click", () => end(true));
+    box.querySelector(".no").addEventListener("click", () => end(false));
+    box.addEventListener("click", (e) => e.target === box && end(false));
+    $("panel").append(box);
+    (short > 0 ? box.querySelector(".no") : yes).focus();
+  });
+}
+
 $("wardBtn").addEventListener("click", async () => {
   let w, me;
   try {
@@ -526,7 +560,7 @@ $("wardBtn").addEventListener("click", async () => {
       sel = it;
       trying[it.kind] = it.idx;
       side();
-    }, (it) => (wearing(it) ? "✓" : it.special ? "★" : has(it) ? "" : `💎${it.price}`));
+    }, (it) => (wearing(it) ? "✓" : it.special ? "★" : ""), (it) => !has(it));
   };
   const side = () => {
     const b = $$(".act"), st = $$(".st");
@@ -542,16 +576,13 @@ $("wardBtn").addEventListener("click", async () => {
     }
     if (wearing(sel)) (st.textContent = sel.kind === "sword" ? "Đang dùng" : "Đang mặc"), (b.hidden = true);
     else if (has(sel)) (st.textContent = sel.special ? "★ Bảo vật" : sel.starter ? "Miễn phí" : "Đã có"), (b.textContent = sel.kind === "sword" ? "Dùng" : "Mặc");
-    else {
-      st.textContent = `${sel.price} linh thạch`;
-      b.textContent = me.character.stones >= sel.price ? "Mua" : "Thiếu";
-      b.disabled = me.character.stones < sel.price;
-    }
+    // not yours yet: the price shows only when buying, in the confirmation
+    else (st.textContent = "Chưa sở hữu"), (b.textContent = "Mua");
   };
   $$(".act").addEventListener("click", async () => {
     const it = sel, b = $$(".act");
     if (!it) return;
-    if (!has(it) && !confirm(`Mua ${it.name} với giá ${it.price} linh thạch?`)) return;
+    if (!has(it) && !(await buyConfirm(it, me.character.stones))) return;
     b.disabled = true;
     try {
       if (has(it)) me.character = (await call("/cosmetics/wear", { method: "POST", body: { id: it.id } })).character;

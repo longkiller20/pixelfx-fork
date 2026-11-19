@@ -17,6 +17,9 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
   - Mỗi trang 10 món (5 × 2), có nút trang.
   - Thứ tự: món đang mặc trước, rồi món đã có, rồi đồ bán từ rẻ đến đắt.
+  - Món chưa sở hữu hiện mờ và không ghi giá ở ngoài; chọn món đó thì thấy "Chưa sở hữu" và nút **Mua**.
+  - Bấm Mua thì hiện hộp xác nhận: hình món, tên, giá, số linh thạch đang có và còn lại sau khi mua (không đủ thì báo thiếu bao nhiêu
+    và nút Mua bị khoá). Bấm Huỷ, phím Esc hay bấm ra ngoài để thôi.
   - Xem trước nhân vật đang đứng; ở tab phi kiếm thì nhân vật đứng trên thanh kiếm.
   - Cả bảng luôn vừa một màn hình, không có thanh cuộn: máy tính, điện thoại nằm ngang, điện thoại cầm dọc (giao diện tự xoay).
   - Mọi nhân vật dựng từ cùng một thân gốc, nên tóc và áo nào cũng mặc vừa.
