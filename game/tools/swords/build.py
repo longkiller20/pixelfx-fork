@@ -1,4 +1,5 @@
-"""Cut the 30 flying swords (phi kiếm, for ngự kiếm phi hành) out of source.png into public/xianxia/swords.png + .json.
+"""Cut the 30 flying swords (phi kiếm, for ngự kiếm phi hành) out of source.png into tools/assets/atlases/swords.png + .json
+(then run tools/assets/split.py: each sword gets its folder in public/phi-kiem/).
 
 source.png is a 6 x 5 sheet of swords painted on a soft, glowing backdrop. Each cell's sword is found by its detail: the
 backdrop is smooth, the sword's pixels are sharp, so a pixel is kept where the colour changes fast between neighbours
@@ -13,7 +14,8 @@ import numpy as np
 from PIL import Image
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE.parent.parent / "public" / "xianxia"
+OUT = HERE.parent / "assets" / "atlases"
+UI = HERE.parent.parent / "public" / "xianxia" / "ui"
 COLS, ROWS, SCALE = 6, 5, 3
 EDGE, APART = 40, 60  # how sharp a change marks the sword; how far from the backdrop's colour still counts as sword
 
@@ -147,7 +149,7 @@ def main():
     icon = Image.fromarray(swords[0], "RGBA").rotate(35, resample=Image.NEAREST, expand=True)
     icon = icon.crop(icon.getbbox())
     icon.thumbnail((48, 48), Image.NEAREST)
-    icon.save(OUT / "ui" / "fly_sword.png", optimize=True)
+    icon.save(UI / "fly_sword.png", optimize=True)
     print(len(meta), "swords,", sheet.size)
 
 

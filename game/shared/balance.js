@@ -21,7 +21,7 @@ export const NAME_RE = /^[\p{L}\p{N}_ ]{3,16}$/u;
 export const USER_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
 // A character's look: a gender, a hair style and a robe. Which styles exist, what they cost and which are free at
-// creation lives in the cosmetics table; idx is the part's place in its atlas in public/avatar/.
+// creation lives in the cosmetics table; idx is the number of the part's folder, public/toc-nam/<idx>-<name>/ and so on.
 export const GENDERS = ["m", "f"];
 export const COSMETIC_KINDS = ["hair", "robe"];
 const idxOk = (v) => Number.isInteger(v) && v >= 0 && v < 1000;

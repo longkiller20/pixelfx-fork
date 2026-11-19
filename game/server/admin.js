@@ -4,11 +4,11 @@
 //   and the admin accounts themselves.
 // Game numbers are checked with the same checkConfig() the game uses before anything is saved, then applied at once.
 import crypto from "node:crypto";
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import express from "express";
 import { q, tx, isDup } from "./db.js";
 import { ROOT, config } from "./config.js";
+import { assetsJson, hasPart, PART_DIRS, ART_DIR } from "./assets.js";
 import { hashPassword, verifyPassword, dummyVerify, rateLimit } from "./auth.js";
 import { readConfig, loadConfig } from "./gameconfig.js";
 import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS } from "../shared/balance.js";
@@ -119,13 +119,9 @@ function value(type, v, col) {
   return n;
 }
 
-// how many parts an atlas holds: hair and robes per gender (public/avatar/), weapons and flying swords for everyone
-// (public/xianxia/)
-const atlasCount = (kind, g) => {
-  if (kind === "weapon" || kind === "sword") return g === "a" ? JSON.parse(readFileSync(join(ROOT, "public", "xianxia", `${kind}s.json`), "utf8")).length : 0;
-  const meta = JSON.parse(readFileSync(join(ROOT, "public", "avatar", "avatar.json"), "utf8"));
-  return meta[`${kind}_${g}`]?.length ?? 0;
-};
+// the parts there are pictures of: one folder each in public/ (server/assets.js)
+const partName = { hair: "Tóc", robe: "Y phục", weapon: "Vũ khí", sword: "Phi kiếm" };
+const folderOf = (kind, g) => Object.entries(PART_DIRS).find(([, v]) => v[0] === kind && v[1] === g)?.[0] ?? kind;
 
 // ---------------------------------------------------------------- the app
 export function adminApp(world) {
@@ -259,8 +255,8 @@ export function adminApp(world) {
   };
   const pkValue = (t, v) => (t.pkType === "key" || t.pk === "k" || t.pk === "type" ? String(v) : Number(v));
   const checkCosmetic = (row) => {
-    const n = atlasCount(row.kind, row.gender);
-    if (row.idx >= n) throw bad(`idx ${row.idx} không có trong atlas ${row.kind}_${row.gender} (có ${n} món, idx 0-${n - 1}).`);
+    if (!hasPart(row.kind, row.gender, row.idx))
+      throw bad(`Không có hình số ${row.idx}: cần thư mục public/${folderOf(row.kind, row.gender)}/${row.idx}-tenmon/ có hinh.png (và thong-tin.json).`);
   };
 
   r.get("/t/:table", wrap(async (req, res) => {
@@ -471,17 +467,17 @@ export function adminApp(world) {
     for (const k of ["hair", "robe"]) {
       const v = b[k] === undefined ? (set.gender ? cur[k] : undefined) : value("uint", b[k], k);
       if (v === undefined) continue;
-      if (v >= atlasCount(k, g)) throw bad(`${k === "hair" ? "Tóc" : "Y phục"} ô ${v} không có cho giới tính này.`);
+      if (!hasPart(k, g, v)) throw bad(`${partName[k]} số ${v} không có cho giới tính này (không có thư mục public/${folderOf(k, g)}/${v}-...).`);
       set[k] = v;
     }
     if (b.weapon !== undefined) {
       const v = value("uint", b.weapon, "vũ khí");
-      if (v >= atlasCount("weapon", "a")) throw bad(`Vũ khí ô ${v} không có.`);
+      if (!hasPart("weapon", "a", v)) throw bad(`Vũ khí số ${v} không có (không có thư mục public/vu-khi/${v}-...).`);
       set.weapon = v;
     }
     if (b.sword !== undefined) {
       const v = value("uint", b.sword, "phi kiếm");
-      if (v >= atlasCount("sword", "a")) throw bad(`Phi kiếm ô ${v} không có.`);
+      if (!hasPart("sword", "a", v)) throw bad(`Phi kiếm số ${v} không có (không có thư mục public/phi-kiem/${v}-...).`);
       set.sword = v;
     }
     await adminLook(id, set, refresh(id));
@@ -584,7 +580,9 @@ export function adminApp(world) {
 
   app.use("/api", r);
   // the page, plus the hair and robe atlases for thumbnails
-  app.use("/avatar", express.static(join(ROOT, "public", "avatar"), { maxAge: "1h" }));
+  // the pictures of parts and arts (one folder each), and their list, for the thumbnails
+  app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type("application/json").send(assetsJson()));
+  for (const d of [...Object.keys(PART_DIRS), ART_DIR, "nhan-vat"]) app.use(`/${d}`, express.static(join(ROOT, "public", d), { maxAge: 0 }));
   app.use("/xianxia", express.static(join(ROOT, "public", "xianxia"), { maxAge: "1h" }));
   app.use(express.static(join(ROOT, "admin"), { index: "index.html", maxAge: 0 }));
   app.use((req, res) => res.status(404).json({ error: "Không tìm thấy." }));

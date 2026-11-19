@@ -351,7 +351,11 @@ game/
   shared/physics.js      vật lý đi ngang dùng chung cho máy chủ và trình duyệt
   public/                trang game: canvas, giao diện, điều khiển; public/js/scenery.js vẽ bản đồ; public/maps/tiles/ tileset
   public/js/avatar.js    rig và hoạt ảnh nhân vật (thân gốc + tóc + y phục)
-  public/avatar/         atlas thân gốc, 80 kiểu tóc, 80 bộ y phục (tạo bằng tools/avatar/build.py)
+  public/nhan-vat/       thân gốc của nhân vật (than-goc.png)
+  public/toc-nam/ toc-nu/ y-phuc-nam/ y-phuc-nu/ vu-khi/ phi-kiem/ cong-phap/
+                         mỗi món, mỗi công pháp một thư mục (xem "Hình ảnh: mỗi món một thư mục")
+  server/assets.js       liệt kê các thư mục hình đó, phục vụ ở /assets.json
+  tools/assets/          atlas gốc và split.py cắt atlas thành từng thư mục
   tools/avatar/          ảnh gốc của họa sĩ và script cắt, thu nhỏ, canh tóc và áo vào thân
   tools/cosmetics.mjs    công cụ admin cho tóc và y phục (giá, tên, bán, tặng, thêm mới)
   tools/admin.mjs        công cụ admin dòng lệnh cho cảnh giới, đan dược, yêu thú, chiêu thức, cài đặt
@@ -362,8 +366,46 @@ game/
   test/race.mjs          kiểm tra tranh chấp, tường và lối ra
 ```
 
-Hình nhân vật nằm ở `public/avatar/`. Bù nhìn và mọi hiệu ứng đến từ `../src` (pixelfx): máy chủ phục vụ thư mục đó ở đường dẫn
+Hình nhân vật nằm trong các thư mục ở `public/` (bên dưới). Bù nhìn và mọi hiệu ứng đến từ `../src` (pixelfx): máy chủ phục vụ thư mục đó ở đường dẫn
 `/pixelfx`, nên phải giữ nguyên game trong repo này.
+
+## Hình ảnh: mỗi món một thư mục
+
+Mỗi loại đồ và công pháp có một thư mục trong `game/public/`. Bên trong, mỗi món là một thư mục con tên `<số>-<tênviếtliềnkhôngdấu>`:
+
+| Thư mục | Chứa | Ví dụ |
+| --- | --- | --- |
+| `toc-nam/`, `toc-nu/` | kiểu tóc nam, nữ | `toc-nam/8-huyenvanphat/` |
+| `y-phuc-nam/`, `y-phuc-nu/` | y phục nam, nữ | `y-phuc-nu/21-.../` |
+| `vu-khi/` | vũ khí cầm tay | `vu-khi/60-truongkiem/` |
+| `phi-kiem/` | phi kiếm để bay | `phi-kiem/0-thanhvankiem/` |
+| `cong-phap/` | icon công pháp | `cong-phap/1-phikiem/` |
+| `nhan-vat/` | thân gốc của mọi nhân vật | `nhan-vat/than-goc.png` |
+
+**Món đồ** (tóc, áo, vũ khí, phi kiếm) có hai file:
+
+- `hinh.png`: hình của món, nền trong suốt.
+- `thong-tin.json`: tên và cách đặt hình.
+  - Tóc và áo: `dx`, `dy` là vị trí đặt lên thân gốc (lưới 29 × 63, chân ở giữa đáy).
+  - Vũ khí: `gx`, `gy` là chỗ tay cầm. `dai: true` thì cầm dựng đứng khi đứng yên (thương, trượng).
+  - Phi kiếm: `by` là hàng điểm ảnh của lưỡi kiếm, nơi chân đứng.
+
+**Số** ở đầu tên thư mục là số database dùng cho món đó (`cosmetics.idx`, `characters.hair`…). Phần tên sau dấu gạch chỉ để dễ đọc.
+
+**Công pháp** có `icon.png` và `thong-tin.json` chứa `key` (mã công pháp). Game tìm icon theo `key`, nên đổi tên hay đánh số lại thư mục không ảnh hưởng.
+
+**Thêm món mới:**
+
+1. Tạo thư mục con mới, đặt số chưa dùng, bỏ `hinh.png` và `thong-tin.json` vào.
+2. Máy chủ tự thấy thư mục trong vài giây (`server/assets.js`, phục vụ danh sách ở `/assets.json`), không cần chạy công cụ hay khởi động lại.
+3. Vào trang admin, tab Tóc/áo/vũ khí/phi kiếm, thêm món với số đó, đặt giá hoặc đánh dấu miễn phí / bảo vật.
+
+Trình duyệt chỉ tải hình của món khi có người đang mặc hoặc khi mở Y Các, không tải tất cả lúc vào game.
+
+**Công cụ:**
+
+- `python3 tools/assets/split.py`: cắt các atlas cũ trong `tools/assets/atlases/` thành các thư mục trên. Chỉ cần chạy lại sau khi dựng lại atlas bằng `tools/avatar/build.py`, `tools/xianxia/build.py` hoặc `tools/swords/build.py`.
+- `node tools/arts/icons.mjs`: vẽ lại icon mọi công pháp vào `public/cong-phap/` từ hiệu ứng pixelfx. Cần máy chủ đang chạy. Công pháp chưa có thư mục thì trình duyệt tự vẽ icon.
 
 ## Trang admin (cổng 5885)
 
@@ -468,19 +510,19 @@ Khi chiêu đang bật:
 
 ## Icon công pháp
 
-Icon của mọi hiệu ứng pixelfx (247 cái) được vẽ sẵn vào một ảnh: `public/arts/icons.png` (khoảng 160 KB) kèm `icons.json`. Nhờ vậy bảng Công Pháp và thanh chiêu hiện icon ngay, không phải vẽ hơn 200 hiệu ứng trên điện thoại.
+Icon của mỗi công pháp được vẽ sẵn vào thư mục riêng: `public/cong-phap/<số>-<tên>/icon.png`. Nhờ vậy bảng Công Pháp và thanh chiêu hiện icon ngay, không phải vẽ hơn 200 hiệu ứng trên điện thoại. Muốn đổi icon một môn, chỉ cần thay file `icon.png` trong thư mục của môn đó.
 
 - Icon lấy khoảnh khắc hiệu ứng rực nhất, giữ cả lớp ánh sáng (lửa, tia sáng).
 - Tia lửa văng xa bị bỏ khi cắt khung, để hình chính không bị nhỏ.
 - Mũi tên và tia dài được xếp chéo cho đầy ô.
 
-Thêm hiệu ứng mới vào pixelfx thì chạy lại lệnh dưới khi server đang chạy:
+Thêm công pháp mới hoặc đổi hiệu ứng của một môn thì chạy lại lệnh dưới khi server đang chạy:
 
 ```bash
 node tools/arts/icons.mjs
 ```
 
-Hiệu ứng chưa có trong ảnh vẫn được vẽ ngay trên trình duyệt, nên không thanh nào bị trống.
+Công pháp chưa có thư mục vẫn được vẽ icon ngay trên trình duyệt, nên không thanh nào bị trống.
 
 ## Ngự Kiếm Phi Hành
 
@@ -519,7 +561,7 @@ Danh sách tóc và y phục nằm trong bảng `cosmetics`. Mỗi dòng là m�
 | --- | --- |
 | `kind` | `hair` (tóc) hoặc `robe` (y phục) |
 | `gender` | `m` (nam) hoặc `f` (nữ) |
-| `idx` | vị trí của món trong atlas `public/avatar/<kind>_<gender>.png`, đếm từng hàng từ 0 |
+| `idx` | số của thư mục hình, vd `public/toc-nam/<idx>-<tên>/` (xem "Hình ảnh: mỗi món một thư mục") |
 | `name`, `price` | tên và giá (linh thạch) |
 | `starter` | 1 = miễn phí, được chọn lúc tạo nhân vật |
 | `on_sale` | 0 = ngừng bán; người đã mua vẫn giữ |

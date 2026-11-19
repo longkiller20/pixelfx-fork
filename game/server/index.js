@@ -4,6 +4,7 @@ import { join } from "node:path";
 import express from "express";
 import { WebSocketServer } from "ws";
 import { config, ROOT } from "./config.js";
+import { assetsJson } from "./assets.js";
 import { migrate, pool } from "./db.js";
 import { api } from "./api.js";
 import { Universe } from "./world.js";
@@ -37,6 +38,8 @@ app.use((req, res, next) => {
 });
 
 app.use("/api", api(world));
+// the list of every part's and art's picture folder (server/assets.js)
+app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type("application/json").send(assetsJson()));
 app.get("/health", (req, res) => res.json({ ok: true, online: world.online }));
 const statics = { maxAge: "1h", index: false, fallthrough: true };
 app.use("/shared", express.static(join(ROOT, "shared"), statics));
