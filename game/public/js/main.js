@@ -108,35 +108,22 @@ async function enter() {
   play();
 }
 
-// ---------------------------------------------------------------- previews: a character moving on a small canvas
-/** Keep drawing look() on canvas cv while alive() holds; anim() picks the move. */
-function preview(cv, look, anim, alive) {
+// ---------------------------------------------------------------- previews: a character standing on a small canvas
+/** Keep drawing look() on canvas cv, standing (breathing), while alive() holds; onSword(): standing on the flying sword. */
+function preview(cv, look, alive, onSword = () => false) {
   const W = cv.width, H = cv.height, ctx = cv.getContext("2d"), f = createFrame(W, H), img = ctx.createImageData(W, H);
   const step = () => {
     if (!alive()) return;
-    const t = performance.now() / 1000, a = anim();
+    const t = performance.now() / 1000, sword = onSword();
     clearFrame(f);
     const p = painterFor(f);
-    // the chosen move, looping: a jump arcs up and back down, a cast swings every second
-    const jump = a === "jump" ? Math.max(0, Math.sin(((t % 1.1) / 1.1) * Math.PI)) : 0;
-    const fly = a === "fly" ? 4 + Math.round(Math.sin(t * 2.6) * 2) : 0;
-    p.place(W / 2, H - 12 - Math.round(jump * 14) - fly, false);
-    drawAvatar(p, look(), {
-      t, moving: a === "walk", air: a === "jump" && jump > 0.05, fly: a === "fly",
-      cast: a === "cast" ? { type: Math.floor(t / 1.2) % 2 ? "bolt" : "melee", age: t % 1.2 } : null,
-    });
+    p.place(W / 2, H - 12 - (sword ? 6 : 0), false);
+    drawAvatar(p, look(), { t, fly: sword });
     composite(f, img.data, null);
     ctx.putImageData(img, 0, 0);
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
-}
-function animButtons(box, set) {
-  for (const b of box.querySelectorAll("[data-anim]"))
-    b.addEventListener("click", () => {
-      set(b.dataset.anim);
-      for (const x of box.querySelectorAll("[data-anim]")) x.classList.toggle("on", x === b);
-    });
 }
 /** A grid of part thumbnails: pick(item) on click; badge(item) is an optional corner label (a price, a tick). */
 function partGrid(box, items, isOn, pick, badge = () => "") {
@@ -165,7 +152,7 @@ function partGrid(box, items, isOn, pick, badge = () => "") {
 // ---------------------------------------------------------------- making a character: gender, name, hair, robe
 // Only the free starter styles are offered here; the rest are bought in game at the Y Các.
 const look = { g: "m", hair: 0, robe: 0 };
-let anim = "idle", catalog = [];
+let catalog = [];
 const starters = (kind) => catalog.filter((c) => c.starter && c.kind === kind && c.g === look.g);
 const pickRandom = (kind) => {
   const s = starters(kind);
@@ -182,7 +169,7 @@ async function showCreate() {
   pickRandom("robe");
   fillPicks();
   fitMaker();
-  preview($("pv"), () => look, () => anim, () => !$("create").classList.contains("hidden"));
+  preview($("pv"), () => look, () => !$("create").classList.contains("hidden"));
 }
 function fillPicks() {
   for (const b of document.querySelectorAll("[data-g]")) b.classList.toggle("on", b.dataset.g === look.g);
@@ -205,7 +192,6 @@ for (const b of document.querySelectorAll("[data-g]"))
     pickRandom("robe");
     fillPicks();
   });
-animButtons($("create"), (a) => (anim = a));
 $("randLook").addEventListener("click", () => {
   pickRandom("hair");
   pickRandom("robe");
@@ -499,25 +485,44 @@ $("wardBtn").addEventListener("click", async () => {
   if (!me.character) return;
   state.character = me.character;
   const g = me.character.look.g, owned = new Set(w.owned), trying = { ...me.character.look };
-  let kind = "hair", sel = null, wAnim = "idle";
+  let kind = "hair", sel = null;
+  const page = {}; // the page shown for each tab, 10 to a page
   const has = (it) => it.starter || owned.has(it.id);
   const wearing = (it) => me.character.look[it.kind] === it.idx;
 
   const wrap = document.createElement("div");
   wrap.className = "ward";
   wrap.innerHTML = `<div class="preview"><canvas width="96" height="96"></canvas>
-    <div class="pvbar"><button type="button" data-anim="idle" class="on">Đứng</button><button type="button" data-anim="walk">Đi</button>
-    <button type="button" data-anim="jump">Nhảy</button><button type="button" data-anim="cast">Chiêu</button><button type="button" data-anim="fly">Bay</button></div>
     <div class="sel"><b class="nm"></b><span class="st dim"></span><button type="button" class="primary act"></button></div></div>
     <div class="choices"><div class="row"><div class="seg"><button type="button" data-k="hair" class="on">Tóc</button>
-    <button type="button" data-k="robe">Y phục</button><button type="button" data-k="weapon">Vũ khí</button><button type="button" data-k="sword">Phi kiếm</button></div><span class="bal"></span></div><div class="picks big"></div></div>`;
+    <button type="button" data-k="robe">Y phục</button><button type="button" data-k="weapon">Vũ khí</button><button type="button" data-k="sword">Phi kiếm</button></div><span class="bal"></span></div><div class="picks big"></div><div class="wpager"></div></div>`;
   const $$ = (s) => wrap.querySelector(s);
   const bal = () => ($$(".bal").textContent = `💎 ${me.character.stones} linh thạch`);
+  const PER = 10;
   const grid = () => {
-    // bảo vật first (only ever there when owned), then free and owned, then the shop from cheapest
+    // what you wear first, then what is yours (bảo vật, then the free ones), then the shop from cheapest; 10 to a page
     const items = w.items.filter((it) => it.kind === kind && (it.g === g || it.g === "a") && (it.onSale || has(it)));
-    items.sort((a, b) => b.special - a.special || has(b) - has(a) || a.price - b.price || a.idx - b.idx);
-    partGrid($$(".picks"), items, (it) => sel?.id === it.id, (it) => {
+    const rank = (it) => (wearing(it) ? 0 : has(it) ? (it.special ? 1 : 2) : 3);
+    items.sort((a, b) => rank(a) - rank(b) || a.price - b.price || a.idx - b.idx);
+    const pages = Math.max(1, Math.ceil(items.length / PER)), at = Math.min(page[kind] ?? 0, pages - 1);
+    page[kind] = at;
+    const pg = $$(".wpager");
+    pg.replaceChildren();
+    if (pages > 1) {
+      const btn = (label, to, cls = "") => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.textContent = label;
+        b.className = cls;
+        b.disabled = to < 0 || to >= pages;
+        b.addEventListener("click", () => ((page[kind] = to), grid()));
+        return b;
+      };
+      pg.append(btn("‹", at - 1));
+      for (let i = 0; i < pages; i++) pg.append(btn(String(i + 1), i, i === at ? "on" : ""));
+      pg.append(btn("›", at + 1));
+    }
+    partGrid($$(".picks"), items.slice(at * PER, at * PER + PER), (it) => sel?.id === it.id, (it) => {
       sel = it;
       trying[it.kind] = it.idx;
       side();
@@ -539,7 +544,7 @@ $("wardBtn").addEventListener("click", async () => {
     else if (has(sel)) (st.textContent = sel.special ? "★ Bảo vật" : sel.starter ? "Miễn phí" : "Đã có"), (b.textContent = sel.kind === "sword" ? "Dùng" : "Mặc");
     else {
       st.textContent = `${sel.price} linh thạch`;
-      b.textContent = me.character.stones >= sel.price ? (sel.kind === "sword" ? "Mua và dùng" : "Mua và mặc") : "Chưa đủ linh thạch";
+      b.textContent = me.character.stones >= sel.price ? (sel.kind === "sword" ? "Mua và dùng" : "Mua và mặc") : "Thiếu linh thạch";
       b.disabled = me.character.stones < sel.price;
     }
   };
@@ -571,16 +576,17 @@ $("wardBtn").addEventListener("click", async () => {
     b.addEventListener("click", () => {
       kind = b.dataset.k;
       for (const x of wrap.querySelectorAll("[data-k]")) x.classList.toggle("on", x === b);
-      // a flying sword is best seen ridden
-      if (kind === "sword") wrap.querySelector('[data-anim="fly"]').click();
+      // a new tab: nothing picked there yet (what was tried on stays on the preview, to see things together)
+      sel = null;
       grid();
+      side();
     });
-  animButtons(wrap, (a) => (wAnim = a));
   bal();
   grid();
   side();
   panel("Y Các", wrap);
-  preview($$("canvas"), () => trying, () => wAnim, () => !$("panel").hidden && wrap.isConnected);
+  // a flying sword is seen under the feet
+  preview($$("canvas"), () => trying, () => !$("panel").hidden && wrap.isConnected, () => kind === "sword");
 });
 
 $("rankBtn").addEventListener("click", async () => {

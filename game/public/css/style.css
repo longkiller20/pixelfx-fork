@@ -457,3 +457,53 @@ body.rotated .artp .card img { width: 36px; height: 36px; }
 body.rotated .artp .card p { font-size: 10px; }
 .artp .evtag { margin-left: 6px; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: #4a3208; color: #ffd84a; vertical-align: 1px; }
 .artp .evnote { color: #ffd88a !important; font-style: italic; }
+
+/* ================================================================ Y Các: one screen, no scrolling
+   Ten parts to a page (5 x 2), the preview beside them; every size is worked out from the screen so the whole panel fits
+   in it, landscape or portrait, phone or computer. --vh is the screen's height (its width when the page is turned). */
+#panel:has(.ward) { padding: 6px; --vh: 100dvh; --vw: 100dvw; }
+body.rotated #panel:has(.ward) { --vh: 100dvw; --vw: 100dvh; }
+#panel .pbox:has(.ward) { width: min(900px, 100%); overflow: hidden; }
+.ward { --cell: max(40px, min(84px, calc((var(--vh) - 230px) / 2))); grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
+.ward .preview { position: static; width: clamp(110px, calc(var(--vh) - 300px), 220px); gap: 6px; }
+.ward .preview canvas { width: 100%; }
+.ward .sel { gap: 3px; }
+.ward .sel .act { padding: 6px 10px; }
+.ward .choices { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ward .row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.ward .seg { display: flex; gap: 4px; flex: 0 1 auto; min-width: 0; }
+.ward .seg button { padding: 6px 10px; white-space: nowrap; }
+.ward .bal { white-space: nowrap; }
+.ward .picks.big { max-height: none; overflow: visible; grid-template-columns: repeat(5, minmax(0, var(--cell))); justify-content: start; gap: 6px; }
+.ward .picks.big button { width: 100%; }
+.ward .wpager { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-height: 0; }
+.ward .wpager:empty { display: none; }
+.ward .wpager button { min-width: 32px; padding: 4px 8px; background: #0e0b18; color: #d8d0f0; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: 13px; }
+.ward .wpager button.on { border-color: var(--gold); color: var(--gold2); box-shadow: 0 0 0 1px var(--gold) inset; }
+.ward .wpager button:disabled { opacity: 0.4; cursor: default; }
+/* short screens (phones on their side): a smaller frame and everything tighter */
+@media (max-height: 460px) {
+  #panel .pbox:has(.ward) { border-width: 14px; border-image-width: 14px; }
+  #panel .pbox:has(.ward) header h3::after { display: none; }
+  .ward { --cell: max(36px, min(72px, calc((var(--vh) - 170px) / 2))); gap: 8px; }
+  .ward .preview { width: clamp(80px, calc(var(--vh) - 255px), 160px); }
+  .ward .sel .nm { font-size: 13px; }
+  .ward .seg button { padding: 4px 8px; font-size: 12px; }
+  .ward .bal { font-size: 12px; }
+  .ward .sel .st { font-size: 11px; }
+}
+body.rotated #panel .pbox:has(.ward) { border-width: 14px; border-image-width: 14px; }
+body.rotated #panel .pbox:has(.ward) header h3::after { display: none; }
+body.rotated .ward { --cell: max(36px, min(72px, calc((var(--vh) - 170px) / 2))); gap: 8px; grid-template-columns: auto minmax(0, 1fr); }
+body.rotated .ward .preview { width: clamp(80px, calc(var(--vh) - 255px), 160px); }
+body.rotated .ward .sel .nm { font-size: 13px; }
+body.rotated .ward .seg button { padding: 4px 8px; font-size: 12px; }
+/* upright narrow screens (a computer window): the preview on a row above the parts */
+@media (max-width: 760px) and (orientation: portrait) {
+  .ward { grid-template-columns: 1fr; --cell: min(72px, calc((var(--vw) - 90px) / 5)); }
+  .ward .preview { width: auto; flex-direction: row; align-items: center; }
+  .ward .preview canvas { width: min(120px, 32vw); }
+  .ward .sel { flex: 1; }
+  .ward .row { flex-wrap: wrap; }
+}
+.ward .sel .act { white-space: nowrap; font-size: 13px; }
