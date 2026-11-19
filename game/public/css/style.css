@@ -845,40 +845,116 @@ body.rotated .charp.short { --cell: clamp(32px, calc((100vh - 330px) / 10), 48px
 .sectp .manage section.danger { border-color: #ff6a6a33; }
 .sectp .manage .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sectp .manage select, .sectp .manage input { margin-top: 2px; }
-@media (max-width: 720px) {
-  .sectp.in { grid-template-columns: minmax(0, 1fr); }
-  .sectp .sbody { max-height: none; overflow: visible; }
-  .sectp .board { max-height: 80px; }
-  .sectp .emb.huge { width: 48px; height: 48px; padding: 6px; }
-  .sectp .scard { grid-template-columns: auto minmax(0, 1fr); }
-  .sectp .scard > button { grid-column: 1 / -1; }
-  .sectp .mrow { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .sectp .mrow .macts { grid-column: 1 / -1; }
-  .sectp .embgrid { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
-}
-/* phones on their side (or turned by the page): both columns stay, smaller */
-@media (max-width: 960px) {
-  .sectp .mrow { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .sectp .mrow .macts { grid-column: 1 / -1; }
-}
-@media (max-height: 520px) and (min-width: 721px) {
-  .sectp .sbody { max-height: calc(100dvh - 150px); }
-  .sectp .sleft { max-height: calc(100dvh - 104px); overflow: auto; scrollbar-width: thin; }
-  .sectp .shead { padding: 8px; }
-  .sectp .emb.huge { width: 44px; height: 44px; padding: 5px; }
-  .sectp .shead h4 { font-size: 15px; margin-bottom: 3px; }
-  .sectp .board { max-height: 60px; padding: 6px 10px; }
-  .sectp .sleft { gap: 6px; }
-}
-body.rotated .sectp.in { grid-template-columns: minmax(230px, 270px) minmax(0, 1fr); }
-body.rotated .sectp .sbody { max-height: calc(100dvw - 150px); overflow: auto; }
-body.rotated .sectp .sleft { max-height: calc(100dvw - 104px); overflow: auto; scrollbar-width: thin; gap: 6px; }
-body.rotated .sectp .shead { padding: 8px; }
-body.rotated .sectp .emb.huge { width: 44px; height: 44px; padding: 5px; }
-body.rotated .sectp .board { max-height: 60px; padding: 6px 10px; }
-body.rotated .sectp .mrow { grid-template-columns: auto minmax(0, 1fr) auto; }
-body.rotated .sectp .mrow .macts { grid-column: 1 / -1; }
 .sectp .sleft > * { flex-shrink: 0; }
-/* the page turned on its side is as wide as a laptop's short side: cards keep their button on the right */
-body.rotated .sectp .scard { grid-template-columns: auto minmax(0, 1fr) auto; }
-body.rotated .sectp .scard > button { grid-column: auto; }
+.sectp .board { cursor: pointer; }
+/* a narrow screen held upright (not turned by the page): one column */
+@media (max-width: 720px) and (min-height: 521px) {
+  body:not(.rotated) .sectp.in { grid-template-columns: minmax(0, 1fr); }
+  body:not(.rotated) .sectp .sbody { max-height: none; overflow: visible; }
+  body:not(.rotated) .sectp .scard { grid-template-columns: auto minmax(0, 1fr); }
+  body:not(.rotated) .sectp .scard > button { grid-column: 1 / -1; }
+  body:not(.rotated) .sectp .mrow { grid-template-columns: auto minmax(0, 1fr) auto; }
+  body:not(.rotated) .sectp .mrow .macts { grid-column: 1 / -1; }
+}
+
+/* ---- phones on their side (or turned by the page): .short / .tiny are set from the real height (public/js/tong-mon.js).
+   Everything made small and tight so the whole left column fits with nothing cut; each side scrolls only if it must. */
+#panel:has(.sectp.short) { padding: 4px; }
+#panel .pbox:has(.sectp.short) { border-width: 14px; border-image-width: 14px; width: min(980px, 100%); }
+#panel .pbox:has(.sectp.short) header { padding-bottom: 2px; }
+#panel .pbox:has(.sectp.short) header h3 { font-size: 15px; margin: 0; }
+#panel .pbox:has(.sectp.short) header h3::after { display: none; }
+.sectp.short { font-size: 12.5px; }
+.sectp.short .dim { font-size: 11.5px; margin: 2px 0; }
+.sectp.short .notice { padding: 5px 9px; margin-bottom: 6px; font-size: 12px; }
+.sectp.short .ghost { padding: 4px 9px; font-size: 12px; border-radius: 7px; }
+/* the pack's silk button with a thinner frame */
+.sectp.short .primary { padding: 0 8px; font-size: 12px; border-width: 6px; border-image-width: 6px; }
+.sectp.short .primary.big { padding: 7px 12px; margin-top: 4px; }
+.sectp.short input, .sectp.short select, .sectp.short textarea { padding: 5px 8px; font-size: 12.5px; border-radius: 7px; }
+.sectp.short label { margin: 4px 0 2px; font-size: 11px; }
+.sectp.short h4 { font-size: 12.5px; margin-bottom: 3px; }
+.sectp.short .stabs { margin-bottom: 6px; padding: 2px; }
+.sectp.short .stabs button { padding: 4px 8px; font-size: 12px; }
+.sectp.short .lvl, .sectp.short .chip { font-size: 10.5px; padding: 0 6px; }
+.sectp.short .rank { font-size: 10.5px; padding: 0 6px; }
+/* in a sect: two columns the height of the screen */
+.sectp.short.in { grid-template-columns: minmax(200px, 228px) minmax(0, 1fr); gap: 10px; height: var(--avail); }
+.sectp.short .sleft { gap: 5px; max-height: var(--avail); overflow: auto; scrollbar-width: none; }
+.sectp.short .shead { padding: 6px 8px; gap: 8px; border-radius: 10px; }
+.sectp.short .emb.huge { width: 34px; height: 34px; padding: 4px; border-radius: 9px; }
+.sectp.short .shead h4 { font-size: 14px; margin: 0 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sectp.short .shead > div { min-width: 0; }
+.sectp.short .chips .chip:last-child { display: none; }
+.sectp.short .xp i { height: 5px; }
+.sectp.short .xp small { font-size: 10px; line-height: 1.3; }
+.sectp.short .stiles { gap: 4px; }
+.sectp.short .stiles .tile { padding: 3px 5px; border-radius: 7px; column-gap: 4px; grid-template-columns: 13px minmax(0, 1fr); }
+.sectp.short .stiles img { width: 13px; height: 13px; }
+.sectp.short .stiles span { font-size: 9.5px; }
+.sectp.short .stiles b { font-size: 11px; }
+.sectp.short .board { padding: 4px 8px; font-size: 11.5px; line-height: 16px; max-height: calc(2 * 16px + 10px); overflow: hidden; border-radius: 8px; white-space: normal; position: relative; }
+.sectp.short .board:not(.dim)::after { content: "▾"; position: absolute; right: 5px; bottom: 2px; font-size: 10px; color: var(--gold); }
+.sectp.short .board.open { max-height: none; white-space: pre-line; }
+.sectp.short .board.open::after { content: "▴"; }
+.sectp.short .mecard { padding: 6px 8px; gap: 5px; border-radius: 10px; }
+.sectp.short .merow { gap: 5px; }
+.sectp.short .merow:last-child { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px; }
+.sectp.short .merow:last-child > .primary { white-space: nowrap; }
+.sectp.short .donate { min-width: 0; gap: 4px; display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.sectp.short .donate .amt { width: 100%; min-width: 0; padding: 4px 6px; }
+.sectp.short .donate .ghost { white-space: nowrap; padding: 4px 7px; }
+/* a member's rank shows in their select already when one can change it */
+.sectp.short .mrow:has(.macts) > .rank { display: none; }
+.sectp.short .sright { display: flex; flex-direction: column; min-height: 0; height: var(--avail); }
+.sectp.short .sbody { flex: 1; min-height: 0; max-height: none; overflow: auto; }
+.sectp.short .mlist { gap: 4px; }
+.sectp.short .mrow { padding: 4px 8px; gap: 8px; border-radius: 8px; grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.sectp.short .mrow:not(:has(.dot)) { grid-template-columns: minmax(0, 1fr) auto; }
+.sectp.short .mrow .macts { grid-column: auto; gap: 4px; }
+.sectp.short .macts select { padding: 3px 4px; font-size: 11.5px; max-width: 118px; }
+.sectp.short .macts button { padding: 3px 8px; font-size: 11.5px; }
+.sectp.short .mname b { font-size: 12.5px; }
+.sectp.short .mname small { font-size: 10.5px; }
+.sectp.short .dot { width: 7px; height: 7px; }
+.sectp.short .shopgrid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 5px; }
+.sectp.short .sitem { padding: 4px 6px; gap: 6px; grid-template-columns: 26px minmax(0, 1fr) auto; }
+.sectp.short .sitem .ic { width: 26px; height: 26px; }
+.sectp.short .sitem .mname b { font-size: 12px; }
+.sectp.short .chatbox { height: 100%; gap: 5px; }
+.sectp.short .chatlog { height: auto; flex: 1; min-height: 60px; padding: 5px 8px; font-size: 12px; }
+.sectp.short .lrow { grid-template-columns: 78px minmax(0, 1fr); padding: 3px 2px; font-size: 12px; }
+.sectp.short .manage { gap: 6px; }
+.sectp.short .manage section { padding: 6px 8px; border-radius: 9px; gap: 2px; }
+.sectp.short textarea { min-height: 40px; }
+.sectp.short .embgrid { gap: 4px; }
+.sectp.short .embgrid button { padding: 2px; border-radius: 7px; }
+.sectp.short .embgrid.small { grid-template-columns: repeat(16, minmax(0, 26px)); }
+/* when the right side is narrow too (a small phone on its side): a member's buttons under the name */
+.sectp.short.narrow .mrow { grid-template-columns: auto minmax(0, 1fr) auto; row-gap: 3px; }
+.sectp.short.narrow .mrow .macts { grid-column: 2 / -1; }
+.sectp.short.narrow .shopgrid { grid-template-columns: 1fr; }
+/* not in a sect yet: the list and the founding form, small; founding in two columns so it fits without scrolling */
+.sectp.short.out { min-height: 0; }
+.sectp.short .search { margin-bottom: 5px; }
+.sectp.short .slist { gap: 5px; }
+.sectp.short .scard { padding: 5px 8px; gap: 8px; border-radius: 9px; grid-template-columns: auto minmax(0, 1fr) auto; }
+.sectp.short .scard > button { grid-column: auto; }
+.sectp.short .emb.big { width: 30px; height: 30px; padding: 3px; border-radius: 8px; }
+.sectp.short .sname b { font-size: 13px; }
+.sectp.short .sinfo small { font-size: 10.5px; }
+.sectp.short .scard .snote { -webkit-line-clamp: 1; font-size: 11px; }
+.sectp.short .myapps { padding: 5px 8px; margin-bottom: 6px; }
+.sectp.short .approw { padding: 2px 0; }
+.sectp.short .founder { max-width: none; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 14px; align-items: start; }
+.sectp.short .founder > .fl, .sectp.short .founder > .fr { min-width: 0; }
+.sectp.short .reqs { margin: 4px 0; gap: 2px; font-size: 11.5px; }
+.sectp.short .founder .embgrid button .emb { max-width: 26px; max-height: 26px; }
+.sectp.tiny .stiles span { display: none; }
+.sectp.tiny .stiles .tile { grid-template-columns: 13px minmax(0, 1fr); }
+.sectp.tiny .stiles img { grid-row: auto; }
+.sectp.tiny .board:not(.open) { max-height: calc(16px + 10px); white-space: nowrap; text-overflow: ellipsis; padding-right: 16px; }
+.sectp.short.narrow.in { grid-template-columns: minmax(190px, 205px) minmax(0, 1fr); }
+.sectp.short.narrow .merow:last-child { grid-template-columns: minmax(0, 1fr); }
+.sectp.short.narrow .stabs button { padding: 4px 6px; font-size: 11.5px; }
+.sectp.tiny .xp small { display: none; }

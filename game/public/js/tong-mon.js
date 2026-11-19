@@ -21,6 +21,15 @@ function h(tag, props = {}, ...kids) {
   return el;
 }
 const fmt = (n) => Number(n ?? 0).toLocaleString("vi-VN");
+// big numbers short where room is short ("28,5 N", "1,2 Tr")
+const fmtShort = (n) => (Math.abs(n) >= 10000 ? new Intl.NumberFormat("vi-VN", { notation: "compact", maximumFractionDigits: 1 }).format(n) : fmt(n));
+/** The real screen: a phone held upright turns the game on its side, so its width is the height. */
+function screenFit() {
+  const rot = document.body.classList.contains("rotated");
+  const H = rot ? innerWidth : innerHeight, W = rot ? innerHeight : innerWidth;
+  const short = H < 521 && W > 560;
+  return { H, W, short, tiny: short && H < 400, narrow: short && W < 760 };
+}
 const ago = (t) => {
   const s = Math.max(0, (Date.now() - new Date(t).getTime()) / 1000);
   return s < 60 ? "vừa xong" : s < 3600 ? `${Math.floor(s / 60)} phút trước` : s < 86400 ? `${Math.floor(s / 3600)} giờ trước` : `${Math.floor(s / 86400)} ngày trước`;
@@ -102,10 +111,29 @@ export function initSect({ call, uuid, panel, flash, game, itemIcon }) {
   function draw(first = false) {
     const wrap = view?.sect ? inSect() : outside();
     const title = view?.sect ? `Tông Môn · ${view.sect.name}` : "Tông Môn";
-    if (first || !isOpen()) return panel(title, wrap);
-    document.getElementById("panelTitle").textContent = title;
-    document.getElementById("panelBody").replaceChildren(wrap);
+    fit(wrap);
+    if (first || !isOpen()) panel(title, wrap);
+    else {
+      document.getElementById("panelTitle").textContent = title;
+      document.getElementById("panelBody").replaceChildren(wrap);
+    }
+    fit(wrap);
   }
+  /**
+   * How big the screen really is (a phone held upright turns the game on its side: then its width is the height). Low
+   * screens get the small layout (.short, .tiny under 400 px), sized to the height left under the panel's title (--avail)
+   * so the left column shows whole; .narrow when the right side would be too thin for a member's row on one line.
+   */
+  function fit(wrap = document.querySelector(".sectp")) {
+    if (!wrap) return;
+    const { H, short, tiny, narrow } = screenFit();
+    wrap.classList.toggle("short", short);
+    wrap.classList.toggle("tiny", tiny);
+    wrap.classList.toggle("narrow", narrow);
+    const head = document.querySelector("#panel .pbox header")?.offsetHeight || 30;
+    wrap.style.setProperty("--avail", `${Math.max(200, H - 8 - 28 - head - 6)}px`);
+  }
+  addEventListener("resize", () => isOpen() && fit());
 
   // ---------------------------------------------------------------- not in a sect: find one, or found one
   function outside() {
@@ -189,15 +217,18 @@ export function initSect({ call, uuid, panel, flash, game, itemIcon }) {
       for (const b of grid.children) b.classList.toggle("on", b === e.currentTarget);
     } }, emblem(i))));
     const okLv = lv >= SECT.createLevel, okSt = stones >= SECT.createCost;
+    // two halves (side by side on a low screen): what it takes and the name; the emblem and the button
     return h("div.founder", {},
-      h("p.dim", { text: "Tự mình khai tông lập phái, làm Tông Chủ, chiêu mộ đệ tử, cùng nhau quyên góp, mở Bảo Khố và Hộ Sơn Đại Trận." }),
-      h("ul.reqs", {},
-        h("li", { className: okLv ? "ok" : "no", text: `Đạt ${realmName(SECT.createLevel)} (cấp ${SECT.createLevel})` }),
-        h("li", { className: okSt ? "ok" : "no", text: `${fmt(SECT.createCost)} linh thạch (đang có ${fmt(stones)})` })),
-      h("label", { text: "Tên tông môn" }), name,
+      h("div.fl", {},
+        h("p.dim", { text: "Tự mình khai tông lập phái, làm Tông Chủ, chiêu mộ đệ tử, cùng nhau quyên góp, mở Bảo Khố và Hộ Sơn Đại Trận." }),
+        h("ul.reqs", {},
+          h("li", { className: okLv ? "ok" : "no", text: `Đạt ${realmName(SECT.createLevel)} (cấp ${SECT.createLevel})` }),
+          h("li", { className: okSt ? "ok" : "no", text: `${fmt(SECT.createCost)} linh thạch (đang có ${fmt(stones)})` })),
+        h("label", { text: "Tên tông môn" }), name),
+      h("div.fr", {},
       h("label", { text: "Huy hiệu" }), grid,
       h("button.primary.big", { type: "button", text: `Khai lập (${fmt(SECT.createCost)} linh thạch)`, disabled: !okLv || view.wait > 0,
-        onclick: (e) => act("/create", { name: name.value, emblem: pick }, (o) => "Khai lập tông môn thành công!", e.target).then((o) => o && (tab = "members")) }));
+        onclick: (e) => act("/create", { name: name.value, emblem: pick }, (o) => "Khai lập tông môn thành công!", e.target).then((o) => o && (tab = "members")) })));
   }
 
   // ---------------------------------------------------------------- in a sect
@@ -213,10 +244,11 @@ export function initSect({ call, uuid, panel, flash, game, itemIcon }) {
       h("div.xp", { title: s.nextExp ? `${fmt(s.exp)} / ${fmt(s.nextExp)}` : "Cấp cao nhất" }, h("i", {}, h("u", { style: `width:${pct}%` })),
         h("small", { text: s.nextExp ? `Kinh nghiệm ${fmt(s.exp)} / ${fmt(s.nextExp)}` : `Kinh nghiệm ${fmt(s.exp)} · cấp cao nhất` })),
       h("div.stiles", {},
-        tile("item_spirit_stone", "Ngân khố", fmt(s.treasury)),
+        tile("item_spirit_stone", "Ngân khố", screenFit().short ? fmtShort(s.treasury) : fmt(s.treasury), `Ngân khố: ${fmt(s.treasury)} linh thạch`),
         tile("status_golden_shield", "Phúc lợi", `+${sectBonus(s.level, SECT)}%`, "Sinh lực, công, thủ ngoài thế giới"),
-        tile("status_burn", "Đại trận", s.arrayLeft > 0 ? dur(s.arrayLeft) : "Chưa mở", `Hộ Sơn Đại Trận: +${SECT.arrayAtk}% công`)),
-      s.notice ? h("p.snote.board", { text: s.notice }) : h("p.snote.board.dim", { text: "Tông môn chưa có thông báo." }),
+        tile("status_burn", "Đại trận", s.arrayLeft > 0 ? dur(s.arrayLeft) : "Tắt", `Hộ Sơn Đại Trận: +${SECT.arrayAtk}% công`)),
+      // the notice: a couple of lines on a small screen; a tap shows all of it
+      s.notice ? h("p.snote.board", { text: s.notice, title: "Bấm để xem đầy đủ", onclick: (e) => e.currentTarget.classList.toggle("open") }) : h("p.snote.board.dim", { text: "Tông môn chưa có thông báo." }),
       h("div.mecard", {},
         h("div.merow", {}, h("span.rank", { className: `rank r${me.rank}`, text: RANKS[me.rank].name }), h("b", { text: `${fmt(me.contrib)} cống hiến` }), h("small", { text: `tổng ${fmt(me.contribTotal)}` })),
         h("div.merow", {},
@@ -239,7 +271,7 @@ export function initSect({ call, uuid, panel, flash, game, itemIcon }) {
     const left = Math.max(0, SECT.donateDaily - view.me.donated);
     const amt = h("input.amt", { type: "number", min: SECT.donateMin, max: left, step: 10, value: Math.min(left, 100) || "", inputMode: "numeric", "aria-label": "Số linh thạch quyên góp" });
     return h("div.donate", { title: `Hôm nay còn quyên được ${fmt(left)}` }, amt,
-      h("button.ghost", { type: "button", text: "Quyên góp", disabled: left < SECT.donateMin, onclick: (e) => {
+      h("button.ghost", { type: "button", text: "Quyên", disabled: left < SECT.donateMin, onclick: (e) => {
         const n = Math.floor(Number(amt.value));
         act("/donate", { amount: n, requestId: uuid() }, (o) => (o.repeat ? "Đã ghi nhận rồi." : `Quyên ${fmt(n)} linh thạch: +${fmt(o.contrib)} cống hiến${o.levelUp ? `. Tông môn lên cấp ${o.levelUp}!` : ""}`), e.target);
       } }));
