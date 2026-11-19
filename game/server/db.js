@@ -3,7 +3,7 @@ import mariadb from "mariadb";
 import { config } from "./config.js";
 import { COSMETICS_SEED, WEAPONS_SEED, DEFAULT_WEAPON, SWORDS_SEED, BASIC_SWORD } from "./cosmetics-seed.js";
 import { seedConfig } from "./gameconfig.js";
-import { RETIRED_FX, keyOf } from "../shared/arts-seed.js";
+import { CONG_PHAP, DROPS_SEED } from "../shared/cong-phap.js";
 
 export const pool = mariadb.createPool({
   ...config.db,
@@ -207,31 +207,39 @@ async function retireSpecials(c) {
   await c.query(`UPDATE characters ch SET ch.sword = ${BASIC_SWORD} WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = 'sword' AND k.idx = ch.sword)`);
 }
 /**
- * The arts made from pixelfx effects that aren't skills (whole moves with their own fighter, props, weather, beasts,
- * firearms, hit sparks, status marks: RETIRED_FX in shared/arts-seed.js) go, with their bí kíp, what they needed and
- * where their books dropped. Whoever learned one loses it, and it leaves their bar; nothing else of theirs changes.
+ * The arts are designed in code now (shared/cong-phap.js): Phi Kiếm, Lôi Ấn Trận and four more. Every other art goes,
+ * with its bí kíp (from bags too), where it dropped, and from whoever learned it and their bar. The old arts and
+ * art_reqs tables (rows of numbers per art, what each needed) go too: an admin's switches are in cong_phap, and an art
+ * that was switched off or event-only keeps that there.
  */
-async function retireNonSkillArts(c) {
-  const keys = RETIRED_FX.map(keyOf), books = keys.map((k) => "bk_" + k), ph = (a) => a.map(() => "?").join(",");
-  const rows = await c.query(`SELECT user_id, art_slots FROM characters WHERE art_slots IS NOT NULL`);
-  for (const r of rows) {
+async function artsInCode(c) {
+  const keys = CONG_PHAP.map((a) => a.key), books = CONG_PHAP.filter((a) => !a.starter).map((a) => "bk_" + a.key), ph = (a) => a.map(() => "?").join(",");
+  const [{ n }] = await c.query("SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'arts'");
+  if (Number(n)) await c.query("UPDATE cong_phap cp JOIN arts a ON a.art_key = cp.art_key SET cp.enabled = a.enabled, cp.learnable = (a.source <> 'event')");
+  for (const r of await c.query("SELECT user_id, art_slots FROM characters WHERE art_slots IS NOT NULL")) {
     let slots;
     try {
       slots = JSON.parse(r.art_slots);
     } catch {
       continue;
     }
-    if (!Array.isArray(slots) || !slots.some((k) => keys.includes(k))) continue;
-    await c.query("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify(slots.map((k) => (keys.includes(k) ? null : k))), r.user_id]);
+    if (!Array.isArray(slots) || slots.every((k) => k === null || keys.includes(k))) continue;
+    await c.query("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify(slots.map((k) => (keys.includes(k) ? k : null))), r.user_id]);
   }
-  await c.query(`DELETE FROM learned_arts WHERE art_key IN (${ph(keys)})`, keys);
-  await c.query(`DELETE FROM art_reqs WHERE art_key IN (${ph(keys)})`, keys);
-  await c.query(`DELETE FROM arts WHERE art_key IN (${ph(keys)})`, keys);
-  await c.query(`DELETE FROM monster_drops WHERE item_key IN (${ph(books)})`, books);
-  await c.query(`DELETE FROM inventory WHERE item IN (${ph(books)})`, books);
-  await c.query(`DELETE FROM items WHERE item_key IN (${ph(books)})`, books);
+  await c.query(`DELETE FROM learned_arts WHERE art_key NOT IN (${ph(keys)})`, keys);
+  await c.query(`DELETE FROM inventory WHERE item LIKE 'bk\\_%' AND item NOT IN (${ph(books)})`, books);
+  await c.query(`DELETE FROM monster_drops WHERE item_key LIKE 'bk\\_%' AND item_key NOT IN (${ph(books)})`, books);
+  await c.query(`DELETE FROM items WHERE kind = 'book' AND item_key NOT IN (${ph(books)})`, books);
+  // the books of the arts that came back drop again, as a new database's do
+  await c.batch("INSERT IGNORE INTO monster_drops (monster, item_key, chance, min_qty, max_qty) VALUES (?, ?, ?, ?, ?)",
+    DROPS_SEED.filter((d) => books.includes(d.item)).map((d) => [d.monster, d.item, d.chance, d.min, d.max]));
+  // the skill rows Phi Kiếm and Lôi Ấn Trận were before they were arts
+  await c.query("DELETE FROM skills WHERE slot IN (1, 2)");
+  await c.query("DROP TABLE IF EXISTS art_reqs");
+  await c.query("DROP TABLE IF EXISTS arts");
 }
-const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials], ["retire_non_skill_arts_2026_11", retireNonSkillArts]];
+// (retire_non_skill_arts_2026_11, which took out the arts that weren't skills, is part of arts_in_code_2026_11 now)
+const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials], ["arts_in_code_2026_11", artsInCode]];
 
 export async function migrate() {
   for (const s of SCHEMA) await q(s);

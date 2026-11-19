@@ -3,7 +3,7 @@
 // finds an art's icon through the key in thong-tin.json (server/assets.js), so the folders can be renamed or renumbered
 // freely, and an icon replaced by drawing a new icon.png. An art with no folder is drawn in the browser instead.
 // Needs the game server running (it serves the modules and the arts): node tools/arts/icons.mjs [http://localhost:5886]
-// Run it again after adding arts or changing their effect; it redraws every folder it made (others are left alone).
+// Run it again after adding an art (shared/cong-phap.js) or changing its icon effect; it redraws every folder it made (others are left alone).
 import { createRequire } from "node:module";
 import { writeFileSync, readFileSync, mkdirSync, readdirSync, rmSync, existsSync, copyFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -35,9 +35,9 @@ const arts = await page.evaluate(async () => {
     let png = null;
     if (!FIXED[a.key])
       try {
-        png = renderIcon(a.fx)?.toDataURL("image/png") ?? null;
+        png = renderIcon(a.icon)?.toDataURL("image/png") ?? null;
       } catch {}
-    return { key: a.key, name: a.name, fx: a.fx, fixed: FIXED[a.key] ?? null, png };
+    return { key: a.key, name: a.name, fx: a.icon, fixed: FIXED[a.key] ?? null, png };
   });
 });
 await browser.close();

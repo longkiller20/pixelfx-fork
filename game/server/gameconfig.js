@@ -4,7 +4,7 @@
 // applied live and pushed to every browser; a broken one is refused with a log line and the game keeps the last good set.
 import { q, pool } from "./db.js";
 import { DEFAULTS, applyConfig } from "../shared/balance.js";
-import { ARTS_SEED, ART_ITEMS_SEED, ART_REQS_SEED, DROPS_SEED, ELEMENTS, ZONE_AIM } from "../shared/arts-seed.js";
+import { CONG_PHAP, ART_ITEMS_SEED, DROPS_SEED, ELEMENTS } from "../shared/cong-phap.js";
 
 // the element each critter's drops follow
 const MONSTER_ELEMENT = { ghost: "am", bat: "am", bird: "phong", butterfly: "moc", eyeball: "huyen", fish_school: "thuy", flying_skull: "hoa", frog: "moc", jellyfish: "loi", slime: "thu", snake: "moc", wisp: "quang" };
@@ -48,32 +48,13 @@ export const CONFIG_SCHEMA = [
     mult DOUBLE NOT NULL,
     params VARCHAR(500) NOT NULL DEFAULT '{}'
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  // công pháp: every art a player can learn (see shared/arts-seed.js for the types and what `fx_at` means)
-  `CREATE TABLE IF NOT EXISTS arts (
+  // công pháp: each art is designed in code (shared/cong-phap.js); a row holds only an admin's switches for it: on or off,
+  // learnable with its bí kíp (off: only given, by events and activities), sold for its price in the Công Pháp panel
+  `CREATE TABLE IF NOT EXISTS cong_phap (
     art_key VARCHAR(32) NOT NULL PRIMARY KEY,
-    name VARCHAR(30) NOT NULL,
-    description VARCHAR(200) NOT NULL DEFAULT '',
-    element VARCHAR(8) NOT NULL DEFAULT 'kim',
-    tier TINYINT UNSIGNED NOT NULL DEFAULT 1,
-    type VARCHAR(8) NOT NULL,
-    cd DOUBLE NOT NULL,
-    mult DOUBLE NOT NULL DEFAULT 0,
-    params VARCHAR(500) NOT NULL DEFAULT '{}',
-    fx VARCHAR(48) NOT NULL DEFAULT '',
-    fx_at VARCHAR(8) NOT NULL DEFAULT 'front',
-    fx_life DOUBLE NOT NULL DEFAULT 0,
-    fx_scale DOUBLE NOT NULL DEFAULT 0,
-    starter TINYINT(1) NOT NULL DEFAULT 0,
     enabled TINYINT(1) NOT NULL DEFAULT 1,
-    sort INT NOT NULL DEFAULT 0
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  // what learning an art spends: every row is one item and how many
-  `CREATE TABLE IF NOT EXISTS art_reqs (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    art_key VARCHAR(32) NOT NULL,
-    item_key VARCHAR(32) NOT NULL,
-    qty INT UNSIGNED NOT NULL DEFAULT 1,
-    UNIQUE KEY uq_req (art_key, item_key)
+    learnable TINYINT(1) NOT NULL DEFAULT 1,
+    on_sale TINYINT(1) NOT NULL DEFAULT 0
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   // what a monster may drop when killed: monster '*' means every monster with common drops on
   `CREATE TABLE IF NOT EXISTS monster_drops (
@@ -85,15 +66,6 @@ export const CONFIG_SCHEMA = [
     max_qty INT UNSIGNED NOT NULL DEFAULT 1,
     UNIQUE KEY uq_drop (monster, item_key)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  // how much bigger the art's effect is drawn (0: worked out from the effect, see public/js/arts.js artScale)
-  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS fx_scale DOUBLE NOT NULL DEFAULT 0 AFTER fx_life",
-  // where an art comes from: 'learn' (spend its items) or 'event' (only given: activities, events, the auction house...),
-  // with a line for the players saying where
-  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS source VARCHAR(8) NOT NULL DEFAULT 'learn' AFTER starter",
-  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS source_note VARCHAR(100) NOT NULL DEFAULT '' AFTER source",
-  // a zone art the player may drag to any spot within aim_range px of themselves (an admin switches it per art)
-  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS aimable TINYINT(1) NOT NULL DEFAULT 0 AFTER fx_scale",
-  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS aim_range INT UNSIGNED NOT NULL DEFAULT 280 AFTER aimable",
   // pills (used from the bar), books and materials (spent on arts)
   "ALTER TABLE items ADD COLUMN IF NOT EXISTS kind VARCHAR(8) NOT NULL DEFAULT 'pill' AFTER name",
   // straw dummies drop nothing; everything else takes the '*' drops
@@ -145,32 +117,19 @@ export async function seedConfig() {
 }
 
 /**
- * The arts, their books and essences, what each needs and where things drop. Arts and items go in by key (an admin's
- * changes stay). Requirements and drops are filled only the first time there are arts at all, so a row an admin deleted
- * doesn't come back. Phi Kiếm and Lôi Ấn Trận used to be skills 2 and 3: an admin's numbers for them move over.
+ * The arts' switches (a row per art in code, on and learnable to start), their books and essences, and where things
+ * drop. Items go in by key (an admin's changes stay); the drop lists only the first time, so a row an admin deleted
+ * doesn't come back. Each new monster gets its own list.
  */
 async function seedArts(freshMonsters = []) {
-  const [{ n }] = await q("SELECT COUNT(*) AS n FROM arts");
+  const [{ n }] = await q("SELECT COUNT(*) AS n FROM monster_drops");
   const first = !Number(n);
-  const old = first ? await q("SELECT slot, name, cd, mult, params FROM skills WHERE slot IN (1, 2)") : [];
-  const rows = ARTS_SEED.map((a) => {
-    const o = old.find((s) => (a.key === "phikiem" && s.slot === 1) || (a.key === "loian" && s.slot === 2));
-    const params = o ? { ...a.params, ...JSON.parse(o.params) } : a.params;
-    return [a.key, o?.name ?? a.name, a.desc, a.element, a.tier, a.type, o?.cd ?? a.cd, o?.mult ?? a.mult, JSON.stringify(params), a.fx, a.at, a.life, a.starter ? 1 : 0, a.sort, a.aim > 0 ? 1 : 0, a.aim || ZONE_AIM];
-  });
-  await pool.batch(
-    "INSERT IGNORE INTO arts (art_key, name, description, element, tier, type, cd, mult, params, fx, fx_at, fx_life, starter, sort, aimable, aim_range) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    rows,
-  );
+  await pool.batch("INSERT IGNORE INTO cong_phap (art_key) VALUES (?)", CONG_PHAP.map((a) => [a.key]));
   await pool.batch(
     "INSERT IGNORE INTO items (item_key, name, kind, description, price, heal, exp_base, exp_per_level, cooldown, on_sale, sort) VALUES (?, ?, ?, ?, 0, 0, 0, 0, 1, 0, ?)",
     ART_ITEMS_SEED.map((i) => [i.key, i.name, i.kind, i.desc, i.sort]),
   );
   await q("UPDATE monsters SET common_drops = 0 WHERE type = 'dummy'");
-  // the drag-to-aim switch first lived in params as "aim": moved to its own columns
-  await q(`UPDATE arts SET aimable = JSON_VALUE(params, '$.aim') > 0, aim_range = IF(JSON_VALUE(params, '$.aim') > 0, JSON_VALUE(params, '$.aim'), aim_range),
-    params = JSON_REMOVE(params, '$.aim') WHERE JSON_VALUE(params, '$.aim') IS NOT NULL`);
-  await q("UPDATE arts SET fx_life = 10 WHERE fx = 'holy/halo' AND fx_life = 4");
   // each new monster's own list: the essence of its element, a little Linh Tủy, a Hồi Xuân Đan, and the bí kíp of its
   // element's arts (rarer the higher the tier). A weight, not a chance: one item is picked per drop.
   if (freshMonsters.length)
@@ -180,29 +139,23 @@ async function seedArts(freshMonsters = []) {
         const el = MONSTER_ELEMENT[t] ?? "kim";
         return [
           [t, ELEMENTS[el].mat, 50, 1, 2], [t, "mat_linhtuy", 3, 1, 1], [t, "hoixuan", 20, 1, 1],
-          ...ARTS_SEED.filter((a) => !a.starter && a.element === el).map((a) => [t, "bk_" + a.key, [0, 6, 3, 1][a.tier], 1, 1]),
+          ...CONG_PHAP.filter((a) => !a.starter && a.element === el).map((a) => [t, "bk_" + a.key, [0, 6, 3, 1][a.tier], 1, 1]),
         ];
       }),
     );
-  if (first) {
-    // the old skill rows 2 and 3 now live on as arts
-    await q("DELETE FROM skills WHERE slot IN (1, 2)");
-    await pool.batch("INSERT IGNORE INTO art_reqs (art_key, item_key, qty) VALUES (?, ?, ?)", ART_REQS_SEED.map((r) => [r.art, r.item, r.qty]));
-    await pool.batch("INSERT IGNORE INTO monster_drops (monster, item_key, chance, min_qty, max_qty) VALUES (?, ?, ?, ?, ?)", DROPS_SEED.map((d) => [d.monster, d.item, d.chance, d.min, d.max]));
-  }
+  if (first) await pool.batch("INSERT IGNORE INTO monster_drops (monster, item_key, chance, min_qty, max_qty) VALUES (?, ?, ?, ?, ?)", DROPS_SEED.map((d) => [d.monster, d.item, d.chance, d.min, d.max]));
 }
 
 /** Read the config tables into a config object (not yet checked). conn: a connection inside a transaction, optional. */
 export async function readConfig(conn = null) {
   const Q = (sql) => (conn ?? pool).query(sql);
-  const [realms, items, monsters, skills, settings, arts, reqs, drops] = await Promise.all([
+  const [realms, items, monsters, skills, settings, arts, drops] = await Promise.all([
     Q("SELECT name, stages FROM realms ORDER BY sort, id"),
     Q("SELECT * FROM items ORDER BY sort, item_key"),
     Q("SELECT * FROM monsters"),
     Q("SELECT * FROM skills ORDER BY slot"),
     Q("SELECT k, v FROM settings"),
-    Q("SELECT * FROM arts ORDER BY sort, art_key"),
-    Q("SELECT art_key, item_key, qty FROM art_reqs ORDER BY id"),
+    Q("SELECT * FROM cong_phap"),
     Q("SELECT monster, item_key, chance, min_qty, max_qty FROM monster_drops ORDER BY id"),
   ]);
   return {
@@ -216,11 +169,8 @@ export async function readConfig(conn = null) {
       stones: Number(m.stones), aggro: m.aggro, reach: m.reach, cd: m.cooldown, mult: m.mult, commonDrops: m.common_drops === undefined ? true : !!m.common_drops,
       fx: m.fx ?? "", style: m.style ?? "melee", fly: !!m.fly, range: m.shot_range ?? 0, shotSpeed: m.shot_speed ?? 0, shotFx: m.shot_fx ?? "", dropRate: m.drop_rate ?? 0,
     })),
-    arts: arts.map((a) => ({
-      key: a.art_key, name: a.name, desc: a.description, element: a.element, tier: a.tier, type: a.type, cd: a.cd, mult: a.mult, params: a.params,
-      fx: a.fx, at: a.fx_at, life: a.fx_life, scale: a.fx_scale ?? 0, aimable: !!a.aimable, aimRange: a.aim_range ?? ZONE_AIM, starter: !!a.starter, source: a.source ?? "learn", sourceNote: a.source_note ?? "", enabled: !!a.enabled, sort: a.sort,
-    })),
-    reqs: reqs.map((r) => ({ art: r.art_key, item: r.item_key, qty: Number(r.qty) })),
+    // the admin's switches for each art (the arts themselves are in shared/cong-phap.js)
+    arts: arts.map((a) => ({ key: a.art_key, enabled: !!a.enabled, learnable: !!a.learnable, onSale: !!a.on_sale })),
     drops: drops.map((d) => ({ monster: d.monster, item: d.item_key, chance: d.chance, min: Number(d.min_qty), max: Number(d.max_qty) })),
     skills: skills.map((s) => ({ slot: s.slot, name: s.name, type: s.type, cd: s.cd, mult: s.mult, params: s.params })),
     settings: Object.fromEntries(settings.map((s) => [s.k, s.v])),

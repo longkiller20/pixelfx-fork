@@ -169,7 +169,7 @@ export function learnArt(uid, key) {
   const art = ARTS[String(key ?? "")];
   if (!art || !art.enabled) throw new GameError("Công pháp không tồn tại.");
   if (art.starter) throw new GameError("Công pháp này ai cũng đã biết.");
-  if (art.source === "event") throw new GameError(`${art.name} không lĩnh ngộ được: chỉ có qua ${art.sourceNote || "hoạt động, sự kiện"}.`, 403);
+  if (!art.learnable) throw new GameError(`${art.name} không lĩnh ngộ bằng bí kíp được: chỉ có qua hoạt động, sự kiện${art.onSale ? " hoặc mua" : ""}.`, 403);
   return userLock.run(uid, () => tx(async (c) => {
     const ch = await loadCharacter(uid, c);
     if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
@@ -183,6 +183,35 @@ export function learnArt(uid, key) {
       const out = await c.query("UPDATE inventory SET qty = qty - ? WHERE user_id = ? AND item = ? AND qty >= ?", [r.qty, uid, r.item, r.qty]);
       if (out.affectedRows !== 1) throw new GameError(`Thiếu ${ITEMS[r.item]?.name ?? r.item} (cần ${r.qty}).`, 409);
     }
+    const slots = ch.slots.slice(), free = slots.indexOf(null);
+    if (free >= 0 && !slots.includes(art.key)) {
+      slots[free] = art.key;
+      await c.query("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify(slots), uid]);
+    }
+    return loadCharacter(uid, c);
+  }));
+}
+
+/**
+ * Buy an art an admin put on sale (its price is in shared/cong-phap.js): the stones and the learned row in one
+ * transaction, so buying twice at once charges once (the second finds the row there and nothing is spent).
+ */
+export function buyArt(uid, key) {
+  const art = ARTS[String(key ?? "")];
+  if (!art || !art.enabled) throw new GameError("Công pháp không tồn tại.");
+  if (art.starter) throw new GameError("Công pháp này ai cũng đã biết.");
+  if (!art.onSale || !(art.price > 0)) throw new GameError(`${art.name} không bán.`, 403);
+  return userLock.run(uid, () => tx(async (c) => {
+    const ch = await loadCharacter(uid, c);
+    if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
+    try {
+      await c.query("INSERT INTO learned_arts (user_id, art_key) VALUES (?, ?)", [uid, art.key]);
+    } catch (e) {
+      if (isDup(e)) throw new GameError("Đạo hữu đã có công pháp này rồi.", 409);
+      throw e;
+    }
+    const r = await c.query("UPDATE characters SET stones = stones - ? WHERE user_id = ? AND stones >= ?", [art.price, uid, art.price]);
+    if (r.affectedRows !== 1) throw new GameError(`Không đủ linh thạch (cần ${art.price}).`, 409);
     const slots = ch.slots.slice(), free = slots.indexOf(null);
     if (free >= 0 && !slots.includes(art.key)) {
       slots[free] = art.key;

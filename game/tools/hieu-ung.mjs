@@ -4,7 +4,7 @@
 //   public/hieu-ung/fx/index.js      the list of those effects, by id ("fire/fireball")
 // The browser loads /hieu-ung/..., so the game no longer reaches into pixelfx at all.
 //
-// What the game uses: the fx of every art in shared/arts-seed.js, and every effect id written in the game's code and
+// What the game uses: every effect the arts draw (shared/cong-phap.js), and every effect id written in the game's code and
 // data (monsters and their shots in shared/balance.js, the maps' scenery, the warp, level-up, loot beam...). Effects
 // already in public/hieu-ung stay (an admin may have chosen one for a new art), unless --lam-moi starts over.
 //
@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync, statSync, cpSync } from "node:fs";
 import { join, dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ARTS_SEED } from "../shared/arts-seed.js";
+import { CONG_PHAP_FX } from "../shared/cong-phap.js";
 
 const GAME = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC = resolve(GAME, "..", "src");
@@ -26,12 +26,11 @@ if (!existsSync(join(SRC, "fx", "index.js"))) throw new Error(`pixelfx not found
 const exists = (id) => existsSync(join(SRC, "fx", id + ".js"));
 
 // ---- which effects
-const want = new Set(ARTS_SEED.map((a) => a.fx).filter(Boolean));
-// every "category/name" string in the game's code and data that names a pixelfx effect (the arts seed is read above:
-// its list of retired effects must not bring them back)
+const want = new Set(CONG_PHAP_FX);
+// every "category/name" string in the game's code and data that names a pixelfx effect
 const walk = (d) => readdirSync(d).flatMap((n) => (statSync(join(d, n)).isDirectory() ? walk(join(d, n)) : [join(d, n)]));
 for (const f of [...walk(join(GAME, "shared")), ...walk(join(GAME, "public", "js")), join(GAME, "server", "world.js")]) {
-  if (!f.endsWith(".js") || f.endsWith("arts-seed.js")) continue;
+  if (!f.endsWith(".js")) continue;
   for (const [, id] of readFileSync(f, "utf8").matchAll(/["'`]([a-z]+\/[a-z0-9-]+)["'`]/g)) if (exists(id)) want.add(id);
 }
 for (const id of args.filter((a) => !a.startsWith("--"))) {

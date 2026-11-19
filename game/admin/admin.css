@@ -191,3 +191,14 @@ body.noscroll { overflow: hidden; }
 canvas.fxprev { width: 100%; height: auto; image-rendering: pixelated; border-radius: 8px; border: 1px solid var(--line); background: #0b0912; display: block; }
 .fxhead { display: flex; justify-content: center; }
 .fxhead canvas.fxprev { max-width: 320px; }
+/* công pháp: one card per art, its effect playing, its three switches */
+.artlist { display: flex; flex-direction: column; gap: 12px; }
+.artcard.off { border-color: #6a2d3a; background: #1e1220; }
+.artcard.off .fxbox canvas { opacity: 0.45; filter: grayscale(0.8); }
+.arthead { display: flex; gap: 14px; align-items: flex-start; }
+.arthead .fxbox { flex: 0 0 220px; }
+.arthead .artinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.arthead .artinfo p { margin: 0; }
+.sws button.sw.on { background: #1d4a33; border-color: #3f9b6a; color: #b6f5d0; }
+@media (max-width: 640px) { .arthead { flex-direction: column; } .arthead .fxbox { flex-basis: auto; width: 100%; } }
+.arthead .artinfo .tag { margin-left: 6px; }
