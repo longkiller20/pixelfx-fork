@@ -751,6 +751,170 @@ const SHOP_TEST = "Hàng thử nghiệm";
   ok("a cheating client gets nothing: no unlearned art (even on its bar), no slot beyond the bar, no claimed hit, place or number, one cast per cooldown however fast it taps");
 }
 
+// Tông Môn: everything decided on the server, safe when requests race. Players are made straight in the database (with a
+// session each) so the suite needn't wait on the sign-up limit; every request still goes through the API like a browser's.
+{
+  const { q } = await import("../server/db.js");
+  const { createSession } = await import("../server/auth.js");
+  const bal = await import("../shared/balance.js");
+  bal.applyConfig((await call("/config")).data);
+  const S = bal.SECT;
+  const tag = uid();
+  let n = 0;
+  /** A character of `exp` exp with `stones`, logged in: { uid, token, name }. */
+  const mk = async (exp = 400000, stones = 50000) => {
+    const k = n++, u = `ts_${tag}_${k}`;
+    const id = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [u.slice(0, 16)])).insertId;
+    const name = `M${tag.slice(0, 5)} ${k}`;
+    await q("INSERT INTO characters (user_id, name, class, gender, hair, robe, exp, stones) VALUES (?, ?, 'tu', 'm', 8, 16, ?, ?)", [id, name, exp, stones]);
+    return { uid: id, token: await createSession(id), name };
+  };
+  // a refusal for going too fast (429, at most 12 sect actions in 10 s each) is waited out and sent again: whatever a
+  // check counts (one sect, one check-in, three buys...) must hold however many times a request arrives
+  const post = async (P, path, body) => {
+    for (;;) {
+      const r = await call(`/sect${path}`, { token: P.token, method: "POST", body });
+      if (r.status !== 429) return r;
+      await sleep(1500);
+    }
+  };
+  const view = async (P) => (await call("/sect", { token: P.token })).data;
+  const stonesOf = async (P) => Number((await q("SELECT stones FROM characters WHERE user_id = ?", [P.uid]))[0].stones);
+  const memberOf = async (P) => (await q("SELECT sect_id, rnk FROM sect_members WHERE user_id = ?", [P.uid]))[0] ?? null;
+  const all = (k, f) => Promise.all(Array.from({ length: k }, (_, i) => f(i)));
+
+  // ---- founding: level, stones, names
+  const low = await mk(0);
+  assert.equal((await post(low, "/create", { name: `Thấp ${tag.slice(0, 4)}` })).status, 403, "too low a level to found one");
+  const A = await mk(), N0 = await mk();
+  for (const bad of ["Admin Môn", "Ban Quản Trị", "hệ thống", "GM Tông", "a", "<b>xx</b>", "   ", "x".repeat(17)])
+    assert.equal((await post(N0, "/create", { name: bad })).status, 400, `name refused: ${bad}`);
+  assert.equal((await post(N0, "/create", { name: `Mộ Dung ${tag.slice(0, 4)}` })).status, 200, "an ordinary name that merely contains a short reserved word is fine");
+  const base = await stonesOf(A);
+  // five founding requests at once from one person: one sect, paid once
+  const name = `Thiên Kiếm ${tag.slice(0, 4)}`;
+  const five = await all(5, () => post(A, "/create", { name: `${name}\u202e`, emblem: 3 }));
+  assert.equal(five.filter((r) => r.status === 200).length, 1, "five at once: one sect");
+  assert.equal(await stonesOf(A), base - S.createCost, "paid once");
+  const sid = (await memberOf(A)).sect_id;
+  assert.equal((await q("SELECT name FROM sects WHERE id = ?", [sid]))[0].name, name, "the hidden right-to-left mark is gone from the name");
+  // the same name (another case, without accents) for someone else: taken, and nothing paid
+  const B = await mk(), bBase = await stonesOf(B);
+  assert.equal((await post(B, "/create", { name: name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") })).status, 409, "a name differing only in case and accents is taken");
+  assert.equal(await stonesOf(B), bBase, "and nothing was paid for it");
+  // two people founding the same new name at once: one sect, only its founder pays
+  const C = await mk(), D = await mk(), cd0 = (await stonesOf(C)) + (await stonesOf(D));
+  const twin = await Promise.all([C, D].map((P) => post(P, "/create", { name: `Song ${tag.slice(0, 4)}` })));
+  assert.deepEqual(twin.map((r) => r.status).sort(), [200, 409], "the same name at once: one wins");
+  assert.equal((await stonesOf(C)) + (await stonesOf(D)), cd0 - S.createCost, "only the winner paid");
+
+  // ---- joining: one sect per person, never past the cap
+  assert.equal((await post(A, "/settings", { joinMode: "open", notice: "Chào <script>alert(1)</script>​ mừng\n\n\nđạo hữu" })).status, 200);
+  const notice = (await view(A)).sect.notice;
+  assert.ok(!/[<>​]/.test(notice) && notice.split("\n").length === 2, `the notice is cleaned (${JSON.stringify(notice)})`);
+  const cap = S.membersBase;
+  const fill = await all(cap - 3, () => mk());
+  for (const P of fill) assert.equal((await post(P, "/join", { id: sid })).status, 200);
+  // six at once for the last two places
+  const rush = await all(6, () => mk());
+  const got = await Promise.all(rush.map((P) => post(P, "/join", { id: sid })));
+  const [R1, R2] = rush.filter((_, i) => got[i].status === 200);
+  assert.equal(got.filter((r) => r.status === 200).length, 2, `six at once for two places: two get in (${got.map((r) => r.status)})`);
+  assert.equal(Number((await q("SELECT COUNT(*) AS n FROM sect_members WHERE sect_id = ?", [sid]))[0].n), cap, "never past the cap");
+  // one person into three open sects at once: in exactly one
+  const E = await mk(), F = await mk(), G = await mk();
+  const opened = [];
+  for (const [i, P] of [E, F, G].entries()) {
+    const r = await post(P, "/create", { name: `Môn ${i} ${tag.slice(0, 4)}` });
+    await post(P, "/settings", { joinMode: "open" });
+    opened.push(r.data.view.sect.id);
+  }
+  const H = await mk();
+  const three = await Promise.all(opened.flatMap((id) => [post(H, "/join", { id }), post(H, "/join", { id })]));
+  assert.equal(three.filter((r) => r.status === 200).length, 1, "six joins to three sects at once: in one");
+  assert.equal(Number((await q("SELECT COUNT(*) AS n FROM sect_members WHERE user_id = ?", [H.uid]))[0].n), 1);
+
+  // ---- ranks: only over someone lower, only to a rank lower than one's own, caps on Phó and Trưởng Lão
+  const [m1, m2, m3, m4] = fill;
+  assert.equal((await post(m1, "/kick", { uid: A.uid })).status, 403, "a disciple can't send the leader away");
+  assert.equal((await post(m1, "/rank", { uid: m2.uid, rank: 3 })).status, 403, "nor give ranks");
+  assert.equal((await post(m1, "/settings", { notice: "hack" })).status, 403, "nor change the rules");
+  assert.equal((await post(A, "/rank", { uid: m1.uid, rank: 1 })).status, 400, "Tông Chủ is never given by /rank");
+  assert.equal((await post(A, "/rank", { uid: m1.uid, rank: 3 })).status, 200);
+  assert.equal((await post(m1, "/rank", { uid: m2.uid, rank: 3 })).status, 403, "a Trưởng Lão can't make another Trưởng Lão");
+  assert.equal((await post(m1, "/rank", { uid: m2.uid, rank: 4 })).status, 200, "but can make a Nội Môn");
+  assert.equal((await post(m1, "/kick", { uid: A.uid })).status, 403, "and can't send the leader away");
+  // three made Phó at once with room for two (sect.vices)
+  const vices = await Promise.all([m2, m3, m4].map((P) => post(A, "/rank", { uid: P.uid, rank: 2 })));
+  assert.equal(vices.filter((r) => r.status === 200).length, Math.min(3, S.vices), "never more Phó Tông Chủ than the cap");
+  const vice = [m2, m3, m4][vices.findIndex((r) => r.status === 200)];
+  assert.equal((await post(vice, "/rank", { uid: m1.uid, rank: 2 })).status, 403, "a Phó can't make another Phó");
+  // a kick and a leave of the same person at once: they are out once, and wait before joining another
+  const k = fill[5];
+  const kl = await Promise.all([post(vice, "/kick", { uid: k.uid }), post(k, "/leave")]);
+  assert.equal(kl.filter((r) => r.status === 200).length, 1, "a kick racing a leave: one of them");
+  assert.equal(await memberOf(k), null);
+  assert.equal((await post(k, "/join", { id: opened[0] })).status, 403, "and they wait before joining another");
+  assert.equal((await post(A, "/leave")).status, 409, "the leader can't just leave");
+
+  // ---- giving: idempotent, never past what one has, a daily cap (each burst kept under the per-person limit of 12 in 10 s)
+  const Pa = fill[6], Pb = fill[4];
+  await q("UPDATE characters SET stones = 1000 WHERE user_id = ?", [Pa.uid]);
+  await q("UPDATE characters SET stones = 900 WHERE user_id = ?", [Pb.uid]);
+  const rid = crypto.randomUUID();
+  const same = await all(6, () => post(Pa, "/donate", { amount: 100, requestId: rid }));
+  assert.ok(same.every((r) => r.status === 200), "the same donation 6 times: all answered");
+  assert.equal(await stonesOf(Pa), 900, "but paid once");
+  const many = await all(6, () => post(Pb, "/donate", { amount: 300, requestId: crypto.randomUUID() }));
+  assert.equal(many.filter((r) => r.status === 200).length, 3, "six donations with stones for three: three");
+  assert.equal(await stonesOf(Pb), 0, "nothing below zero");
+  const tre = Number((await q("SELECT treasury FROM sects WHERE id = ?", [sid]))[0].treasury);
+  assert.equal(tre, 1000, "the treasury got exactly what was given");
+  for (const body of [{ amount: -5 }, { amount: 1.5 }, { amount: "1e9" }, { amount: S.donateDaily + 1 }, { amount: 100 }])
+    assert.ok((await post(Pb, "/donate", { requestId: crypto.randomUUID(), ...body })).status >= 400, `refused: ${JSON.stringify(body)}`);
+  assert.equal((await post(Pa, "/donate", { amount: 100, requestId: "not-an-id" })).status, 400, "a donation needs a request id");
+  // the check-in: ten at once, once
+  const ci = await all(10, () => post(R1, "/checkin"));
+  assert.equal(ci.filter((r) => r.status === 200).length, 1, "ten check-ins at once: one");
+  assert.equal((await post(R1, "/array")).status, 403, "a disciple can't raise the great array");
+  // the treasure house: ten buys with cống hiến for three
+  const cost = (await q("SELECT cost FROM sect_shop WHERE item_key = 'hoixuan'"))[0].cost;
+  await q("UPDATE sect_members SET contrib = ? WHERE user_id = ?", [cost * 3, R2.uid]);
+  const buys = await all(10, () => post(R2, "/shop", { item: "hoixuan", requestId: crypto.randomUUID() }));
+  assert.equal(buys.filter((r) => r.status === 200).length, 3, "ten buys with cống hiến for three: three");
+  assert.equal(Number((await q("SELECT qty FROM inventory WHERE user_id = ? AND item = 'hoixuan'", [R2.uid]))[0].qty), 3);
+  assert.equal(Number((await q("SELECT contrib FROM sect_members WHERE user_id = ?", [R2.uid]))[0].contrib), 0, "and not a point below zero");
+  assert.equal((await post(R2, "/shop", { item: "bk_diet_the_than_bao", requestId: crypto.randomUUID() })).status, 403, "a book the sect's level hasn't opened yet");
+  assert.equal((await post(Pa, "/shop", { item: "../../etc", requestId: crypto.randomUUID() })).status, 400, "an item key that isn't one");
+
+  // ---- the world: the name over the head, the bonus, and the sect channel only for the sect
+  await q("UPDATE sects SET level = 5 WHERE id = ?", [sid]);
+  const cA = await connect(A.token), cOut = await connect(H.token);
+  await sleep(500);
+  assert.equal(cA.me.sect?.name, name, "the world knows the sect");
+  assert.equal(cA.me.sect.bonus, 4 * S.bonusPerLevel, "and its bonus");
+  const pi = cOut.msgs.find((m) => m.t === "welcome").players.find((x) => x.name === A.name) ?? cOut.msgs.filter((m) => m.t === "pi").find((x) => x.name === A.name);
+  if (pi) assert.equal(pi.sect?.n, name, "others see the sect over the name");
+  send(cA, { t: "chat", ch: "s", m: "chỉ đồng môn" });
+  await sleep(400);
+  assert.ok(cA.msgs.some((m) => m.t === "chat" && m.ch === "s" && m.m === "chỉ đồng môn"), "the sect channel reaches the sect");
+  assert.ok(!cOut.msgs.some((m) => m.t === "chat" && m.m === "chỉ đồng môn"), "and nobody else");
+  cA.ws.close();
+  cOut.ws.close();
+
+  // ---- handing on and ending: typed to be sure; a disband racing joins leaves nobody in a sect that's gone
+  assert.equal((await post(A, "/transfer", { uid: vice.uid, confirm: "sai" })).status, 400, "handing on needs the name typed");
+  assert.equal((await post(A, "/transfer", { uid: vice.uid, confirm: vice.name })).status, 200);
+  assert.equal((await memberOf(A)).rnk, 2, "the old leader takes the new one's rank");
+  assert.equal((await post(A, "/disband", { confirm: name })).status, 403, "only the leader ends it");
+  const late = await all(4, () => mk());
+  const race = await Promise.all([post(vice, "/disband", { confirm: name }), ...late.map((L) => post(L, "/join", { id: sid }))]);
+  assert.equal(race[0].status, 200, "disbanded");
+  assert.equal(Number((await q("SELECT COUNT(*) AS n FROM sect_members WHERE sect_id = ?", [sid]))[0].n), 0, "nobody left in it, however the joins fell");
+  assert.equal(Number((await q("SELECT COUNT(*) AS n FROM sects WHERE id = ?", [sid]))[0].n), 0);
+  ok("Tông Môn: founding once and paid once, names checked, never past the cap, one sect per person, ranks only downward with caps, donations idempotent and never below zero, one check-in a day, the treasure house, the sect channel private, disbanding racing joins");
+}
+
 {
   const { q, pool } = await import("../server/db.js");
   await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);

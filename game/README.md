@@ -229,7 +229,8 @@ Có HTTPS thì game tự dùng `wss://`.
 | J K L, 1 2 3, chuột trái/phải | Chiêu 1, 2, 3 |
 | 4 | Hồi Xuân Đan |
 | 5 | Tụ Khí Đan |
-| Enter | Trò chuyện |
+| Enter | Trò chuyện (gõ `/t lời nhắn` để nói trong kênh tông môn) |
+| T | Tông Môn |
 
 ## Bảo mật và chống race condition
 
@@ -283,6 +284,139 @@ Kiểm tra: khi máy chủ đang chạy, `npm run test:race` bắn hàng loạt 
 mua trùng mã, đăng nhập hai nơi và spam đan dược, rồi đối chiếu số liệu trong database. Nó cũng kiểm tra tường chặn, cú nhảy lên
 sân điện và lối ra của Tân Thủ Thôn. Nên chạy trên máy
 chủ thử, vì nó tạo vài tài khoản `t_...`.
+
+## Tông Môn (nút 🏯, phím T)
+
+Người chơi lập hoặc gia nhập tông môn, cùng quyên góp để tông môn lên cấp, nhận phúc lợi chung và đổi đồ ở Bảo Khố.
+
+### Lập và gia nhập
+
+- **Khai lập:** cần đạt cấp `sect.create_level` (mặc định 6, Trúc Cơ tầng 1) và trả `sect.create_cost` linh thạch (mặc
+  định 1.000). Chọn tên và 1 trong 16 huy hiệu (icon của Xianxia Pixel Pack). Người lập là Tông Chủ.
+- **Tên tông môn:** 2-16 ký tự, chỉ chữ, số, khoảng trắng.
+  - Không trùng tên đã có, kể cả khác hoa thường hay dấu ("Thiên Kiếm" và "thien kiem" coi là một).
+  - Ký tự ẩn (zero-width, đảo chiều chữ `U+202E`...) bị bỏ đi.
+  - Tên dễ nhầm với ban quản trị bị từ chối: "Admin", "Hệ Thống", "Quản Trị", "GM"...
+    "GM", "Mod" chỉ bị chặn khi đứng riêng thành một từ, nên "Mộ Dung" vẫn đặt được.
+- **Tìm tông môn:** danh sách xếp theo cấp, tìm theo tên. Mỗi tông môn ghi Tông Chủ, số người, cách gia nhập, cấp tối thiểu, thông báo.
+- **Ba cách gia nhập** (Tông Chủ, Phó chọn):
+  - **Tự do:** vào ngay nếu đủ cấp và còn chỗ.
+  - **Xét duyệt đơn:** gửi đơn kèm lời nhắn, từ Trưởng Lão trở lên duyệt. Mỗi người tối đa `sect.apply_max` đơn chờ cùng
+    lúc; đơn hết hạn sau `sect.apply_days` ngày. Vào được một tông môn thì mọi đơn khác tự huỷ.
+  - **Đóng cửa:** không nhận người.
+- **Mỗi người chỉ ở một tông môn.** Rời đi hoặc bị trục xuất thì `sect.rejoin_hours` giờ sau (mặc định 12) mới vào được
+  tông môn khác, để không ai nhảy tông lấy thưởng điểm danh.
+- **Số thành viên tối đa:** `sect.members_base` + `sect.members_per_level` × (cấp − 1). Mặc định 10 người ở cấp 1, mỗi cấp thêm 3.
+
+### Chức vị và quyền
+
+| Chức | Sửa quy định | Duyệt đơn | Trục xuất, phong chức | Đại trận | Truyền chức, giải tán |
+| --- | --- | --- | --- | --- | --- |
+| Tông Chủ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Phó Tông Chủ (tối đa `sect.vices`) | ✓ | ✓ | ✓ | ✓ | |
+| Trưởng Lão (tối đa `sect.elders`) | | ✓ | ✓ | | |
+| Nội Môn Đệ Tử | | | | | |
+| Ngoại Môn Đệ Tử | | | | | |
+
+- Chỉ tác động được người **thấp chức hơn mình**, và chỉ phong được **chức thấp hơn mình**. Ví dụ: Trưởng Lão phong được
+  Nội Môn, Ngoại Môn, không phong được Trưởng Lão khác và không trục xuất được Phó.
+- Ngoại Môn Đệ Tử tự lên Nội Môn khi tổng cống hiến đạt `sect.inner_contrib` (mặc định 300).
+- **Tông Chủ** không rời được: phải truyền chức (gõ lại đạo hiệu người nhận để xác nhận) hoặc giải tán (gõ lại tên tông
+  môn). Người nhận thành Tông Chủ, Tông Chủ cũ nhận chức cũ của người đó.
+- **Giải tán:** mọi người rời tông, ngân khố mất, không ai phải chờ để vào tông môn khác.
+
+### Cống hiến, cấp tông môn, phúc lợi
+
+- **Điểm danh** mỗi ngày một lần (tính theo người, đổi tông cũng không điểm danh lại được): +`sect.checkin_contrib` cống
+  hiến cho mình, +`sect.checkin_exp` kinh nghiệm cho tông môn.
+- **Quyên góp linh thạch** vào ngân khố: mỗi linh thạch được `sect.contrib_per_stone` cống hiến và 1 kinh nghiệm tông môn.
+  Mỗi lần ít nhất `sect.donate_min`; mỗi người mỗi ngày tối đa `sect.donate_daily`.
+- **Cấp tông môn:** đủ kinh nghiệm thì tự lên, tối đa `sect.max_level`. Lên cấp L+1 cần tổng
+  `sect.exp_base` × (1^1,5 + 2^1,5 + ... + L^1,5) kinh nghiệm. Cấp cao hơn thì nhận thêm người và mở thêm món ở Bảo Khố.
+- **Phúc lợi:** mỗi cấp trên 1, mọi thành viên mạnh thêm `sect.bonus_per_level`% sinh lực, công, thủ ngoài thế giới.
+  Không tính ở đấu trường, để PvP vẫn công bằng.
+- **Hộ Sơn Đại Trận:** Tông Chủ hoặc Phó dùng `sect.array_cost` linh thạch ngân khố để cả tông +`sect.array_atk`% công trong
+  `sect.array_minutes` phút (ngoài thế giới). Mở từ tông môn cấp `sect.array_level`. Đại trận đang chạy thì không mở chồng được.
+- **Tông Môn Bảo Khố:** đổi điểm cống hiến lấy vật phẩm. Mỗi món mở theo cấp tông môn và có giới hạn số lần đổi mỗi ngày.
+  Ban đầu có Hồi Xuân Đan, Tụ Khí Đan và bí kíp các công pháp (bí kíp mở ở cấp cao). Admin sửa ở tab Tông môn.
+
+### Trong game
+
+- Tên tông môn hiện màu vàng trên đầu mỗi thành viên, dạng `〔Tên〕`; Tông Chủ có thêm ★.
+- **Kênh trò chuyện riêng:** tab Đàm Đạo trong bảng Tông Môn (dùng được cả trên điện thoại), hoặc gõ `/t lời nhắn` ở ô trò
+  chuyện trên máy tính. Chỉ đồng môn đang online thấy.
+- Có người vào, rời, được phong chức, tông môn lên cấp, mở đại trận...: người liên quan nhận thông báo và bảng Tông Môn đang
+  mở tự tải lại.
+- Bảng Tông Môn: bên trái là huy hiệu, cấp, thanh kinh nghiệm, ngân khố, phúc lợi, đại trận, bảng thông báo, chức và cống
+  hiến của mình, nút điểm danh, ô quyên góp. Bên phải là các tab Thành viên (ai đang online, đổi chức, trục xuất), Đơn (từ
+  Trưởng Lão trở lên), Bảo Khố, Đàm Đạo, Nhật Ký, Quản Lý (quy định, đại trận, truyền chức, giải tán; người thường thấy nút
+  Rời tông). Trên điện thoại cầm dọc thì còn một cột; điện thoại nằm ngang thì mỗi cột tự cuộn.
+
+### Bảo mật Tông Môn
+
+Máy chủ (`server/tong-mon.js`) quyết định mọi thứ; trình duyệt chỉ hỏi. Các nút hiện theo chức, nhưng gửi yêu cầu không đủ
+quyền thì vẫn bị từ chối.
+
+- **Mỗi người một tông môn:** bảng `sect_members` lấy người chơi làm khoá chính. Hai yêu cầu gia nhập cùng lúc, dù vào một
+  hay nhiều tông môn, chỉ một cái thành công.
+- **Mỗi thay đổi một transaction, khoá dòng tông môn trước** (`SELECT ... FOR UPDATE`). Mọi việc trong cùng một tông môn chạy
+  lần lượt, nên những cảnh sau đều ra kết quả đúng:
+  - hai người duyệt đơn cho chỗ trống cuối cùng;
+  - trục xuất trùng lúc người đó tự rời;
+  - giải tán trùng lúc có người gia nhập;
+  - ba người được phong Phó cùng lúc khi chỉ còn hai chỗ.
+
+  Thứ tự khoá luôn là tông môn, rồi thành viên, rồi dữ liệu của chính người đó, nên hai transaction không khoá chéo nhau.
+- **Chức vị đọc lại bên trong khoá.** Chức trình duyệt nghĩ mình có không được tính.
+- **Tiền chỉ đổi bằng câu lệnh có điều kiện:**
+  - `stones = stones - n WHERE stones >= n` cho linh thạch;
+  - `contrib = contrib - n WHERE contrib >= n` cho cống hiến;
+  - `treasury = treasury - n WHERE treasury >= n` cho ngân khố.
+
+  Không có gì xuống dưới 0.
+- **Việc theo ngày** (điểm danh, tổng quyên góp, số lần đổi mỗi món) nằm ở một dòng cho mỗi người mỗi ngày, và giới hạn được
+  kiểm tra ngay trong câu `UPDATE`.
+- **Quyên góp và đổi đồ có mã giao dịch** (bảng `sect_requests`): gửi lại cùng một mã thì chỉ tính một lần.
+- **Trước khi trừ linh thạch** (khai lập, quyên góp), phần linh thạch kiếm được trong game mà chưa ghi xuống database được
+  ghi trước. Nhờ vậy số trên màn hình đúng là số bị trừ.
+- **Chữ người chơi nhập** (tên, thông báo, lời nhắn, kênh chat) bị bỏ ký tự điều khiển, ký tự ẩn, ký tự đảo chiều và `< >`,
+  có giới hạn độ dài. Trình duyệt hiển thị bằng `textContent`, không bao giờ dùng `innerHTML`.
+- **Nhật ký tông môn chỉ lưu loại việc và tên người.** Câu chữ được ghép lúc hiển thị, nên không ai chèn được nội dung vào nhật ký.
+- **Mọi mã từ trình duyệt bị kiểm tra:** mã tông môn, người chơi, chức, số lượng phải là số nguyên trong khoảng cho phép; mã
+  vật phẩm phải có trong game và trong Bảo Khố.
+- **Giới hạn tần suất:** mỗi người tối đa 12 thao tác tông môn mỗi 10 giây (cộng giới hạn ghi chung 30 mỗi 10 giây), 25 lần
+  xem mỗi 10 giây. Kênh chat tông môn dùng chung giới hạn 1 tin mỗi giây.
+- **Phúc lợi tính trên máy chủ:** cấp tông môn và đại trận lấy từ database rồi cộng vào chỉ số trong `stats()`. Client
+  không gửi được gì làm thay đổi chúng.
+- **Admin:** mọi thao tác ghi vào `admin_log`.
+
+Bài test `test/race.mjs` có một phần riêng cho Tông Môn, gửi yêu cầu thật qua API, nhiều cái cùng lúc:
+
+- 5 lần khai lập cùng lúc chỉ ra 1 tông môn và chỉ trừ tiền 1 lần.
+- Hai người khai lập cùng một tên mới cùng lúc: một người được, người kia không mất tiền.
+- Tên trùng kiểu khác hoa thường hay dấu bị từ chối; tên giả ban quản trị bị chặn; ký tự đảo chiều bị bỏ.
+- 6 người tranh 2 chỗ cuối: đúng 2 người vào. Một người vào 3 tông môn cùng lúc: chỉ ở 1.
+- Ngoại Môn không trục xuất, phong chức hay sửa quy định được; Trưởng Lão không phong Trưởng Lão khác; Phó không phong Phó
+  khác; không vượt số Phó tối đa.
+- Trục xuất trùng lúc tự rời: chỉ tính một lần, người đó phải chờ mới vào tông khác.
+- Cùng một lần quyên góp gửi 6 lần chỉ trừ 1 lần. 6 lần quyên góp mà chỉ đủ tiền cho 3: đúng 3 lần thành công, ngân khố
+  khớp từng đồng. Số âm, số lẻ, số quá lớn, thiếu mã giao dịch đều bị từ chối.
+- 10 lần điểm danh cùng lúc chỉ được 1. 10 lần đổi đồ mà chỉ đủ cống hiến cho 3: đúng 3 lần.
+- Món chưa mở theo cấp tông môn, hoặc mã vật phẩm lạ: bị từ chối.
+- Thế giới game nhận đúng tông môn và phúc lợi; kênh chat tông môn chỉ đồng môn nhận.
+- Truyền chức cần gõ đúng tên. Giải tán trùng lúc có người gia nhập: không ai còn kẹt trong tông môn đã mất.
+
+### Admin (tab Tông môn)
+
+- **Danh sách tông môn,** tìm theo tên hoặc Tông Chủ. Bấm một dòng để mở modal gồm 3 tab:
+  - **Thông tin:** sửa tên, cách gia nhập, cấp, kinh nghiệm, ngân khố, cấp tối thiểu, huy hiệu, thông báo. Có nút tắt đại trận
+    và nút giải tán (phải gõ lại tên).
+  - **Thành viên:** đổi chức bất kỳ ai, kể cả phong Tông Chủ mới (Tông Chủ cũ thành Phó). Đưa người ra mà họ không phải chờ.
+  - **Nhật ký** của tông môn.
+- **Tông Môn Bảo Khố:** thêm, sửa giá cống hiến, cấp mở, giới hạn mỗi ngày, bật/tắt từng món. Chỉ thêm được vật phẩm đã có
+  trong game.
+- **Mọi con số chung** (chi phí, giới hạn người, phần thưởng, đại trận...) nằm ở tab Cài đặt, nhóm Tông Môn (`sect.*`). Sửa
+  xong có hiệu lực ngay.
 
 ## Cân bằng
 
@@ -391,6 +525,9 @@ game/
   server/index.js        Express, file tĩnh, WebSocket, tắt máy an toàn
   server/api.js          REST: đăng ký, đăng nhập, nhân vật, Đan Các, quà ngày, bảng xếp hạng
   server/world.js        thế giới chung: di chuyển (va chạm theo bản đồ), chiêu thức, lối ra, phần thưởng, 20 lần/giây
+  server/tong-mon.js     Tông Môn: mọi luật (lập, gia nhập, chức vị, quyên góp, Bảo Khố, đại trận), an toàn khi tranh chấp
+  shared/tong-mon.js     chức vị và quyền, huy hiệu, quy tắc đặt tên, cấp tông môn (dùng chung máy chủ và trình duyệt)
+  public/js/tong-mon.js  bảng Tông Môn trong game
   server/store.js        mọi thay đổi dữ liệu nhân vật (cả mua và mặc đồ ở Y Các), an toàn khi tranh chấp
   server/db.js           MariaDB: pool, transaction, tạo bảng
   server/auth.js         mật khẩu, phiên đăng nhập, giới hạn tần suất

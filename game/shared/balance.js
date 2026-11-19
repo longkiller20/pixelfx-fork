@@ -114,6 +114,29 @@ export const DEFAULTS = {
     "fly.realm": [2, "Cảnh giới mở khoá Ngự Kiếm Phi Hành, đếm từ 1 (1 = Luyện Khí, 2 = Trúc Cơ, 3 = Kim Đan…): tới tầng 1 của cảnh giới này là bay được"],
     "fly.speed": [1.35, "Tốc độ bay = tốc độ đi × hệ số này"],
     "fly.arena": [0, "1: được ngự kiếm trong đấu trường; 0: không"],
+    // Tông Môn (shared/tong-mon.js, server/tong-mon.js)
+    "sect.create_level": [6, "Cấp tối thiểu để khai lập tông môn (6 = Trúc Cơ tầng 1 với cảnh giới mặc định)"],
+    "sect.create_cost": [1000, "Linh thạch để khai lập tông môn"],
+    "sect.max_level": [10, "Cấp tông môn cao nhất"],
+    "sect.exp_base": [2000, "Kinh nghiệm tông môn để lên cấp L+1 = sect.exp_base × L^1,5"],
+    "sect.members_base": [10, "Số thành viên tối đa ở cấp 1"],
+    "sect.members_per_level": [3, "Mỗi cấp tông môn nhận thêm bấy nhiêu thành viên"],
+    "sect.vices": [2, "Số Phó Tông Chủ tối đa"],
+    "sect.elders": [4, "Số Trưởng Lão tối đa"],
+    "sect.bonus_per_level": [1, "Mỗi cấp tông môn trên 1: thành viên mạnh thêm bấy nhiêu % sinh lực, công, thủ (ngoài thế giới, không tính ở đấu trường)"],
+    "sect.donate_min": [10, "Mỗi lần quyên góp ít nhất bấy nhiêu linh thạch"],
+    "sect.donate_daily": [20000, "Mỗi người quyên tối đa bấy nhiêu linh thạch mỗi ngày"],
+    "sect.contrib_per_stone": [1, "Điểm cống hiến nhận được cho mỗi linh thạch quyên góp"],
+    "sect.checkin_contrib": [20, "Điểm cống hiến khi điểm danh mỗi ngày"],
+    "sect.checkin_exp": [50, "Kinh nghiệm tông môn mỗi lần một người điểm danh"],
+    "sect.inner_contrib": [300, "Ngoại Môn Đệ Tử có tổng cống hiến từ bấy nhiêu thì tự lên Nội Môn"],
+    "sect.rejoin_hours": [12, "Rời hoặc bị trục xuất thì sau bấy nhiêu giờ mới gia nhập tông môn khác được"],
+    "sect.apply_max": [3, "Mỗi người gửi tối đa bấy nhiêu đơn cùng lúc"],
+    "sect.apply_days": [3, "Đơn xin gia nhập hết hạn sau bấy nhiêu ngày"],
+    "sect.array_level": [3, "Tông môn từ cấp này mới khai mở được Hộ Sơn Đại Trận"],
+    "sect.array_cost": [3000, "Linh thạch trong ngân khố để khai mở Hộ Sơn Đại Trận"],
+    "sect.array_minutes": [60, "Hộ Sơn Đại Trận kéo dài bấy nhiêu phút"],
+    "sect.array_atk": [10, "Hộ Sơn Đại Trận: thành viên tăng bấy nhiêu % công (ngoài thế giới)"],
   },
 };
 
@@ -131,6 +154,8 @@ export const MONSTERS = {}; // type -> { name, hp, atk, def, spd, respawn, stone
 export const PVP = {};
 export const MEDITATE = {};
 export const START = {};
+// Tông Môn's numbers (settings sect.*), by name
+export const SECT = {};
 // ngự kiếm phi hành: unlocked at level FLY.level (the first stage of realm FLY.realm), flying at FLY.speed × walking
 export const FLY = { realm: 2, level: 6, speed: 1.35, arena: false };
 export let RESPAWN_WORLD = 4, DAILY_STONES = 30, BUY_MAX = 10;
@@ -160,6 +185,13 @@ export function checkConfig(c) {
   }
   num(S["fly.realm"], "fly.realm (cảnh giới mở khoá phi hành)", 1, 100);
   num(S["fly.speed"], "fly.speed (hệ số tốc độ bay)", 0.2, 5);
+  num(S["sect.max_level"], "sect.max_level (cấp tông môn cao nhất)", 1, 100);
+  num(S["sect.members_base"], "sect.members_base (thành viên ở cấp 1)", 1, 500);
+  num(S["sect.members_per_level"], "sect.members_per_level", 0, 100);
+  num(S["sect.bonus_per_level"], "sect.bonus_per_level (% mỗi cấp tông môn)", 0, 50);
+  num(S["sect.array_atk"], "sect.array_atk (% công của đại trận)", 0, 200);
+  num(S["sect.array_minutes"], "sect.array_minutes", 1, 1440);
+  num(S["sect.exp_base"], "sect.exp_base", 1, 1e8);
   if (!Array.isArray(c.realms) || !c.realms.length) throw new Error("Cần ít nhất một cảnh giới");
   const realms = c.realms.map((r, i) => ({ name: str(r.name, `cảnh giới ${i + 1}`, 32), stages: num(r.stages, `số tầng của ${r.name}`, 1, 20) | 0 }));
   if (realms.reduce((a, r) => a + r.stages, 0) > 500) throw new Error("Tổng số tầng tối đa 500");
@@ -270,6 +302,17 @@ export function applyConfig(c) {
     const r = Math.max(1, Math.round(S["fly.realm"] ?? 2));
     const level = r > REALMS.length ? Infinity : 1 + REALMS.slice(0, r - 1).reduce((a, x) => a + x.stages, 0);
     Object.assign(FLY, { realm: r, level, speed: S["fly.speed"] ?? 1.35, arena: (S["fly.arena"] ?? 0) >= 1 });
+  }
+  {
+    const g = (k) => S[`sect.${k}`];
+    Object.assign(SECT, {
+      createLevel: g("create_level") | 0, createCost: g("create_cost") | 0, maxLevel: Math.max(1, g("max_level") | 0), expBase: Math.max(1, g("exp_base")),
+      membersBase: Math.max(1, g("members_base") | 0), membersPerLevel: g("members_per_level") | 0, vices: g("vices") | 0, elders: g("elders") | 0,
+      bonusPerLevel: g("bonus_per_level"), donateMin: Math.max(1, g("donate_min") | 0), donateDaily: g("donate_daily") | 0, contribPerStone: g("contrib_per_stone"),
+      checkinContrib: g("checkin_contrib") | 0, checkinExp: g("checkin_exp") | 0, innerContrib: g("inner_contrib") | 0, rejoinHours: g("rejoin_hours"),
+      applyMax: Math.max(1, g("apply_max") | 0), applyDays: Math.max(1, g("apply_days")), arrayLevel: Math.max(1, g("array_level") | 0), arrayCost: g("array_cost") | 0,
+      arrayMinutes: Math.max(1, g("array_minutes")), arrayAtk: g("array_atk"),
+    });
   }
   DAILY_STONES = S["daily.stones"] | 0;
   BUY_MAX = Math.max(1, S["shop.buy_max"] | 0);

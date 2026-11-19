@@ -5,6 +5,13 @@ import { COSMETICS_SEED, WEAPONS_SEED, DEFAULT_WEAPON, SWORDS_SEED, BASIC_SWORD 
 import { seedConfig } from "./gameconfig.js";
 import { CONG_PHAP, DROPS_SEED } from "../shared/cong-phap.js";
 
+// what the sect treasure house sells at first (cost in cống hiến); only items the game has: the books are added when their art exists
+const SECT_SHOP_SEED = [
+  { item: "hoixuan", cost: 15, level: 1, limit: 10 },
+  { item: "tukhi", cost: 60, level: 2, limit: 5 },
+  ...CONG_PHAP.filter((a) => !a.starter).map((a, i) => ({ item: "bk_" + a.key, cost: 600 + 300 * i, level: 3 + i, limit: 1 })),
+];
+
 export const pool = mariadb.createPool({
   ...config.db,
   bigIntAsNumber: true,
@@ -145,6 +152,96 @@ const SCHEMA = [
     name VARCHAR(64) PRIMARY KEY,
     at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB`,
+  // ---- Tông Môn (server/tong-mon.js). A sect, its members (one sect per person: the key is the person), the applications
+  // to it, what each person did today (check-in, donations, purchases: once or up to a cap per day), request ids (a
+  // donation or a purchase sent twice counts once), when each person last left one (they wait before joining another),
+  // and its log (only kinds and names: the text is made where it is shown).
+  `CREATE TABLE IF NOT EXISTS sects (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(16) NOT NULL,
+    emblem TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    level SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+    exp BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    treasury BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    notice VARCHAR(400) NOT NULL DEFAULT '',
+    join_mode VARCHAR(8) NOT NULL DEFAULT 'apply',
+    min_level SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+    array_until DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_sect_name (name),
+    KEY k_sect_rank (level, exp)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS sect_members (
+    user_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    sect_id INT UNSIGNED NOT NULL,
+    rnk TINYINT UNSIGNED NOT NULL DEFAULT 5,
+    contrib BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    contrib_total BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY k_sm_sect (sect_id, rnk),
+    CONSTRAINT fk_sm_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sm_sect FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS sect_applications (
+    sect_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    message VARCHAR(160) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (sect_id, user_id),
+    KEY k_sa_user (user_id),
+    CONSTRAINT fk_sa_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_sa_sect FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS sect_daily (
+    user_id INT UNSIGNED NOT NULL,
+    day DATE NOT NULL,
+    checked TINYINT(1) NOT NULL DEFAULT 0,
+    donated INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day),
+    CONSTRAINT fk_sd_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS sect_shop_daily (
+    user_id INT UNSIGNED NOT NULL,
+    item_key VARCHAR(32) NOT NULL,
+    day DATE NOT NULL,
+    n INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, item_key, day),
+    CONSTRAINT fk_ssd_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS sect_requests (
+    user_id INT UNSIGNED NOT NULL,
+    request_id CHAR(36) NOT NULL,
+    kind VARCHAR(8) NOT NULL,
+    amount INT UNSIGNED NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, request_id),
+    CONSTRAINT fk_sr_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS sect_leave (
+    user_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    at DATETIME NOT NULL,
+    CONSTRAINT fk_sl_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS sect_log (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    sect_id INT UNSIGNED NOT NULL,
+    kind VARCHAR(10) NOT NULL,
+    actor VARCHAR(16) NOT NULL DEFAULT '',
+    target VARCHAR(60) NOT NULL DEFAULT '',
+    amount BIGINT NOT NULL DEFAULT 0,
+    at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY k_slog (sect_id, id),
+    CONSTRAINT fk_slog_sect FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // the sect treasure house (Tông Môn Bảo Khố): what members buy with their cống hiến, from what sect level, how many a day
+  `CREATE TABLE IF NOT EXISTS sect_shop (
+    item_key VARCHAR(32) NOT NULL PRIMARY KEY,
+    cost INT UNSIGNED NOT NULL,
+    min_level SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+    daily_limit INT UNSIGNED NOT NULL DEFAULT 1,
+    on_sale TINYINT(1) NOT NULL DEFAULT 1,
+    sort INT NOT NULL DEFAULT 0
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,
@@ -255,6 +352,8 @@ export async function migrate() {
     "INSERT IGNORE INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     [...COSMETICS_SEED, ...WEAPONS_SEED, ...SWORDS_SEED].map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.onSale === false ? 0 : 1, c.special ? 1 : 0, c.idx]),
   );
+  // the first goods of the sect treasure house; rows an admin changed are kept
+  await pool.batch("INSERT IGNORE INTO sect_shop (item_key, cost, min_level, daily_limit, on_sale, sort) VALUES (?, ?, ?, ?, 1, ?)", SECT_SHOP_SEED.map((r, i) => [r.item, r.cost, r.level, r.limit, (i + 1) * 10]));
   for (const [name, run] of ONCE) {
     const [done] = await q("SELECT 1 FROM migrations WHERE name = ?", [name]);
     if (done) continue;

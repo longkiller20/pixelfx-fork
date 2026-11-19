@@ -669,11 +669,100 @@ const VIEWS = {
     }
   },
 
+  // Tông Môn: every sect as a row; its modal has the sect's numbers and rules, its members (rank, remove), its log, and
+  // ending it. Under them, the treasure house (what members buy with cống hiến). The numbers that are the same for every
+  // sect (cost, caps, rewards) are in Cài đặt, group Tông Môn.
+  async sects() {
+    const [rows, shop, items] = await Promise.all([api("/sects"), api("/t/sect_shop"), api("/t/items")]);
+    const RANK = [[1, "Tông Chủ"], [2, "Phó Tông Chủ"], [3, "Trưởng Lão"], [4, "Nội Môn Đệ Tử"], [5, "Ngoại Môn Đệ Tử"]];
+    const MODE = [["open", "Tự do gia nhập"], ["apply", "Xét duyệt đơn"], ["closed", "Đóng cửa"]];
+    const EMB = ["Lệnh bài", "La bàn", "Đan lô", "Hồ lô", "Ngọc giản", "Đèn lồng", "Linh chi", "Đào tiên", "Bình đan", "Linh thạch", "Bùa chú", "Kim thuẫn", "Hỏa", "Băng", "Phong", "Phong ấn"];
+    const LOGT = { create: "khai lập", join: "gia nhập", accept: "thu nhận", leave: "rời đi", kick: "trục xuất", rank: "phong chức", auto: "tự lên Nội Môn", transfer: "truyền chức", donate: "quyên góp", levelup: "lên cấp", array: "khai mở đại trận", settings: "sửa quy định", admin: "ban quản trị" };
+    const nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name]));
+    const card = (s) => {
+      let full = null;
+      const loadFull = async () => (full ??= await api(`/sects/${s.id}`));
+      const members = () => {
+        const box = el("div", { class: "list" }, el("p", { class: "dim" }, "Đang tải..."));
+        loadFull().then((f) => box.replaceChildren(...f.members.map((m) => {
+          const sel = el("select", {}, RANK.map(([v, l]) => el("option", { value: v, selected: v === m.rank }, l)));
+          return el("div", { class: "row" },
+            el("div", { class: "main" }, el("b", {}, m.name), el("small", {}, `cấp ${m.level} · cống hiến ${fmt(m.contrib)} (tổng ${fmt(m.contribTotal)}) · vào ${when(m.joinedAt)}`)),
+            el("div", { class: "nums" }, sel,
+              el("button", { type: "button", class: "small", onclick: async () => (await guard(() => api(`/sects/${s.id}/member`, { method: "POST", body: { uid: m.uid, action: "rank", rank: Number(sel.value) } }), "Đã đổi chức.")) && reload() }, "Lưu chức"),
+              el("button", { type: "button", class: "small danger", onclick: async () => confirm(`Đưa ${m.name} ra khỏi ${s.name}?`) && (await guard(() => api(`/sects/${s.id}/member`, { method: "POST", body: { uid: m.uid, action: "remove" } }), "Đã đưa ra.")) && reload() }, "Đưa ra")));
+        })), (e) => box.replaceChildren(el("p", { class: "err" }, e.message)));
+        return box;
+      };
+      const logs = () => {
+        const box = el("div", { class: "list" }, el("p", { class: "dim" }, "Đang tải..."));
+        loadFull().then((f) => box.replaceChildren(...(f.log.length ? f.log.map((l) => el("div", { class: "row" },
+          el("div", { class: "main" }, el("b", {}, `${l.actor || "—"} ${LOGT[l.kind] ?? l.kind}${l.target ? ` · ${l.target}` : ""}${l.amount ? ` · ${fmt(l.amount)}` : ""}`), el("small", {}, when(l.at))))) : [el("p", { class: "dim" }, "Chưa có gì.")])));
+        return box;
+      };
+      const form = record({
+        title: "Thông tin", row: { name: s.name, notice: s.notice, joinMode: s.joinMode, minLevel: s.minLevel, emblem: s.emblem, level: s.level, exp: s.exp, treasury: s.treasury },
+        fields: [
+          { k: "name", label: "Tên tông môn" }, { k: "joinMode", label: "Cách gia nhập", type: "select", options: MODE },
+          { k: "level", label: "Cấp", type: "number", step: 1 }, { k: "exp", label: "Kinh nghiệm", type: "number", step: 1 },
+          { k: "treasury", label: "Ngân khố (linh thạch)", type: "number", step: 1 }, { k: "minLevel", label: "Cấp tối thiểu để vào", type: "number", step: 1 },
+          { k: "emblem", label: "Huy hiệu", type: "select", options: EMB.map((n, i) => [i, `${i + 1}. ${n}`]) },
+          { k: "notice", label: "Thông báo", type: "textarea", wide: true },
+        ],
+        onSave: async (c) => {
+          for (const k of ["level", "exp", "treasury", "minLevel", "emblem"]) if (c[k] !== undefined) c[k] = Number(c[k]);
+          (await guard(() => api(`/sects/${s.id}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload();
+        },
+      });
+      // the form sits inside the sect's modal: no row of its own
+      form.querySelector(".sum")?.remove();
+      form.classList.remove("rec", "card");
+      const end = el("div", { class: "group" }, el("b", {}, "Giải tán"), el("span", { class: "dim" }, "Mọi thành viên rời tông, ngân khố mất. Không hoàn tác được."),
+        s.arrayUntil && new Date(s.arrayUntil) > new Date() ? el("button", { type: "button", class: "small", onclick: async () => (await guard(() => api(`/sects/${s.id}`, { method: "PATCH", body: { endArray: true } }), "Đã tắt đại trận.")) && reload() }, "Tắt Hộ Sơn Đại Trận") : null,
+        el("button", { type: "button", class: "small danger", onclick: async () => prompt(`Gõ tên "${s.name}" để giải tán:`)?.trim() === s.name && (await guard(() => api(`/sects/${s.id}`, { method: "DELETE" }), "Đã giải tán.")) && reload() }, "Giải tán tông môn"));
+      const c = el("div", { class: "card" }, ...tabs([["Thông tin", () => [form, end]], ["Thành viên", members], ["Nhật ký", logs]]));
+      return collapsible(c, {
+        title: s.name, key: `sect${s.id}`,
+        sub: `Cấp ${s.level} · ${s.members}/${s.cap} người · Tông Chủ ${s.leader || "?"} · ngân khố ${fmt(s.treasury)}`,
+        extra: el("span", {}, el("span", { class: `tag ${s.joinMode === "open" ? "green" : s.joinMode === "closed" ? "red" : "gold"}` }, MODE.find((m) => m[0] === s.joinMode)?.[1] ?? s.joinMode)),
+      });
+    };
+    const out = el("div");
+    const q = searchBox("Tìm tông môn hoặc Tông Chủ...", () => draw());
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      out.replaceChildren(...paged(rows.filter((r) => has(t, r.name, r.leader)), card, t));
+    };
+    draw();
+    // the treasure house
+    const F = [{ k: "cost", label: "Giá (cống hiến)", type: "number", step: 1 }, { k: "min_level", label: "Tông môn từ cấp", type: "number", step: 1 },
+      { k: "daily_limit", label: "Mỗi người đổi tối đa / ngày", type: "number", step: 1 }, { k: "sort", label: "Thứ tự", type: "number", step: 1 }, { k: "on_sale", label: "Đang bán", type: "bool" }];
+    const shopCards = shop.map((r) => record({
+      title: nameOf[r.item_key] ?? r.item_key, sub: `${r.item_key} · ${fmt(r.cost)} cống hiến · từ cấp ${r.min_level} · ${r.daily_limit}/ngày`, row: r, fields: F,
+      extra: r.on_sale ? el("span", { class: "tag green" }, "Đang bán") : el("span", { class: "tag" }, "Ngừng"),
+      onSave: async (c) => (await guard(() => api(`/t/sect_shop/${r.item_key}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
+      onDelete: async () => confirm(`Bỏ ${nameOf[r.item_key] ?? r.item_key} khỏi Bảo Khố?`) && (await guard(() => api(`/t/sect_shop/${r.item_key}`, { method: "DELETE" }), "Đã bỏ.")) && reload(),
+    }));
+    const add = record({
+      title: "Thêm món vào Bảo Khố", isNew: true, row: { cost: 50, min_level: 1, daily_limit: 1, on_sale: 1, sort: 100 },
+      fields: [{ k: "item_key", label: "Vật phẩm", type: "select", options: itemOptions(items.filter((i) => !shop.some((x) => x.item_key === i.item_key))) }, ...F],
+      onSave: async (c) => (await guard(() => api("/t/sect_shop", { method: "POST", body: c }), "Đã thêm.")) && reload(),
+    });
+    return [
+      el("h2", {}, "Tông Môn"),
+      el("p", { class: "dim" }, `${rows.length} tông môn. Bấm một dòng để sửa thông tin, đổi chức hoặc đưa thành viên ra, xem nhật ký, hoặc giải tán. Chi phí lập, giới hạn người, phần thưởng... ở tab Cài đặt (nhóm Tông Môn).`),
+      el("div", { class: "bar" }, q), out,
+      el("h2", {}, "Tông Môn Bảo Khố"),
+      el("p", { class: "dim" }, "Thành viên đổi điểm cống hiến lấy những món này. Món mở theo cấp tông môn, có giới hạn mỗi ngày."),
+      el("div", { class: "grid" }, add, ...shopCards),
+    ];
+  },
+
   async settings() {
     const [rows, realms] = await Promise.all([api("/t/settings"), api("/t/realms")]);
     const groups = {};
     for (const r of rows) (groups[r.k.split(".")[0]] ??= []).push(r);
-    const NAMES = { class: "Chỉ số nhân vật", exp: "Tu vi & lên cấp", level: "Sức mạnh theo cấp", arena: "Đấu trường", start: "Quà tân thủ", daily: "Quà mỗi ngày", shop: "Đan Các", meditate: "Tu luyện", pvp: "PvP", respawn: "Hồi sinh", fly: "Ngự Kiếm Phi Hành" };
+    const NAMES = { class: "Chỉ số nhân vật", exp: "Tu vi & lên cấp", level: "Sức mạnh theo cấp", arena: "Đấu trường", start: "Quà tân thủ", daily: "Quà mỗi ngày", shop: "Đan Các", meditate: "Tu luyện", pvp: "PvP", respawn: "Hồi sinh", fly: "Ngự Kiếm Phi Hành", sect: "Tông Môn" };
     const card = (r) => {
       const shown = r.k === "fly.realm" ? realms[r.v - 1]?.name ?? "Khoá" : fmt(r.v);
       return record({

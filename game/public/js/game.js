@@ -18,7 +18,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -133,7 +133,15 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         renderFly();
         break;
       case "chat":
-        logLine(m.n, m.m);
+        // the sect's own channel is marked and kept for the sect panel's chat too
+        if (m.ch === "s") {
+          logLine(`[Tông] ${m.n}`, m.m, "sect");
+          onSectChat?.(m);
+        } else logLine(m.n, m.m);
+        break;
+      case "sect":
+        // something in the sect changed (a member, a rank, the treasury...): an open sect panel reads it again
+        onSect?.();
         break;
       case "feed":
         logLine(null, m.m, "sys");
@@ -143,6 +151,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         break;
       case "toast":
         toast(m.m);
+        if (m.ch === "s") logLine(null, m.m, "sect");
         break;
       case "fatal":
         alive = false;
@@ -317,7 +326,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   addEventListener("keydown", (e) => {
     if (document.activeElement === chatInput) {
       if (e.key === "Enter") {
-        if (chatInput.value.trim()) send({ t: "chat", m: chatInput.value });
+        // "/t ..." (or "/tm ...") talks on the sect's channel
+        const v = chatInput.value.trim(), sm = /^\/(t|tm|tong)\s+([\s\S]+)/i.exec(v);
+        if (sm) send({ t: "chat", ch: "s", m: sm[2] });
+        else if (v) send({ t: "chat", m: v });
         chatInput.value = "";
         chatInput.blur();
       } else if (e.key === "Escape") chatInput.blur();
@@ -1085,13 +1097,14 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     for (const e of list) {
       if (e.dead) continue;
       const x = (e.x - camX) * k;
-      let top, name, color, hp = e.hp;
+      let top, name, color, hp = e.hp, sect = null;
       if (e.kind === "p") {
         const info = infos.get(e.id);
         if (!info) continue;
         top = (e.y - camY - avatarTop(info.look) - 4) * k;
         name = `${info.name} · ${realmName(info.lv)}`;
         color = e.id === myId ? "#fff6c8" : info.look?.g === "f" ? "#ffb8d8" : "#a8e0ff";
+        sect = info.sect;
       } else {
         const md = MONSTERS[e.type];
         if (!md) continue;
@@ -1106,6 +1119,15 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       c.strokeText(name, x, top - fs * 0.5);
       c.fillStyle = color;
       c.fillText(name, x, top - fs * 0.5);
+      // the sect over the name, in gold; its leader with a star
+      if (sect) {
+        const sf = Math.max(9, Math.round(fs * 0.85)), st = `${sect.r === 1 ? "★ " : ""}〔${sect.n}〕`;
+        c.font = `700 ${sf}px system-ui, sans-serif`;
+        c.lineWidth = Math.max(2, sf / 4);
+        c.strokeText(st, x, top - fs * 1.55);
+        c.fillStyle = sect.r === 1 ? "#ffd86a" : "#e8c070";
+        c.fillText(st, x, top - fs * 1.55);
+      }
       const w = 22 * k, h = Math.max(3, 1.6 * k);
       c.fillStyle = "rgba(0,0,0,.7)";
       c.fillRect(x - w / 2 - 1, top - fs * 0.35, w + 2, h + 2);
@@ -1159,6 +1181,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     // the latest "me" (level, hp, atk, def, spd, stones, rank...), for the character panel
     me: () => me,
     mapName: () => map?.name ?? "",
+    // a line on the sect's channel (the sect panel's chat)
+    sectSay: (text) => send({ t: "chat", ch: "s", m: String(text).slice(0, 120) }),
     // the panel changed the bar: show it now (the server confirms with an "arts" message too)
     setArts(v) {
       arts = { slots: v.slots, learned: v.learned };

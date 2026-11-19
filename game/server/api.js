@@ -5,6 +5,8 @@ import { hashPassword, verifyPassword, dummyVerify, createSession, dropSession, 
 import * as store from "./store.js";
 import { configJson } from "./gameconfig.js";
 import { GameError } from "./store.js";
+import * as sect from "./tong-mon.js";
+import { RANKS } from "../shared/tong-mon.js";
 import { USER_RE } from "../shared/balance.js";
 
 const wrap = (fn) => (req, res, next) => Promise.resolve().then(() => fn(req, res)).catch(next);
@@ -108,6 +110,112 @@ export function api(world) {
     world.refresh(req.userId, character);
     res.json({ character });
   }));
+
+  // ---------------------------------------------------------------- Tông Môn (server/tong-mon.js decides everything)
+  // reading is limited per account, every change is a write (writeLimit) plus a tighter limit of its own; whatever changes,
+  // the world is told at once for everyone it touches (their sect, its bonus and name over their heads, their panel)
+  const sectRead = rateLimit({ windowMs: 10_000, max: 25, key: (req) => `sr${req.userId}` });
+  const sectWrite = rateLimit({ windowMs: 10_000, max: 12, key: (req) => `sw${req.userId}`, message: "Thao tác tông môn quá nhanh, hãy chậm lại." });
+  const online = (uid) => world.players.has(uid);
+  const sectRoute = (path, fn) => r.post(`/sect${path}`, requireAuth, writeLimit, sectWrite, wrap(async (req, res) => {
+    const out = (await fn(req)) ?? {};
+    res.json({ ok: true, ...out, view: await sect.mySect(req.userId, online) });
+  }));
+
+  r.get("/sect", requireAuth, sectRead, wrap(async (req, res) => res.json(await sect.mySect(req.userId, online))));
+  r.get("/sects", requireAuth, sectRead, wrap(async (req, res) => res.json(await sect.listSects(req.query.q, req.query.page))));
+
+  sectRoute("/create", async (req) => {
+    // what the world earned but hasn't written yet is saved first, so the stones on screen are the stones spent
+    await world.flushUser(req.userId);
+    const out = await sect.create(req.userId, req.body?.name, req.body?.emblem);
+    world.refresh(req.userId, out.character);
+    await world.syncSect([req.userId]);
+    world.feed(`Tông môn ${(await sect.sectOf(req.userId))?.name ?? ""} vừa được khai lập!`);
+    return { id: out.id };
+  });
+  sectRoute("/join", async (req) => {
+    const out = await sect.join(req.userId, req.body?.id, req.body?.message);
+    if (out.joined) {
+      await world.syncSect([req.userId]);
+      world.sectToast(await sect.membersOf(out.sectId), `${await world.nameOf(req.userId)} gia nhập ${out.name}.`, req.userId);
+    } else world.sectPing(await sect.membersOf(out.sectId));
+    return { joined: out.joined, name: out.name };
+  });
+  sectRoute("/cancel", async (req) => void (await sect.cancelApplication(req.userId, req.body?.id)));
+  sectRoute("/review", async (req) => {
+    const out = await sect.review(req.userId, req.body?.uid, req.body?.accept === true);
+    if (out.accepted) {
+      await world.syncSect([out.uid]);
+      world.toastUser(out.uid, `Đạo hữu đã được thu nhận vào ${out.name}!`, true);
+      world.sectPing(await sect.membersOf(out.sectId), out.uid);
+    }
+  });
+  sectRoute("/leave", async (req) => {
+    const out = await sect.leave(req.userId);
+    await world.syncSect([req.userId]);
+    world.sectPing(await sect.membersOf(out.sectId));
+  });
+  sectRoute("/kick", async (req) => {
+    const out = await sect.kick(req.userId, req.body?.uid);
+    await world.syncSect([out.uid]);
+    world.toastUser(out.uid, `Đạo hữu đã bị trục xuất khỏi ${out.name}.`, true);
+    world.sectPing(await sect.membersOf(out.sectId));
+  });
+  sectRoute("/rank", async (req) => {
+    const out = await sect.setRank(req.userId, req.body?.uid, req.body?.rank);
+    if (!out.same) {
+      await world.syncSect([out.uid]);
+      world.toastUser(out.uid, `Đạo hữu được phong làm ${RANKS[Number(req.body?.rank)]?.name}.`);
+      world.sectPing(await sect.membersOf(out.sectId), out.uid);
+    }
+  });
+  sectRoute("/transfer", async (req) => {
+    const out = await sect.transfer(req.userId, req.body?.uid, req.body?.confirm);
+    await world.syncSect(out.uids);
+    world.sectToast(await sect.membersOf(out.sectId), `${await world.nameOf(out.uids[1])} trở thành Tông Chủ mới.`);
+  });
+  sectRoute("/disband", async (req) => {
+    const out = await sect.disband(req.userId, req.body?.confirm);
+    await world.syncSect(out.uids);
+    world.sectToast(out.uids, `Tông môn ${out.name} đã giải tán.`, req.userId);
+  });
+  sectRoute("/settings", async (req) => {
+    const out = await sect.settings(req.userId, req.body);
+    const uids = await sect.membersOf(out.sectId);
+    if (out.emblemChanged) await world.syncSect(uids);
+    world.sectPing(uids, req.userId);
+  });
+  sectRoute("/donate", async (req) => {
+    await world.flushUser(req.userId);
+    const out = await sect.donate(req.userId, req.body?.amount, req.body?.requestId);
+    world.refresh(req.userId, out.character);
+    const uids = await sect.membersOf(out.sectId);
+    if (out.levelUp) {
+      await world.syncSect(uids);
+      world.sectToast(uids, `Tông môn lên cấp ${out.levelUp}!`);
+    } else world.sectPing(uids, req.userId);
+    return { repeat: out.repeat, contrib: out.contrib ?? 0, levelUp: out.levelUp ?? 0 };
+  });
+  sectRoute("/checkin", async (req) => {
+    const out = await sect.checkin(req.userId);
+    const uids = await sect.membersOf(out.sectId);
+    if (out.levelUp) {
+      await world.syncSect(uids);
+      world.sectToast(uids, `Tông môn lên cấp ${out.levelUp}!`);
+    } else world.sectPing(uids, req.userId);
+    return { contrib: out.contrib, levelUp: out.levelUp };
+  });
+  sectRoute("/shop", async (req) => {
+    const out = await sect.shopBuy(req.userId, req.body?.item, req.body?.requestId);
+    if (!out.repeat) await world.sendInv(req.userId);
+    return { repeat: out.repeat, inventory: await store.inventory(req.userId) };
+  });
+  sectRoute("/array", async (req) => {
+    const out = await sect.raiseArray(req.userId);
+    await world.syncSect(out.uids);
+    world.sectToast(out.uids, "Hộ Sơn Đại Trận đã khai mở: toàn tông tăng công!");
+  });
 
   // the game's numbers (realms, pills, monsters, arts, settings) for the browser; they change when an admin edits them
   r.get("/config", wrap(async (req, res) => {
