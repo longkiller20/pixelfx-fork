@@ -74,6 +74,9 @@ const SHOP_TEST = "Hàng thử nghiệm";
   await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);
   for (const [kind, g, idx, price] of [["hair", "m", 0, 150], ["robe", "m", 0, 300], ["hair", "f", 0, 150], ["sword", "a", 1, 600]])
     await q("INSERT INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, ?, ?, ?, ?, 0, 1, 0, 0)", [kind, g, idx, `${SHOP_TEST} ${kind} ${g}`, price]);
+  // and two bảo vật, never sold: a weapon and a flying sword
+  for (const [kind, idx] of [["weapon", 90], ["sword", 3]])
+    await q("INSERT INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, 'a', ?, ?, 0, 0, 0, 1, 0)", [kind, idx, `${SHOP_TEST} bảo vật ${kind}`]);
 }
 
 {
@@ -250,10 +253,9 @@ const SHOP_TEST = "Hàng thử nghiệm";
     assert.ok(c2.me.buffs.some((b) => b.stat === "atk" && b.pct === 50), "and shown to the player");
     c2.ws.close();
 
-    // bảo vật (pixelfx's weapons): not in the wardrobe, can't be bought or worn; given by an admin, it shows up and is worn
-    const sp = (await adm("/t/cosmetics", { token })).data.filter((c) => c.special && c.kind === "weapon");
-    assert.equal(sp.length, 11, "all eleven pixelfx weapons seeded as bảo vật");
-    const gem = sp.find((c) => c.idx === 90);
+    // bảo vật: not in the wardrobe, can't be bought or worn; given by an admin, it shows up and is worn
+    const gem = (await adm("/t/cosmetics", { token })).data.find((c) => c.special && c.kind === "weapon" && c.idx === 90);
+    assert.ok(gem, "the test bảo vật weapon is there");
     const before = (await call("/cosmetics", { token: q2.token })).data;
     assert.ok(!before.items.some((it) => it.id === gem.id), "a bảo vật nobody gave you isn't on the shelf");
     assert.equal((await call("/cosmetics/buy", { token: q2.token, method: "POST", body: { id: gem.id } })).status, 403, "and can't be bought");

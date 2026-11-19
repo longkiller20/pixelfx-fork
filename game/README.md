@@ -6,21 +6,15 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
 - **Máy chủ:** Node.js + Express, WebSocket (`ws`) cho thế giới chung, MariaDB lưu dữ liệu, mặc định chạy ở cổng **5886**. Trang admin ở cổng riêng **5885** (xem phần "Trang admin").
 - **Vũ khí:** nhân vật cầm vũ khí trên tay; vũ khí vung theo đòn chém, và Phi Kiếm bay ra đúng vũ khí đang cầm. Ai cũng có
   sẵn Trường Kiếm (miễn phí), nam nữ dùng chung.
-- **Y Các đang trống hàng bán:** chỉ còn đồ miễn phí, gồm 5 tóc và 5 y phục mỗi giới tính, 1 vũ khí (Trường Kiếm), 1 phi kiếm (Thanh Vân Kiếm). Các bảo vật vẫn giữ nguyên.
-  - Đồ bán sẽ được thiết kế riêng từng món rồi thêm lại ở trang admin.
-  - Ảnh của các món cũ vẫn nằm trong atlas, nên admin có thể thêm lại món nào đó theo số `idx`.
-  - Database cũ được dọn một lần khi máy chủ khởi động (migration `retire_shop_2026_11`). Người đã mua được hoàn linh thạch. Ai đang mặc món bị xoá thì đổi sang món miễn phí đầu tiên.
-- **Bảo vật (vũ khí đặc biệt):** cả 11 vũ khí của pixelfx (Phá Quân Kiếm, Trảm Long Đại Kiếm, Ảnh Sát Chủy, Bá Vương
-  Thương, Lôi Thần Chùy, U Minh Liêm, Huyết Lang Trảo, Lạc Nhật Cung, và từ các thế giới khác của đa vũ trụ: Dị Giới Hỏa
-  Thương, Phích Lịch Thần Pháo, Phược Long Tiên). Bảo vật không bán và không miễn phí. Chưa được tặng thì
-  không hiện ở Y Các, mua hay mặc đều bị từ chối. Hiện tại admin tặng riêng cho từng người ở trang người chơi; sau này sẽ
-  có từ hoạt động, sự kiện hay đấu giá. Cột `cosmetics.special` đánh dấu bảo vật, nên admin có thể biến món khác thành
-  bảo vật. Vẽ lại các vũ khí này bằng `node tools/xianxia/pixelfx-weapons.mjs`, rồi thêm vào atlas bằng
-  `python3 tools/xianxia/build.py --pixelfx-only`.
+- **Y Các chỉ còn đồ miễn phí:** 5 tóc và 5 y phục cho mỗi giới tính, 1 vũ khí (Trường Kiếm), 1 phi kiếm (Thanh Vân Kiếm). Chưa có món nào bán, cũng chưa có bảo vật.
+  - Đồ bán và bảo vật sẽ được thiết kế riêng từng món, rồi admin thêm lại ở trang admin.
+  - **Bảo vật** là món không bán, chỉ được tặng (admin tặng ở trang người chơi; sau này từ hoạt động, sự kiện, đấu giá). Cột `cosmetics.special` đánh dấu món nào là bảo vật. Bảo vật chưa được tặng thì không hiện ở Y Các; mua hay mặc đều bị từ chối.
+  - Ảnh của các món cũ vẫn nằm trong atlas, kể cả 11 vũ khí pixelfx (vẽ lại bằng `node tools/xianxia/pixelfx-weapons.mjs` và `python3 tools/xianxia/build.py --pixelfx-only`). Admin có thể thêm lại món nào đó theo số `idx`.
+  - Database cũ được dọn một lần khi máy chủ khởi động (migration `retire_shop_2026_11`, rồi `retire_specials_2026_11`). Người đã mua được hoàn linh thạch. Ai đang mặc món bị xoá thì đổi sang món miễn phí.
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật cử động: đứng, đi, nhảy, xuất chiêu.
-- **Y Các (nút 👘 trong game):** bán 35 kiểu tóc và 35 bộ y phục còn lại của mỗi giới, giá 150 / 300 / 500 linh thạch tùy độ cầu
-  kỳ. Thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
+- **Y Các (nút 👘 trong game):** các tab tóc, y phục, vũ khí, phi kiếm. Hiện chỉ có đồ miễn phí. Khi admin thêm đồ bán, người chơi
+  thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
   - Mọi nhân vật dựng từ cùng một thân gốc, nên tóc và áo nào cũng mặc vừa.
   - Có rig và hoạt ảnh: thân trên thở và nhún, tay áo xoay quanh vai, vạt áo và tóc bay theo bước chạy, hai chân bước.
 - **Yêu thú:** cả 12 critters của pixelfx đều đã có chỉ số trong database, nhưng chưa đặt lên bản đồ nào; sẽ có khi có
@@ -472,10 +466,10 @@ Khi người chơi vừa đột phá tới cảnh giới đó, game báo đã m�
 
 **Phi kiếm** là loại `sword` trong bảng `cosmetics` (tab "Tóc, áo, vũ khí & phi kiếm" của admin, chọn "Phi kiếm (bay)"):
 
-- Atlas có 30 thanh, đang dùng 8 thanh. Các thanh được cắt từ ảnh `tools/swords/source.png` bằng `python3 tools/swords/build.py`, ra file `public/xianxia/swords.png` và `.json`.
+- Atlas có 30 thanh, đang dùng 1 thanh. Các thanh được cắt từ ảnh `tools/swords/source.png` bằng `python3 tools/swords/build.py`, ra file `public/xianxia/swords.png` và `.json`.
 - **Thanh Vân Kiếm** là kiếm cơ bản (`starter`): ai mở khoá bay cũng có ngay, không phải mua.
 - Hiện không bán thanh nào. Phi kiếm bán sẽ thiết kế riêng sau. Khi admin thêm phi kiếm để bán, người chơi chỉ mua được sau khi đã mở khoá bay.
-- 7 thanh là **bảo vật** (`special`): Băng Long, Xích Long, Bạch Long, Tinh Hà, Bích Long, Hỏa Long, Thái Cực Kiếm. Các thanh này không bán, chỉ có khi admin tặng ở trang người chơi (sau này qua hoạt động, sự kiện).
+- Hiện cũng không có phi kiếm bảo vật nào. Admin có thể đánh dấu một phi kiếm là bảo vật (`special`) để chỉ tặng, không bán.
 - Admin đổi giá, tên, bật/tắt bán, chuyển thành bảo vật cho từng thanh. Trang người chơi đổi được phi kiếm đang dùng và tặng hoặc lấy lại phi kiếm.
 - Nhân vật lưu phi kiếm đang dùng ở cột `characters.sword`.
 
@@ -495,7 +489,7 @@ Danh sách tóc và y phục nằm trong bảng `cosmetics`. Mỗi dòng là m�
 Đồ người chơi đã mua nằm trong bảng `owned_cosmetics`. Khóa chính là (tài khoản, món), nên dù bấm mua dồn dập cũng chỉ bị trừ
 tiền một lần.
 
-Lần đầu chạy, máy chủ tự điền đồ miễn phí và bảo vật từ `server/cosmetics-seed.js` (hiện chưa có món nào bán). Những lần sau, máy chủ không ghi đè: tên, giá hay trạng
+Lần đầu chạy, máy chủ tự điền đồ miễn phí từ `server/cosmetics-seed.js` (hiện chưa có món nào bán và chưa có bảo vật). Những lần sau, máy chủ không ghi đè: tên, giá hay trạng
 thái admin đã sửa đều được giữ. Game đọc bảng trực tiếp ở mỗi lần xem hoặc mua, nên sửa xong là có hiệu lực ngay, không cần
 khởi động lại. Tên món được đặt tự động theo màu; đổi tên tùy ý.
 

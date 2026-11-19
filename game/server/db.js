@@ -1,7 +1,7 @@
 // MariaDB: the pool, transactions, and the schema (created on start, safe to run every time).
 import mariadb from "mariadb";
 import { config } from "./config.js";
-import { COSMETICS_SEED, WEAPONS_SEED, SPECIAL_WEAPONS_SEED, DEFAULT_WEAPON, SWORDS_SEED, BASIC_SWORD } from "./cosmetics-seed.js";
+import { COSMETICS_SEED, WEAPONS_SEED, DEFAULT_WEAPON, SWORDS_SEED, BASIC_SWORD } from "./cosmetics-seed.js";
 import { seedConfig } from "./gameconfig.js";
 
 export const pool = mariadb.createPool({
@@ -195,7 +195,17 @@ async function retireShop(c) {
   await c.query(`UPDATE characters ch SET ch.weapon = ${DEFAULT_WEAPON} WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = 'weapon' AND k.idx = ch.weapon)`);
   await c.query(`UPDATE characters ch SET ch.sword = ${BASIC_SWORD} WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = 'sword' AND k.idx = ch.sword)`);
 }
-const ONCE = [["retire_shop_2026_11", retireShop]];
+/**
+ * Then the bảo vật go too (pixelfx's weapons, the dragon swords...), to be redesigned one by one like the shop. They were
+ * only ever given, so nothing is refunded; whoever holds one goes back to the long sword or the basic flying sword. The
+ * flag stays: an admin can make any new item a bảo vật.
+ */
+async function retireSpecials(c) {
+  await c.query("DELETE FROM cosmetics WHERE special = 1");
+  await c.query(`UPDATE characters ch SET ch.weapon = ${DEFAULT_WEAPON} WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = 'weapon' AND k.idx = ch.weapon)`);
+  await c.query(`UPDATE characters ch SET ch.sword = ${BASIC_SWORD} WHERE NOT EXISTS (SELECT 1 FROM cosmetics k WHERE k.kind = 'sword' AND k.idx = ch.sword)`);
+}
+const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials]];
 
 export async function migrate() {
   for (const s of SCHEMA) await q(s);
@@ -204,7 +214,7 @@ export async function migrate() {
   // the first wardrobe; rows already there (and an admin's changes to them) are kept
   await pool.batch(
     "INSERT IGNORE INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [...COSMETICS_SEED, ...WEAPONS_SEED, ...SPECIAL_WEAPONS_SEED, ...SWORDS_SEED].map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.onSale === false ? 0 : 1, c.special ? 1 : 0, c.idx]),
+    [...COSMETICS_SEED, ...WEAPONS_SEED, ...SWORDS_SEED].map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.onSale === false ? 0 : 1, c.special ? 1 : 0, c.idx]),
   );
   for (const [name, run] of ONCE) {
     const [done] = await q("SELECT 1 FROM migrations WHERE name = ?", [name]);
