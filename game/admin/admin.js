@@ -432,7 +432,23 @@ const VIEWS = {
   async arts() {
     // each art is designed in code (shared/cong-phap.js): here only its switches, its effect playing, and handing it out
     const [rows, items, { fxPreview }] = await Promise.all([api("/cong-phap"), api("/t/items"), import("/fxpreview.js")]);
-    const nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name]));
+    const nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name])), opts = itemOptions(items);
+    // what learning it spends: a row per item, each editable; a row to add another
+    const reqBox = (r) => {
+      const box = el("div", { class: "reqs" }, el("b", {}, "Vật phẩm cần để lĩnh ngộ (tiêu hao khi học)"));
+      for (const q of r.reqs) {
+        const it = el("select", {}, opts.map(([v, l]) => el("option", { value: v, selected: v === q.item }, l)));
+        const qty = el("input", { type: "number", min: 1, step: 1, value: q.qty, inputmode: "numeric" });
+        box.append(el("div", { class: "bar" }, it, qty,
+          el("button", { class: "small", type: "button", onclick: async () => (await guard(() => api(`/t/cong_phap_reqs/${q.id}`, { method: "PATCH", body: { item_key: it.value, qty: Number(qty.value) } }), "Đã lưu.")) && reload() }, "Lưu"),
+          el("button", { class: "small danger", type: "button", onclick: async () => confirm(`Bỏ ${nameOf[q.item] ?? q.item} khỏi yêu cầu của ${r.name}?`) && (await guard(() => api(`/t/cong_phap_reqs/${q.id}`, { method: "DELETE" }), "Đã bỏ.")) && reload() }, "✕")));
+      }
+      if (!r.reqs.length) box.append(el("span", { class: "dim" }, "Không cần gì: ai cũng lĩnh ngộ được (khi bật \"Học được bằng bí kíp\")."));
+      const it = el("select", {}, opts.map(([v, l]) => el("option", { value: v, selected: v === "bk_" + r.key }, l)));
+      const qty = el("input", { type: "number", min: 1, step: 1, value: 1, inputmode: "numeric" });
+      box.append(el("div", { class: "bar" }, it, qty, el("button", { class: "small", type: "button", onclick: async () => (await guard(() => api("/t/cong_phap_reqs", { method: "POST", body: { art_key: r.key, item_key: it.value, qty: Number(qty.value) } }), "Đã thêm.")) && reload() }, "+ Thêm")));
+      return box;
+    };
     const elemName = (e) => ELEMENTS.find((x) => x[0] === e)?.[1] ?? e;
     // a switch: saved at once
     const toggle = (r, col, on, off, label) => {
@@ -472,14 +488,15 @@ const VIEWS = {
           el("div", {}, el("b", {}, r.name), " ", el("span", { class: "dim" }, `${r.key} · ${elemName(r.element)} · bậc ${r.tier} · hồi ${r.cd}s${r.aim ? ` · kéo chọn chỗ ${r.aim}px` : ""}`),
             r.starter ? el("span", { class: "tag gold" }, "Ai cũng biết sẵn") : null),
           el("p", {}, r.line), el("p", { class: "dim" }, r.desc),
-          r.starter ? null : el("p", { class: "dim" }, `Lĩnh ngộ cần: ${r.reqs.map((q) => `${nameOf[q.item] ?? q.item} ×${q.qty}`).join(", ")} · giá bán ${fmt(r.price)} linh thạch`))),
+          r.starter ? null : el("p", { class: "dim" }, `Lĩnh ngộ cần: ${r.reqs.map((q) => `${nameOf[q.item] ?? q.item} ×${q.qty}`).join(", ") || "không gì"} · giá bán ${fmt(r.price)} linh thạch`))),
       el("div", { class: "bar sws" },
         toggle(r, "enabled", "✓ Đang bật", "✕ Đã tắt", "Tắt: không ai dùng, học hay mua được"),
         r.starter ? null : toggle(r, "learnable", "📖 Học được bằng bí kíp", "★ Chỉ nhận từ sự kiện, hoạt động", "Bật: người chơi lĩnh ngộ bằng bí kíp và tinh thạch. Tắt: chỉ có khi được phát"),
         r.starter ? null : toggle(r, "on_sale", "💎 Đang bán", "Không bán", "Bật: mua được ở bảng Công Pháp bằng linh thạch")),
+      r.starter ? null : reqBox(r),
       r.starter ? null : grantBox(r));
     return [el("h2", {}, `Công pháp (${rows.length})`),
-      el("p", { class: "dim" }, "Mỗi công pháp được thiết kế riêng trong code (shared/cong-phap.js: cách đánh ở server/cong-phap.js, hình ở public/js/cong-phap.js), nên số liệu không chỉnh ở đây. Admin chỉ bật/tắt từng môn, chọn môn học được bằng bí kíp hay chỉ nhận từ sự kiện, hoạt động, và có bán hay không. Đổi là có hiệu lực ngay."),
+      el("p", { class: "dim" }, "Mỗi công pháp được thiết kế riêng trong code (shared/cong-phap.js: cách đánh ở server/cong-phap.js, hình ở public/js/cong-phap.js), nên số liệu chiến đấu không chỉnh ở đây. Admin bật/tắt từng môn, chọn môn học được bằng bí kíp hay chỉ nhận từ sự kiện, hoạt động, có bán hay không, và đổi vật phẩm cần để lĩnh ngộ. Đổi là có hiệu lực ngay."),
       el("div", { class: "artlist" }, rows.map(card))];
   },
 
@@ -753,7 +770,7 @@ const ACTIONS = {
 };
 function logItem(l) {
   const [t, a] = l.action.split(".");
-  const what = ACTIONS[l.action] ?? `${{ realms: "cảnh giới", items: "vật phẩm", monsters: "yêu thú", skills: "đánh thường", settings: "cài đặt", cosmetics: "tóc/áo", arts: "công pháp", cong_phap: "công pháp", art_reqs: "yêu cầu công pháp", monster_drops: "rơi đồ" }[t] ?? t} · ${{ edit: "sửa", add: "thêm", del: "xóa" }[a] ?? a}`;
+  const what = ACTIONS[l.action] ?? `${{ realms: "cảnh giới", items: "vật phẩm", monsters: "yêu thú", skills: "đánh thường", settings: "cài đặt", cosmetics: "tóc/áo", arts: "công pháp", cong_phap: "công pháp", cong_phap_reqs: "vật phẩm lĩnh ngộ", art_reqs: "yêu cầu công pháp", monster_drops: "rơi đồ" }[t] ?? t} · ${{ edit: "sửa", add: "thêm", del: "xóa" }[a] ?? a}`;
   return el("div", { class: "logitem" }, el("b", {}, l.admin), ` ${what} `, l.target ? el("span", { class: "tag" }, l.target) : null, el("span", { class: "dim" }, ` · ${when(l.at)}`),
     l.detail ? el("div", {}, el("code", {}, l.detail)) : null);
 }

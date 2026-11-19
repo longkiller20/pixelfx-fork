@@ -205,11 +205,20 @@ export function checkConfig(c) {
   // the arts are the ones designed in code; the database only switches each: on or off, learnable with its bí kíp (or
   // only given: events, activities), sold or not. An art without a row is on, learnable, not sold.
   const arts = {}, sw = Object.fromEntries((c.arts ?? []).map((a) => [a.key, a]));
+  // what learning each spends: the admin's list (cong_phap_reqs), or the art's own first list before the database is read
+  const need = {};
+  for (const r of c.reqs ?? []) {
+    if (!CONG_PHAP_BY_KEY[r.art]) throw new Error(`Vật phẩm lĩnh ngộ: công pháp "${r.art}" không có`);
+    if (CONG_PHAP_BY_KEY[r.art].starter) throw new Error(`${CONG_PHAP_BY_KEY[r.art].name} ai cũng biết sẵn, không cần vật phẩm`);
+    if (!items[r.item]) throw new Error(`Vật phẩm lĩnh ngộ của ${CONG_PHAP_BY_KEY[r.art].name}: vật phẩm "${r.item}" không có`);
+    (need[r.art] ??= []).push({ item: r.item, qty: num(r.qty, `số lượng ${r.item} cho ${r.art}`, 1, 9999) | 0 });
+  }
   for (const def of Object.values(CONG_PHAP_BY_KEY)) {
     const a = sw[def.key] ?? {}, on = (v, d) => (v === undefined || v === null ? d : v === true || v === 1 || v === "1");
     // an item it needs that isn't there (only before the database is read): it can't be learned until it is
-    const learnable = !def.starter && on(a.learnable, true) && def.reqs.every((r) => items[r.item]);
-    arts[def.key] = { ...def, enabled: on(a.enabled, true), learnable, source: def.starter ? "starter" : learnable ? "learn" : "event", onSale: !def.starter && on(a.onSale, false) };
+    const reqs = c.reqs ? need[def.key] ?? [] : def.reqs;
+    const learnable = !def.starter && on(a.learnable, true) && reqs.every((r) => items[r.item]);
+    arts[def.key] = { ...def, reqs, enabled: on(a.enabled, true), learnable, source: def.starter ? "starter" : learnable ? "learn" : "event", onSale: !def.starter && on(a.onSale, false) };
   }
   const drops = {};
   for (const d of c.drops ?? []) {

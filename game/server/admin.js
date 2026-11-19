@@ -81,6 +81,8 @@ const T = {
   // công pháp are designed in code (shared/cong-phap.js): an admin only switches each on or off, learnable with its bí
   // kíp or only given (events, activities), and sold or not
   cong_phap: { pk: "art_key", pkType: "key", order: "art_key", config: true, cols: { enabled: "bool", learnable: "bool", on_sale: "bool" } },
+  // and what learning each spends, an item per row
+  cong_phap_reqs: { pk: "id", order: "art_key, id", config: true, add: true, del: true, cols: { art_key: "str:32", item_key: "str:32", qty: "uint" } },
   // what monsters drop
   monster_drops: { pk: "id", order: "monster, id", config: true, add: true, del: true, cols: { monster: "str:16", item_key: "str:32", chance: "num", min_qty: "uint", max_qty: "uint" } },
   skills: { pk: "slot", order: "slot", config: true, cols: { name: "str:40", type: "enum:melee|bolt|zone", cd: "num", mult: "num", params: "json" } },
@@ -328,10 +330,10 @@ export function adminApp(world) {
       const [before] = await c.query(`SELECT * FROM ${name} WHERE ${t.pk} = ?`, [pk]);
       if (!before) throw bad("Không tìm thấy dòng này.", 404);
       await c.query(`DELETE FROM ${name} WHERE ${t.pk} = ?`, [pk]);
-      // a bí kíp or essence an art needs stays (the arts are in code)
+      // a bí kíp or essence an art needs stays until the art no longer needs it
       if (name === "items") {
-        const by = CONG_PHAP.filter((a) => (a.reqs ?? []).some((r) => r.item === pk)).map((a) => a.name);
-        if (by.length) throw bad(`Không xóa được: ${by.join(", ")} cần vật phẩm này để lĩnh ngộ.`);
+        const by = (await c.query("SELECT DISTINCT art_key FROM cong_phap_reqs WHERE item_key = ?", [pk])).map((r) => CONG_PHAP.find((a) => a.key === r.art_key)?.name ?? r.art_key);
+        if (by.length) throw bad(`Không xóa được: ${by.join(", ")} cần vật phẩm này để lĩnh ngộ (bỏ ở tab Công pháp trước).`);
       }
       // a monster takes its drop list with it; one a map places can't go
       if (name === "monsters") {
@@ -425,10 +427,10 @@ export function adminApp(world) {
   }));
   // the arts as designed in code, each with the admin's switches (cong_phap)
   r.get("/cong-phap", wrap(async (req, res) => {
-    const sw = Object.fromEntries((await q("SELECT * FROM cong_phap")).map((r) => [r.art_key, r]));
+    const sw = Object.fromEntries((await q("SELECT * FROM cong_phap")).map((r) => [r.art_key, r])), reqs = await q("SELECT id, art_key, item_key, qty FROM cong_phap_reqs ORDER BY id");
     res.json(CONG_PHAP.map((a) => ({
       key: a.key, name: a.name, desc: a.desc, line: a.line, element: a.element, tier: a.tier, cd: a.cd, aim: a.aim, starter: !!a.starter, icon: a.icon, fx: a.fx,
-      reqs: a.reqs ?? [], price: a.price ?? 0, enabled: !!(sw[a.key]?.enabled ?? 1), learnable: !!(sw[a.key]?.learnable ?? 1), on_sale: !!sw[a.key]?.on_sale,
+      reqs: reqs.filter((r) => r.art_key === a.key).map((r) => ({ id: r.id, item: r.item_key, qty: Number(r.qty) })), price: a.price ?? 0, enabled: !!(sw[a.key]?.enabled ?? 1), learnable: !!(sw[a.key]?.learnable ?? 1), on_sale: !!sw[a.key]?.on_sale,
     })));
   }));
   // an event's reward: give an art to everyone, everyone online, or a list of đạo hiệu; who is online gets it at once
