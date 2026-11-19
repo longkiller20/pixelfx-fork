@@ -554,8 +554,8 @@ body.rotated #panel:has(.charp) { --vh: 100dvw; }
     linear-gradient(180deg, #1a1430 0%, #0e0b18 100%);
   box-shadow: inset 0 0 30px #000a;
 }
-.stage .fig { position: relative; display: grid; place-items: center; }
-.stage canvas { width: clamp(84px, calc(var(--vh) * 0.27), 150px); height: auto; image-rendering: pixelated; position: relative; z-index: 1; }
+.stage .fig { position: relative; display: grid; place-items: center; min-width: 0; overflow: hidden; }
+.stage canvas { width: clamp(84px, calc(var(--vh) * 0.27), 150px); max-width: 100%; height: auto; image-rendering: pixelated; position: relative; z-index: 1; }
 .stage .plinth { position: absolute; bottom: 4%; width: 70%; height: 12px; border-radius: 50%; background: radial-gradient(#7ff0ff40, transparent 70%); }
 .slots { display: flex; flex-direction: column; gap: 8px; }
 .eslot {
@@ -570,12 +570,24 @@ body.rotated #panel:has(.charp) { --vh: 100dvw; }
 .ident .nm { color: var(--gold2); font-size: 16px; }
 .ident .realm { font-size: 12px; color: #7ff0ff; }
 .ident::after { content: ""; display: block; height: 12px; margin: 4px auto 0; width: 130px; background: url(/xianxia/ui/ui_xianxia_01_divider_jade.png) center / contain no-repeat; image-rendering: pixelated; }
-.cstats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 12.5px; }
-.cstats > div { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 6px; border-radius: 6px; background: #ffffff06; }
-.cstats img { width: 18px; height: 18px; image-rendering: pixelated; flex: none; }
-.cstats span { color: var(--dim, #a69cc4); white-space: nowrap; }
-.cstats b { margin-left: auto; color: #ffe8c8; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.cstats > div:first-child { grid-column: 1 / -1; }
+/* the numbers: sinh lực across the top with its bar, then three tiles a row, each its icon, its name small over its value */
+.cstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.cstats .hprow {
+  grid-column: 1 / -1; display: grid; grid-template-columns: 18px auto minmax(0, 1fr); grid-template-rows: auto 6px; align-items: center;
+  gap: 3px 6px; padding: 5px 8px 6px; border-radius: 8px; background: #ffffff06; border: 1px solid #ffffff0d; font-size: 12px;
+}
+.cstats .hprow img { width: 18px; height: 18px; image-rendering: pixelated; }
+.cstats .hprow span { color: var(--dim, #a69cc4); }
+.cstats .hprow b { justify-self: end; color: #ffe8c8; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cstats .hprow i { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: #2a0d14; overflow: hidden; box-shadow: inset 0 0 0 1px #00000080; }
+.cstats .hprow u { display: block; height: 100%; background: linear-gradient(90deg, #c2263c, #ff6a6a); text-decoration: none; }
+.cstats .tile {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 5px; align-items: center; min-width: 0;
+  padding: 4px 6px; border-radius: 8px; background: #ffffff06; border: 1px solid #ffffff0d;
+}
+.cstats .tile img { grid-row: 1 / 3; width: 16px; height: 16px; image-rendering: pixelated; }
+.cstats .tile span { font-size: 10px; line-height: 1.2; color: var(--dim, #a69cc4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cstats .tile b { font-size: 12.5px; line-height: 1.25; color: #ffe8c8; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* ---- right */
 .cright { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ctabs { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: #0b0814; border: 1px solid #ffffff12; }
@@ -619,26 +631,36 @@ button.cell:hover { border-color: #f0c05088; }
 .cdetail .dact { display: flex; gap: 6px; flex: none; }
 .cdetail .dact button:not(.primary) { padding: 6px 10px; border-radius: 8px; border: 1px solid #ffffff22; background: #ffffff08; }
 /* short screens (a phone on its side): tighter */
-@media (max-height: 520px) {
-  .charp { gap: 10px; grid-template-columns: minmax(180px, 230px) minmax(0, 1fr); --cell: clamp(36px, calc((var(--vh) - 230px) / 4), 54px); }
-  .stage { padding: 6px; }
-  .ident .nm { font-size: 14px; }
-  .ident::after { display: none; }
-  .cstats { font-size: 11px; gap: 2px 6px; }
-  .cstats > div { padding: 1px 4px; }
-  .cstats img { width: 14px; height: 14px; }
-  .cdetail { min-height: 48px; padding: 4px 8px; }
-  .cdetail .dpic { width: 40px; height: 40px; }
-  .cdetail .dtxt p { -webkit-line-clamp: 1; }
-  .ctabs button { padding: 3px 6px; }
-  /* two rows of ten: the bag keeps its 20 slots in half the height */
-  .cgrid { gap: 4px; grid-template-columns: repeat(10, var(--cell)); }
-  .charp { --cell: clamp(32px, calc((100vw - 330px) / 10), 48px); }
-  body.rotated .charp { --cell: clamp(32px, calc((100vh - 330px) / 10), 48px); }
-  .cell .kind { display: none; }
-  .cell .mark { width: 12px; height: 12px; font-size: 9px; }
-}
-body.rotated .charp { gap: 10px; grid-template-columns: minmax(180px, 230px) minmax(0, 1fr); }
+/* a short panel (a phone on its side, or held upright with the game turned): set from the panel's real height in charPanel */
+.charp.short { gap: 10px; grid-template-columns: minmax(180px, 230px) minmax(0, 1fr); --cell: clamp(36px, calc((var(--vh) - 230px) / 4), 54px); }
+.charp.short .stage { padding: 6px; }
+.charp.short .ident .nm { font-size: 14px; }
+.charp.short .ident::after { display: none; }
+.charp.short .cstats { gap: 3px; }
+.charp.short .cstats .hprow { padding: 3px 6px 4px; font-size: 11px; grid-template-rows: auto 4px; gap: 2px 5px; }
+.charp.short .cstats .hprow img { width: 14px; height: 14px; }
+.charp.short .cstats .hprow i { height: 4px; }
+.charp.short .cstats .tile { padding: 2px 4px; grid-template-columns: 13px minmax(0, 1fr); column-gap: 4px; }
+.charp.short .cstats .tile img { width: 13px; height: 13px; }
+.charp.short .cstats .tile span { font-size: 9px; }
+.charp.short .cstats .tile b { font-size: 11px; }
+.charp.short .cdetail { min-height: 48px; padding: 4px 8px; }
+.charp.short .cdetail .dpic { width: 40px; height: 40px; }
+.charp.short .cdetail .dtxt p { -webkit-line-clamp: 1; }
+.charp.short .ctabs button { padding: 3px 6px; }
+/* two rows of ten: the bag keeps its 20 slots in half the height */
+.charp.short .cgrid { gap: 4px; grid-template-columns: repeat(10, var(--cell)); }
+.charp.short { --cell: clamp(32px, calc((100vw - 330px) / 10), 48px); }
+body.rotated .charp.short { --cell: clamp(32px, calc((100vh - 330px) / 10), 48px); }
+.charp.short .cell .kind { display: none; }
+.charp.short .cell .mark { width: 12px; height: 12px; font-size: 9px; }
+/* very short (under 400 px): a smaller figure and slots, no flourishes */
+.charp.tiny .eslot { width: 38px; }
+.charp.tiny .stage canvas { width: 88px; }
+.charp.tiny .slots { gap: 5px; }
+.charp.tiny .ident { flex-direction: row; justify-content: center; align-items: baseline; gap: 6px; }
+#panel .pbox:has(.charp.tiny) header h3::after { display: none; }
+#panel .pbox:has(.charp.short) { border-width: 16px; border-image-width: 16px; }
 /* a narrow screen held upright without the rotated layout: one column */
 @media (max-width: 560px) and (min-height: 521px) { body:not(.rotated) .charp { grid-template-columns: 1fr; } }
 /* the Y Các: what is yours is marked, nothing more */
