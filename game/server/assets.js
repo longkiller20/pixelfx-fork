@@ -1,7 +1,7 @@
 // The pictures of things in the game, one folder per thing, in public/:
 //   toc-nam/ toc-nu/ y-phuc-nam/ y-phuc-nu/ vu-khi/ phi-kiem/   <idx>-<name>/hinh.png + thong-tin.json
 //   cong-phap/                                                    <n>-<name>/icon.png + thong-tin.json ({ key })
-// (tools/assets/split.py made the first ones out of the old atlases; tools/arts/icons.mjs makes the art icons.) The
+// (only the free parts are there now; tools/arts/icons.mjs makes the art icons, an artist the rest.) The
 // folders are listed here, so a new hair style or weapon is just a new folder: its number is the idx the database uses
 // (cosmetics.idx, characters.hair...). The list is read again at most every few seconds, and served as /assets.json.
 import { readdirSync, readFileSync, existsSync } from "node:fs";

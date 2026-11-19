@@ -9,7 +9,7 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
 - **Y Các chỉ còn đồ miễn phí:** 5 tóc và 5 y phục cho mỗi giới tính, 1 vũ khí (Trường Kiếm), 1 phi kiếm (Thanh Vân Kiếm). Chưa có món nào bán, cũng chưa có bảo vật.
   - Đồ bán và bảo vật sẽ được thiết kế riêng từng món, rồi admin thêm lại ở trang admin.
   - **Bảo vật** là món không bán, chỉ được tặng (admin tặng ở trang người chơi; sau này từ hoạt động, sự kiện, đấu giá). Cột `cosmetics.special` đánh dấu món nào là bảo vật. Bảo vật chưa được tặng thì không hiện ở Y Các; mua hay mặc đều bị từ chối.
-  - Ảnh của các món cũ vẫn nằm trong atlas, kể cả 11 vũ khí pixelfx (vẽ lại bằng `node tools/xianxia/pixelfx-weapons.mjs` và `python3 tools/xianxia/build.py --pixelfx-only`). Admin có thể thêm lại món nào đó theo số `idx`.
+  - Hình của các món cũ đã bỏ hẳn. Game chỉ còn hình của đồ miễn phí, mỗi món một thư mục (xem "Hình ảnh: mỗi món một thư mục").
   - Database cũ được dọn một lần khi máy chủ khởi động (migration `retire_shop_2026_11`, rồi `retire_specials_2026_11`). Người đã mua được hoàn linh thạch. Ai đang mặc món bị xoá thì đổi sang món miễn phí.
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật đang đứng.
@@ -320,7 +320,7 @@ Nguồn tài nguyên:
     với tông màu trầm (cỏ rêu, đất nâu sẫm tối dần theo độ sâu) để hợp với đá xanh và mây.
   - **Công trình:** cung điện vàng trên sân điện, bảo tháp 7 tầng trên đồi.
   - **Phía xa:** cung điện, cổng trời, tháp trắng và đảo bay trên mây.
-  - **Vũ khí:** 90 món (kiếm, đao, thương, kích, phất trần, thiền trượng, pháp bảo…), thu nhỏ còn 45% cho vừa nhân vật.
+  - **Vũ khí:** Trường Kiếm (thanh kiếm ai cũng cầm), thu nhỏ còn 45% cho vừa nhân vật.
   - **Giao diện:** khung mực có góc mây vàng, nút lụa đỏ và ngọc bích, thanh sinh lực và tu vi, icon vật phẩm và trạng thái, con
     trỏ hình kiếm.
 - **Cây hoa cao, biển chỉ đường:** *old frogatto tile art* (OpenGameArt), giấy phép **CC0**.
@@ -355,8 +355,6 @@ game/
   public/toc-nam/ toc-nu/ y-phuc-nam/ y-phuc-nu/ vu-khi/ phi-kiem/ cong-phap/
                          mỗi món, mỗi công pháp một thư mục (xem "Hình ảnh: mỗi món một thư mục")
   server/assets.js       liệt kê các thư mục hình đó, phục vụ ở /assets.json
-  tools/assets/          atlas gốc và split.py cắt atlas thành từng thư mục
-  tools/avatar/          ảnh gốc của họa sĩ và script cắt, thu nhỏ, canh tóc và áo vào thân
   tools/cosmetics.mjs    công cụ admin cho tóc và y phục (giá, tên, bán, tặng, thêm mới)
   tools/admin.mjs        công cụ admin dòng lệnh cho cảnh giới, đan dược, yêu thú, chiêu thức, cài đặt
   server/admin.js        máy chủ trang admin (cổng 5885): tài khoản admin, API, nhật ký
@@ -375,10 +373,10 @@ Mỗi loại đồ và công pháp có một thư mục trong `game/public/`. B�
 
 | Thư mục | Chứa | Ví dụ |
 | --- | --- | --- |
-| `toc-nam/`, `toc-nu/` | kiểu tóc nam, nữ | `toc-nam/8-huyenvanphat/` |
-| `y-phuc-nam/`, `y-phuc-nu/` | y phục nam, nữ | `y-phuc-nu/21-.../` |
-| `vu-khi/` | vũ khí cầm tay | `vu-khi/60-truongkiem/` |
-| `phi-kiem/` | phi kiếm để bay | `phi-kiem/0-thanhvankiem/` |
+| `toc-nam/`, `toc-nu/` | 5 kiểu tóc nam, 5 kiểu tóc nữ | `toc-nam/8-huyenvanphat/` |
+| `y-phuc-nam/`, `y-phuc-nu/` | 5 bộ y phục nam, 5 bộ nữ | `y-phuc-nu/21-xichsay/` |
+| `vu-khi/` | vũ khí cầm tay (Trường Kiếm) | `vu-khi/60-truongkiem/` |
+| `phi-kiem/` | phi kiếm để bay (Thanh Vân Kiếm) | `phi-kiem/0-thanhvankiem/` |
 | `cong-phap/` | icon công pháp | `cong-phap/1-phikiem/` |
 | `nhan-vat/` | thân gốc của mọi nhân vật | `nhan-vat/than-goc.png` |
 
@@ -404,7 +402,6 @@ Trình duyệt chỉ tải hình của món khi có người đang mặc hoặc 
 
 **Công cụ:**
 
-- `python3 tools/assets/split.py`: cắt các atlas cũ trong `tools/assets/atlases/` thành các thư mục trên. Chỉ cần chạy lại sau khi dựng lại atlas bằng `tools/avatar/build.py`, `tools/xianxia/build.py` hoặc `tools/swords/build.py`.
 - `node tools/arts/icons.mjs`: vẽ lại icon mọi công pháp vào `public/cong-phap/` từ hiệu ứng pixelfx. Cần máy chủ đang chạy. Công pháp chưa có thư mục thì trình duyệt tự vẽ icon.
 
 ## Trang admin (cổng 5885)
@@ -440,7 +437,7 @@ Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nh�
 | Yêu thú | Thêm, sửa, xóa yêu thú: hình, kiểu đánh (gần, xa, đứng yên), bay, chỉ số, tầm bắn và đạn, phần thưởng, tỉ lệ rơi đồ; số món trong danh sách rơi |
 | Đánh thường | Tên, thời gian hồi, sát thương và tầm của Kiếm Khí Trảm |
 | Cài đặt | 25 con số còn lại, chia nhóm, mỗi số có giải thích |
-| Tóc & Y phục | Lọc theo loại, giới, trạng thái; ảnh xem trước; sửa tên, giá, miễn phí, đang bán; thêm món ở ô atlas còn trống; xóa |
+| Tóc & Y phục | Lọc theo loại, giới, trạng thái; ảnh xem trước; sửa tên, giá, miễn phí, đang bán; thêm món theo số thư mục hình có sẵn; xóa |
 | Admin | Thêm admin (người mới phải đổi mật khẩu lần đầu), xóa admin, đổi mật khẩu của mình |
 | Nhật ký | Mọi thao tác của admin: ai, làm gì, lúc nào, giá trị trước và sau |
 
@@ -468,7 +465,7 @@ Buff công/thủ/sinh lực/tốc độ không áp dụng ở bản đồ đấu
 - Hồi máu, hồi sinh, dịch chuyển, làm mới hồi chiêu chạy ngay trong vòng lặp của game, giữa hai nhịp, nên không có gì chen vào.
 
 **Sửa là có hiệu lực ngay:**
-- Số liệu được kiểm tra trước khi lưu. Số sai (cảnh giới 0 tầng, sinh lực âm, ô tóc/áo không có trong atlas…) bị từ chối, kèm lý do.
+- Số liệu được kiểm tra trước khi lưu. Số sai (cảnh giới 0 tầng, sinh lực âm, số tóc/áo không có thư mục hình…) bị từ chối, kèm lý do.
 - Khi lưu, game áp dụng tức thì và người chơi đang online thấy luôn.
 - Sửa linh thạch, tu vi hay túi đồ của người đang online: game nhận số mới ngay. Đổi tên, giới tính, tóc hay áo: người đó được mời vào lại game để ai cũng thấy.
 - Khóa tài khoản: người chơi bị đẩy ra ngay, không đăng nhập lại được, và thấy lý do bị khóa.
@@ -546,7 +543,7 @@ Khi người chơi vừa đột phá tới cảnh giới đó, game báo đã m�
 
 **Phi kiếm** là loại `sword` trong bảng `cosmetics` (tab "Tóc, áo, vũ khí & phi kiếm" của admin, chọn "Phi kiếm (bay)"):
 
-- Atlas có 30 thanh, đang dùng 1 thanh. Các thanh được cắt từ ảnh `tools/swords/source.png` bằng `python3 tools/swords/build.py`, ra file `public/xianxia/swords.png` và `.json`.
+- Hiện có 1 thanh: `public/phi-kiem/0-thanhvankiem/`. Phi kiếm mới là một thư mục mới ở đó (hình nằm ngang, mũi kiếm bên phải; `by` trong `thong-tin.json` là hàng điểm ảnh chân đứng).
 - **Thanh Vân Kiếm** là kiếm cơ bản (`starter`): ai mở khoá bay cũng có ngay, không phải mua.
 - Hiện không bán thanh nào. Phi kiếm bán sẽ thiết kế riêng sau. Khi admin thêm phi kiếm để bán, người chơi chỉ mua được sau khi đã mở khoá bay.
 - Hiện cũng không có phi kiếm bảo vật nào. Admin có thể đánh dấu một phi kiếm là bảo vật (`special`) để chỉ tặng, không bán.
@@ -588,11 +585,12 @@ npm run cosmetics -- add hair f 40 400 "Tuyết Liên Kế" # thêm món mới
 Hoặc dùng SQL trực tiếp, ví dụ `UPDATE cosmetics SET price = 800 WHERE id = 57;`.
 
 **Thêm kiểu mới:**
-1. Vẽ vào sheet trong `tools/avatar/src/`. Có thể nối thêm hàng mới, mỗi hàng 8 món.
-2. Chạy `python3 tools/avatar/build.py` (cần Pillow và numpy). Script tự cắt từng món, thu nhỏ về cỡ nhân vật, rồi canh vào thân:
-   - Tóc phủ kín da đầu mà không che mắt.
-   - Áo có cổ nằm dưới cằm và gấu áo chạm chân.
-3. Thêm một dòng vào bảng bằng lệnh `add` ở trên, với `idx` là vị trí mới.
+1. Vẽ món mới cỡ nhân vật (thân gốc `public/nhan-vat/than-goc.png`, lưới 29 × 63, chân ở giữa đáy), nền trong suốt.
+2. Tạo thư mục `public/toc-nam/<số>-<tên>/` (hoặc `toc-nu`, `y-phuc-nam`, `y-phuc-nu`) chứa `hinh.png` và `thong-tin.json`:
+   - `ten`: tên món.
+   - `dx`, `dy`: vị trí góc trên trái của hình trên thân gốc.
+   - Tóc phải phủ kín da đầu mà không che mắt. Áo có cổ nằm dưới cằm và gấu áo chạm chân.
+3. Thêm một dòng vào bảng bằng lệnh `add` ở trên (hoặc ở trang admin), với `idx` là số của thư mục.
 
 Nhân vật tạo trước bản cập nhật này vẫn giữ tên, tu vi và bộ đang mặc (được ghi là đã sở hữu).
 
