@@ -90,7 +90,7 @@ input:focus { border-color: var(--gold); }
 .menu { position: absolute; top: 8px; right: 10px; display: flex; gap: 6px; }
 .menu button { width: 38px; height: 38px; border-radius: 10px; background: #0d0a16cc; border: 1px solid var(--line); cursor: pointer; font-size: 17px; }
 .menu button svg { width: 18px; height: 18px; fill: none; stroke: #e8e0ff; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
-#logoutBtn svg { stroke: #ff9a9a; }
+#settingsBtn svg { stroke: #e8e0ff; }
 .menu button { display: inline-grid; place-items: center; padding: 0; }
 .menu button.ready { border-color: var(--gold); box-shadow: 0 0 12px #f0c05088; animation: pulse 1.2s infinite; }
 .pulse { animation: pulse 1.2s infinite; }
@@ -226,7 +226,7 @@ body.rotated .ward { grid-template-columns: 140px 1fr; gap: 8px; }
 .menu button:hover { border-image-source: url(/xianxia/ui/ui_xianxia_button_01_jade_hover.png); }
 .menu button:active { border-image-source: url(/xianxia/ui/ui_xianxia_button_01_jade_pressed.png); }
 .menu button svg { stroke: #1e4a30; }
-#logoutBtn svg { stroke: #8a1a2a; }
+#settingsBtn svg { stroke: #1e4a30; }
 .menu button.ready { box-shadow: 0 0 14px #f0c050; }
 /* the bars: the pack's frame, its red and jade fills */
 .bar { height: 13px; border-radius: 0; background: url(/xianxia/ui/ui_xianxia_bar_01_frame.png) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; }
@@ -665,3 +665,57 @@ body.rotated .charp.short { --cell: clamp(32px, calc((100vh - 330px) / 10), 48px
 @media (max-width: 560px) and (min-height: 521px) { body:not(.rotated) .charp { grid-template-columns: 1fr; } }
 /* the Y Các: what is yours is marked, nothing more */
 .ward .picks .tag { color: #8af0b8; }
+
+/* ================================================================ Cài đặt (⚙): sound and the account, in the pack's look.
+   Groups as recessed ink panels with a lantern or token icon, a jade switch, a gold slider whose track fills as it goes. */
+#panel .pbox:has(.setp) { width: min(460px, 100%); }
+.setp { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.setp .sgroup { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; background: linear-gradient(180deg, #ffffff07, #ffffff03); border: 1px solid #f0c05026; box-shadow: inset 0 0 20px #0006; }
+.setp h4 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold2); }
+.setp h4 img { width: 20px; height: 20px; image-rendering: pixelated; }
+.setp .srow { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.setp .slbl { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.setp .slbl b { color: #ffe8c8; font-size: 15px; }
+.setp .slbl small { color: var(--dim, #a69cc4); font-size: 12px; }
+/* the switch: a jade pill with a gold bead */
+.switch { position: relative; width: 52px; height: 28px; flex: none; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.switch span { position: absolute; inset: 0; border-radius: 999px; background: #2a2238; border: 1px solid #ffffff22; box-shadow: inset 0 2px 4px #0008; transition: background 0.18s, border-color 0.18s; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6d0, #c9a24a 70%); box-shadow: 0 2px 4px #0009; transition: transform 0.18s cubic-bezier(0.3, 1.4, 0.6, 1); }
+.switch input:checked + span { background: linear-gradient(180deg, #2f9a6a, #1d6a48); border-color: #7ff0c066; }
+.switch input:checked + span::after { transform: translateX(24px); }
+.switch input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* the slider: a gold-filled track, a jade-ringed gold knob */
+.setp .vol .slbl { flex: 0 0 auto; }
+.setp .vico { width: 22px; text-align: center; font-size: 16px; }
+.slider { -webkit-appearance: none; appearance: none; flex: 1; min-width: 80px; height: 26px; background: transparent; cursor: pointer; --p: 50%; }
+.slider::-webkit-slider-runnable-track { height: 8px; border-radius: 6px; border: 1px solid #00000080; background: linear-gradient(90deg, #c88a1c, #ffe08a var(--p), #2a2238 var(--p)); box-shadow: inset 0 1px 2px #0008; }
+.slider::-moz-range-track { height: 8px; border-radius: 6px; border: 1px solid #00000080; background: #2a2238; }
+.slider::-moz-range-progress { height: 8px; border-radius: 6px; background: linear-gradient(90deg, #c88a1c, #ffe08a); }
+.slider::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; margin-top: -7px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6d0, #d6a640 70%); border: 3px solid #2f9a6a; box-shadow: 0 2px 6px #000a, 0 0 8px #f0c05055; }
+.slider::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff6d0, #d6a640 70%); border: 3px solid #2f9a6a; box-shadow: 0 2px 6px #000a; }
+.slider:disabled { opacity: 0.4; cursor: default; }
+.setp .vout { width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: var(--gold2); font-weight: 600; }
+/* now playing */
+.nowplay { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: #0b0814; border: 1px solid #ffffff12; font-size: 13px; color: #cfc6ea; min-width: 0; }
+.nowplay .ttl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nowplay .disc { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle, #f0c050 0 18%, #1a1428 19% 60%, #3a2f52 61%); color: transparent; flex: none; }
+.nowplay.on .disc { animation: spin 3s linear infinite; box-shadow: 0 0 10px #f0c05055; }
+.nowplay .nextbtn { flex: none; padding: 4px 10px; border-radius: 8px; border: 1px solid #ffffff22; background: #ffffff08; color: #e8e0ff; font: inherit; font-size: 12px; cursor: pointer; }
+.nowplay .nextbtn:disabled { opacity: 0.4; cursor: default; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.setp.muted .nowplay { opacity: 0.55; }
+.setp .logout { flex: none; }
+.setp .logout.sure { filter: hue-rotate(-15deg) brightness(1.15); }
+.setp .credit { margin: 0; font-size: 11px; color: var(--dim, #a69cc4); text-align: center; }
+/* the slider is not a text field: none of the game's input box look */
+.setp .slider { border: 0; padding: 0; margin: 0; background: transparent; box-shadow: none; outline: none; border-radius: 0; }
+.setp .slider:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--gold); outline-offset: 2px; }
+/* a short screen (a phone on its side, or upright with the game turned; set in settingsPanel): the two groups side by side */
+#panel .pbox:has(.setp.short) { width: min(760px, 100%); }
+.setp.short { display: grid; grid-template-columns: 1.25fr 1fr; gap: 10px; align-items: stretch; }
+.setp.short .sgroup { padding: 10px 12px; gap: 8px; }
+.setp.short .credit { grid-column: 1 / -1; }
+.setp.short .sgroup:last-of-type .srow { flex-direction: column; align-items: stretch; gap: 10px; }
+.setp.tiny .credit { display: none; }
+#panel .pbox:has(.setp.tiny) header h3::after { display: none; }
