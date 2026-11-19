@@ -544,7 +544,7 @@ $("wardBtn").addEventListener("click", async () => {
     else if (has(sel)) (st.textContent = sel.special ? "★ Bảo vật" : sel.starter ? "Miễn phí" : "Đã có"), (b.textContent = sel.kind === "sword" ? "Dùng" : "Mặc");
     else {
       st.textContent = `${sel.price} linh thạch`;
-      b.textContent = me.character.stones >= sel.price ? (sel.kind === "sword" ? "Mua và dùng" : "Mua và mặc") : "Thiếu linh thạch";
+      b.textContent = me.character.stones >= sel.price ? "Mua" : "Thiếu";
       b.disabled = me.character.stones < sel.price;
     }
   };
