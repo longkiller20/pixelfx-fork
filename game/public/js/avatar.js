@@ -53,8 +53,9 @@ export function loadPart(key, i) {
   i = idxOf(key, i);
   if (i === null) return Promise.resolve(null);
   const id = `${key}:${i}`, have = parts.get(id);
-  if (have && typeof have === "object") return Promise.resolve(have.s ? have : null);
+  // still on its way: the same promise (a pending promise is an object too, so this comes first)
   if (have?.then) return have;
+  if (have) return Promise.resolve(have.s ? have : null);
   const e = meta[key][i];
   const pr = pixels(`/${e.dir}/hinh.png`)
     .then((s) => {

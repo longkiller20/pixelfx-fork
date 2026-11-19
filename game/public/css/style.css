@@ -515,3 +515,19 @@ body.rotated .ward .seg button { padding: 4px 8px; font-size: 12px; }
 /* the parts and the page buttons in the middle of their column */
 .ward .picks.big { justify-content: center; }
 .ward .wpager { justify-content: center; }
+
+/* Y Các: what is not yours yet is greyed out; its price shows only in the purchase confirmation */
+.picks button.dim canvas { opacity: 0.5; filter: grayscale(0.6); }
+.picks button.dim.on canvas { opacity: 0.7; filter: grayscale(0.3); }
+.buyask { position: absolute; inset: 0; z-index: 6; background: #000b; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.buyask .card { background: #15101f; border: 1px solid var(--gold); border-radius: 12px; box-shadow: 0 0 24px #f0c05030; padding: 14px 18px; width: min(300px, 100%); display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.buyask h4 { margin: 0; color: var(--gold2); font-size: 15px; }
+.buyask .pic { width: 72px; height: 72px; background: #0e0b18; border: 1px solid var(--line); border-radius: 8px; display: grid; place-items: center; }
+.buyask .pic canvas { max-width: 100%; max-height: 100%; image-rendering: pixelated; }
+.buyask .nm { color: var(--gold2); }
+.buyask .price b { color: #ffe08a; }
+.buyask .after { font-size: 12px; }
+.buyask .after.bad { color: #ff8a80; }
+.buyask .btns { display: flex; gap: 8px; margin-top: 4px; width: 100%; }
+.buyask .btns button { flex: 1; padding: 7px 10px; }
+.buyask .yes:disabled { opacity: 0.45; filter: grayscale(0.8); cursor: not-allowed; }
