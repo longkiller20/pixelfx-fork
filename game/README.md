@@ -428,6 +428,20 @@ Buff công/thủ/sinh lực/tốc độ không áp dụng ở bản đồ đấu
 
 Các lệnh `npm run admin` và `npm run cosmetics` vẫn dùng được song song với trang web.
 
+## Chiêu vùng kéo chọn vị trí
+
+Chiêu vùng có hiệu ứng nổ tại chỗ (`fx_at` = `target`) giờ chọn được nơi nổ, trong tầm `aim` tính từ nhân vật. Mặc định tầm là 280 px, đang áp dụng cho 86 chiêu.
+
+- **Điện thoại:** giữ nút chiêu rồi kéo theo hướng muốn ném.
+  - Kéo 90 px là tới hết tầm.
+  - Vòng xanh quanh nhân vật là tầm tối đa. Vòng vàng là chỗ chiêu sẽ nổ, đúng bán kính `r`, có đường chấm nối từ nhân vật tới.
+  - Thả tay để tung chiêu.
+  - Chạm nhanh, không kéo, thì chiêu tự rơi vào kẻ địch gần nhất trong tầm; không có kẻ địch thì nổ ở chỗ cũ phía trước.
+- **Máy tính:** chiêu nổ ở chỗ con trỏ chuột, bị kéo về trong tầm nếu chuột ở quá xa.
+- **Server kiểm tra lại mọi thứ:** điểm ở ngoài tầm thì bị kéo vào trong tầm. Điểm ngắm vào trong đất thì được đẩy lên mặt đất. Có mặt đất hay ván gỗ trong vòng 3 ô bên dưới thì chiêu rơi xuống đó, không thì nổ giữa không trung.
+  - Màn hình người chơi dùng đúng cách tính này (`zoneLanding` trong `shared/physics.js`), nên vòng vàng hiện đúng chỗ chiêu sẽ nổ.
+- **Admin:** chỉnh `aim` trong thông số của từng chiêu ở tab Công pháp. Để 0 thì chiêu luôn nổ cách nhân vật `dist` px phía trước như cũ (7 chiêu kiểu thế võ, `fx_at` = `front`, giữ như vậy).
+
 ## Icon công pháp
 
 Icon của mọi hiệu ứng pixelfx (247 cái) được vẽ sẵn vào một ảnh: `public/arts/icons.png` (khoảng 160 KB) kèm `icons.json`. Nhờ vậy bảng Công Pháp và thanh chiêu hiện icon ngay, không phải vẽ hơn 200 hiệu ứng trên điện thoại.

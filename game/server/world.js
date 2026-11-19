@@ -7,7 +7,7 @@ import {
   FLY, canFly, flyRealmName,
 } from "../shared/balance.js";
 import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
-import { stepBody, fits, PHYS } from "../shared/physics.js";
+import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
 import * as store from "./store.js";
 import { userFromToken } from "./auth.js";
 import { KeyedLock } from "./lock.js";
@@ -323,7 +323,9 @@ export class World {
         const l = Math.hypot(ax, ay);
         if (l < 1e-3) (ax = p.face), (ay = 0);
         else (ax /= l), (ay /= l);
-        return this.cast(p, i, ax, ay);
+        // a zone dragged to a spot: where (checked against the art's reach in cast)
+        const to = num(m.tx) && num(m.ty) ? { x: m.tx, y: m.ty } : null;
+        return this.cast(p, i, ax, ay, to);
       }
       case "chat": {
         if (typeof m.m !== "string" || this.t < p.chatAt) return;
@@ -400,7 +402,7 @@ export class World {
     return dmg;
   }
 
-  cast(p, i, ax, ay) {
+  cast(p, i, ax, ay, to = null) {
     if (p.dead || p.busyUntil > this.t || p.warping) return;
     const t = this.t;
     let sk;
@@ -444,8 +446,11 @@ export class World {
         this.bolts.push({ id: nextId(), owner: p, art: key, x: p.x + ax * 16, y: p.y + ay * 16, vx: ax * sk.speed, vy: ay * sk.speed, left: sk.range, r: sk.r, atk: st.atk, mult: sk.mult });
         break;
       case "zone": {
-        const x = clamp(p.x + dir * sk.dist, 20, this.map.w - 20), y = p.y;
-        if (key) show(sk.at === "target" ? x : p.x, p.y);
+        let x = clamp(p.x + dir * sk.dist, 20, this.map.w - 20), y = p.y;
+        // aimed: anywhere within the art's reach of the caster, settling onto the ground below if there is some close
+        const aimed = !!(sk.aim > 0 && to);
+        if (aimed) [x, y] = this.zoneSpot(p, to, sk.aim);
+        if (key) show(sk.at === "target" || aimed ? x : p.x, sk.at === "target" || aimed ? y : p.y);
         else this.ev({ e: "fx", k: "thunder", x: Math.round(x), y: Math.round(y) });
         burst(x, y, sk.delay);
         break;
@@ -592,6 +597,21 @@ export class World {
   move(e, dx, dy) {
     e.x = clamp(e.x + dx, 20, this.map.w - 20);
     e.y = clamp(e.y + dy, 40, this.map.h - 10);
+  }
+
+  /**
+   * Where an aimed zone lands: the point asked for, pulled in to `reach` px of the caster (measured from their chest), and
+   * dropped onto the ground under it when that is within three tiles; otherwise it bursts in the air there.
+   */
+  zoneSpot(p, to, reach) {
+    const cx = p.x, cy = p.y - 30;
+    let dx = to.x - cx, dy = to.y - cy;
+    const d = Math.hypot(dx, dy);
+    if (d > reach) (dx *= reach / d), (dy *= reach / d);
+    const x = clamp(cx + dx, 20, this.map.w - 20);
+    let y = clamp(cy + dy, 40, this.map.h - 2);
+    y = zoneLanding(this.map, x, y);
+    return [x, y];
   }
 
   /** Get on (or off) the flying sword. Getting off in the air just drops them: gravity takes over. */

@@ -4,7 +4,7 @@
 // applied live and pushed to every browser; a broken one is refused with a log line and the game keeps the last good set.
 import { q, pool } from "./db.js";
 import { DEFAULTS, applyConfig } from "../shared/balance.js";
-import { ARTS_SEED, ART_ITEMS_SEED, ART_REQS_SEED, DROPS_SEED, ELEMENTS } from "../shared/arts-seed.js";
+import { ARTS_SEED, ART_ITEMS_SEED, ART_REQS_SEED, DROPS_SEED, ELEMENTS, ZONE_AIM } from "../shared/arts-seed.js";
 
 // the element each critter's drops follow
 const MONSTER_ELEMENT = { ghost: "am", bat: "am", bird: "phong", butterfly: "moc", eyeball: "huyen", fish_school: "thuy", flying_skull: "hoa", frog: "moc", jellyfish: "loi", slime: "thu", snake: "moc", wisp: "quang" };
@@ -166,6 +166,8 @@ async function seedArts(freshMonsters = []) {
   await q("UPDATE monsters SET common_drops = 0 WHERE type = 'dummy'");
   // the whole moves are drawn 1.65x now, so their target stands 96 px ahead, not 70 (only rows an admin left as seeded)
   await q("UPDATE arts SET params = JSON_SET(params, '$.dist', 96) WHERE fx LIKE 'moves/%' AND type = 'zone' AND JSON_VALUE(params, '$.dist') = 70");
+  // zones drawn where they land can be dragged anywhere within ZONE_AIM (only rows that don't say yet)
+  await q("UPDATE arts SET params = JSON_SET(params, '$.aim', ?) WHERE type = 'zone' AND fx_at = 'target' AND JSON_VALUE(params, '$.aim') IS NULL", [ZONE_AIM]);
   // a campfire, a fountain or the weather stays where it was called up instead of walking along with the caster
   await q("UPDATE arts SET fx_at = 'target' WHERE fx_at = 'self' AND fx IN ('fire/brazier', 'fire/campfire', 'fire/candle', 'fire/torch', 'water/fountain', 'weather/aurora', 'weather/cherry-blossoms', 'weather/god-rays', 'weather/clouds')");
   await q("UPDATE arts SET fx_life = 10 WHERE fx = 'holy/halo' AND fx_life = 4");

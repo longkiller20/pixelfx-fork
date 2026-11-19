@@ -9,7 +9,8 @@
 // Types the server knows (params in brackets; see ART_PARAMS in balance.js):
 //   melee  an arc in front                         [range, arc]
 //   bolt   a projectile                            [range, speed, r]
-//   zone   an area ahead, after a beat              [dist, r, delay, slow, slowDur]
+//   zone   an area ahead, after a beat              [dist, r, delay, slow, slowDur, aim]
+//          aim > 0: the player can drag it anywhere within aim px (the ones drawn where they land: at target)
 //   nova   an area round the caster                 [r, delay, slow, slowDur]
 //   dash   a rush forward, hitting along the way   [dist, r]
 //   heal   restores part of the caster's hp         [pct]
@@ -283,6 +284,8 @@ export const TYPE_DEFAULTS = {
 };
 const TIER = { 1: { mult: 1, cd: 1, qty: 3, rare: 0 }, 2: { mult: 1.3, cd: 1.35, qty: 6, rare: 1 }, 3: { mult: 1.8, cd: 2, qty: 10, rare: 3 } };
 const NON_PARAMS = new Set(["at", "life", "cd", "mult"]);
+// how far a zone that lands where it is aimed can be put from the caster
+export const ZONE_AIM = 280;
 
 const keyOf = (fx) => fx.replace(/[/-]/g, "_");
 const round = (v) => Math.round(v * 100) / 100;
@@ -295,6 +298,7 @@ export const ARTS_SEED = [
   ...L.map(([fx, name, element, type, tier, o], i) => {
     const d = TYPE_DEFAULTS[type], t = TIER[tier], params = {};
     for (const [k, v] of Object.entries({ ...d, ...o })) if (!NON_PARAMS.has(k)) params[k] = v;
+    if (type === "zone" && (o.at ?? d.at) === "target") params.aim = o.aim ?? ZONE_AIM;
     return {
       key: keyOf(fx), name, desc: "", element, tier, type, cd: round((o.cd ?? d.cd) * t.cd), mult: round((o.mult ?? d.mult) * t.mult), params,
       fx, at: o.at ?? d.at, life: o.life ?? 0, starter: false, sort: 10 + i,

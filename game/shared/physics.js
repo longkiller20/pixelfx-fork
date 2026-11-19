@@ -129,3 +129,16 @@ export function fits(x, y, M) {
     for (let cx = Math.floor((x - PHYS.HW) / T); cx <= Math.floor((x + PHYS.HW) / T); cx++) if (M.solid(cx, cy)) return false;
   return true;
 }
+
+/**
+ * Where an aimed zone at (x, y) comes to rest: out of the ground if aimed into it, then down onto the ground or a plank
+ * under it when that is within three tiles; otherwise it stays in the air there. Server and browser both use this, so the
+ * mark you drag shows exactly where it bursts.
+ */
+export function zoneLanding(M, x, y) {
+  const T = M.T, col = Math.floor(x / T);
+  while (y > T && M.solid(col, Math.floor(y / T))) y = Math.floor(y / T) * T - 1;
+  for (let row = Math.floor(y / T); row <= Math.floor((y + 3 * T) / T); row++)
+    if (M.solid(col, row) || M.plank(col, row)) return Math.min(y + 3 * T, row * T);
+  return y;
+}

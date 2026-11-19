@@ -570,6 +570,51 @@ const SHOP_TEST = "Hàng thử nghiệm";
   ok("phi kiếm: bought once flight opens and ridden at once; bảo vật swords never sold or ridden ungiven");
 }
 
+// an aimed zone: dragged far, it lands no farther than its reach; put on a dummy, it hits the dummy and nothing nearer
+{
+  const { q } = await import("../server/db.js");
+  const bal = await import("../shared/balance.js");
+  bal.applyConfig((await call("/config")).data);
+  const key = "explosions_small_explosion", art = bal.ARTS[key];
+  assert.ok(art && art.type === "zone" && art.aim > 0, "Tiểu Bạo Phù can be aimed");
+  const P = await player();
+  const [row] = await q("SELECT u.id FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [P.name]);
+  await q("INSERT INTO learned_arts (user_id, art_key) VALUES (?, ?)", [row.id, key]);
+  await q("UPDATE characters SET art_slots = ? WHERE user_id = ?", [JSON.stringify([key, null, null, null, null]), row.id]);
+  const c = await connect(P.token);
+  await sleep(400);
+  const events = () => c.msgs.filter((m) => m.t === "s").flatMap((m) => m.E);
+  const at = () => c.snap.P.find((x) => x[0] === c.id);
+  let p = at();
+  // far to the right and up in the sky: pulled in to the reach
+  send(c, { t: "cast", s: 1, ax: 1, ay: 0, tx: p[1] + 2000, ty: p[2] - 900 });
+  await sleep(400);
+  const e1 = events().find((e) => e.e === "art" && e.id === c.id && e.a === key);
+  assert.ok(e1, "cast");
+  const d1 = Math.hypot(e1.x - p[1], e1.y - (p[2] - 30));
+  assert.ok(d1 <= art.aim + 2 && d1 > art.aim - 40, `landed at its reach, not where asked (${Math.round(d1)} px, reach ${art.aim})`);
+  // walk to within reach of a standing dummy, then put the zone on it
+  const d = c.snap.M.find((m) => m[1] === "dummy" && !(m[6] & 1));
+  for (let i = 0; i < 120; i++) {
+    p = at();
+    const dx = d[2] - 200 - p[1];
+    if (Math.abs(dx) < 8) break;
+    send(c, { t: "in", dx: Math.sign(dx), jump: false, down: false });
+    await sleep(50);
+  }
+  send(c, { t: "in", dx: 0, jump: false, down: false });
+  await sleep(art.cd * 1000 + 200);
+  const n0 = events().length;
+  send(c, { t: "cast", s: 1, ax: 1, ay: 0, tx: d[2], ty: d[3] - 20 });
+  await sleep((art.delay + 0.5) * 1000);
+  const after = events().slice(n0);
+  const e2 = after.find((e) => e.e === "art" && e.id === c.id);
+  assert.ok(e2 && Math.abs(e2.x - d[2]) < 4 && Math.abs(e2.y - d[3]) < 4, `landed on the dummy, on the ground (${e2?.x},${e2?.y} vs ${d[2]},${d[3]})`);
+  assert.ok(after.some((e) => e.e === "hit" && e.id === d[0]), "and hit it, 200 px away");
+  c.ws.close();
+  ok("aimed zone: lands where it is put within its reach, settles on the ground, hits what is there; never beyond its reach");
+}
+
 {
   const { q, pool } = await import("../server/db.js");
   await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);
