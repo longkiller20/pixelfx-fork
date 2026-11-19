@@ -13,14 +13,24 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Database cũ được dọn một lần khi máy chủ khởi động (migration `retire_shop_2026_11`, rồi `retire_specials_2026_11`). Người đã mua được hoàn linh thạch. Ai đang mặc món bị xoá thì đổi sang món miễn phí.
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật đang đứng.
-- **Y Các (nút 👘 trong game):** các tab tóc, y phục, vũ khí, phi kiếm. Hiện chỉ có đồ miễn phí. Khi admin thêm đồ bán, người chơi
-  thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
+- **Nhân vật (nút 👤, phím C):** bên trái là nhân vật đang đứng trong bộ đồ đang mặc, 4 ô trang bị quanh nhân vật (tóc, y
+  phục, vũ khí, phi kiếm), tên, cảnh giới và chỉ số (sinh lực, công, thủ, tốc độ, linh thạch, điểm đấu trường, hạ/bại).
+  Bên phải là đồ của người chơi, chia tab **Tất cả**, **Trang bị**, **Vật phẩm**.
+  - Đồ hiện thành lưới ô, 20 ô một trang; ô trống giữ hình túi đồ. Món đang mặc có viền vàng và dấu ✓; vật phẩm ghi số lượng.
+  - Tab Trang bị có thêm nút lọc: Tóc, Y phục, Vũ khí, Phi kiếm. Bấm một ô trang bị quanh nhân vật thì mở thẳng loại đó.
+  - Chọn một món thì thấy tên, loại, mô tả bên dưới, kèm nút: **Trang bị** (đồ đã có), **Dùng** (đan dược), hoặc mở bảng
+    Công Pháp (bí kíp, nguyên liệu).
+  - **Thay đồ chỉ làm ở đây.** Người khác thấy ngay.
+  - Dùng khung, nút và icon của Xianxia Pixel Pack. Vừa một màn hình, không thanh cuộn: trên điện thoại nằm ngang, túi đồ
+    thành 2 hàng 10 ô.
+- **Y Các (nút 👘 trong game):** chỉ để mua tóc, y phục, vũ khí, phi kiếm. Không thay đồ ở đây nữa: món đã sở hữu sáng lên,
+  có dấu ✓, chọn vào thì ghi "Đã sở hữu"; mua xong thì vào bảng Nhân vật để mặc.
   - Mỗi trang 10 món (5 × 2), có nút trang.
-  - Thứ tự: món đang mặc trước, rồi món đã có, rồi đồ bán từ rẻ đến đắt.
+  - Thứ tự: đồ đang bán từ rẻ đến đắt, rồi món đã có.
   - Món chưa sở hữu hiện mờ và không ghi giá ở ngoài; chọn món đó thì thấy "Chưa sở hữu" và nút **Mua**.
   - Bấm Mua thì hiện hộp xác nhận: hình món, tên, giá, số linh thạch đang có và còn lại sau khi mua (không đủ thì báo thiếu bao nhiêu
     và nút Mua bị khoá). Bấm Huỷ, phím Esc hay bấm ra ngoài để thôi.
-  - Xem trước nhân vật đang đứng; ở tab phi kiếm thì nhân vật đứng trên thanh kiếm.
+  - Xem trước nhân vật đang đứng mặc thử món đang chọn; ở tab phi kiếm thì nhân vật đứng trên thanh kiếm.
   - Cả bảng luôn vừa một màn hình, không có thanh cuộn: máy tính, điện thoại nằm ngang, điện thoại cầm dọc (giao diện tự xoay).
   - Mọi nhân vật dựng từ cùng một thân gốc, nên tóc và áo nào cũng mặc vừa.
   - Có rig và hoạt ảnh: thân trên thở và nhún, tay áo xoay quanh vai, vạt áo và tóc bay theo bước chạy, hai chân bước.
