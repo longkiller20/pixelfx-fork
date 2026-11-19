@@ -12,9 +12,13 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Ảnh của các món cũ vẫn nằm trong atlas, kể cả 11 vũ khí pixelfx (vẽ lại bằng `node tools/xianxia/pixelfx-weapons.mjs` và `python3 tools/xianxia/build.py --pixelfx-only`). Admin có thể thêm lại món nào đó theo số `idx`.
   - Database cũ được dọn một lần khi máy chủ khởi động (migration `retire_shop_2026_11`, rồi `retire_specials_2026_11`). Người đã mua được hoàn linh thạch. Ai đang mặc món bị xoá thì đổi sang món miễn phí.
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
-  mỗi giới), xem trước nhân vật cử động: đứng, đi, nhảy, xuất chiêu.
+  mỗi giới), xem trước nhân vật đang đứng.
 - **Y Các (nút 👘 trong game):** các tab tóc, y phục, vũ khí, phi kiếm. Hiện chỉ có đồ miễn phí. Khi admin thêm đồ bán, người chơi
   thử trước rồi mới mua; món đã mua mặc lại lúc nào cũng được, người khác thấy ngay.
+  - Mỗi trang 10 món (5 × 2), có nút trang.
+  - Thứ tự: món đang mặc trước, rồi món đã có, rồi đồ bán từ rẻ đến đắt.
+  - Xem trước nhân vật đang đứng; ở tab phi kiếm thì nhân vật đứng trên thanh kiếm.
+  - Cả bảng luôn vừa một màn hình, không có thanh cuộn: máy tính, điện thoại nằm ngang, điện thoại cầm dọc (giao diện tự xoay).
   - Mọi nhân vật dựng từ cùng một thân gốc, nên tóc và áo nào cũng mặc vừa.
   - Có rig và hoạt ảnh: thân trên thở và nhún, tay áo xoay quanh vai, vạt áo và tóc bay theo bước chạy, hai chân bước.
 - **Yêu thú:** cả 12 critters của pixelfx đều đã có chỉ số trong database, nhưng chưa đặt lên bản đồ nào; sẽ có khi có
