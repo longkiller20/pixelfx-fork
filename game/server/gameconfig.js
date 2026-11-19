@@ -91,6 +91,9 @@ export const CONFIG_SCHEMA = [
   // with a line for the players saying where
   "ALTER TABLE arts ADD COLUMN IF NOT EXISTS source VARCHAR(8) NOT NULL DEFAULT 'learn' AFTER starter",
   "ALTER TABLE arts ADD COLUMN IF NOT EXISTS source_note VARCHAR(100) NOT NULL DEFAULT '' AFTER source",
+  // a zone art the player may drag to any spot within aim_range px of themselves (an admin switches it per art)
+  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS aimable TINYINT(1) NOT NULL DEFAULT 0 AFTER fx_scale",
+  "ALTER TABLE arts ADD COLUMN IF NOT EXISTS aim_range INT UNSIGNED NOT NULL DEFAULT 280 AFTER aimable",
   // pills (used from the bar), books and materials (spent on arts)
   "ALTER TABLE items ADD COLUMN IF NOT EXISTS kind VARCHAR(8) NOT NULL DEFAULT 'pill' AFTER name",
   // straw dummies drop nothing; everything else takes the '*' drops
@@ -153,10 +156,10 @@ async function seedArts(freshMonsters = []) {
   const rows = ARTS_SEED.map((a) => {
     const o = old.find((s) => (a.key === "phikiem" && s.slot === 1) || (a.key === "loian" && s.slot === 2));
     const params = o ? { ...a.params, ...JSON.parse(o.params) } : a.params;
-    return [a.key, o?.name ?? a.name, a.desc, a.element, a.tier, a.type, o?.cd ?? a.cd, o?.mult ?? a.mult, JSON.stringify(params), a.fx, a.at, a.life, a.starter ? 1 : 0, a.sort];
+    return [a.key, o?.name ?? a.name, a.desc, a.element, a.tier, a.type, o?.cd ?? a.cd, o?.mult ?? a.mult, JSON.stringify(params), a.fx, a.at, a.life, a.starter ? 1 : 0, a.sort, a.aim > 0 ? 1 : 0, a.aim || ZONE_AIM];
   });
   await pool.batch(
-    "INSERT IGNORE INTO arts (art_key, name, description, element, tier, type, cd, mult, params, fx, fx_at, fx_life, starter, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT IGNORE INTO arts (art_key, name, description, element, tier, type, cd, mult, params, fx, fx_at, fx_life, starter, sort, aimable, aim_range) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     rows,
   );
   await pool.batch(
@@ -166,8 +169,9 @@ async function seedArts(freshMonsters = []) {
   await q("UPDATE monsters SET common_drops = 0 WHERE type = 'dummy'");
   // the whole moves are drawn 1.65x now, so their target stands 96 px ahead, not 70 (only rows an admin left as seeded)
   await q("UPDATE arts SET params = JSON_SET(params, '$.dist', 96) WHERE fx LIKE 'moves/%' AND type = 'zone' AND JSON_VALUE(params, '$.dist') = 70");
-  // zones drawn where they land can be dragged anywhere within ZONE_AIM (only rows that don't say yet)
-  await q("UPDATE arts SET params = JSON_SET(params, '$.aim', ?) WHERE type = 'zone' AND fx_at = 'target' AND JSON_VALUE(params, '$.aim') IS NULL", [ZONE_AIM]);
+  // the drag-to-aim switch first lived in params as "aim": moved to its own columns
+  await q(`UPDATE arts SET aimable = JSON_VALUE(params, '$.aim') > 0, aim_range = IF(JSON_VALUE(params, '$.aim') > 0, JSON_VALUE(params, '$.aim'), aim_range),
+    params = JSON_REMOVE(params, '$.aim') WHERE JSON_VALUE(params, '$.aim') IS NOT NULL`);
   // a campfire, a fountain or the weather stays where it was called up instead of walking along with the caster
   await q("UPDATE arts SET fx_at = 'target' WHERE fx_at = 'self' AND fx IN ('fire/brazier', 'fire/campfire', 'fire/candle', 'fire/torch', 'water/fountain', 'weather/aurora', 'weather/cherry-blossoms', 'weather/god-rays', 'weather/clouds')");
   await q("UPDATE arts SET fx_life = 10 WHERE fx = 'holy/halo' AND fx_life = 4");
@@ -218,7 +222,7 @@ export async function readConfig(conn = null) {
     })),
     arts: arts.map((a) => ({
       key: a.art_key, name: a.name, desc: a.description, element: a.element, tier: a.tier, type: a.type, cd: a.cd, mult: a.mult, params: a.params,
-      fx: a.fx, at: a.fx_at, life: a.fx_life, scale: a.fx_scale ?? 0, starter: !!a.starter, source: a.source ?? "learn", sourceNote: a.source_note ?? "", enabled: !!a.enabled, sort: a.sort,
+      fx: a.fx, at: a.fx_at, life: a.fx_life, scale: a.fx_scale ?? 0, aimable: !!a.aimable, aimRange: a.aim_range ?? ZONE_AIM, starter: !!a.starter, source: a.source ?? "learn", sourceNote: a.source_note ?? "", enabled: !!a.enabled, sort: a.sort,
     })),
     reqs: reqs.map((r) => ({ art: r.art_key, item: r.item_key, qty: Number(r.qty) })),
     drops: drops.map((d) => ({ monster: d.monster, item: d.item_key, chance: d.chance, min: Number(d.min_qty), max: Number(d.max_qty) })),

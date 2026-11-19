@@ -82,7 +82,7 @@ const T = {
     pk: "art_key", pkType: "key", order: "sort, art_key", config: true, add: true, del: true,
     cols: {
       name: "str:30", description: "str:200", element: "str:8", tier: "uint", type: "enum:melee|bolt|zone|nova|dash|heal|buff", cd: "num", mult: "num",
-      params: "json", fx: "str:48", fx_at: "enum:front|self|target|bolt", fx_life: "num", fx_scale: "num", starter: "bool", source: "enum:learn|event", source_note: "str:100", enabled: "bool", sort: "int",
+      params: "json", fx: "str:48", fx_at: "enum:front|self|target|bolt", fx_life: "num", fx_scale: "num", aimable: "bool", aim_range: "uint", starter: "bool", source: "enum:learn|event", source_note: "str:100", enabled: "bool", sort: "int",
     },
   },
   art_reqs: { pk: "id", order: "art_key, id", config: true, add: true, del: true, cols: { art_key: "str:32", item_key: "str:32", qty: "uint" } },

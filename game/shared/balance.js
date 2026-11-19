@@ -48,7 +48,7 @@ export const SKILL_PARAMS = { melee: ["range", "arc"], bolt: ["range", "speed", 
 // Công pháp (arts): learned with items, up to ART_SLOTS of them on the bar at once. Each type's numbers (see
 // shared/arts-seed.js); `stat` is the one string among them.
 export const ART_PARAMS = {
-  melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur", "aim"], nova: ["r", "delay", "slow", "slowDur"],
+  melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur"], nova: ["r", "delay", "slow", "slowDur"],
   dash: ["dist", "r"], heal: ["pct"], buff: ["stat", "pct", "dur"],
 };
 export const ART_SLOTS = 5;
@@ -56,10 +56,11 @@ export const ART_AT = ["front", "self", "target", "bolt"];
 // learn: spend its items in the Công Pháp panel; event: only given (activities, events, the auction house... by an admin now)
 export const ART_SOURCES = ["learn", "event"];
 export const ITEM_KINDS = ["pill", "book", "material"];
-const PARAM_MAX = { arc: 6.3, slow: 0.95, pct: 500, dur: 600, aim: 1200 };
-// params an art may leave out, and what they are then. aim (zones): how far from the caster the player may drag the zone
-// to put it anywhere (px); 0 = it always lands `dist` ahead
-const PARAM_DEFAULT = { aim: 0 };
+const PARAM_MAX = { arc: 6.3, slow: 0.95, pct: 500, dur: 600 };
+// params an art may leave out, and what they are then
+const PARAM_DEFAULT = {};
+// the types whose arts can be dragged to a spot (an admin switches it on per art: aimable, aimRange)
+export const AIM_TYPES = ["zone"];
 // Monsters: any type an admin adds, drawn with a pixelfx effect (`fx`, the critters), or as a straw dummy. The maps place
 // them by type, so the types a map uses must exist. style: melee (rushes in and strikes at `reach`), ranged (keeps its
 // distance and shoots `shotFx` within `range`), none (stands, like the dummies). fly: hovers and goes where it likes;
@@ -231,6 +232,8 @@ export function checkConfig(c) {
       key, name: str(a.name, `tên công pháp ${key}`, 30), desc: String(a.desc ?? "").slice(0, 200), element: String(a.element ?? ""), tier: num(a.tier ?? 1, `bậc ${key}`, 1, 9) | 0,
       type: a.type, cd: num(a.cd, `hồi chiêu ${key}`, 0.1, 3600), mult: num(a.mult ?? 0, `hệ số ${key}`, 0, 50), fx: String(a.fx ?? ""), at: a.at,
       source: a.source ?? "learn", sourceNote: String(a.sourceNote ?? "").slice(0, 100),
+      // aim: how far from the caster the player may drag it (px); 0 = it can't be dragged, it lands where its type says
+      aim: 0,
       life: num(a.life ?? 0, `thời gian hiệu ứng ${key}`, 0, 60), scale: num(a.scale ?? 0, `cỡ hiệu ứng ${key}`, 0, 6), starter: !!a.starter, enabled: a.enabled !== false && a.enabled !== 0, sort: Number(a.sort) || 0, reqs: [],
     };
     for (const p of ART_PARAMS[a.type]) {
@@ -238,6 +241,10 @@ export function checkConfig(c) {
         if (!["atk", "def", "spd"].includes(params.stat)) throw new Error(`Công pháp ${key}: stat phải là atk, def hoặc spd`);
         out.stat = params.stat;
       } else out[p] = num(params[p] ?? PARAM_DEFAULT[p], `công pháp ${key} ${p}`, 0, PARAM_MAX[p] ?? 5000);
+    }
+    if (a.aimable) {
+      if (!AIM_TYPES.includes(a.type)) throw new Error(`Công pháp ${key}: chỉ chiêu loại vùng mới kéo chọn vị trí được (đang là ${a.type})`);
+      out.aim = num(a.aimRange ?? 280, `tầm kéo của ${key}`, 20, 1200);
     }
     arts[key] = out;
   }

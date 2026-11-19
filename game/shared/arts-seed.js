@@ -9,8 +9,9 @@
 // Types the server knows (params in brackets; see ART_PARAMS in balance.js):
 //   melee  an arc in front                         [range, arc]
 //   bolt   a projectile                            [range, speed, r]
-//   zone   an area ahead, after a beat              [dist, r, delay, slow, slowDur, aim]
-//          aim > 0: the player can drag it anywhere within aim px (the ones drawn where they land: at target)
+//   zone   an area ahead, after a beat              [dist, r, delay, slow, slowDur]
+// A zone may also be aimable (arts.aimable, aim_range; switched per art by an admin): dragged anywhere within aim_range
+// px. The seed switches it on for the zones drawn where they land (at: target), off for the whole moves (at: front).
 //   nova   an area round the caster                 [r, delay, slow, slowDur]
 //   dash   a rush forward, hitting along the way   [dist, r]
 //   heal   restores part of the caster's hp         [pct]
@@ -298,10 +299,11 @@ export const ARTS_SEED = [
   ...L.map(([fx, name, element, type, tier, o], i) => {
     const d = TYPE_DEFAULTS[type], t = TIER[tier], params = {};
     for (const [k, v] of Object.entries({ ...d, ...o })) if (!NON_PARAMS.has(k)) params[k] = v;
-    if (type === "zone" && (o.at ?? d.at) === "target") params.aim = o.aim ?? ZONE_AIM;
+
     return {
       key: keyOf(fx), name, desc: "", element, tier, type, cd: round((o.cd ?? d.cd) * t.cd), mult: round((o.mult ?? d.mult) * t.mult), params,
       fx, at: o.at ?? d.at, life: o.life ?? 0, starter: false, sort: 10 + i,
+      aim: type === "zone" && (o.at ?? d.at) === "target" ? o.aim ?? ZONE_AIM : 0,
     };
   }),
 ];

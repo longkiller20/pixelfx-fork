@@ -611,8 +611,42 @@ const SHOP_TEST = "Hàng thử nghiệm";
   const e2 = after.find((e) => e.e === "art" && e.id === c.id);
   assert.ok(e2 && Math.abs(e2.x - d[2]) < 4 && Math.abs(e2.y - d[3]) < 4, `landed on the dummy, on the ground (${e2?.x},${e2?.y} vs ${d[2]},${d[3]})`);
   assert.ok(after.some((e) => e.e === "hit" && e.id === d[0]), "and hit it, 200 px away");
-  c.ws.close();
   ok("aimed zone: lands where it is put within its reach, settles on the ground, hits what is there; never beyond its reach");
+
+  // the admin's switch, per art: off, the same art lands its usual distance ahead wherever it is aimed; only zones take it
+  const ADMIN = process.env.ADMIN_URL ?? BASE.replace(/:\d+$/, ":5885");
+  const { hashPassword } = await import("../server/auth.js");
+  const an = "t_aim_" + uid();
+  await q("INSERT INTO admins (username, pass_hash, must_change) VALUES (?, ?, 0)", [an, await hashPassword("tamthoi123")]);
+  const adm = async (path, o = {}) => {
+    const r = await fetch(ADMIN + "/api" + path, { method: o.method ?? "GET", headers: { "content-type": "application/json", ...(o.token ? { authorization: `Bearer ${o.token}` } : {}) }, body: o.body && JSON.stringify(o.body) });
+    return { status: r.status, data: await r.json().catch(() => ({})) };
+  };
+  try {
+    const token = (await adm("/login", { method: "POST", body: { username: an, password: "tamthoi123" } })).data.token;
+    assert.equal((await adm("/t/arts/phikiem", { token, method: "PATCH", body: { aimable: true } })).status, 400, "a bolt can't be made aimable");
+    assert.equal((await adm(`/t/arts/${key}`, { token, method: "PATCH", body: { aimable: false } })).status, 200);
+    await sleep(art.cd * 1000 + 300);
+    p = at();
+    const n1 = events().length;
+    send(c, { t: "cast", s: 1, ax: 1, ay: 0, tx: p[1] - 250, ty: p[2] - 100 });
+    await sleep(400);
+    const e3 = events().slice(n1).find((e) => e.e === "art" && e.id === c.id);
+    assert.ok(e3 && Math.abs(e3.x - (p[1] + art.dist)) < 4 && e3.y === p[2], `switched off: its usual spot ahead (${e3?.x} vs ${p[1] + art.dist})`);
+    assert.equal((await adm(`/t/arts/${key}`, { token, method: "PATCH", body: { aimable: true, aim_range: 150 } })).status, 200);
+    await sleep(art.cd * 1000 + 300);
+    p = at();
+    const n2 = events().length;
+    send(c, { t: "cast", s: 1, ax: 1, ay: 0, tx: p[1] + 2000, ty: p[2] - 30 });
+    await sleep(400);
+    const e4 = events().slice(n2).find((e) => e.e === "art" && e.id === c.id);
+    assert.ok(e4 && Math.abs(e4.x - (p[1] + 150)) < 4, `back on with a 150 px reach (${e4?.x - p[1]} px)`);
+  } finally {
+    await q("UPDATE arts SET aimable = 1, aim_range = 280 WHERE art_key = ?", [key]);
+    await q("DELETE FROM admins WHERE username = ?", [an]);
+  }
+  c.ws.close();
+  ok("the admin switches dragging per art: off lands ahead as usual, a new reach applies at once, only zones can have it");
 }
 
 {

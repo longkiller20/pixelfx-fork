@@ -430,7 +430,17 @@ Các lệnh `npm run admin` và `npm run cosmetics` vẫn dùng được song so
 
 ## Chiêu vùng kéo chọn vị trí
 
-Chiêu vùng có hiệu ứng nổ tại chỗ (`fx_at` = `target`) giờ chọn được nơi nổ, trong tầm `aim` tính từ nhân vật. Mặc định tầm là 280 px, đang áp dụng cho 86 chiêu.
+Admin bật hoặc tắt việc kéo chọn vị trí cho **từng chiêu**, ở tab Công pháp của trang admin:
+
+- **"Kéo chọn vị trí":** công tắc bật/tắt. Chỉ dùng được cho chiêu loại vùng; bật cho loại khác thì bị từ chối.
+- **"Tầm kéo tối đa":** đơn vị px, tính từ nhân vật.
+- Các chiêu đang bật có nhãn 🎯 kèm tầm kéo.
+- Bộ lọc "Kéo / không kéo" giúp tìm nhanh chiêu nào đang bật, chiêu vùng nào đang tắt.
+- Dữ liệu nằm ở cột `arts.aimable` và `arts.aim_range`. Sửa xong là có hiệu lực ngay trong game.
+- Mặc định: bật cho 86 chiêu vùng nổ tại chỗ (`fx_at` = `target`), tầm 280 px. Tắt cho 7 chiêu kiểu thế võ.
+- Chiêu đã tắt thì luôn nổ cách nhân vật `dist` px phía trước, như trước đây.
+
+Khi chiêu đang bật:
 
 - **Điện thoại:** giữ nút chiêu rồi kéo theo hướng muốn ném.
   - Kéo 90 px là tới hết tầm.
@@ -440,7 +450,6 @@ Chiêu vùng có hiệu ứng nổ tại chỗ (`fx_at` = `target`) giờ chọn
 - **Máy tính:** chiêu nổ ở chỗ con trỏ chuột, bị kéo về trong tầm nếu chuột ở quá xa.
 - **Server kiểm tra lại mọi thứ:** điểm ở ngoài tầm thì bị kéo vào trong tầm. Điểm ngắm vào trong đất thì được đẩy lên mặt đất. Có mặt đất hay ván gỗ trong vòng 3 ô bên dưới thì chiêu rơi xuống đó, không thì nổ giữa không trung.
   - Màn hình người chơi dùng đúng cách tính này (`zoneLanding` trong `shared/physics.js`), nên vòng vàng hiện đúng chỗ chiêu sẽ nổ.
-- **Admin:** chỉnh `aim` trong thông số của từng chiêu ở tab Công pháp. Để 0 thì chiêu luôn nổ cách nhân vật `dist` px phía trước như cũ (7 chiêu kiểu thế võ, `fx_at` = `front`, giữ như vậy).
 
 ## Icon công pháp
 
