@@ -5,7 +5,7 @@ import { ELEMENTS } from "/shared/cong-phap.js";
 import { artIcon, artLine, elementName } from "./arts.js";
 import { loadAvatars, drawAvatar, partCanvas } from "./avatar.js";
 import { startGame } from "./game.js";
-import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange, next as nextTrack } from "./music.js";
+import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange } from "./music.js";
 
 const $ = (id) => document.getElementById(id);
 const touch = matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
@@ -686,7 +686,7 @@ function settingsPanel() {
         <input type="range" class="slider" min="0" max="100" step="1" aria-label="Âm lượng nhạc nền">
         <output class="vout"></output>
       </div>
-      <div class="nowplay"><span class="disc" aria-hidden="true">♪</span><span class="ttl"></span><button type="button" class="nextbtn" title="Chuyển bài">Bài khác ⏭</button></div>
+      <div class="nowplay"><span class="disc" aria-hidden="true">♪</span><span class="ttl"></span><span class="mapname"></span></div>
     </section>
     <section class="sgroup">
       <h4><img src="/xianxia/ui/ui_xianxia_item_token.png" alt="">Tài khoản</h4>
@@ -695,7 +695,7 @@ function settingsPanel() {
         <button type="button" class="primary logout">Đăng xuất</button>
       </div>
     </section>
-    <p class="credit">Nhạc nền: “Liyan” của elerya và “Asian String Suite” của bosslevelvgm (CC-BY 3.0, OpenGameArt).</p>`;
+    <p class="credit">Mỗi bản đồ có nhạc riêng. Nhạc (OpenGameArt): “Liyan”, “Asian Duet” của elerya; “Asian String Suite” của bosslevelvgm (CC-BY 3.0); “Lava Area Theme” của Wolfgang (CC-BY 4.0); “Forgotten Tomb Ambience” của kindland (CC0).</p>`;
   const $$ = (q) => wrap.querySelector(q);
   const on = $$(".mon"), vol = $$(".slider");
   const draw = () => {
@@ -707,14 +707,13 @@ function settingsPanel() {
     $$(".vout").textContent = `${m.vol}%`;
     $$(".vico").textContent = !m.on || m.vol === 0 ? "🔇" : m.vol < 40 ? "🔈" : m.vol < 75 ? "🔉" : "🔊";
     $$(".nowtxt").textContent = m.on ? (m.playing ? "Đang phát" : "Bật: phát khi bạn chạm hoặc bấm phím") : "Đang tắt";
-    $$(".ttl").textContent = m.track ? `${m.track.ten} · ${m.track.tac_gia}` : "Chưa có bài nào";
+    $$(".ttl").textContent = m.track ? `${m.track.ten}${m.track.tac_gia ? ` · ${m.track.tac_gia}` : ""}` : "Bản đồ này không có nhạc";
+    $$(".mapname").textContent = game?.mapName?.() ?? "";
     $$(".nowplay").classList.toggle("on", m.on && m.playing);
-    $$(".nextbtn").disabled = m.count < 2;
     wrap.classList.toggle("muted", !m.on);
   };
   on.addEventListener("change", () => setMusicOn(on.checked));
   vol.addEventListener("input", () => setMusicVolume(Number(vol.value)));
-  $$(".nextbtn").addEventListener("click", () => nextTrack());
   $$(".who").textContent = state.character?.name ?? "Tài khoản";
   // logging out asks once more on the button itself
   const out = $$(".logout");

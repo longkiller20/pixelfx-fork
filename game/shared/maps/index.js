@@ -24,7 +24,7 @@ export function mapInfo(id) {
   const s = def.spring ?? { x0: -9, x1: -9, row: -9 };
   const portals = def.portals.map((p) => ({ ...p, x: p.x * T, y: p.row * T, r: p.r * T }));
   const info = {
-    def, id, name: def.name, sub: def.sub, T, cols, rows, w: cols * T, h: rows * T, pvp: def.pvp,
+    def, id, name: def.name, sub: def.sub, music: def.music ?? "", T, cols, rows, w: cols * T, h: rows * T, pvp: def.pvp,
     // a flier waits `up` cells above the floor it is placed on
     mobs: def.mobs.map((m) => ({ ...m, x: m.x * T, y: (m.row - (m.up ?? 0)) * T })),
     spawn: { x: def.spawn.x * T, y: def.spawn.row * T },

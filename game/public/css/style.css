@@ -701,8 +701,8 @@ body.rotated .charp.short { --cell: clamp(32px, calc((100vh - 330px) / 10), 48px
 .nowplay .ttl { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nowplay .disc { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle, #f0c050 0 18%, #1a1428 19% 60%, #3a2f52 61%); color: transparent; flex: none; }
 .nowplay.on .disc { animation: spin 3s linear infinite; box-shadow: 0 0 10px #f0c05055; }
-.nowplay .nextbtn { flex: none; padding: 4px 10px; border-radius: 8px; border: 1px solid #ffffff22; background: #ffffff08; color: #e8e0ff; font: inherit; font-size: 12px; cursor: pointer; }
-.nowplay .nextbtn:disabled { opacity: 0.4; cursor: default; }
+.nowplay .mapname { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #f0c05014; border: 1px solid #f0c05040; color: var(--gold2); }
+.nowplay .mapname:empty { display: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .setp.muted .nowplay { opacity: 0.55; }
 .setp .logout { flex: none; }

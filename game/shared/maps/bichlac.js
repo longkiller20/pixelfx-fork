@@ -29,6 +29,8 @@ export const BICHLAC = {
   id: "bichlac",
   name: "Bích Lạc Lâm",
   sub: "Rừng xanh phía đông thôn. Ếch độc quanh hồ, rắn xanh dưới tán cây, linh điểu trên cành, bướm huyễn ở đồng hoa.",
+  // its own background music, always this one (public/nhac-nen/2-asianstringsuite/)
+  music: "2-asianstringsuite",
   cell: 32,
   pvp: false,
   theme: {

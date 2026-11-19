@@ -46,6 +46,8 @@ export const MAVUC = {
   id: "mavuc",
   name: "Huyết Diễm Ma Uyên",
   sub: "Vực lửa dưới lòng cổ mộ, dưới vầng huyết nguyệt. Phi đầu lâu và ma nhãn canh giữ, bắn từ xa. Chạm vào nham thạch sẽ bị bỏng và hất trở lại bờ.",
+  // its own background music, always this one (public/nhac-nen/4-lavaareatheme/)
+  music: "4-lavaareatheme",
   cell: 32,
   pvp: false,
   // touching the lava burns off this share of sinh lực and throws you back onto the last ground you stood on

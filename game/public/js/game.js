@@ -4,6 +4,7 @@ import { effects } from "/hieu-ung/fx/index.js";
 import { CLASSES, CLASS, MONSTERS, ITEMS, BUFF_STATS, expForLevel, realmName, MAX_LEVEL, ARTS, ART_SLOTS, FLY, canFly, flyRealmName } from "/shared/balance.js";
 import { artIcon, artScale, BLANK_ACTOR } from "./arts.js";
 import { ART_FX } from "./cong-phap.js";
+import { setMapMusic } from "./music.js";
 import { mapInfo } from "/shared/maps/index.js";
 import { drawDummy } from "./art.js";
 import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
@@ -57,6 +58,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         if (!map || map.id !== m.map) {
           // a new map (logging in, or through a gate): forget everything of the last one
           map = mapInfo(m.map);
+          // each map has its own music
+          setMapMusic(map.music);
           scene = null;
           infos.clear();
           snaps.length = 0;
@@ -1155,6 +1158,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     arts: () => arts,
     // the latest "me" (level, hp, atk, def, spd, stones, rank...), for the character panel
     me: () => me,
+    mapName: () => map?.name ?? "",
     // the panel changed the bar: show it now (the server confirms with an "arts" message too)
     setArts(v) {
       arts = { slots: v.slots, learned: v.learned };

@@ -15,6 +15,8 @@ export const TANTHU = {
   id: "tanthu",
   name: "Tân Thủ Thôn",
   sub: "Thôn khởi đầu: an toàn, không có yêu thú. Thử chiêu trên bù nhìn rơm dưới gốc đào tiên; ngồi thiền trên Thái Cực Đài để tu luyện.",
+  // its own background music, always this one (public/nhac-nen/1-liyan/)
+  music: "1-liyan",
   terrain: "/maps/tiles/terrain.png",
   roof: "/maps/tiles/roof.png",
   mountains: "/maps/tiles/mountains.png",
