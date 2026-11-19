@@ -584,6 +584,8 @@ export function adminApp(world) {
   app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type("application/json").send(assetsJson()));
   for (const d of [...Object.keys(PART_DIRS), ART_DIR, "nhan-vat"]) app.use(`/${d}`, express.static(join(ROOT, "public", d), { maxAge: 0 }));
   app.use("/xianxia", express.static(join(ROOT, "public", "xianxia"), { maxAge: "1h" }));
+  // the pixel effects, for the công pháp previews (the same pixelfx library the game draws them with)
+  app.use("/pixelfx", express.static(join(ROOT, "..", "src"), { maxAge: 0 }));
   app.use(express.static(join(ROOT, "admin"), { index: "index.html", maxAge: 0 }));
   app.use((req, res) => res.status(404).json({ error: "Không tìm thấy." }));
   return app;

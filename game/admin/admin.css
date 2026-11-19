@@ -177,3 +177,17 @@ body.noscroll { overflow: hidden; }
 .pager button.on { background: var(--gold); color: #2a1604; border-color: var(--gold); font-weight: 700; }
 .pager .count { margin-left: 8px; }
 @media (max-width: 640px) { .pager button { min-width: 34px; padding: 4px 8px; } .pager .count { flex-basis: 100%; text-align: center; margin: 0; } }
+
+/* ---------------------------------------------------------------- công pháp: every effect playing, a switch under each */
+.seg { display: inline-flex; gap: 4px; }
+.seg button.on { background: var(--gold); color: #2a1604; border-color: var(--gold); font-weight: 700; }
+.fxgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.fxtile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fxtile.off { border-color: #6a2d3a; background: #1e1220; }
+.fxtile.off canvas { opacity: 0.45; filter: grayscale(0.8); }
+.fxtile .fxname { display: flex; flex-direction: column; min-width: 0; }
+.fxtile .fxname .dim, .fxtile .fxid { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.fxtile button { width: 100%; }
+canvas.fxprev { width: 100%; height: auto; image-rendering: pixelated; border-radius: 8px; border: 1px solid var(--line); background: #0b0912; display: block; }
+.fxhead { display: flex; justify-content: center; }
+.fxhead canvas.fxprev { max-width: 320px; }

@@ -256,6 +256,7 @@ async function go(t) {
   }
 }
 const reload = () => go(tab);
+let artMode = "list"; // the công pháp tab: "list" (rows) or "fx" (every effect playing, to switch them on and off)
 
 // ---------------------------------------------------------------- the tabs
 const SKILL_PARAMS = { melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur"] };
@@ -437,7 +438,8 @@ const VIEWS = {
   },
 
   async arts() {
-    const [rows, reqs, items] = await Promise.all([api("/t/arts"), api("/t/art_reqs"), api("/t/items")]);
+    // the effect previews (pixelfx) load only here, so the other tabs stay light
+    const [rows, reqs, items, { fxPreview }] = await Promise.all([api("/t/arts"), api("/t/art_reqs"), api("/t/items"), import("/fxpreview.js")]);
     const opts = itemOptions(items), nameOf = Object.fromEntries(items.map((i) => [i.item_key, i.name]));
     const F = [
       { k: "name", label: "Tên" }, { k: "element", label: "Hệ", type: "select", options: ELEMENTS }, { k: "tier", label: "Bậc (1-9)", type: "number", step: 1 },
@@ -502,12 +504,75 @@ const VIEWS = {
     const type = el("select", {}, [["", "Mọi loại"], ...ART_TYPE].map(([v, l]) => el("option", { value: v }, l)));
     const elem = el("select", {}, [["", "Mọi hệ"], ...ELEMENTS].map(([v, l]) => el("option", { value: v }, l)));
     const aimSel = el("select", {}, [["", "Kéo / không kéo"], ["1", "🎯 Kéo chọn vị trí"], ["0", "Vùng không kéo"]].map(([v, l]) => el("option", { value: v }, l)));
+    const onSel = el("select", {}, [["", "Bật và tắt"], ["1", "Đang bật"], ["0", "Đã tắt"]].map(([v, l]) => el("option", { value: v }, l)));
     const q = el("input", { type: "search", placeholder: "Tìm theo tên, mã hoặc hiệu ứng..." });
     const out = el("div");
+    // two ways to look: the list (one row each, its editor in the modal) or the previews (every effect playing, a switch
+    // under each), to go through them all and turn off what isn't a real art; then export what is off
+    const mode = el("div", { class: "seg" }, [["list", "Danh sách"], ["fx", "▶ Xem hiệu ứng"]].map(([v, l]) =>
+      el("button", { type: "button", class: `small${artMode === v ? " on" : ""}`, "data-m": v, onclick: () => {
+        artMode = v;
+        for (const b of mode.children) b.classList.toggle("on", b.dataset.m === v);
+        draw();
+      } }, l)));
+    const offCount = el("span", { class: "dim" });
+    const counts = () => (offCount.textContent = `Đang bật ${rows.filter((r) => r.enabled).length} · đã tắt ${rows.filter((r) => !r.enabled).length}`);
+    const setOn = async (r, on) => {
+      const ok = await guard(() => api(`/t/arts/${r.art_key}`, { method: "PATCH", body: { enabled: on } }), on ? `Đã bật ${r.name}.` : `Đã tắt ${r.name}.`);
+      if (ok !== undefined) r.enabled = on ? 1 : 0;
+      counts();
+      return ok !== undefined;
+    };
+    const tile = (r) => {
+      const sw = el("button", { type: "button", class: "small" });
+      const box = el("div", { class: "fxtile" }, fxPreview(r.fx, { w: 200, h: 140 }),
+        el("div", { class: "fxname" }, el("b", {}, r.name), el("span", { class: "dim" }, `${r.art_key} · ${(ART_TYPE.find((x) => x[0] === r.type)?.[1] ?? r.type).replace(/ \(.*/, "")}`)),
+        el("span", { class: "dim fxid" }, r.fx || "(ném vũ khí)"), sw);
+      const paint = () => {
+        box.classList.toggle("off", !r.enabled);
+        sw.className = `small ${r.enabled ? "" : "danger"}`;
+        sw.textContent = r.enabled ? "✓ Đang bật · bấm để tắt" : "✕ Đã tắt · bấm để bật";
+      };
+      sw.addEventListener("click", async () => {
+        sw.disabled = true;
+        await setOn(r, !r.enabled);
+        sw.disabled = false;
+        paint();
+      });
+      paint();
+      return box;
+    };
+    // what is off, to send on: the file names each art, its effect and what kind it is
+    const offList = () => rows.filter((r) => !r.enabled).sort((a, b) => a.sort - b.sort || a.art_key.localeCompare(b.art_key))
+      .map((r) => ({ key: r.art_key, ten: r.name, fx: r.fx, loai: r.type, he: r.element, bac: r.tier }));
+    const download = (name, text, mime) => {
+      const a = el("a", { href: URL.createObjectURL(new Blob([text], { type: mime })), download: name });
+      document.body.append(a);
+      a.click();
+      setTimeout(() => (URL.revokeObjectURL(a.href), a.remove()), 1000);
+    };
+    const stamp = () => new Date().toISOString().slice(0, 10);
+    const exportJson = () => {
+      const off = offList();
+      if (!off.length) return toast("Chưa tắt công pháp nào.", false);
+      download(`cong-phap-da-tat-${stamp()}.json`, JSON.stringify({ ngay: new Date().toISOString(), tong: rows.length, dang_bat: rows.length - off.length, da_tat: off.length, cong_phap_da_tat: off }, null, 2) + "\n", "application/json");
+    };
+    const exportTxt = () => {
+      const off = offList();
+      if (!off.length) return toast("Chưa tắt công pháp nào.", false);
+      download(`cong-phap-da-tat-${stamp()}.txt`, [`Công pháp đã tắt: ${off.length} / ${rows.length} (${new Date().toLocaleString("vi-VN")})`, "mã\ttên\thiệu ứng\tloại", ...off.map((a) => `${a.key}\t${a.ten}\t${a.fx || "-"}\t${a.loai}`)].join("\n") + "\n", "text/plain;charset=utf-8");
+    };
     const draw = () => {
       const t = q.value.trim().toLowerCase();
       const list = rows.filter((r) => (!src.value || r.source === src.value) && (!type.value || r.type === type.value) && (!elem.value || r.element === elem.value) &&
+        (!onSel.value || String(r.enabled ? 1 : 0) === onSel.value) &&
         (!aimSel.value || (aimSel.value === "1" ? !!r.aimable : r.type === "zone" && !r.aimable)) && (!t || r.name.toLowerCase().includes(t) || r.art_key.includes(t) || r.fx.includes(t)));
+      counts();
+      if (artMode === "fx") {
+        const [box, nav] = paged(list, tile, `fx|${src.value}|${type.value}|${elem.value}|${onSel.value}|${aimSel.value}|${t}`);
+        box.className = "fxgrid";
+        return out.replaceChildren(box, nav);
+      }
       out.replaceChildren(...paged(list, (r) => {
         const card = record({
           title: r.name, sub: `${r.art_key} · ${ELEMENTS.find((e) => e[0] === r.element)?.[1] ?? r.element} · bậc ${r.tier}`, row: r, fields: F,
@@ -515,17 +580,23 @@ const VIEWS = {
           onSave: save(r.art_key),
           onDelete: async () => confirm(`Xóa hẳn ${r.name}? Người đã lĩnh ngộ sẽ không dùng được nữa. Muốn tạm ẩn thì bỏ chọn "Đang mở".`) && (await guard(() => api(`/t/arts/${r.art_key}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
         });
+        // the effect playing, at the top of the editor
+        card.insertBefore(el("div", { class: "fxhead" }, fxPreview(r.fx, { w: 240, h: 150 })), card.querySelector(".fields"));
         if (!r.starter && r.source !== "event") card.insertBefore(reqBox(r.art_key), card.querySelector(".actions"));
         if (!r.starter) card.insertBefore(grantBox(r), card.querySelector(".actions"));
         return card;
-      }, `${src.value}|${type.value}|${elem.value}|${aimSel.value}|${t}`));
+      }, `${src.value}|${type.value}|${elem.value}|${onSel.value}|${aimSel.value}|${t}`));
     };
-    for (const s of [src, type, elem, aimSel]) s.addEventListener("change", draw);
+    for (const s of [src, type, elem, aimSel, onSel]) s.addEventListener("change", draw);
     q.addEventListener("input", draw);
     draw();
     return [el("h2", {}, `Công pháp (${rows.length})`),
       el("p", { class: "dim" }, "Mỗi công pháp dùng một hiệu ứng của pixelfx. Môn \"Lĩnh ngộ\": người chơi tiêu hao các vật phẩm yêu cầu (bí kíp, nguyên liệu: rơi từ yêu thú). Môn \"Chỉ qua hoạt động / sự kiện\": không học được, chỉ có khi admin phát (cho mọi người, người đang online, hoặc theo đạo hiệu), ghi chú \"Nhận ở đâu\" hiện cho người chơi. Mỗi người gán tối đa 5 môn lên thanh nút. Chiêu loại vùng có thể bật \"Kéo chọn vị trí\": người chơi giữ nút chiêu rồi kéo để đặt chỗ nổ trong tầm kéo (trên máy tính là chỗ con trỏ chuột); tắt thì chiêu nổ trước mặt như thường. Số sai sẽ bị từ chối, game không bị ảnh hưởng."),
-      el("div", { class: "grid" }, add), el("div", { class: "bar" }, src, type, elem, aimSel, q), out];
+      el("div", { class: "grid" }, add),
+      el("div", { class: "bar" }, mode, offCount, el("span", { class: "grow" }),
+        el("button", { type: "button", class: "small", title: "Danh sách công pháp đã tắt, dạng JSON", onclick: exportJson }, "⬇ Xuất JSON đã tắt"),
+        el("button", { type: "button", class: "small", title: "Danh sách công pháp đã tắt, dạng văn bản", onclick: exportTxt }, "⬇ Xuất TXT đã tắt")),
+      el("div", { class: "bar" }, onSel, src, type, elem, aimSel, q), out];
   },
 
   async drops() {
