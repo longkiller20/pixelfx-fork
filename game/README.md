@@ -350,7 +350,18 @@ Người chơi lập hoặc gia nhập tông môn, cùng quyên góp để tông
 - Bảng Tông Môn: bên trái là huy hiệu, cấp, thanh kinh nghiệm, ngân khố, phúc lợi, đại trận, bảng thông báo, chức và cống
   hiến của mình, nút điểm danh, ô quyên góp. Bên phải là các tab Thành viên (ai đang online, đổi chức, trục xuất), Đơn (từ
   Trưởng Lão trở lên), Bảo Khố, Đàm Đạo, Nhật Ký, Quản Lý (quy định, đại trận, truyền chức, giải tán; người thường thấy nút
-  Rời tông). Trên điện thoại cầm dọc thì còn một cột; điện thoại nằm ngang thì mỗi cột tự cuộn.
+  Rời tông).
+- **Trên điện thoại** (nằm ngang, hoặc cầm dọc khi game tự xoay) bảng chuyển sang bố cục gọn, tính theo chiều cao thật của màn hình:
+  - Chữ, nút, ô nhập nhỏ lại.
+  - Cột trái luôn hiện đủ, không bị cắt: huy hiệu, cấp, kinh nghiệm, ngân khố, phúc lợi, đại trận, thông báo, chức, cống
+    hiến, điểm danh, quyên góp.
+  - Thông báo hiện 1-2 dòng, bấm vào để xem đầy đủ.
+  - Cột phải cao đúng phần còn lại của màn hình, chỉ danh sách bên trong cuộn.
+  - Màn hẹp (dưới 760px) thì:
+    - nút đổi chức và trục xuất xuống dưới tên;
+    - điểm danh và quyên góp xếp thành hai hàng;
+    - số lớn viết gọn ("28,5 N").
+  - Trang Khai lập chia hai cột cho vừa một màn hình.
 
 ### Bảo mật Tông Môn
 
