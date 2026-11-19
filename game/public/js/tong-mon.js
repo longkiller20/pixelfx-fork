@@ -80,6 +80,7 @@ export function initSect({ call, uuid, panel, flash, game, itemIcon }) {
 
   async function open(startTab) {
     if (startTab) tab = startTab;
+    document.querySelector("#panel .nsheet")?.remove();
     try {
       view = await call("/sect");
     } catch (e) {
@@ -238,17 +239,16 @@ export function initSect({ call, uuid, panel, flash, game, itemIcon }) {
     // left: the sect and me
     const pct = s.nextExp ? Math.min(100, ((s.exp - s.levelExp) / Math.max(1, s.nextExp - s.levelExp)) * 100) : 100;
     const left = h("div.sleft", {},
-      h("div.shead", {}, emblem(s.emblem, "emb huge"), h("div", {},
+      h("div.shead", {}, emblem(s.emblem, "emb huge"), h("div.stitle", {},
         h("h4", { text: s.name }),
-        h("div.chips", {}, h("span.lvl", { text: `Cấp ${s.level}` }), h("span.chip", { text: `${s.members}/${s.cap} người` }), h("span.chip", { text: JOIN_MODES[s.joinMode] })))),
+        h("div.chips", {}, h("span.lvl", { text: `Cấp ${s.level}` }), h("span.chip", { text: `${s.members}/${s.cap} người` }), h("span.chip", { text: JOIN_MODES[s.joinMode] }))),
+        bellButton(s, me)),
       h("div.xp", { title: s.nextExp ? `${fmt(s.exp)} / ${fmt(s.nextExp)}` : "Cấp cao nhất" }, h("i", {}, h("u", { style: `width:${pct}%` })),
         h("small", { text: s.nextExp ? `Kinh nghiệm ${fmt(s.exp)} / ${fmt(s.nextExp)}` : `Kinh nghiệm ${fmt(s.exp)} · cấp cao nhất` })),
       h("div.stiles", {},
         tile("item_spirit_stone", "Ngân khố", screenFit().short ? fmtShort(s.treasury) : fmt(s.treasury), `Ngân khố: ${fmt(s.treasury)} linh thạch`),
         tile("status_golden_shield", "Phúc lợi", `+${sectBonus(s.level, SECT)}%`, "Sinh lực, công, thủ ngoài thế giới"),
         tile("status_burn", "Đại trận", s.arrayLeft > 0 ? dur(s.arrayLeft) : "Tắt", `Hộ Sơn Đại Trận: +${SECT.arrayAtk}% công`)),
-      // the notice: a couple of lines on a small screen; a tap shows all of it
-      s.notice ? h("p.snote.board", { text: s.notice, title: "Bấm để xem đầy đủ", onclick: (e) => e.currentTarget.classList.toggle("open") }) : h("p.snote.board.dim", { text: "Tông môn chưa có thông báo." }),
       h("div.mecard", {},
         h("div.merow", {}, h("span.rank", { className: `rank r${me.rank}`, text: RANKS[me.rank].name }), h("b", { text: `${fmt(me.contrib)} cống hiến` }), h("small", { text: `tổng ${fmt(me.contribTotal)}` })),
         h("div.merow", {},
@@ -265,6 +265,62 @@ export function initSect({ call, uuid, panel, flash, game, itemIcon }) {
     wrap.append(left, right);
     return wrap;
   }
+  // ---- the notice: a bell (drawn here, an SVG) beside the sect's name; a tap opens the whole notice in its own sheet.
+  // A notice not read yet on this device rings the bell and puts a red dot on it (what was read is kept per sect).
+  const SEEN = (id) => `dvtt.sectNotice.${id}`;
+  const hash = (t) => [...t].reduce((a, ch) => (Math.imul(a, 31) + ch.codePointAt(0)) | 0, 7).toString(36);
+  const seen = (s) => {
+    try {
+      return localStorage.getItem(SEEN(s.id)) === hash(s.notice);
+    } catch {
+      return true;
+    }
+  };
+  const BELL = `<svg viewBox="0 0 24 24" aria-hidden="true">
+    <defs><linearGradient id="bellGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff2b8"/><stop offset=".45" stop-color="#f0c050"/><stop offset="1" stop-color="#a8680e"/></linearGradient></defs>
+    <circle cx="12" cy="2.9" r="1.4" fill="url(#bellGold)" stroke="#4a2a08" stroke-width=".8"/>
+    <path d="M12 4c-3.4 0-5.7 2.6-5.7 6v3.4c0 1.4-.6 2.6-1.7 3.5l-.5.4c-.5.4-.2 1.2.4 1.2h15c.6 0 .9-.8.4-1.2l-.5-.4c-1.1-.9-1.7-2.1-1.7-3.5V10c0-3.4-2.3-6-5.7-6z" fill="url(#bellGold)" stroke="#4a2a08" stroke-width=".9" stroke-linejoin="round"/>
+    <path d="M6.6 15.2h10.8" stroke="#7a4a0c" stroke-width="1" stroke-linecap="round" opacity=".7"/>
+    <path d="M8.7 10.2c0-2 1.3-3.6 3.1-3.9" fill="none" stroke="#fffbe6" stroke-width="1.1" stroke-linecap="round" opacity=".85"/>
+    <path d="M9.7 18.9a2.3 2.3 0 0 0 4.6 0z" fill="#c88a1c" stroke="#4a2a08" stroke-width=".8"/>
+  </svg>`;
+  function bellButton(s, me) {
+    const unread = !!s.notice && !seen(s);
+    const b = h("button.bell", { type: "button", title: "Thông báo tông môn", "aria-label": unread ? "Thông báo tông môn (có tin mới)" : "Thông báo tông môn" });
+    b.innerHTML = BELL; // our own drawing, no text from players in it
+    b.classList.toggle("unread", unread);
+    b.classList.toggle("empty", !s.notice);
+    b.append(h("span.bdot", { "aria-hidden": "true" }));
+    b.addEventListener("click", () => noticeSheet(s, me, b));
+    return b;
+  }
+  function noticeSheet(s, me, bell) {
+    if (s.notice)
+      try {
+        localStorage.setItem(SEEN(s.id), hash(s.notice));
+      } catch {}
+    bell.classList.remove("unread");
+    const host = document.getElementById("panel");
+    host.querySelector(".nsheet")?.remove();
+    const close = () => (sheet.remove(), removeEventListener("keydown", esc, true));
+    const esc = (e) => e.key === "Escape" && (e.stopPropagation(), close());
+    const body = s.notice ? h("div.ntext", { text: s.notice }) : h("p.dim.nempty", { text: "Tông môn chưa có thông báo nào." });
+    const sheet = h("div.nsheet", { onclick: (e) => e.target === sheet && close() },
+      h("div.ncard", { role: "dialog", "aria-label": "Thông báo tông môn" },
+        h("div.nhead", {}, (() => {
+          const i = h("span.nbell");
+          i.innerHTML = BELL;
+          return i;
+        })(), h("div", {}, h("b", { text: "Thông báo tông môn" }), h("small", { text: s.name })),
+          h("button.nclose", { type: "button", "aria-label": "Đóng", text: "✕", onclick: close })),
+        body,
+        h("div.nfoot", {},
+          CAN.settings(me.rank) ? h("button.ghost", { type: "button", text: "Sửa thông báo", onclick: () => (close(), (tab = "manage"), draw()) }) : null,
+          h("button.primary", { type: "button", text: "Đã xem", onclick: close }))));
+    addEventListener("keydown", esc, true);
+    host.append(sheet);
+  }
+
   const tile = (ic, l, v, title) => h("div.tile", { title: title ?? `${l}: ${v}` }, h("img", { src: `/xianxia/ui/ui_xianxia_${ic}.png`, alt: "" }), h("span", { text: l }), h("b", { text: v }));
 
   function donateBox() {
