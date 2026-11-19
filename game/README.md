@@ -436,6 +436,9 @@ Mọi danh sách đều hiện mỗi món một dòng: tên, vài chữ tóm t�
   - Trang đang xem được nhớ theo tab và bộ lọc: lưu một món ở trang 4 thì vẫn ở trang 4. Tìm kiếm mới thì quay về trang 1.
 - Tab nào cũng có ô tìm kiếm (tìm theo tên, mã, hiệu ứng, ý nghĩa…). Cài đặt lọc được theo nhóm, Yêu thú lọc được theo kiểu đánh. Nhật ký tìm trong các dòng đã tải, nút "Tải thêm" lấy các dòng cũ hơn.
 - Danh sách người chơi lấy tối đa 500 người mỗi lần tìm. Muốn ra người cụ thể thì gõ tên.
+- Giao diện: trên máy tính có thanh bên trái (các mục chia nhóm Tổng quát, Nội dung game, Hệ thống, kèm biểu tượng; dưới
+  cùng là tài khoản, đổi mật khẩu, thoát). Trên điện thoại và máy tính bảng là thanh trên cùng, các mục thành hàng nút cuộn
+  ngang. Mỗi tab có tiêu đề, khung giải thích, thanh lọc/tìm kiếm, danh sách dạng dòng, phân trang.
 - Bấm vào dòng thì bảng chỉnh sửa mở trong một modal. Đóng bằng ✕, phím Esc, hoặc bấm ra ngoài.
   - Máy tính: hộp ở giữa màn hình, thanh tiêu đề và nút Lưu/Xóa luôn hiện, các ô nhập cuộn ở giữa, xếp 2 cột.
   - Điện thoại: tấm trượt lên từ đáy (gần cả màn hình), các ô nhập 1 cột, nút Lưu luôn ở dưới tầm ngón tay.
