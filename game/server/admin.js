@@ -359,7 +359,7 @@ export function adminApp(world) {
     if (only && !only.length) return res.json([]);
     const rows = await q(`SELECT ${PLAYER_COLS} FROM users u LEFT JOIN characters c ON c.user_id = u.id
       WHERE (u.username LIKE ? OR c.name LIKE ?) ${req.query.filter === "banned" ? "AND u.banned = 1" : ""} ${only ? `AND u.id IN (${only.map(() => "?").join(",")})` : ""}
-      ORDER BY ${sort} LIMIT 100`, [s, s, ...(only ?? [])]);
+      ORDER BY ${sort} LIMIT 500`, [s, s, ...(only ?? [])]);
     res.json(rows.map(shapePlayer));
   }));
   const playerId = (v) => {

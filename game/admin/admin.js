@@ -276,21 +276,44 @@ const ELEMENTS = [["kim", "Kim"], ["hoa", "Hỏa"], ["thuy", "Thủy"], ["bang",
 const MON_STYLE = [["melee", "Đánh gần (lao tới)"], ["ranged", "Đánh xa (bắn)"], ["none", "Đứng yên (bù nhìn)"]];
 const ART_SOURCE = [["learn", "Lĩnh ngộ bằng vật phẩm"], ["event", "Chỉ qua hoạt động / sự kiện / đấu giá (admin phát)"]];
 const ITEM_KIND = [["pill", "Đan dược (dùng được)"], ["book", "Bí kíp"], ["material", "Nguyên liệu"]];
-/** Show a long list a page at a time: the first `n`, then a button for the next `n`. */
-function paged(list, render, n = 24) {
-  const box = el("div", { class: "grid" });
-  let shown = 0;
-  const more = el("button", { class: "small", type: "button" }, "Xem thêm");
-  const step = () => {
-    box.append(...list.slice(shown, shown + n).map(render));
-    shown += n;
-    more.hidden = shown >= list.length;
-    more.textContent = `Xem thêm (còn ${Math.max(0, list.length - shown)})`;
+/**
+ * A long list 10 at a time, with page buttons under it. key: the filters the list was made with; the page is remembered
+ * for the same tab and filters, so saving something on page 4 brings you back to page 4, while a new search starts at 1.
+ * render(item, i) gets the item's place in `list`. Returns [the items, the pager].
+ */
+const pageMem = new Map();
+function paged(list, render, key = "", n = 10) {
+  const box = el("div", { class: "grid" }), nav = el("div", { class: "pager" });
+  const pages = Math.max(1, Math.ceil(list.length / n)), mem = `${tab}|${key}`;
+  const show = (k, scroll = false) => {
+    const page = Math.max(0, Math.min(pages - 1, k));
+    pageMem.set(mem, page);
+    box.replaceChildren(...(list.length ? list.slice(page * n, page * n + n).map((r, j) => render(r, page * n + j)) : [el("p", { class: "dim" }, "Không có kết quả.")]));
+    // first, last, and two either side of the current page; gaps shown as …; one page: just the count
+    const count = el("span", { class: "dim count" }, `${list.length} mục`);
+    if (pages <= 1) return void nav.replaceChildren(count);
+    const btn = (label, to, { on = false, off = false } = {}) => el("button", { type: "button", class: `small${on ? " on" : ""}`, disabled: off || undefined, onclick: () => show(to, true) }, label);
+    const nums = [...new Set([0, pages - 1, page - 2, page - 1, page, page + 1, page + 2])].filter((x) => x >= 0 && x < pages).sort((a, b) => a - b);
+    const kids = [btn("‹", page - 1, { off: page === 0 })];
+    nums.forEach((x, i) => {
+      if (i && x - nums[i - 1] > 1) kids.push(el("span", { class: "dim" }, "…"));
+      kids.push(btn(String(x + 1), x, { on: x === page }));
+    });
+    kids.push(btn("›", page + 1, { off: page === pages - 1 }), count);
+    nav.replaceChildren(...kids);
+    if (scroll) box.scrollIntoView({ block: "start", behavior: "smooth" });
   };
-  more.addEventListener("click", step);
-  step();
-  return [box, el("div", { class: "actions" }, more)];
+  show(pageMem.get(mem) ?? 0);
+  return [box, nav];
 }
+/** A search box that calls draw() as you type (a moment after the last key). */
+function searchBox(placeholder, draw) {
+  const q = el("input", { type: "search", placeholder });
+  let t;
+  q.addEventListener("input", () => (clearTimeout(t), (t = setTimeout(draw, 200))));
+  return q;
+}
+const has = (t, ...texts) => !t || texts.some((x) => String(x ?? "").toLowerCase().includes(t));
 const itemOptions = (items) => items.map((i) => [i.item_key, `${i.name} (${i.item_key})`]);
 
 const VIEWS = {
@@ -320,11 +343,11 @@ const VIEWS = {
     const load = async () => {
       const rows = await guard(() => api(`/players?q=${encodeURIComponent(q.value.trim())}&sort=${sort.value}&filter=${filter.value}`));
       if (!rows) return;
-      list.replaceChildren(...(rows.length ? rows.map((p) => el("div", { class: "row", onclick: () => playerView(p.id) },
+      list.replaceChildren(...paged(rows, (p) => el("div", { class: "row", onclick: () => playerView(p.id) },
         el("span", { class: `dot ${p.online ? "on" : ""}`, title: p.online ? "Đang online" : "Offline" }),
         el("div", { class: "main" }, el("b", {}, p.name ?? "(chưa tạo nhân vật)"), el("small", {}, `@${p.username} · id ${p.id}`)),
         el("div", { class: "nums" }, p.realm ? el("span", {}, p.realm) : null, p.stones !== null ? el("span", {}, `💎 ${fmt(p.stones)}`) : null,
-          p.banned ? el("span", { class: "tag red" }, "Bị khóa") : null))) : [el("p", { class: "dim" }, "Không tìm thấy ai.")]));
+          p.banned ? el("span", { class: "tag red" }, "Bị khóa") : null)), `${q.value.trim()}|${sort.value}|${filter.value}`));
     };
     let t;
     q.addEventListener("input", () => (clearTimeout(t), (t = setTimeout(load, 300))));
@@ -337,10 +360,12 @@ const VIEWS = {
 
   async realms() {
     const rows = await api("/t/realms");
+    // each realm's levels, counted through the whole list
+    const span = [];
     let L = 0;
-    const cards = rows.map((r, i) => {
-      const from = L + 1;
-      L += r.stages;
+    for (const r of rows) span.push([L + 1, (L += r.stages)]);
+    const card = (r) => {
+      const i = rows.indexOf(r), [from, to] = span[i];
       const move = async (d) => {
         const other = rows[i + d];
         if (!other) return;
@@ -353,7 +378,7 @@ const VIEWS = {
         reload();
       };
       return record({
-        title: r.name, sub: `cấp ${from}-${L}`, row: r,
+        title: r.name, sub: `cấp ${from}-${to}`, row: r,
         extra: el("span", {}, el("button", { type: "button", class: "small", onclick: () => move(-1), disabled: i === 0 }, "↑"), " ",
           el("button", { type: "button", class: "small", onclick: () => move(1), disabled: i === rows.length - 1 }, "↓")),
         fields: [{ k: "name", label: "Tên cảnh giới" }, { k: "stages", label: "Số tầng", type: "number", step: 1 }],
@@ -361,13 +386,20 @@ const VIEWS = {
         onDelete: async () => confirm(`Xóa cảnh giới ${r.name}? Cấp của người chơi sẽ tính lại theo danh sách mới.`) &&
           (await guard(() => api(`/t/realms/${r.id}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
       });
-    });
+    };
     const add = record({
       title: "Thêm cảnh giới (vào cuối)", isNew: true, row: { stages: 5 },
       fields: [{ k: "name", label: "Tên cảnh giới" }, { k: "stages", label: "Số tầng", type: "number", step: 1 }],
       onSave: async (c) => (await guard(() => api("/t/realms", { method: "POST", body: c }), "Đã thêm.")) && reload(),
     });
-    return [el("h2", {}, "Cảnh giới"), el("p", { class: "dim" }, `Tổng ${L} cấp. Mỗi cảnh giới có một số tầng; cấp tối đa là tổng số tầng. Dùng ↑ ↓ để đổi thứ tự.`), el("div", { class: "grid" }, add, cards)];
+    const out = el("div");
+    const q = searchBox("Tìm cảnh giới...", () => draw());
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      out.replaceChildren(...paged(rows.filter((r) => has(t, r.name)), card, t));
+    };
+    draw();
+    return [el("h2", {}, "Cảnh giới"), el("p", { class: "dim" }, `Tổng ${L} cấp. Mỗi cảnh giới có một số tầng; cấp tối đa là tổng số tầng. Dùng ↑ ↓ để đổi thứ tự.`), el("div", { class: "grid" }, add), el("div", { class: "bar" }, q), out];
   },
 
   async items() {
@@ -395,7 +427,7 @@ const VIEWS = {
         extra: r.on_sale ? el("span", { class: "tag green" }, "Đang bán") : el("span", { class: "tag" }, "Không bán"),
         onSave: async (c) => (await guard(() => api(`/t/items/${r.item_key}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
         onDelete: async () => confirm(`Xóa hẳn ${r.name}?`) && (await guard(() => api(`/t/items/${r.item_key}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
-      })));
+      }), `${kind.value}|${t}`));
     };
     kind.addEventListener("change", draw);
     q.addEventListener("input", draw);
@@ -489,7 +521,7 @@ const VIEWS = {
         if (!r.starter && r.source !== "event") card.insertBefore(reqBox(r.art_key), card.querySelector(".actions"));
         if (!r.starter) card.insertBefore(grantBox(r), card.querySelector(".actions"));
         return card;
-      }, 12));
+      }, `${src.value}|${type.value}|${elem.value}|${aimSel.value}|${t}`));
     };
     for (const s of [src, type, elem, aimSel]) s.addEventListener("change", draw);
     q.addEventListener("input", draw);
@@ -526,7 +558,7 @@ const VIEWS = {
         title: nameOf[r.item_key] ?? r.item_key, sub: `${r.monster === "*" ? "mọi yêu thú" : r.monster} · trọng số ${r.chance} (${share(r)})`, row: r, fields: F,
         onSave: async (c) => (await guard(() => api(`/t/monster_drops/${r.id}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
         onDelete: async () => confirm("Bỏ dòng rơi đồ này?") && (await guard(() => api(`/t/monster_drops/${r.id}`, { method: "DELETE" }), "Đã bỏ.")) && reload(),
-      }), 30));
+      }), `${mon.value}|${t}`));
     };
     mon.addEventListener("change", draw);
     q.addEventListener("input", draw);
@@ -560,9 +592,19 @@ const VIEWS = {
       fields: [{ k: "type", label: "Mã (chữ thường, không dấu)", hint: "vd: hac_lang" }, ...F],
       onSave: async (c) => (await guard(() => api("/t/monsters", { method: "POST", body: c }), "Đã thêm.")) && reload(),
     });
+    const style = el("select", {}, [["", "Mọi kiểu đánh"], ...MON_STYLE].map(([v, l]) => el("option", { value: v }, l)));
+    const out = el("div");
+    const q = searchBox("Tìm theo tên, mã hoặc hiệu ứng...", () => draw());
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      out.replaceChildren(...paged(rows.filter((r) => (!style.value || r.style === style.value) && has(t, r.name, r.type, r.fx)), monCard, `${style.value}|${t}`));
+    };
+    style.addEventListener("change", draw);
+    draw();
     return [el("h2", {}, `Yêu thú (${rows.length})`),
       el("p", { class: "dim" }, "Đánh gần: thấy người chơi là lao tới đánh. Đánh xa: giữ khoảng cách và bắn trong tầm bắn, bị áp sát thì lùi. Mỗi lần hạ, tung tỉ lệ rơi đồ; trúng thì rơi đúng 1 món, chọn theo trọng số trong danh sách của con đó (tab Rơi đồ). Các yêu thú mới chưa có trên bản đồ nào; thả thử ở trang người chơi (nút \"Thả quái thử\")."),
-      el("div", { class: "grid" }, add, rows.map((r) => {
+      el("div", { class: "grid" }, add), el("div", { class: "bar" }, style, q), out];
+    function monCard(r) {
         const mine = drops.filter((d) => d.monster === r.type), w = mine.reduce((a, d) => a + d.chance, 0);
         return record({
           title: r.name, sub: `${r.type} · ${MON_STYLE.find((x) => x[0] === r.style)?.[1] ?? r.style}${r.fly ? " · bay" : ""}`, row: r, fields: F,
@@ -570,14 +612,22 @@ const VIEWS = {
           onSave: async (c) => (await guard(() => api(`/t/monsters/${r.type}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
           onDelete: async () => confirm(`Xóa hẳn ${r.name} và danh sách rơi đồ của nó?`) && (await guard(() => api(`/t/monsters/${r.type}`, { method: "DELETE" }), "Đã xóa.")) && reload(),
         });
-      }))];
+    }
   },
 
   async skills() {
     const rows = await api("/t/skills");
     const KEYS = ["J"];
+    const out = el("div");
+    const q = searchBox("Tìm chiêu...", () => draw());
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      out.replaceChildren(...paged(rows.filter((r) => has(t, r.name, r.type)), skillCard, t));
+    };
+    queueMicrotask(draw);
     return [el("h2", {}, "Đánh thường"), el("p", { class: "dim" }, "Đòn đánh thường trên nút to (J), ai cũng dùng. Các chiêu khác là công pháp: xem tab Công pháp."),
-      el("div", { class: "grid" }, rows.map((r) => {
+      el("div", { class: "bar" }, q), out];
+    function skillCard(r) {
         const params = JSON.parse(r.params || "{}");
         const row = { ...r, ...Object.fromEntries(Object.entries(params).map(([k, v]) => [`p_${k}`, v])) };
         const build = (type) => record({
@@ -611,7 +661,7 @@ const VIEWS = {
         };
         put(r.type);
         return holder;
-      }))];
+    }
   },
 
   async settings() {
@@ -619,26 +669,28 @@ const VIEWS = {
     const groups = {};
     for (const r of rows) (groups[r.k.split(".")[0]] ??= []).push(r);
     const NAMES = { class: "Chỉ số nhân vật", exp: "Tu vi & lên cấp", level: "Sức mạnh theo cấp", arena: "Đấu trường", start: "Quà tân thủ", daily: "Quà mỗi ngày", shop: "Đan Các", meditate: "Tu luyện", pvp: "PvP", respawn: "Hồi sinh", fly: "Ngự Kiếm Phi Hành" };
-    return [el("h2", {}, "Cài đặt"), el("p", { class: "dim" }, "Mỗi con số đều có giải thích. Số sai (âm, quá lớn...) sẽ bị từ chối, game không bị ảnh hưởng."),
-      el("div", { class: "grid" }, Object.entries(groups).map(([g, list]) => {
-        const card = el("div", { class: "card" }, el("h3", {}, NAMES[g] ?? g));
-        for (const r of list) {
-          const shown = r.k === "fly.realm" ? realms[r.v - 1]?.name ?? "Khoá" : fmt(r.v);
-          const f = record({
-            title: r.note || r.k, sub: `${r.k} = ${shown}`, row: r,
-            // the realm flight opens at: picked by name (stored as its number, counted from 1)
-            fields: [r.k === "fly.realm"
-              ? { k: "v", label: "Cảnh giới mở khoá Ngự Kiếm Phi Hành (tới tầng 1 cảnh giới này là bay được)", type: "select", wide: true,
-                options: [...realms.map((x, i) => [i + 1, x.name]), [realms.length + 1, "(Khoá: chưa ai bay được)"]] }
-              : { k: "v", label: r.note || r.k, type: "number", wide: true }],
-            onSave: async (c) => (await guard(() => api(`/t/settings/${encodeURIComponent(r.k)}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
-          });
-          f.style.padding = "8px";
-          f.style.background = "var(--panel2)";
-          card.append(f);
-        }
-        return card;
-      }))];
+    const card = (r) => {
+      const shown = r.k === "fly.realm" ? realms[r.v - 1]?.name ?? "Khoá" : fmt(r.v);
+      return record({
+        title: r.note || r.k, sub: `${NAMES[r.k.split(".")[0]] ?? r.k.split(".")[0]} · ${r.k} = ${shown}`, row: r,
+        // the realm flight opens at: picked by name (stored as its number, counted from 1)
+        fields: [r.k === "fly.realm"
+          ? { k: "v", label: "Cảnh giới mở khoá Ngự Kiếm Phi Hành (tới tầng 1 cảnh giới này là bay được)", type: "select", wide: true,
+            options: [...realms.map((x, i) => [i + 1, x.name]), [realms.length + 1, "(Khoá: chưa ai bay được)"]] }
+          : { k: "v", label: r.note || r.k, type: "number", wide: true }],
+        onSave: async (c) => (await guard(() => api(`/t/settings/${encodeURIComponent(r.k)}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
+      });
+    };
+    const grp = el("select", {}, [["", "Mọi nhóm"], ...Object.keys(groups).map((g) => [g, NAMES[g] ?? g])].map(([v, l]) => el("option", { value: v }, l)));
+    const out = el("div");
+    const q = searchBox("Tìm theo ý nghĩa hoặc mã (vd: hồi sinh, fly)...", () => draw());
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      out.replaceChildren(...paged(rows.filter((r) => (!grp.value || r.k.split(".")[0] === grp.value) && has(t, r.k, r.note, NAMES[r.k.split(".")[0]])), card, `${grp.value}|${t}`));
+    };
+    grp.addEventListener("change", draw);
+    draw();
+    return [el("h2", {}, "Cài đặt"), el("p", { class: "dim" }, "Mỗi con số đều có giải thích. Số sai (âm, quá lớn...) sẽ bị từ chối, game không bị ảnh hưởng."), el("div", { class: "bar" }, grp, q), out];
   },
 
   async cosmetics() {
@@ -648,7 +700,7 @@ const VIEWS = {
     const g = el("select", {}, [["m", "Nam"], ["f", "Nữ"]].map(([v, l]) => el("option", { value: v }, l)));
     const state = el("select", {}, [["all", "Tất cả"], ["starter", "Miễn phí (khởi đầu)"], ["sale", "Đang bán"], ["off", "Ngừng bán"], ["special", "Bảo vật (đặc biệt)"]].map(([v, l]) => el("option", { value: v }, l)));
     const q = el("input", { placeholder: "Tìm theo tên...", type: "search" });
-    const grid = el("div", { class: "grid" });
+    const grid = el("div");
     const F = [
       { k: "name", label: "Tên", wide: true }, { k: "price", label: "Giá (linh thạch)", type: "number", step: 1 }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
       { k: "starter", label: "Miễn phí (tóc/áo: khi tạo nhân vật; phi kiếm: tặng khi mở khoá bay)", type: "bool" }, { k: "on_sale", label: "Đang bán", type: "bool" },
@@ -669,7 +721,7 @@ const VIEWS = {
         fields: [{ k: "idx", label: `Vị trí trong atlas (0-${total - 1})`, type: "number", step: 1 }, ...F],
         onSave: async (c) => (await guard(() => api("/t/cosmetics", { method: "POST", body: { ...c, kind: kind.value, gender: gv } }), "Đã thêm.")) && (await refresh()),
       });
-      grid.replaceChildren(add, ...list.map((r) => {
+      grid.replaceChildren(el("div", { class: "grid" }, add), ...paged(list, (r) => {
         const card = record({
           title: r.name, sub: `id ${r.id} · ô ${r.idx}`, row: r, fields: F,
           extra: el("span", {}, r.special ? el("span", { class: "tag gold" }, "★ Bảo vật") : r.starter ? el("span", { class: "tag gold" }, "Miễn phí") : null, " ", r.on_sale || r.special ? null : el("span", { class: "tag" }, "Ngừng bán"), " ", el("span", { class: "tag" }, `${r.owners} người có`)),
@@ -678,7 +730,7 @@ const VIEWS = {
         });
         card.prepend(el("div", { class: "thumbhead" }, thumb(r.kind, r.gender, r.idx)));
         return card;
-      }));
+      }, `${kind.value}|${gv}|${state.value}|${q.value.trim().toLowerCase()}`));
     };
     const refresh = async () => {
       rows.splice(0, rows.length, ...(await api("/t/cosmetics")));
@@ -698,28 +750,46 @@ const VIEWS = {
       fields: [{ k: "username", label: "Tên đăng nhập" }, { k: "password", label: "Mật khẩu tạm (8-72 ký tự)" }],
       onSave: async (c) => (await guard(() => api("/admins", { method: "POST", body: c }), "Đã thêm admin.")) && reload(),
     });
+    const aout = el("div");
+    const aq = searchBox("Tìm admin...", () => adraw());
+    const adraw = () => {
+      const t = aq.value.trim().toLowerCase();
+      aout.replaceChildren(...paged(rows.filter((a) => has(t, a.username)), adminCard, t));
+    };
+    adraw();
     return [el("h2", {}, "Tài khoản admin"),
       el("div", { class: "bar" }, el("button", { class: "primary", onclick: () => showPw(false) }, "Đổi mật khẩu của tôi")),
-      el("div", { class: "grid" }, add, rows.map((a) => el("div", { class: "card" },
+      el("div", { class: "grid" }, add), el("div", { class: "bar" }, aq), aout];
+    function adminCard(a) {
+      return el("div", { class: "card" },
         el("div", { class: "head" }, el("b", {}, a.username), a.username === me ? el("span", { class: "tag gold" }, "Bạn") : null, a.must_change ? el("span", { class: "tag" }, "Chưa đổi mật khẩu") : null),
         el("span", { class: "dim" }, `Tạo: ${when(a.created_at)} · Đăng nhập gần nhất: ${when(a.last_login)}`),
-        a.username === me ? null : el("div", { class: "actions" }, el("button", { class: "danger small", onclick: async () => confirm(`Xóa admin ${a.username}?`) && (await guard(() => api(`/admins/${a.id}`, { method: "DELETE" }), "Đã xóa.")) && reload() }, "Xóa")))))];
+        a.username === me ? null : el("div", { class: "actions" }, el("button", { class: "danger small", onclick: async () => confirm(`Xóa admin ${a.username}?`) && (await guard(() => api(`/admins/${a.id}`, { method: "DELETE" }), "Đã xóa.")) && reload() }, "Xóa")));
+    }
   },
 
   async log() {
-    const list = el("div", { class: "list" });
+    // the newest 100, more on request; searched and paged here
+    const all = [];
     let last = null;
-    const more = el("button", {}, "Xem thêm");
+    const out = el("div");
+    const more = el("button", { class: "small" }, "Tải thêm (cũ hơn)");
+    const q = searchBox("Tìm theo admin, thao tác, đối tượng hoặc nội dung...", () => draw());
+    const draw = () => {
+      const t = q.value.trim().toLowerCase();
+      out.replaceChildren(...paged(all.filter((l) => has(t, l.admin, l.action, ACTIONS[l.action], l.target, l.detail)), logItem, t));
+    };
     const load = async () => {
       const rows = await guard(() => api(`/log${last ? `?before=${last}` : ""}`));
       if (!rows) return;
-      list.append(...rows.map(logItem));
+      all.push(...rows);
       last = rows.at(-1)?.id ?? last;
       more.hidden = rows.length < 100;
+      draw();
     };
     more.addEventListener("click", load);
     await load();
-    return [el("h2", {}, "Nhật ký thao tác admin"), list, el("div", { class: "bar" }, more)];
+    return [el("h2", {}, "Nhật ký thao tác admin"), el("div", { class: "bar" }, q, more), out];
   },
 };
 
