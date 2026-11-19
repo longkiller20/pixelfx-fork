@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Take what the game uses from the Xianxia Pixel Pack v2.1 (CC0) and put it in public/xianxia/.
+"""Take what the game uses from the Xianxia Pixel Pack v2.1 (CC0) and put it in public/xianxia/ (the weapons atlas goes to
+tools/assets/atlases/; then run tools/assets/split.py, which gives each weapon its folder in public/vu-khi/).
 
   python3 tools/xianxia/build.py /path/to/Xianxia_Pixel_Pack        (needs Pillow and numpy)
   python3 tools/xianxia/build.py --pixelfx-only                     (just re-add pixelfx's weapons to the atlas)
@@ -20,6 +21,7 @@ from PIL import Image
 
 PACK = sys.argv[1] if len(sys.argv) > 1 else "Xianxia_Pixel_Pack"
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "public", "xianxia"))
+ATL = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "atlases"))
 SETS = ["bamboo", "bluestone", "cloud", "redclay"]
 TILES = [
     "ground_top_L", "ground_top_M", "ground_top_M2", "ground_top_M3", "ground_top_R", "ground_top_S",
@@ -119,8 +121,8 @@ def append_pixelfx():
     """Add the weapons pixelfx draws (tools/xianxia/pixelfx-weapons.json) to the end of the weapons atlas, as a new row
     below the pack's. Any pixelfx weapons already there are dropped first, so running this twice changes nothing."""
     src = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "pixelfx-weapons.json")))
-    items = [i for i in json.load(open(os.path.join(OUT, "weapons.json"))) if not i["name"].startswith("pixelfx_")]
-    sheet = np.array(Image.open(os.path.join(OUT, "weapons.png")).convert("RGBA"))
+    items = [i for i in json.load(open(os.path.join(ATL, "weapons.json"))) if not i["name"].startswith("pixelfx_")]
+    sheet = np.array(Image.open(os.path.join(ATL, "weapons.png")).convert("RGBA"))
     top = max(i["y"] + i["h"] for i in items)
     sheet = sheet[:top]
     row_h = max(w["h"] for w in src)
@@ -138,8 +140,8 @@ def append_pixelfx():
             item["long"] = w["long"]
         items.append(item)
         x += w["w"] + 2
-    Image.fromarray(grown).save(os.path.join(OUT, "weapons.png"), optimize=True)
-    with open(os.path.join(OUT, "weapons.json"), "w") as f:
+    Image.fromarray(grown).save(os.path.join(ATL, "weapons.png"), optimize=True)
+    with open(os.path.join(ATL, "weapons.json"), "w") as f:
         json.dump(items, f, separators=(",", ":"))
     print("pixelfx weapons", len(src), "added; atlas", grown.shape[1], "x", grown.shape[0], len(items), "items")
 
@@ -180,8 +182,8 @@ def main():
         col = np.nonzero(p[:, gx, 3])[0]
         gy = int(round(col.mean())) if len(col) else h // 2
         items.append({"name": n, "x": x0, "y": y0, "w": w, "h": h, "gx": gx, "gy": gy})
-    Image.fromarray(sheet).save(os.path.join(OUT, "weapons.png"), optimize=True)
-    with open(os.path.join(OUT, "weapons.json"), "w") as f:
+    Image.fromarray(sheet).save(os.path.join(ATL, "weapons.png"), optimize=True)
+    with open(os.path.join(ATL, "weapons.json"), "w") as f:
         json.dump(items, f, separators=(",", ":"))
     for n in BG:
         shutil.copy(os.path.join(PACK, "backgrounds", n + ".png"), os.path.join(OUT, "bg", n + ".png"))

@@ -1,9 +1,9 @@
 // The wardrobe a fresh database starts with. Only the free things are seeded now: 5 hair styles and 5 robes for each
 // gender (chosen at creation), one weapon in hand and one flying sword. The shop and the bảo vật (only ever given) are
 // empty until things designed one by one are added (in the admin site). The lists below still name every part
-// in the atlases (public/avatar/, public/xianxia/), so an admin can put one back by its idx; RETIRED_SHOP (db.js) took
+// in public/<kind>/<idx>-<name>/ (one folder per part: toc-nam, y-phuc-nu, vu-khi, phi-kiem...), so an admin can put one back by its idx; RETIRED_SHOP (db.js) took
 // the old shop items out of databases made before. Rows already there are left alone, so an admin's changes stick.
-const ALL_COSMETICS = [
+export const ALL_COSMETICS = [
   { kind: "hair", g: "m", idx: 0, name: "Huyền Lưu Phát", price: 300, starter: false },
   { kind: "hair", g: "m", idx: 1, name: "Lam Thiên Phát", price: 300, starter: false },
   { kind: "hair", g: "m", idx: 2, name: "Lam Lưu Phát 2", price: 500, starter: false },
@@ -167,9 +167,9 @@ const ALL_COSMETICS = [
 ];
 export const COSMETICS_SEED = ALL_COSMETICS.filter((c) => c.starter);
 
-// weapons (Xianxia Pixel Pack, CC0): for everyone (gender "a"); idx is the place in public/xianxia/weapons.json
+// weapons (Xianxia Pixel Pack, CC0): for everyone (gender "a"); idx is the number of its folder in public/vu-khi/
 export const DEFAULT_WEAPON = 60;
-const ALL_WEAPONS = [
+export const ALL_WEAPONS = [
   { kind: "weapon", g: "a", idx: 0, name: "Khách Binh I", price: 120, starter: false }, // blade_01_00
   { kind: "weapon", g: "a", idx: 1, name: "Khách Binh II", price: 120, starter: false }, // blade_01_01
   { kind: "weapon", g: "a", idx: 2, name: "Khách Binh III", price: 120, starter: false }, // blade_01_02
@@ -282,17 +282,17 @@ export const SPECIAL_WEAPONS = [
   { idx: 100, name: "Phược Long Tiên" }, // pixelfx whip (handle and lash)
 ].map((w) => ({ kind: "weapon", g: "a", price: 0, starter: false, onSale: false, special: true, ...w }));
 
-// Flying swords (phi kiếm) for ngự kiếm phi hành: public/xianxia/swords.png, cut by tools/swords/build.py, in the order of
+// Flying swords (phi kiếm) for ngự kiếm phi hành: public/phi-kiem/<idx>-<name>/, cut by tools/swords/build.py, in the order of
 // the sheet they came from (6 a row). Thanh Vân Kiếm is everyone's once flight opens (starter: free, but only rideable from
 // the realm the admin sets, fly.realm); the dragons and a few others are bảo vật, only given (events, an admin). The ones
 // with a price were sold once and are no longer seeded (an admin can add one back by its idx).
 export const BASIC_SWORD = 0;
-export const SWORDS_SEED = [
+export const ALL_SWORDS = [
   ["Thanh Vân Kiếm", 0, "starter"], ["Kim Phượng Kiếm", 1800], ["Tử Diễm Kiếm", 1200], ["Băng Long Kiếm", 0, "special"], ["Đào Hoa Kiếm", 800], ["Xích Long Kiếm", 0, "special"],
   ["Bạch Long Kiếm", 0, "special"], ["Thanh Trúc Kiếm", 600], ["Nguyệt Vân Kiếm", 1500], ["Phấn Liên Kiếm", 900], ["Tinh Bàn Kiếm", 1600], ["Tử Vũ Kiếm", 1400],
   ["Liệt Hỏa Kiếm", 1200], ["Băng Tinh Kiếm", 1200], ["Kim Liên Kiếm", 2000], ["U Minh Kiếm", 1500], ["Kim Hoàn Kiếm", 1800], ["Tinh Hà Kiếm", 0, "special"],
   ["Thủy Lãng Kiếm", 900], ["Hồ Điệp Kiếm", 1000], ["Huyền Linh Kiếm", 1300], ["Thiên Vũ Kiếm", 1600], ["Hồng Mai Kiếm", 1000], ["Bích Long Kiếm", 0, "special"],
   ["Tường Vân Kiếm", 700], ["Lam Liên Kiếm", 1100], ["Hỏa Long Kiếm", 0, "special"], ["Tử Hoa Kiếm", 900], ["Thái Cực Kiếm", 0, "special"], ["Băng Phách Kiếm", 1400],
-].map(([name, price, tag], idx) => ({ kind: "sword", g: "a", idx, name, price, starter: tag === "starter", onSale: tag !== "special", special: tag === "special" }))
-  // only the basic sword; the ones that were sold and the bảo vật are out until redesigned
-  .filter((w) => w.starter);
+].map(([name, price, tag], idx) => ({ kind: "sword", g: "a", idx, name, price, starter: tag === "starter", onSale: tag !== "special", special: tag === "special" }));
+// only the basic sword; the ones that were sold and the bảo vật are out until redesigned
+export const SWORDS_SEED = ALL_SWORDS.filter((w) => w.starter);

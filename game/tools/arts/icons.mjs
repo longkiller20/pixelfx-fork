@@ -1,12 +1,14 @@
-// Draw the icon of every pixelfx effect into one sheet, so the Công Pháp panel and the skill bar show them all at once
-// instead of drawing 200+ effects in the player's browser (slow on a phone while the game runs, so some came late or
-// not at all). Writes public/arts/icons.png and icons.json ({ cell, cols, v, fx: { effect id: index, -1 if it draws
-// nothing } }). Needs the game server running (it serves the modules): node tools/arts/icons.mjs [http://localhost:5886]
-// Run again after adding effects to pixelfx; an effect missing from the sheet is still drawn in the browser.
+// Draw every công pháp's icon into its own folder: public/cong-phap/<n>-<name>/icon.png + thong-tin.json ({ key, ten, fx }),
+// n being its place in the list (the order the game shows them), <name> its name without accents or spaces. The game
+// finds an art's icon through the key in thong-tin.json (server/assets.js), so the folders can be renamed or renumbered
+// freely, and an icon replaced by drawing a new icon.png. An art with no folder is drawn in the browser instead.
+// Needs the game server running (it serves the modules and the arts): node tools/arts/icons.mjs [http://localhost:5886]
+// Run it again after adding arts or changing their effect; it redraws every folder it made (others are left alone).
 import { createRequire } from "node:module";
-import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync, readdirSync, rmSync, existsSync, copyFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -16,47 +18,50 @@ try {
   ({ chromium } = createRequire("/opt/")("playwright"));
 }
 const BASE = process.argv[2] ?? "http://localhost:5886";
-const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "public", "arts");
+const PUB = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "public");
+const OUT = join(PUB, "cong-phap");
+const slug = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[đĐ]/g, "d").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
 page.on("pageerror", (e) => console.error("page:", e.message));
-// any page of the game will do: the modules are what we need
 await page.goto(BASE + "/js/arts.js");
-const out = await page.evaluate(async () => {
-  const { renderIcon } = await import("/js/arts.js");
-  const { effects } = await import("/pixelfx/fx/index.js");
-  const ids = Object.keys(effects).sort(), CELL = 64, COLS = 16;
-  const fx = {}, drawn = [];
-  for (const id of ids) {
-    let c = null;
-    try {
-      c = renderIcon(id);
-    } catch {}
-    if (c) (fx[id] = drawn.length), drawn.push(c);
-    else fx[id] = -1;
-  }
-  const sheet = document.createElement("canvas");
-  sheet.width = COLS * CELL;
-  sheet.height = Math.ceil(drawn.length / COLS) * CELL;
-  const g = sheet.getContext("2d");
-  drawn.forEach((c, i) => g.drawImage(c, (i % COLS) * CELL, Math.floor(i / COLS) * CELL));
-  return { png: sheet.toDataURL("image/png"), meta: { cell: CELL, cols: COLS, fx } };
+const arts = await page.evaluate(async () => {
+  const { renderIcon, FIXED } = await import("/js/arts.js");
+  const bal = await import("/shared/balance.js");
+  bal.applyConfig(await (await fetch("/api/config")).json());
+  const list = Object.values(bal.ARTS).sort((a, b) => a.sort - b.sort || a.key.localeCompare(b.key));
+  return list.map((a) => {
+    let png = null;
+    if (!FIXED[a.key])
+      try {
+        png = renderIcon(a.fx)?.toDataURL("image/png") ?? null;
+      } catch {}
+    return { key: a.key, name: a.name, fx: a.fx, fixed: FIXED[a.key] ?? null, png };
+  });
 });
 await browser.close();
+
+// clear what an earlier run made (numbered folders with our files), then write every art's folder
 mkdirSync(OUT, { recursive: true });
-writeFileSync(join(OUT, "icons.png"), Buffer.from(out.png.split(",")[1], "base64"));
-// down to 256 colours (a fifth of the size, no visible change) when Python's Pillow is there
+for (const d of readdirSync(OUT))
+  if (/^\d+-[a-z0-9]*$/.test(d) && existsSync(join(OUT, d, "thong-tin.json"))) rmSync(join(OUT, d), { recursive: true });
+let n = 0, none = 0;
+arts.forEach((a, i) => {
+  const dir = join(OUT, `${i + 1}-${slug(a.name)}`);
+  if (!a.png && !a.fixed) return void none++;
+  mkdirSync(dir, { recursive: true });
+  if (a.fixed) copyFileSync(join(PUB, a.fixed), join(dir, "icon.png"));
+  else writeFileSync(join(dir, "icon.png"), Buffer.from(a.png.split(",")[1], "base64"));
+  writeFileSync(join(dir, "thong-tin.json"), JSON.stringify({ key: a.key, ten: a.name, fx: a.fx }, null, 2) + "\n");
+  n++;
+});
+// down to 256 colours each (a fraction of the size, no visible change) when Python's Pillow is there
 try {
-  require("node:child_process").execFileSync("python3", ["-c",
-    "import sys;from PIL import Image;i=Image.open(sys.argv[1]);i.quantize(256,method=Image.Quantize.FASTOCTREE,dither=Image.Dither.NONE).save(sys.argv[1],optimize=True)",
-    join(OUT, "icons.png")]);
+  execFileSync("python3", ["-c",
+    "import sys,glob;from PIL import Image\nfor f in glob.glob(sys.argv[1]+'/*/icon.png'):\n i=Image.open(f).convert('RGBA');i.quantize(256,method=Image.Quantize.FASTOCTREE,dither=Image.Dither.NONE).save(f,optimize=True)",
+    OUT]);
 } catch {
-  console.log("(Pillow not found: the sheet is kept in full colour)");
+  console.log("(Pillow not found: icons kept in full colour)");
 }
-const png = readFileSync(join(OUT, "icons.png"));
-// v changes with the picture, so a browser never keeps an old sheet
-const v = require("node:crypto").createHash("sha1").update(png).digest("hex").slice(0, 8);
-writeFileSync(join(OUT, "icons.json"), JSON.stringify({ v, ...out.meta }));
-const n = Object.values(out.meta.fx);
-console.log(`${n.filter((i) => i >= 0).length} icons drawn, ${n.filter((i) => i < 0).length} effects draw nothing; ${(png.length / 1024).toFixed(0)} KB`);
+console.log(`${n} công pháp icons in public/cong-phap/${none ? `, ${none} draw nothing (drawn in the browser)` : ""}`);

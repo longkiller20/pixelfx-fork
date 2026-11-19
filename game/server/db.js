@@ -101,7 +101,7 @@ const SCHEMA = [
     PRIMARY KEY (user_id, day),
     CONSTRAINT fk_daily_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
-  // the wardrobe: every hair style and robe the game knows, by its place in the atlases (public/avatar/). An admin adds,
+  // the wardrobe: every hair style and robe the game knows, by its number: its picture is public/toc-nam/<idx>-<name>/ and so on (server/assets.js). An admin adds,
   // prices, renames or takes items off sale here (or with tools/cosmetics.mjs); the game reads it live.
   `CREATE TABLE IF NOT EXISTS cosmetics (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

@@ -158,30 +158,27 @@ function record({ title, sub, fields, row = {}, onSave, onDelete, extra, isNew =
   return card;
 }
 
-// ---------------------------------------------------------------- hair and robe thumbnails, from the game's own atlases
+// ---------------------------------------------------------------- thumbnails of the parts, from their own folders
+// every part is its own picture, public/<kind>/<idx>-<name>/hinh.png; the server lists them at /assets.json
 let atlas = null;
+const PART_FOLDER = { hair_m: "toc-nam", hair_f: "toc-nu", robe_m: "y-phuc-nam", robe_f: "y-phuc-nu", weapon_a: "vu-khi", sword_a: "phi-kiem" };
 async function loadAtlas() {
-  if (atlas) return atlas;
-  const [meta, wm, sm] = await Promise.all(["/avatar/avatar.json", "/xianxia/weapons.json", "/xianxia/swords.json"].map((u) => fetch(u).then((r) => r.json())));
-  meta.weapon_a = wm.map((w) => [w.x, w.y, w.w, w.h]);
-  meta.sword_a = sm.map((w) => [w.x, w.y, w.w, w.h]);
-  const imgs = {};
-  await Promise.all([["hair_m", "/avatar/hair_m.png"], ["hair_f", "/avatar/hair_f.png"], ["robe_m", "/avatar/robe_m.png"], ["robe_f", "/avatar/robe_f.png"], ["weapon_a", "/xianxia/weapons.png"], ["sword_a", "/xianxia/swords.png"]].map(async ([k, src]) => {
-    const i = new Image();
-    i.src = src;
-    await i.decode();
-    imgs[k] = i;
-  }));
-  return (atlas = { meta, imgs });
+  atlas = { parts: (await fetch("/assets.json", { cache: "no-store" }).then((r) => r.json())).parts };
+  return atlas;
 }
+/** The idx numbers there are pictures of for a kind, in order. */
+const partIdx = (key) => Object.keys(atlas?.parts[key] ?? {}).map(Number).sort((a, b) => a - b);
 function thumb(kind, g, idx, cls = "thumb") {
   const c = el("canvas", { class: cls, width: 64, height: 64 });
-  if (!atlas) return c;
-  const m = atlas.meta[`${kind}_${g}`]?.[idx];
-  if (!m) return c;
-  const [x, y, w, h] = m, s = Math.min(64 / w, 64 / h), g2 = c.getContext("2d");
-  g2.imageSmoothingEnabled = false;
-  g2.drawImage(atlas.imgs[`${kind}_${g}`], x, y, w, h, (64 - w * s) / 2, (64 - h * s) / 2, w * s, h * s);
+  const e = atlas?.parts[`${kind}_${g}`]?.[idx];
+  if (!e) return c;
+  const img = new Image();
+  img.onload = () => {
+    const w = img.width, h = img.height, s = Math.min(64 / w, 64 / h), g2 = c.getContext("2d");
+    g2.imageSmoothingEnabled = false;
+    g2.drawImage(img, (64 - w * s) / 2, (64 - h * s) / 2, w * s, h * s);
+  };
+  img.src = `/${e.dir}/hinh.png`;
   return c;
 }
 
@@ -713,17 +710,17 @@ const VIEWS = {
         (state.value === "all" || (state.value === "special" && r.special) || (!r.special && ((state.value === "starter" && r.starter) || (state.value === "sale" && r.on_sale && !r.starter) || (state.value === "off" && !r.on_sale)))) &&
         r.name.toLowerCase().includes(q.value.trim().toLowerCase()));
       const used = new Set(rows.filter((r) => r.kind === kind.value && r.gender === gv).map((r) => r.idx));
-      const total = atlas.meta[`${kind.value}_${gv}`].length;
-      const free = [...Array(total).keys()].filter((i) => !used.has(i));
+      const key = `${kind.value}_${gv}`, have = partIdx(key);
+      const free = have.filter((i) => !used.has(i));
       const add = record({
-        title: "Thêm món", sub: free.length ? `ô trống trong atlas: ${free.join(", ")}` : "atlas đã dùng hết; vẽ thêm vào sheet rồi chạy tools/avatar/build.py",
+        title: "Thêm món", sub: free.length ? `có hình chưa dùng: số ${free.join(", ")}` : `hình nào cũng đã dùng; thêm thư mục public/${PART_FOLDER[key]}/<số>-<tên>/ có hinh.png`,
         isNew: true, row: { idx: free[0] ?? "", price: 150, starter: 0, on_sale: 1, sort: 0 },
-        fields: [{ k: "idx", label: `Vị trí trong atlas (0-${total - 1})`, type: "number", step: 1 }, ...F],
+        fields: [{ k: "idx", label: `Số của hình (thư mục public/${PART_FOLDER[key]}/<số>-…)`, type: "number", step: 1 }, ...F],
         onSave: async (c) => (await guard(() => api("/t/cosmetics", { method: "POST", body: { ...c, kind: kind.value, gender: gv } }), "Đã thêm.")) && (await refresh()),
       });
       grid.replaceChildren(el("div", { class: "grid" }, add), ...paged(list, (r) => {
         const card = record({
-          title: r.name, sub: `id ${r.id} · ô ${r.idx}`, row: r, fields: F,
+          title: r.name, sub: `số ${r.idx} · id ${r.id}`, row: r, fields: F,
           extra: el("span", {}, r.special ? el("span", { class: "tag gold" }, "★ Bảo vật") : r.starter ? el("span", { class: "tag gold" }, "Miễn phí") : null, " ", r.on_sale || r.special ? null : el("span", { class: "tag" }, "Ngừng bán"), " ", el("span", { class: "tag" }, `${r.owners} người có`)),
           onSave: async (c) => (await guard(() => api(`/t/cosmetics/${r.id}`, { method: "PATCH", body: c }), "Đã lưu.")) && (await refresh()),
           onDelete: async () => confirm(`Xóa ${r.name}? ${r.owners} người đang có món này sẽ mất nó.`) && (await guard(() => api(`/t/cosmetics/${r.id}`, { method: "DELETE" }), "Đã xóa.")) && (await refresh()),
@@ -939,12 +936,12 @@ async function playerView(id) {
       const drawPicks = () => {
         const g = gsel.value;
         pickBox.replaceChildren(...["hair", "robe", "weapon", "sword"].map((kind) => {
-          const gk = kind === "weapon" || kind === "sword" ? "a" : g, n = atlas.meta[`${kind}_${gk}`].length;
-          if (choice[kind] >= n) choice[kind] = 0;
+          const gk = kind === "weapon" || kind === "sword" ? "a" : g, have = partIdx(`${kind}_${gk}`);
+          if (!have.includes(choice[kind])) choice[kind] = have[0] ?? 0;
           const grid = el("div", { class: "pickgrid" });
-          for (let i = 0; i < n; i++) {
+          for (const i of have) {
             const c = cos.find((x) => x.kind === kind && x.gender === gk && x.idx === i);
-            grid.append(el("button", { type: "button", class: `pick ${choice[kind] === i ? "on" : ""}`, title: c ? `${c.name}${c.starter ? " (miễn phí)" : ` (${c.price})`}` : `ô ${i}`,
+            grid.append(el("button", { type: "button", class: `pick ${choice[kind] === i ? "on" : ""}`, title: c ? `${c.name}${c.starter ? " (miễn phí)" : ` (${c.price})`}` : `số ${i}`,
               onclick: (e) => {
                 choice[kind] = i;
                 for (const b of grid.children) b.classList.toggle("on", b === e.currentTarget);

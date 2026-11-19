@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Build the character atlases in public/avatar/ from the artist's sheets in tools/avatar/src/.
+"""Build the character atlases in tools/assets/atlases/ from the artist's sheets in tools/avatar/src/ (then run
+tools/assets/split.py: the game uses one folder per part, public/toc-nam/<idx>-<name>/ and so on). The base figure goes
+straight to public/nhan-vat/than-goc.png.
 
   python3 tools/avatar/build.py        (needs Pillow and numpy)
 
@@ -21,7 +23,8 @@ from PIL import Image
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "src")
-OUT = os.path.normpath(os.path.join(HERE, "..", "..", "public", "avatar"))
+OUT = os.path.normpath(os.path.join(HERE, "..", "assets", "atlases"))
+BASE = os.path.normpath(os.path.join(HERE, "..", "..", "public", "nhan-vat", "than-goc.png"))
 SCALE = 0.25  # sheet px -> base px, the same for every sheet (they were drawn at one size)
 BASE_GRID = (15.52, 8.25, 8.0)  # pixel size and x, y offset of the base sheet's grid
 
@@ -189,7 +192,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     base = read_base()
     BH, BW = base.shape[:2]
-    Image.fromarray(base).save(os.path.join(OUT, "base.png"))
+    Image.fromarray(base).save(BASE)
     masks = regions(base)
     meta = {"base": {"w": BW, "h": BH, "ox": 15, "oy": BH}, "scale": SCALE}
     for key in ["hair_m", "hair_f", "robe_m", "robe_f"]:

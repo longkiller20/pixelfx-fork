@@ -1,7 +1,6 @@
-// Công pháp in the browser: an icon for every art, drawn from the art's own pixelfx effect, and the words for its
-// element and type. The icons of every pixelfx effect are drawn ahead of time into one sheet (public/arts/icons.png, made
-// by tools/arts/icons.mjs), so they all show at once; an effect missing from it (one added later) is drawn here, a few
-// at a time, and kept.
+// Công pháp in the browser: an icon for every art, and the words for its element and type. Each art's icon is its own
+// picture, public/cong-phap/<n>-<name>/icon.png (drawn ahead from its pixelfx effect by tools/arts/icons.mjs, or by an
+// artist), so they all show at once; an art with no folder (one added since) has its icon drawn here, a few at a time.
 import { createFrame, createFx, composite, stockActor } from "/pixelfx/core/index.js";
 import { effects } from "/pixelfx/fx/index.js";
 import { ARTS } from "/shared/balance.js";
@@ -11,7 +10,7 @@ export const TYPE_NAME = { melee: "Cận chiến", bolt: "Phóng xa", zone: "Vù
 export const STAT_NAME = { atk: "Công", def: "Thủ", spd: "Tốc độ" };
 export const elementName = (e) => ELEMENTS[e]?.name ?? e;
 // arts that have no effect of their own keep the pack's icons
-const FIXED = { phikiem: "/xianxia/ui/skill_s2.png", loian: "/xianxia/ui/skill_s3.png" };
+export const FIXED = { phikiem: "/xianxia/ui/skill_s2.png", loian: "/xianxia/ui/skill_s3.png" };
 
 // effects that dress a character (frost, poison, auras) are given an invisible one, so pixelfx's stand-in never shows
 const stock = stockActor(2);
@@ -44,50 +43,31 @@ const cache = new Map(); // art key -> data URL
 const waiting = new Map(); // art key -> [callbacks]
 const queue = [];
 
-// the sheet of ready-made icons: { cell, cols, fx: { effect id: index } } and its image; loaded once
-let sheet = null;
-const sheetReady = (async () => {
-  try {
-    const meta = await fetch("/arts/icons.json").then((r) => (r.ok ? r.json() : null));
-    if (!meta) return;
-    const img = new Image();
-    img.src = `/arts/icons.png?v=${meta.v ?? 1}`;
-    await img.decode();
-    sheet = { ...meta, img };
-  } catch {}
-})();
+// every art's own icon, drawn ahead into public/cong-phap/<n>-<name>/icon.png (tools/arts/icons.mjs): key -> folder
+let folders = null;
+const foldersReady = fetch("/assets.json")
+  .then((r) => r.json())
+  .then((a) => (folders = a.arts ?? {}))
+  .catch(() => (folders = {}));
 
 /** The art's icon as a URL; cb(url) is called when it is ready (at once if it already is). */
 export function artIcon(key, cb) {
+  if (folders?.[key]) return cb(`/${folders[key]}/icon.png`);
+  if (!folders) return void foldersReady.then(() => artIcon(key, cb));
   if (FIXED[key]) return cb(FIXED[key]);
+  // no folder for it (an art added since): drawn here; the latest asked first, so the cards on screen fill first
   const fx = ARTS[key]?.fx ?? "";
   if (cache.has(fx)) return cb(cache.get(fx));
   if (waiting.has(fx)) return waiting.get(fx).push(cb);
   waiting.set(fx, [cb]);
-  sheetReady.then(() => {
-    const url = fromSheet(fx);
-    if (url !== null) return done(fx, url);
-    // not in the sheet: drawn here; the latest asked first, so the cards on screen fill before ones scrolled past
-    queue.unshift(fx);
-    if (queue.length === 1) setTimeout(work, 0);
-  });
+  queue.unshift(fx);
+  if (queue.length === 1) setTimeout(work, 0);
 }
 
 function done(fx, url) {
   cache.set(fx, url);
   for (const cb of waiting.get(fx) ?? []) cb(url);
   waiting.delete(fx);
-}
-
-/** The effect's icon cut from the sheet as a URL, or null when the sheet doesn't have it. */
-function fromSheet(fx) {
-  const i = sheet?.fx[fx];
-  if (i === undefined) return null;
-  if (i < 0) return "";
-  const c = document.createElement("canvas"), n = sheet.cell;
-  c.width = c.height = n;
-  c.getContext("2d").drawImage(sheet.img, (i % sheet.cols) * n, Math.floor(i / sheet.cols) * n, n, n, 0, 0, n, n);
-  return c.toDataURL();
 }
 
 function work() {
@@ -106,7 +86,7 @@ function work() {
 
 /**
  * An effect's icon on a 64 px canvas, or null when it draws nothing: the effect played to its fullest moment (the one
- * with the most lit pixels of a few tries), cropped and fitted. Used by tools/arts/icons.mjs to make the sheet too.
+ * with the most lit pixels of a few tries), cropped and fitted. Used by tools/arts/icons.mjs to make the cong-phap folders too.
  */
 export function renderIcon(id) {
   const mod = effects[id];
