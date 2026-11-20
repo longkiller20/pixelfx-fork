@@ -119,6 +119,7 @@ export const DEFAULTS = {
     "home.max_animals": [12, "Số vật nuôi tối đa trong Nông Trại"],
     // giá từng kiểu nhà làm sẵn (shared/gia-vien.js HOUSES), theo mã nhà: home.price.<mã>
     "home.price.gamer": [150000, "Giá Nhà Game Thủ (linh thạch). 0: không bán, chỉ admin tặng"],
+    "home.price.tien_phu": [500000, "Giá Lăng Vân Tiên Phủ (linh thạch). 0: không bán, chỉ admin tặng"],
     // trò chuyện, Đạo Hữu, Truyền Âm (server/dao-huu.js)
     "chat.world_cooldown": [4, "Giây chờ giữa hai lần nói ở kênh Thế Giới (kênh Khu Vực, Tông Môn: 1 giây)"],
     "social.friends_max": [100, "Mỗi người có tối đa bấy nhiêu Đạo Hữu"],

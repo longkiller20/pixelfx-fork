@@ -18,8 +18,9 @@ domain): free for any use, no attribution required. Credit is given anyway.
 | Khoa Huyễn | Thép Vát, Thép Đinh Tán, Khung Thép, Khối Tản Nhiệt, Vách Thép, Vách Mạch, Vách Lưới | *Sci-fi platformer tiles (32x32)* by bart (https://opengameart.org/content/sci-fi-platformer-tiles-32x32) | CC0 |
 | Khoa Huyễn | Trạm Truyền Tin | *Communication terminal, 32x32* by moikmellah (https://opengameart.org/content/communication-terminal-32x32) | CC0 |
 
-`nha/gamer.png` (Nhà Game Thủ) is the game owner's own picture (`tools/gia-vien-nguon/nha-gamer.png`), brought to size by
-`tools/gia-vien-nha.py`; its moving lights are pixelfx (`../src/fx/home/gamer-house.js`).
+`nha/gamer.png` (Nhà Game Thủ) and `nha/tien_phu.png` (Lăng Vân Tiên Phủ) are the game owner's own pictures
+(`tools/gia-vien-nguon/nha-gamer.png`, `nha-tien-phu.png`), brought to size by `tools/gia-vien-nha.py`; what moves in them
+is pixelfx (`../src/fx/home/gamer-house.js`, `tien-phu.js`).
 
 Everything else in the Gia Viên is drawn in code with pixelfx (`../src/fx/farm/`, `../src/fx/home/`): the hens, ducks,
 pigs and cows, the four herbs and their growth, the soil beds, fences, troughs, coop, haystack and signs, and the

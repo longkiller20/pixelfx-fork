@@ -4,7 +4,7 @@
 
 # pixelfx.
 
-**<!-- count -->261<!-- /count --> pixel art effects and animations, every one a small piece of code.** Fire,
+**<!-- count -->262<!-- /count --> pixel art effects and animations, every one a small piece of code.** Fire,
 explosions, magic, weather, UI, pickups, critters and more. Play them live, recolor and mirror them, drop them into
 a browser game, or export sprite sheets for any engine. Plus a Claude Code skill that makes new ones the way a
 picky pixel artist would: draft, render, look, refine.
@@ -48,7 +48,7 @@ the idea at library scale, with a skill to keep going.
 | **transitions** | 10 | blinds, burn away, crt off, diamond wipe, glitch wipe, iris… |
 | **critters** | 12 | bat, bird, butterfly, eyeball, fish school, flying skull… |
 | **farm** | 9 | hen, cow, duck, honeysuckle, lingzhi, spirit grass… |
-| **home** | 4 | alchemy furnace, furniture, gamer house (live), paper lantern |
+| **home** | 5 | alchemy furnace, furniture, gamer house (live), paper lantern, tiên phủ (live) |
 <!-- /catalog -->
 
 Every effect is a file in `src/fx/<category>/<name>.js`. The [catalog](docs/CATALOG.md) lists them all.
