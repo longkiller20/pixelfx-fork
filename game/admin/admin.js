@@ -762,7 +762,7 @@ const VIEWS = {
     const [rows, realms] = await Promise.all([api("/t/settings"), api("/t/realms")]);
     const groups = {};
     for (const r of rows) (groups[r.k.split(".")[0]] ??= []).push(r);
-    const NAMES = { class: "Chỉ số nhân vật", exp: "Tu vi & lên cấp", level: "Sức mạnh theo cấp", arena: "Đấu trường", start: "Quà tân thủ", daily: "Quà mỗi ngày", shop: "Đan Các", meditate: "Tu luyện", pvp: "PvP", respawn: "Hồi sinh", fly: "Ngự Kiếm Phi Hành", sect: "Tông Môn", chat: "Trò chuyện", social: "Đạo Hữu", pm: "Truyền Âm" };
+    const NAMES = { class: "Chỉ số nhân vật", exp: "Tu vi & lên cấp", level: "Sức mạnh theo cấp", arena: "Đấu trường", start: "Quà tân thủ", daily: "Quà mỗi ngày", shop: "Đan Các", meditate: "Tu luyện", pvp: "PvP", respawn: "Hồi sinh", fly: "Ngự Kiếm Phi Hành", sect: "Tông Môn", chat: "Trò chuyện", social: "Đạo Hữu", pm: "Truyền Âm", home: "Gia Viên" };
     const card = (r) => {
       const shown = r.k === "fly.realm" ? realms[r.v - 1]?.name ?? "Khoá" : fmt(r.v);
       return record({

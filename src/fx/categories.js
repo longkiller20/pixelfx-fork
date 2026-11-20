@@ -22,4 +22,6 @@ export const categories = [
   { id: "pickups", name: "pickups", blurb: "coins, gems, chests, potions" },
   { id: "transitions", name: "transitions", blurb: "wipes, irises, dissolves" },
   { id: "critters", name: "critters", blurb: "slimes, bats, ghosts, frogs" },
+  { id: "farm", name: "farm", blurb: "hens, ducks, pigs, cows, herbs growing, fences and plots" },
+  { id: "home", name: "home", blurb: "doors, windows, tables, beds, lanterns, an alchemy furnace" },
 ];

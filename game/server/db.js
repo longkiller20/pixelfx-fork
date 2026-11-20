@@ -287,6 +287,55 @@ const SCHEMA = [
     CONSTRAINT fk_pm_from FOREIGN KEY (from_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_pm_to FOREIGN KEY (to_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // ---- Gia Viên (server/gia-vien.js): unlocked once per person; what is built (a cell per layer: its key), the building
+  // stock bought and not yet placed, the animals, the herb beds
+  `CREATE TABLE IF NOT EXISTS homes (
+    user_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    paid INT UNSIGNED NOT NULL DEFAULT 0,
+    unlocked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_home_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS home_blocks (
+    user_id INT UNSIGNED NOT NULL,
+    layer CHAR(1) NOT NULL,
+    cx SMALLINT NOT NULL,
+    cy SMALLINT NOT NULL,
+    kind VARCHAR(16) NOT NULL,
+    PRIMARY KEY (user_id, layer, cx, cy),
+    CONSTRAINT fk_hb_user FOREIGN KEY (user_id) REFERENCES homes(user_id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS home_stock (
+    user_id INT UNSIGNED NOT NULL,
+    kind VARCHAR(16) NOT NULL,
+    qty INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, kind),
+    CONSTRAINT fk_hs_user FOREIGN KEY (user_id) REFERENCES homes(user_id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS home_animals (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    kind VARCHAR(16) NOT NULL,
+    bought_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ready_at DATETIME NULL,
+    KEY k_ha_user (user_id),
+    CONSTRAINT fk_ha_user FOREIGN KEY (user_id) REFERENCES homes(user_id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS home_plots (
+    user_id INT UNSIGNED NOT NULL,
+    plot TINYINT UNSIGNED NOT NULL,
+    crop VARCHAR(16) NOT NULL,
+    planted_at DATETIME NOT NULL,
+    ready_at DATETIME NOT NULL,
+    PRIMARY KEY (user_id, plot),
+    CONSTRAINT fk_hp_user FOREIGN KEY (user_id) REFERENCES homes(user_id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS home_requests (
+    user_id INT UNSIGNED NOT NULL,
+    request_id CHAR(36) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, request_id),
+    CONSTRAINT fk_hr_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,

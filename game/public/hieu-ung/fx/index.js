@@ -19,6 +19,15 @@ import * as critters_slime from "./critters/slime.js";
 import * as critters_snake from "./critters/snake.js";
 import * as critters_wisp from "./critters/wisp.js";
 import * as explosions_nuke from "./explosions/nuke.js";
+import * as farm_chicken from "./farm/chicken.js";
+import * as farm_cow from "./farm/cow.js";
+import * as farm_duck from "./farm/duck.js";
+import * as farm_kim_ngan_hoa from "./farm/kim-ngan-hoa.js";
+import * as farm_linh_chi from "./farm/linh-chi.js";
+import * as farm_linh_thao from "./farm/linh-thao.js";
+import * as farm_nhan_sam from "./farm/nhan-sam.js";
+import * as farm_pig from "./farm/pig.js";
+import * as farm_props from "./farm/props.js";
 import * as fire_brazier from "./fire/brazier.js";
 import * as fire_fire_tornado from "./fire/fire-tornado.js";
 import * as fire_fireball from "./fire/fireball.js";
@@ -26,6 +35,9 @@ import * as fire_flame_pillar from "./fire/flame-pillar.js";
 import * as fire_meteor from "./fire/meteor.js";
 import * as fire_spirit_flame from "./fire/spirit-flame.js";
 import * as holy_heal from "./holy/heal.js";
+import * as home_furnace from "./home/furnace.js";
+import * as home_furniture from "./home/furniture.js";
+import * as home_lantern from "./home/lantern.js";
 import * as impacts_ground_slam from "./impacts/ground-slam.js";
 import * as impacts_hit_spark from "./impacts/hit-spark.js";
 import * as lightning_charge_up from "./lightning/charge-up.js";
@@ -69,6 +81,15 @@ export const effects = {
   "critters/snake": critters_snake,
   "critters/wisp": critters_wisp,
   "explosions/nuke": explosions_nuke,
+  "farm/chicken": farm_chicken,
+  "farm/cow": farm_cow,
+  "farm/duck": farm_duck,
+  "farm/kim-ngan-hoa": farm_kim_ngan_hoa,
+  "farm/linh-chi": farm_linh_chi,
+  "farm/linh-thao": farm_linh_thao,
+  "farm/nhan-sam": farm_nhan_sam,
+  "farm/pig": farm_pig,
+  "farm/props": farm_props,
   "fire/brazier": fire_brazier,
   "fire/fire-tornado": fire_fire_tornado,
   "fire/fireball": fire_fireball,
@@ -76,6 +97,9 @@ export const effects = {
   "fire/meteor": fire_meteor,
   "fire/spirit-flame": fire_spirit_flame,
   "holy/heal": holy_heal,
+  "home/furnace": home_furnace,
+  "home/furniture": home_furniture,
+  "home/lantern": home_lantern,
   "impacts/ground-slam": impacts_ground_slam,
   "impacts/hit-spark": impacts_hit_spark,
   "lightning/charge-up": lightning_charge_up,

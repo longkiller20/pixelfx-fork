@@ -247,6 +247,18 @@ import * as critters_jellyfish from "./critters/jellyfish.js";
 import * as critters_slime from "./critters/slime.js";
 import * as critters_snake from "./critters/snake.js";
 import * as critters_wisp from "./critters/wisp.js";
+import * as farm_chicken from "./farm/chicken.js";
+import * as farm_cow from "./farm/cow.js";
+import * as farm_duck from "./farm/duck.js";
+import * as farm_kim_ngan_hoa from "./farm/kim-ngan-hoa.js";
+import * as farm_linh_chi from "./farm/linh-chi.js";
+import * as farm_linh_thao from "./farm/linh-thao.js";
+import * as farm_nhan_sam from "./farm/nhan-sam.js";
+import * as farm_pig from "./farm/pig.js";
+import * as farm_props from "./farm/props.js";
+import * as home_furnace from "./home/furnace.js";
+import * as home_furniture from "./home/furniture.js";
+import * as home_lantern from "./home/lantern.js";
 
 export { categories } from "./categories.js";
 
@@ -498,4 +510,16 @@ export const effects = {
   "critters/slime": critters_slime,
   "critters/snake": critters_snake,
   "critters/wisp": critters_wisp,
+  "farm/chicken": farm_chicken,
+  "farm/cow": farm_cow,
+  "farm/duck": farm_duck,
+  "farm/kim-ngan-hoa": farm_kim_ngan_hoa,
+  "farm/linh-chi": farm_linh_chi,
+  "farm/linh-thao": farm_linh_thao,
+  "farm/nhan-sam": farm_nhan_sam,
+  "farm/pig": farm_pig,
+  "farm/props": farm_props,
+  "home/furnace": home_furnace,
+  "home/furniture": home_furniture,
+  "home/lantern": home_lantern,
 };

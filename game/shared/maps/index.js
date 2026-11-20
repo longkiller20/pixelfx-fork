@@ -6,9 +6,10 @@ import { BICHLAC } from "./bichlac.js";
 import { LINHTHUY } from "./linhthuy.js";
 import { UMINH } from "./uminh.js";
 import { MAVUC } from "./mavuc.js";
+import { GIAVIEN } from "./giavien.js";
 
 // the road east: the starter town, the forest, the lake, the old tombs, the abyss
-export const MAPS = { tanthu: TANTHU, bichlac: BICHLAC, linhthuy: LINHTHUY, uminh: UMINH, mavuc: MAVUC };
+export const MAPS = { tanthu: TANTHU, bichlac: BICHLAC, linhthuy: LINHTHUY, uminh: UMINH, mavuc: MAVUC, giavien: GIAVIEN };
 export const START_MAP = "tanthu";
 
 const cache = new Map();

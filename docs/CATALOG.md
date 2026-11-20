@@ -1,6 +1,6 @@
 # Catalog
 
-247 effects in 21 categories. Every one is a file in
+259 effects in 23 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -396,3 +396,29 @@ slimes, bats, ghosts, frogs.
 | Slime | `critters/slime` | loop 1.8s | 112×88 | A glossy slime hops in place: it squashes to wind up, stretches into the jump, rounds out in the air, splats down flinging droplets that creep back, then wobbles and blinks. |
 | Snake | `critters/snake` | loop 2.4s | 136×56 | A snake slithers along the floor, head raised: humps rise and roll back down its patterned body to the tail, dust puffs where it touches down, its forked tongue flicks. |
 | Wisp | `critters/wisp` | loop 3.2s | 128×104 | A will-o'-the-wisp loops a figure-eight over the floor: a little soul-flame with a face, its flame tail licking up and streaming behind, shedding puffs and sparks. |
+
+## farm
+
+hens, ducks, pigs, cows, herbs growing, fences and plots.
+
+| effect | id | | size | what it does |
+|---|---|---|---|---|
+| Hen | `farm/chicken` | loop 2.4s | 64×48 | A plump white hen with a red comb. Idle she looks about, pecks the ground twice, shakes her tail and blinks; walking (walk: 1) her legs step and her head nods with each stride. |
+| Cow | `farm/cow` | loop 3.6s | 96×64 | A spotted dairy cow with short horns. Idle she grazes, chews, looks up and swishes her tail; walking (walk: 1) her four legs amble. |
+| Duck | `farm/duck` | loop 2.8s | 64×48 | A white farm duck with an orange bill. Idle it preens, quacks and flaps once; walking (walk: 1) it waddles on flat orange feet. |
+| Honeysuckle | `farm/kim-ngan-hoa` | loop 3.4s | 40×52 | Kim Ngân Hoa: a climbing herb with paired leaves and trumpet flowers. stage 0 a sprout, 1 leafy, 2 white buds, 3 ripe: open flowers turned gold, a warm glow. |
+| Lingzhi | `farm/linh-chi` | loop 3s | 48×48 | Linh Chi: glossy red-brown fan-shaped mushrooms growing off a mossy stump. stage 0 a nub, 1 young caps, 2 grown, 3 ripe: violet light pulses from the caps. |
+| Spirit grass | `farm/linh-thao` | loop 3s | 40×48 | Linh Thảo, a tuft of slender jade blades swaying in the breeze. stage 0 a sprout, 1 young, 2 grown, 3 ripe: its tips glow cyan and motes of qi drift up. |
+| Ginseng | `farm/nhan-sam` | loop 3.2s | 48×48 | Nhân Sâm: slender stalks each holding a hand of five toothed leaflets. stage 0 a sprout, 1 young, 2 grown, 3 ripe: a cluster of glossy red berries on a centre stem. |
+| Pig | `farm/pig` | loop 3s | 72×48 | A round pink pig with floppy ears and a curly tail. Idle it sniffs, roots in the dirt and wiggles its tail; walking (walk: 1) its short legs trot. |
+| Farm props | `farm/props` | loop 2s | 80×72 | The farm's fixtures, one per piece: soil (a tilled bed, wet: 1 darker), fence, trough (full: 1 with feed), coop, haystack, sign. 32 px to a cell, standing on y = 0. |
+
+## home
+
+doors, windows, tables, beds, lanterns, an alchemy furnace.
+
+| effect | id | | size | what it does |
+|---|---|---|---|---|
+| Alchemy furnace | `home/furnace` | loop 3s | 56×72 | A bronze three-legged cauldron furnace for refining pills: coals glow in its belly, flames lick round the lid and a thread of smoke curls from the top. |
+| Furniture | `home/furniture` | loop 2s | 96×80 | Things for a house built a cell (32 px) at a time, one per piece: door, window, table, chair, bed, shelf, vase, scroll, paper wall, wood wall, bamboo, platform. |
+| Paper lantern | `home/lantern` | loop 3s | 48×56 | A red paper lantern hung from a bracket, swaying a little, its candle flickering: warm light pools round it and a gold tassel swings under it. |
