@@ -385,6 +385,47 @@ const VIEWS = {
     return out;
   },
 
+  // Câu Cá: rods and baits (name, price the Ngư Cụ asks), every catch (name, price the Ngư Cụ pays, how often it bites)
+  async fishing() {
+    const d = await api("/fishing"), out = el("div");
+    const pct = (p) => (p === undefined ? "0%" : p >= 0.1 ? `${(p * 100).toFixed(1)}%` : `${(p * 100).toFixed(2)}%`);
+    const saveItem = (k) => async (c) => (await guard(() => api(`/t/items/${k}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload();
+    out.append(el("h2", {}, "Câu Cá"),
+      el("p", { class: "dim" }, "Cần, mồi, cá được thiết kế trong code (shared/cau-ca.js): chỉ số cần, mồi và cân nặng cá cố định. Ở đây đổi tên, giá và tỉ lệ cá cắn câu. Lưu là có hiệu lực ngay cho mọi người chơi. Giá 0: cần/mồi không bán, cá Ngư Cụ không mua."),
+      el("h3", {}, "Cần câu"), el("p", { class: "dim" }, "Mua một lần, giữ mãi. Giá là giá Ngư Cụ bán."));
+    for (const r of d.rods)
+      out.append(record({ title: r.name, sub: `${r.key} · bậc ${r.tier} · vùng kéo ${Math.round(r.bar * 100)}% · lực ×${r.power} · may mắn +${Math.round(r.luck * 100)}% · ${r.price ? fmt(r.price) + " linh thạch" : "không bán"}`, row: r,
+        fields: [{ k: "name", label: "Tên cần" }, { k: "price", label: "Giá bán (linh thạch, 0 = không bán)", type: "number", step: 1 }], onSave: saveItem(r.key) }));
+    out.append(el("h3", {}, "Mồi câu"), el("p", { class: "dim" }, "Mất một viên mỗi lần cá cắn. Giá là giá một viên."));
+    for (const b of d.baits)
+      out.append(record({ title: b.name, sub: `${b.key} · bậc ${b.tier} · cá cắn nhanh ×${b.speed} · may mắn +${Math.round(b.luck * 100)}% · ${b.price ? fmt(b.price) + "/viên" : "không bán"}`, row: b,
+        fields: [{ k: "name", label: "Tên mồi" }, { k: "price", label: "Giá một viên (0 = không bán)", type: "number", step: 1 }], onSave: saveItem(b.key) }));
+    out.append(el("h3", {}, "Cá và vật câu được"),
+      el("p", { class: "dim" }, "Tỉ lệ là trọng số: cơ hội của một loại = tỉ lệ của nó / tổng tỉ lệ (rồi chỉnh theo may mắn của cần và mồi: tạp vật ít đi, cá quý dễ hơn; cá Tiên chỉ cắn mồi bậc 3 trở lên). Tỉ lệ 0: không bao giờ câu được. Ba cột % bên dưới là cơ hội thật: không tính cần mồi, Trúc Can + Giun Đất, Kim Long Can + Tiên Đào Nhị."));
+    const tbl = el("table", { class: "ftbl" }, el("tr", {}, ...["Loại", "Bậc", "Tỉ lệ", "Gốc", "Cần mồi rẻ nhất", "Cần mồi tốt nhất"].map((t) => el("th", {}, t))),
+      ...d.fish.map((f) => el("tr", {}, el("td", {}, f.name), el("td", { style: `color:${f.color}` }, f.rarityName), el("td", {}, String(f.rate)),
+        el("td", {}, pct(d.odds.bare[f.key])), el("td", {}, pct(d.odds.low[f.key])), el("td", {}, pct(d.odds.high[f.key])))));
+    out.append(el("div", { class: "fwrap" }, tbl));
+    for (const f of d.fish) {
+      const saveRate = async (c) => {
+        const { rate, stones_min, stones_max, ...rest } = c, fr = Object.fromEntries(Object.entries({ rate, stones_min, stones_max }).filter(([, v]) => v !== undefined));
+        if (Object.keys(rest).length && f.item && !(await guard(() => api(`/t/items/${f.key}`, { method: "PATCH", body: rest }), "Đã lưu."))) return;
+        if (Object.keys(fr).length && !(await guard(() => api(`/t/fish_rates/${f.key}`, { method: "PATCH", body: fr }), "Đã lưu tỉ lệ."))) return;
+        reload();
+      };
+      out.append(record({
+        title: f.name, sub: `${f.key} · [${f.rarityName}] · ${f.kg[0]}-${f.kg[1]} cân · ${f.stones ? `rương: mở ra ${f.stones[0]}-${f.stones[1]} linh thạch` : f.price ? `Ngư Cụ mua ${fmt(f.price)}` : "Ngư Cụ không mua"} · cơ hội gốc ${pct(d.odds.bare[f.key])}`,
+        row: f,
+        fields: [...(f.item ? [{ k: "name", label: "Tên" }] : []),
+          ...(f.stones ? [{ k: "stones_min", label: "Mở ra được ít nhất (linh thạch)", type: "number", step: 1 }, { k: "stones_max", label: "Nhiều nhất (linh thạch)", type: "number", step: 1 }]
+            : f.item ? [{ k: "price", label: "Giá Ngư Cụ mua (0 = không mua)", type: "number", step: 1 }] : []),
+          { k: "rate", label: "Tỉ lệ cắn câu (trọng số, 0 = không bao giờ)", type: "number", step: "any" }],
+        onSave: saveRate,
+      }));
+    }
+    return out;
+  },
+
   async realms() {
     const rows = await api("/t/realms");
     // each realm's levels, counted through the whole list

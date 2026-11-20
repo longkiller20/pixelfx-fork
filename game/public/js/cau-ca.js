@@ -5,7 +5,7 @@
 import { createFrame, clearFrame, createFx, hex } from "/hieu-ung/core/index.js";
 import { effects } from "/hieu-ung/fx/index.js";
 import { ITEMS } from "/shared/balance.js";
-import { FISH_MAP, RODS, BAITS, FISH, ZONES, RARITY, odds, fishName, fishPrice, kgText, reelZone } from "/shared/cau-ca.js";
+import { FISH_MAP, RODS, BAITS, FISH, RARITY, odds, fishName, fishPrice, kgText, reelZone, KHU_COUNT, KHU_CAP, khuLevel, KHU_COLORS } from "/shared/cau-ca.js";
 import { h } from "./tong-mon.js";
 import { mapInfo } from "/shared/maps/index.js";
 import { confirmBox } from "./gia-vien.js";
@@ -66,8 +66,8 @@ const rarityOf = (k) => RARITY[FISH[k]?.rarity ?? 1];
  * Returns the layer: draw() each frame, onMsg() for the server's "fish" and "fr", onEvent() for a landing, key().
  */
 export function createFishLayer(G) {
-  // occ: how many fish in each Khu (the server says when it changes)
-  const L = { st: null, occ: [], onChange: () => {}, onLand: () => {}, onShop: () => {}, onFull: () => {} };
+  // occ: how many are fishing at the pier's places; khu: which Khu this is (1..30), kocc: how many people in each Khu
+  const L = { st: null, occ: [], khu: 0, kocc: [], onChange: () => {}, onLand: () => {}, onShop: () => {}, onFull: () => {} };
   const floats = new Map(); // player id -> their float's effect
   let nibbleUntil = 0, holding = false;
   const ROD_C = { 1: ["#a0a83a", "#d0d070"], 2: ["#9a7a34", "#c8a858"], 3: ["#2a9a62", "#6ad89a"], 4: ["#e8b028", "#ffe070"] };
@@ -119,15 +119,19 @@ export function createFishLayer(G) {
   /** The server about this player's own cast. */
   L.onMsg = (m) => {
     if (m.t === "fzones") return void ((L.occ = m.occ ?? []), L.onChange());
+    if (m.t === "fkhu") {
+      if (m.n && m.n !== L.khu) G.toast(`Đã vào Khu ${m.n} (${m.occ?.[m.n - 1] ?? 1}/${KHU_CAP} người)`);
+      if (m.n) L.khu = m.n;
+      L.kocc = m.occ ?? L.kocc;
+      return void L.onChange();
+    }
     if (m.t === "fr") {
       if (L.st?.s === "reel") Object.assign(L.st.srv, { f: m.f, z: m.z, p: m.p, on: m.on });
       return;
     }
     if (m.s === "cast") {
-      L.st = { s: "wait", rod: m.rod, bait: m.bait, zone: m.zone, left: m.left };
-      G.toast(`Khu ${m.khu} · chỗ số ${m.n} (${ZONES[m.zone]?.name ?? "hồ"}) · ${name(m.bait)}: còn ${fmt(m.left)}`);
-    } else if (m.s === "goto") {
-      G.toast(`Đã tới Khu ${m.khu}, chỗ số ${m.n}. Bấm Thả câu để câu.`);
+      L.st = { s: "wait", rod: m.rod, bait: m.bait, left: m.left };
+      G.toast(`Khu ${m.khu} · chỗ số ${m.n} · ${name(m.bait)}: còn ${fmt(m.left)}`);
     } else if (m.s === "nib") {
       nibbleUntil = performance.now() / 1000 + 0.45;
       L.nib = performance.now();
@@ -205,7 +209,7 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
   // ---- the fishing bar: the big button (what it does depends on the cast), reel in, the stall
   const act = h("button.fact", { type: "button" }, h("span.fi"), h("b"), h("small"));
   const stopB = h("button.fsmall", { type: "button", title: "Thu cần", "aria-label": "Thu cần", onclick: () => layer()?.stop() }, "✕");
-  const khuB = h("button.fsmall.khu", { type: "button", title: "Khu câu: xem chỗ trống, sang khu khác", onclick: () => khuBox() }, h("span", { text: "🗺" }), h("small", { text: "Khu câu" }));
+  const khuB = h("button.fsmall.khu", { type: "button", title: "Chọn khu: 30 khu, mỗi khu tối đa 20 người", onclick: () => khuBox() }, h("span"), h("small", { text: "Khu câu" }));
   const shopB = h("button.fsmall.shop", { type: "button", title: "Ngư Cụ: cần, mồi, bán cá, Ngư Lục", onclick: () => open() }, h("span", { text: "🎣" }), h("small", { text: "Ngư Cụ" }));
   bar.append(khuB, shopB, stopB, act);
   act.querySelector(".fi").append(fishPic("cc_can_truc"));
@@ -226,48 +230,61 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
   });
   addEventListener("keyup", (e) => e.key.toLowerCase() === "e" && onLake() && (layer()?.action(false), paint()));
 
-  /** The Khu the player stands in (by where they are), or null. */
-  const KHU = mapInfo(FISH_MAP).def.fishing;
-  function khuHere() {
-    const pos = game()?.myPos?.();
-    return pos ? KHU.find((k) => Math.abs(pos.y - k.row * 32) < 6 && pos.x >= k.x0 * 32 - 8 && pos.x <= (k.x1 + 1) * 32 + 8) ?? null : null;
-  }
-  /** The Khu: how full each is (a dot a place), which water, and a button to go there. */
+  /** The box of Khu: all 30, a cell each with a dot (green roomy, yellow filling, red full) and how many are in it. */
   let khuOpen = null;
-  function khuBox(note = null) {
-    khuOpen?.(null);
-    const L = layer(), here = khuHere(), rodTier = RODS[view?.rod]?.tier ?? 0;
-    const rows = KHU.map((k) => {
-      const n = L?.occ[k.id - 1] ?? 0, all = k.spots.length, full = n >= all, Z = ZONES[k.zone], low = view && rodTier < Z.minRod;
-      return h(`div.ckline${here === k ? ".on" : ""}`, {},
-        h("div.ckmain", {}, h("b", { text: `${k.name} · ${Z.name}` }),
-          h("small", { text: low ? `Cần ${Object.values(RODS).find((r) => r.tier === Z.minRod)?.name} trở lên` : Z.desc.split(".")[0] })),
-        h("div.ckdots", { title: `${n}/${all} chỗ có người` }, ...k.spots.map((_, i) => h(`i${i < n ? ".on" : ""}`))),
-        h("button.primary", { type: "button", text: here === k ? "Đang ở" : full ? "Đầy" : "Tới", disabled: here === k || full || !!L?.st,
-          onclick: () => (game()?.fishGoto?.(k.id), khuOpen?.(null)) }));
+  async function khuBox(note = null) {
+    khuOpen?.();
+    const L = layer();
+    // fresh numbers (the lake pushes them too, while one is there)
+    try {
+      const v = await call("/fishing");
+      view = v;
+      if (L) (L.kocc = v.occ ?? L.kocc), v.khu && (L.khu = v.khu);
+    } catch {}
+    const occ = L?.kocc?.length ? L.kocc : view?.occ ?? [], cur = onLake() ? L?.khu ?? 0 : 0;
+    const total = occ.reduce((a, b) => a + b, 0);
+    const cells = Array.from({ length: KHU_COUNT }, (_, i) => {
+      const n = i + 1, c = occ[i] ?? 0, full = c >= KHU_CAP, lv = khuLevel(c);
+      return h(`button.ckcell${n === cur ? ".on" : ""}${full ? ".full" : ""}`, {
+        type: "button", disabled: n === cur || full || !!L?.st, title: full ? `Khu ${n} đã đủ ${KHU_CAP} người` : n === cur ? "Đang ở khu này" : `Sang Khu ${n}`,
+        onclick: async (e) => {
+          const b = e.currentTarget;
+          b.disabled = true;
+          try {
+            await call("/fishing/enter", { method: "POST", body: { khu: n } });
+            khuOpen?.();
+            $("panel").hidden = true;
+          } catch (err) {
+            flash(err.message);
+            b.disabled = false;
+          }
+        } },
+        h("b", { text: String(n) }), h("i.ckdot", { style: `background:${KHU_COLORS[lv]};box-shadow:0 0 6px ${KHU_COLORS[lv]}` }), h("small", { text: `${c}/${KHU_CAP}` }));
     });
-    const p = new Promise((done) => {
+    return new Promise((done) => {
       const host = $("panel")?.parentElement ?? document.body;
       const end = () => (removeEventListener("keydown", key, true), shade.remove(), (khuOpen = null), done());
       const key = (e) => e.key === "Escape" && (e.stopPropagation(), end());
       const shade = h("div.cshade", { onclick: (e) => e.target === shade && end() },
         h("div.cbox.ccbox.ckbox", { role: "dialog", "aria-modal": "true" },
-          h("h4", { text: "Khu câu" }),
-          note ? h("p.cknote", { text: note }) : h("p", { text: "Chỉ câu được trên cầu. Mỗi chỗ (bồ đoàn có số) một người; khu đầy thì sang khu khác." }),
-          ...rows,
-          L?.st ? h("p.dim", { text: "Đang câu: thu cần rồi mới sang khu khác được." }) : null,
+          h("h4", { text: cur ? `Chọn khu · đang ở Khu ${cur}` : "Chọn khu câu" }),
+          note ? h("p.cknote", { text: note }) : null,
+          h("p.cklegend", {}, ...[["Thoáng", 0], ["Đông", 1], ["Sắp đầy / đầy", 2]].map(([t, lv]) => h("span", {}, h("i.ckdot", { style: `background:${KHU_COLORS[lv]}` }), t)),
+            h("span.dim", { text: `· ${total} người ở hồ · tối đa ${KHU_CAP}/khu` })),
+          h("div.ckgrid", {}, ...cells),
+          L?.st ? h("p.dim", { text: "Đang câu: thu cần rồi mới đổi khu được." }) : null,
           h("div.cbtns", {}, h("button.ghost", { type: "button", text: "Đóng", onclick: () => end() }))));
       addEventListener("keydown", key, true);
       host.append(shade);
       khuOpen = end;
     });
-    return p;
   }
   function paint() {
     const L = layer(), here = onLake();
-    const k = here ? khuHere() : null;
-    if (k) khuB.querySelector("small").textContent = `${k.name} · ${L?.occ[k.id - 1] ?? 0}/${k.spots.length}`;
-    else khuB.querySelector("small").textContent = "Khu câu";
+    // the Khu button: which Khu, how many in it, its dot
+    const kn = L?.khu, kc = kn ? L.kocc[kn - 1] ?? 0 : 0;
+    khuB.querySelector("small").textContent = kn ? `Khu ${kn} · ${kc}/${KHU_CAP}` : "Khu câu";
+    khuB.querySelector("span").replaceChildren(h("i.ckdot", { style: kn ? `background:${KHU_COLORS[khuLevel(kc)]}` : "background:#888" }));
     bar.hidden = !here;
     if (!here) return void (reel.hidden = true);
     const s = L?.st?.s;
@@ -279,15 +296,14 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
     reel.hidden = s !== "reel";
   }
   /** Each frame: the reeling game, when a fish is on (and a nibble's shake). */
-  let lastMap = null, lastKhu = null;
+  let lastMap = null;
   function frame(dt) {
     const L = layer();
     if (!L) return;
     // a Khu full: say so in the box of Khu, with the others' room
     if (!L.onFull.set) (L.onFull = (m) => khuBox(m.m)), (L.onFull.set = 1);
-    // walking onto a pier or off it: the Khu button says where
-    const kh = onLake() ? khuHere() : null;
-    if (kh !== lastKhu) (lastKhu = kh), paint();
+    // the Khu's numbers changed: the button says so
+    if (!L.onChange.set) (L.onChange = () => paint()), (L.onChange.set = 1);
     // a new map: the bar shows (the lake) or hides
     if (game()?.mapId() !== lastMap) (lastMap = game()?.mapId()), paint();
     L.update(dt);
@@ -387,12 +403,16 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
       h(`button${tab === k ? ".on" : ""}`, { type: "button", text: l, onclick: () => ((tab = k), draw(false)) })));
     const head = h("div.cchead", {},
       h("span", {}, "Đang dùng: ", h("b", { text: v.rod ? name(v.rod) : "chưa có cần" }), " · ", h("b", { text: v.bait ? `${name(v.bait)} ×${fmt(v.baits[v.bait] ?? 0)}` : "chưa có mồi" })),
+      v.khu ? h("span.ckh", {}, h("i.ckdot", { style: `background:${KHU_COLORS[khuLevel(v.occ?.[v.khu - 1] ?? 0)]}` }), `Khu ${v.khu} · ${v.occ?.[v.khu - 1] ?? 0}/${KHU_CAP}`) : null,
       h("span.st", {}, h("img", { className: "ico", src: "/xianxia/ui/ui_xianxia_item_spirit_stone.png", alt: "" }), h("b", { text: fmt(stones()) })));
     wrap.append(...[head, where, tabs].filter(Boolean), ({ rod: rodTab, bait: baitTab, sell: sellTab, log: logTab }[tab] ?? rodTab)(v));
     if (first || !isOpen()) panel("Ngư Cụ · Câu Cá", wrap);
     else $("panelBody").replaceChildren(wrap);
   }
   const canTrade = () => view?.atShop;
+  // each catch's chance with the rod and bait in hand (or the bare rates), as numbers 0..1 and as words
+  const oddsNow = () => Object.fromEntries(odds(view?.rod ?? null, view?.bait ?? null));
+  const pct = (p) => (p >= 0.1 ? `${(p * 100).toFixed(0)}%` : p >= 0.01 ? `${(p * 100).toFixed(1)}%` : `${(p * 100).toFixed(2)}%`);
   const stat = (label, val) => h("span.ccst", {}, h("small", { text: label }), h("b", { text: val }));
   const notHere = "Hãy tới quầy Ngư Cụ";
 
@@ -411,9 +431,9 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
   /** A rod's, bait's or fish's details: picture, words, numbers. */
   function details(k) {
     const r = RODS[k], b = BAITS[k], f = FISH[k], R = f ? rarityOf(k) : null;
-    const stats = r ? [stat("Vùng kéo", `${Math.round(r.bar * 100)}%`), stat("Lực kéo", `×${r.power}`), stat("May mắn", `+${Math.round(r.luck * 100)}%`), stat("Thêm giờ giật", `${r.hook}s`), stat("Tầm quăng", `${r.reach} ô`), stat("Linh Tuyền", r.tier >= 3 ? "câu được" : "không")]
+    const stats = r ? [stat("Vùng kéo", `${Math.round(r.bar * 100)}%`), stat("Lực kéo", `×${r.power}`), stat("May mắn", `+${Math.round(r.luck * 100)}%`), stat("Thêm giờ giật", `${r.hook}s`), stat("Tầm quăng", `${r.reach} ô`)]
       : b ? [stat("Cá cắn nhanh", `×${b.speed}`), stat("May mắn", `+${Math.round(b.luck * 100)}%`), stat("Cá Tiên", b.tier >= 3 ? "có thể" : "không")]
-      : [stat("Bậc", R.name), stat("Nặng", `${f.kg[0]}-${f.kg[1]} cân`), stat("Nơi sống", f.zones.map((z) => ZONES[z].name).join(", "))];
+      : [stat("Bậc", R.name), stat("Nặng", `${f.kg[0]}-${f.kg[1]} cân`), stat("Tỉ lệ cắn câu", pct(oddsNow()[k] ?? 0))];
     const p = price(k);
     return overBox((end) => [
       h("h4", { text: name(k), style: R ? `color:${R.color}` : "" }),
@@ -479,18 +499,12 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
           } }),
         useBtn(v.bait === k, { bait: k }, `Đã móc ${name(k)}.`));
     }));
-    // what the rod and bait in hand bring up, spot by spot, by rarity
-    const tip = h("details.ccodds", {}, h("summary", { text: "Tỉ lệ với cần và mồi đang dùng" }));
-    if (v.rod && v.bait)
-      for (const [z, Z] of Object.entries(ZONES)) {
-        const by = {};
-        for (const [k, pr] of odds(z, v.rod, v.bait)) by[FISH[k].stones ? "ruong" : FISH[k].rarity] = (by[FISH[k].stones ? "ruong" : FISH[k].rarity] ?? 0) + pr;
-        const locked = RODS[v.rod].tier < Z.minRod;
-        tip.append(h("p", {}, h("b", { text: `${Z.name}: ` }), locked ? h("span.dim", { text: `cần ${Object.values(RODS).find((r) => r.tier === Z.minRod)?.name} trở lên` })
-          : RARITY.map((R, i) => (by[i] ? h("span", { style: `color:${R.color}`, text: `${R.name} ${(by[i] * 100).toFixed(by[i] < 0.01 ? 2 : 1)}%  ` }) : null)),
-          !locked && by.ruong ? h("span.gold", { text: `Rương ${(by.ruong * 100).toFixed(2)}%` }) : null));
-      }
-    else tip.append(h("p.dim", { text: "Chọn cần và mồi để xem." }));
+    // what the rod and bait in hand bring up: each catch's chance, rarest last
+    const tip = h("details.ccodds", {}, h("summary", { text: "Tỉ lệ cá cắn câu với cần và mồi đang dùng" }));
+    const od = oddsNow();
+    tip.append(h("div.ccoddl", {}, ...Object.keys(FISH).sort((a, b) => FISH[a].rarity - FISH[b].rarity).map((k) =>
+      h("span", { style: `color:${rarityOf(k).color}` }, `${v.log[k] ? name(k) : "???"} `, h("b", { text: pct(od[k] ?? 0) })))),
+      h("p.dim", { text: "Cần, mồi tốt hơn làm tạp vật ít đi và cá quý dễ cắn hơn; cá Tiên chỉ cắn mồi Linh Mễ Hoàn trở lên." }));
     return h("div", {}, list, tip);
   }
   function sellTab(v) {
@@ -523,7 +537,7 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
         const f = FISH[k], R = rarityOf(k), l = v.log[k], rec = records[k];
         return h(`div.ccfish${l ? "" : ".unk"}`, { title: l ? f.desc : "Chưa câu được" }, h("div.ccpicw", {}, fishPic(k, !l)),
           h("b", { text: l ? name(k) : "???", style: `color:${R.color}` }),
-          h("small", { text: `[${R.name}] · ${f.zones.map((z) => ZONES[z].name).join(", ")}` }),
+          h("small", { text: `[${R.name}] · tỉ lệ ${pct(oddsNow()[k] ?? 0)}` }),
           l ? h("small", { text: `Đã câu ${fmt(l.n)} · nặng nhất ${kgText(l.best)}` }) : h("small.dim", { text: `${kgText(f.kg[0] * 1000)} - ${kgText(f.kg[1] * 1000)}` }),
           rec ? h("small.gold", { text: `Kỷ lục: ${kgText(rec.g)} · ${rec.by}` }) : null);
       })));

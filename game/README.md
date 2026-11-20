@@ -20,19 +20,21 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     Chọn một mục, bấm ra ngoài hoặc Esc thì khung đóng lại.
 - **Câu Cá (trong nút ▦ Thêm):** bản đồ riêng **Vọng Nguyệt Hồ**, hồ câu dưới trăng, không có yêu thú. Bấm Câu Cá ở bất
   cứ đâu là dịch chuyển tới hồ; lối ra ở bờ tây đưa về đúng chỗ vừa đi. Đang ở hồ thì nút Câu Cá mở quầy Ngư Cụ.
-  - **Bản đồ** (`shared/maps/cauca.js`): mặt nước thấp hơn bờ một hàng như hồ thật; các cầu câu ngang mặt đất, đứng trên
-    cọc. Tây sang đông: bờ hồ có quầy **Ngư Cụ** (ông lão đội nón lá, hút tẩu), **Khu 1**, bãi lau, **Khu 2**, Thạch Đài,
-    **Khu 3**, Thạch Đảo, **Khu 4**, bờ đông, vách đá ba bậc, trên đỉnh là Linh Tuyền với **Khu 5**. Rơi xuống hồ thì đi
-    dưới đáy, có bậc để leo lên cầu.
-  - **Khu câu:** chỉ câu được trên cầu. Mỗi khu là một cây cầu có vài chỗ ngồi (bồ đoàn, cột biển số 1, 2, 3...): Khu 1, 2
-    (nước nông, 4 chỗ), Khu 3, 4 (Hồ Sâu, 4 chỗ), Khu 5 (Linh Tuyền, 3 chỗ, cần Bích Ngọc Can trở lên).
-    - Đứng chỗ nào trên cầu rồi thả câu thì ngồi vào chỗ gần nhất. Mỗi chỗ một người, giữ chỗ suốt lúc đang câu.
-    - Chỗ đó có người: báo số chỗ còn trống của khu. Khu kín chỗ: báo "Khu 1 đã kín chỗ (4/4). Còn trống: Khu 2 (3 chỗ)..."
-      và mở bảng khu.
-    - Biển mỗi khu ghi số người đang câu (xanh còn chỗ, đỏ khi đầy), cập nhật ngay khi có người ngồi vào hay rời đi.
-    - Nút **Khu câu** cạnh nút Thả câu ghi khu đang đứng (vd "Khu 2 · 3/4") và mở bảng khu: mỗi khu một dòng, chấm cho từng
-      chỗ (cam là có người), nút **Tới** để dịch chuyển thẳng sang chỗ trống đầu tiên của khu đó (đang câu thì phải thu cần
-      trước; khu đầy thì báo).
+  - **30 khu câu, mỗi khu như một map câu riêng** (một thế giới riêng trên máy chủ, `cc:1`..`cc:30`), chỉ đánh số, khu nào
+    cũng giống khu nào. Mỗi khu tối đa **20 người**, có **8 chỗ câu**.
+    - Vào hồ (nút Câu Cá) là **tự vào khu số nhỏ nhất còn dưới 20 người**. Người đang trên đường vào cũng được tính, nên một
+      khu không bao giờ quá 20.
+    - Nút **Khu câu** (cạnh nút Thả câu) ghi khu đang ở và số người, vd "Khu 3 · 12/20", kèm chấm màu. Bấm vào mở **bảng 30
+      khu**: mỗi khu một ô có số khu, **chấm tròn xanh lá (thoáng, dưới 9 người) - vàng (đông, 9-15) - đỏ (16-20, sắp đầy hoặc
+      đầy)** và số người "n/20". Bấm ô là sang khu đó; khu đủ 20 người thì khoá. Đang câu thì phải thu cần trước.
+    - Số người các khu tự cập nhật mỗi giây cho mọi người đang ở hồ. Rời hồ từ khu nào cũng về đúng chỗ trước khi vào hồ.
+    - Khu trống một phút thì máy chủ dọn đi; có người vào thì tạo lại.
+  - **Bản đồ mỗi khu** (`shared/maps/cauca.js`): mặt nước thấp hơn bờ một hàng như hồ thật. Tây sang đông: bờ hồ có quầy
+    **Ngư Cụ** (ông lão đội nón lá, hút tẩu), **cầu câu** trên cọc ngang mặt đất với 8 chỗ ngồi (bồ đoàn, cột biển số 1-8),
+    Thạch Đài, vùng nước sâu có thuyền và phao neo, bờ đông và vách đá có ánh linh tuyền. Rơi xuống hồ thì có bậc leo lên.
+  - **Chỗ câu:** chỉ câu được trên cầu. Đứng đâu trên cầu rồi thả câu thì ngồi vào chỗ gần nhất; mỗi chỗ một người, giữ chỗ
+    suốt lúc đang câu. Chỗ có người: báo số các chỗ còn trống. Cả 8 chỗ có người: báo "Cầu câu Khu 3 đã kín chỗ (8/8). Đợi
+    người khác thu cần, hoặc sang khu khác: Khu 5 (0/20 người)..." và mở bảng khu. Biển đầu cầu ghi số chỗ đang có người.
   - **Mọi hình vẽ bằng pixelfx** (`../src/fx/fishing/`): 15 loại cá và vật câu được, 4 cần, 4 mồi, phao (nổi, cá rỉa, cá
     cắn, đang kéo), quầy Ngư Cụ, cọc bến, lau sậy, lá sen, thuyền, phao neo, sương linh tuyền, cá nhảy khỏi mặt nước khi
     lên bờ. Icon cần, mồi, cá trong túi đồ cũng vẽ từ đó.
@@ -41,8 +43,8 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
       **Dùng** (cá: **Bán**). Mua mồi hay bán cá hiện hộp nhập số lượng (−/+, chọn nhanh 1, 10, 50, tối đa), kèm tổng tiền rồi
       mới xác nhận; mua cần hỏi xác nhận.
     - **Cần câu** mua một lần, giữ mãi: Trúc Can (300), Thanh Đồng Can (3.000), Bích Ngọc Can (15.000), Kim Long Can
-      (60.000). Cần tốt hơn: vùng kéo rộng hơn, kéo nhanh hơn, dễ gặp cá quý, thêm thời gian giật. Linh Tuyền cần Bích Ngọc
-      Can trở lên.
+      (60.000). Cần tốt hơn: vùng kéo rộng hơn, kéo nhanh hơn, dễ gặp cá quý, thêm thời gian giật. Cần Bích Ngọc trở lên
+      giữ cá linh, cá tiên tốt hơn.
     - **Mồi câu** mua 1-99 viên một lần: Giun Đất (3), Tôm Tép (10), Linh Mễ Hoàn (35), Tiên Đào Nhị
       (120). Mồi tốt hơn: cá cắn sớm hơn, dễ gặp cá quý; cá Tiên chỉ cắn mồi Linh Mễ Hoàn trở lên.
     - Tab Mồi Câu có **bảng tỉ lệ** (bấm để mở) từng bậc cá ở từng khu với cần và mồi đang dùng.
@@ -57,16 +59,26 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     4. **Kéo:** cột kéo hiện bên cạnh. Giữ nút (hoặc E) thì vùng xanh nổi lên, thả ra thì chìm. Giữ con cá trong vùng xanh để
        thanh tiến độ đầy là cá lên bờ; để tuột hết là cá thoát. Cá càng quý càng giãy mạnh.
     5. Cá nhảy khỏi mặt nước bay về phía người câu, hiện thẻ tên, bậc, cân nặng. Đi lại, nhảy, ngự kiếm thì cần tự thu lại.
-  - **5 bậc cá và tạp vật:** Tạp vật (Ủng Rách, Rong Thủy Linh), Phàm, Lương, Linh, Bảo, Tiên. Bến Thuyền: cá đồng. Hồ Sâu:
-    cá tầm, cá trê, Ngọc Giáp Quy, hiếm lắm mới có Thanh Long Ngư. Linh Tuyền: chỉ cá Linh trở lên (Băng Tinh Ngư, Kim Lý
-    Ngư, Hỏa Phượng Ngư...). Thỉnh thoảng câu được **Rương Chìm**, mở ra ngay được linh thạch.
+  - **5 bậc cá và tạp vật, câu theo tỉ lệ:** Tạp vật (Ủng Rách, Rong Thủy Linh), Phàm, Lương, Linh, Bảo, Tiên, và **Rương
+    Chìm** (mở ra ngay được linh thạch). Mỗi loại có một **tỉ lệ** (trọng số, admin chỉnh): cơ hội = tỉ lệ của nó / tổng tỉ
+    lệ. Cần và mồi có may mắn: tạp vật ít đi, cá quý dễ cắn hơn (× 1 + may mắn × (bậc − 1) × 0,5); cá Tiên chỉ cắn mồi Linh
+    Mễ Hoàn trở lên. Tab Mồi Câu và Ngư Lục ghi tỉ lệ thật của từng loại với cần mồi đang dùng.
   - Câu được cá Bảo, hoặc lập kỷ lục, thì cả hồ thấy; câu được cá Tiên thì cả thế giới thấy.
   - **An toàn:** máy chủ quyết định hết: lúc cá cắn, cá gì, nặng bao nhiêu, và chạy luôn trò kéo cá (trình duyệt chỉ gửi
     "đang giữ" hay "đã thả"). Mua bán có mã giao dịch, chỉ trừ tiền và đồ bằng câu lệnh có điều kiện, một người một việc
     một lúc. Cần mua đúng một lần, bán cá gửi 5 lần cùng lúc cũng chỉ được trả một lần.
-  - **Admin:** cần, mồi, cá là vật phẩm (loại Cần câu, Mồi câu, Cá) ở tab Vật phẩm: đổi tên, giá (giá cần/mồi là giá Ngư
-    Cụ bán, giá cá là giá Ngư Cụ mua; giá 0 là không bán/không mua). Tặng hay lấy lại cần, mồi ở mục túi đồ trong trang
-    người chơi; mục Câu Cá ở đó ghi cần mồi đang dùng, số cá đã câu, Ngư Lục.
+  - **Kiểm thử:** `node test/race.mjs` có hai phần Câu Cá. Phần thứ nhất gồm mua bán, chỗ câu, cá lên bờ, vào khu còn chỗ và
+    đổi khu. Phần thứ hai thử giới hạn 20 người: 5 người vào cùng lúc khi còn 2 chỗ thì chỉ 2 vào được, người thứ 21 bị từ chối.
+    `node test/ui-khu.mjs` thử bảng khu trong trình duyệt thật (Playwright). Bài này làm đầy một khu 20 người, một khu 10
+    người, rồi kiểm tra: tự vào khu đầu tiên còn chỗ; bảng có 30 ô, số người và màu chấm khớp máy chủ (xanh/vàng/đỏ); khu đầy bị
+    khoá; bấm ô là sang khu đó.
+  - **Admin (tab Câu Cá):** đổi **tên và giá** từng cần (giá Ngư Cụ bán), từng mồi (giá một viên), từng loại cá và vật câu
+    được (giá Ngư Cụ mua; 0 là không bán/không mua; Rương Chìm thì chỉnh số linh thạch mở ra được, ít nhất và nhiều nhất), và
+    **tỉ lệ cắn câu** của từng loại (0 là không bao giờ câu được). Có bảng
+    tính sẵn cơ hội thật của từng loại: không tính cần mồi, với Trúc Can + Giun Đất, với Kim Long Can + Tiên Đào Nhị. Lưu là
+    có hiệu lực ngay (cả game kiểm tra lại toàn bộ số liệu trước khi lưu; tỉ lệ âm hay tất cả bằng 0 bị từ chối). Tỉ lệ nằm
+    ở bảng `fish_rates`, tên giá ở bảng `items`. Tặng hay lấy lại cần, mồi ở mục túi đồ trong trang người chơi; mục Câu Cá ở
+    đó ghi cần mồi đang dùng, số cá đã câu, Ngư Lục.
 - **Cài đặt (trong nút ▦ Thêm):**
   - **Nhạc nền:** công tắc bật/tắt, thanh kéo âm lượng 0-100%, tên bài và tên bản đồ đang ở.
     - **Mỗi bản đồ một bài riêng**, phát lặp lại khi còn ở đó; người chơi không đổi bài được. Qua bản đồ khác thì bài cũ nhỏ

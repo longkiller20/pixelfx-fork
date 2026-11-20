@@ -9,7 +9,7 @@ import * as sect from "./tong-mon.js";
 import * as dao from "./dao-huu.js";
 import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
-import { FISH_MAP } from "../shared/cau-ca.js";
+import { khuOf, KHU_CAP } from "../shared/cau-ca.js";
 import { RANKS } from "../shared/tong-mon.js";
 import { USER_RE } from "../shared/balance.js";
 
@@ -164,7 +164,11 @@ export function api(world) {
   // itself is the world's). Buying and selling happen at the Ngư Cụ stall on the lake, so the player must stand there.
   const fishRead = rateLimit({ windowMs: 10_000, max: 30, key: (req) => `cr${req.userId}` });
   const fishWrite = rateLimit({ windowMs: 10_000, max: 25, key: (req) => `cw${req.userId}`, message: "Thao tác quá nhanh, hãy chậm lại." });
-  const fishView = async (uid) => ({ ...(await cc.view(uid)), here: world.players.get(uid)?.world?.key === FISH_MAP, atShop: world.atFishShop(uid) });
+  // here: at the lake; khu: which Khu (1..30), occ: how many are in each, cap: at most how many in one
+  const fishView = async (uid) => {
+    const khu = khuOf(world.players.get(uid)?.world?.key);
+    return { ...(await cc.view(uid)), here: !!khu, khu, occ: world.khuCounts(), cap: KHU_CAP, atShop: world.atFishShop(uid) };
+  };
   const fishRoute = (path, fn, { shop = false } = {}) => r.post(`/fishing${path}`, requireAuth, writeLimit, fishWrite, wrap(async (req, res) => {
     if (shop && !world.atFishShop(req.userId)) throw new GameError("Hãy tới quầy Ngư Cụ ở Vọng Nguyệt Hồ để mua bán.", 403);
     await world.flushUser(req.userId);
@@ -179,9 +183,16 @@ export function api(world) {
     if (Date.now() - recCache.at > 10_000) recCache = { at: Date.now(), v: await cc.records() };
     res.json({ ...(await fishView(req.userId)), records: recCache.v });
   }));
+  // to the lake: into the first Khu with room, or (body.khu) the Khu asked for; from one Khu to another the same way
   fishRoute("/enter", async (req) => {
     if (!world.players.has(req.userId)) throw new GameError("Hãy vào game trước.", 409);
-    world.enterFishing(req.userId).catch((e) => console.error("fishing", e.message));
+    const want = req.body?.khu === undefined || req.body?.khu === null ? null : Number(req.body.khu);
+    try {
+      return { khu: await world.enterFishing(req.userId, want) };
+    } catch (e) {
+      if (e.status) throw new GameError(e.message, e.status);
+      throw e;
+    }
   });
   fishRoute("/choose", async (req) => void (await cc.choose(req.userId, req.body?.rod, req.body?.bait)));
   fishRoute("/buy", async (req) => cc.buy(req.userId, req.body?.item, req.body?.qty, req.body?.requestId), { shop: true });

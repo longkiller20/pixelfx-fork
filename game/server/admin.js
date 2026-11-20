@@ -19,6 +19,8 @@ import { CONG_PHAP } from "../shared/cong-phap.js";
 import * as sects from "./tong-mon.js";
 import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
+import { RODS, BAITS, FISH, RARITY, RATES, CHEST, odds } from "../shared/cau-ca.js";
+import { ITEMS } from "../shared/balance.js";
 import { HOUSES, DEFAULT_HOUSE, housePrice, houseName } from "../shared/gia-vien.js";
 
 const MAPS = Object.keys(MAP_DEFS).map((id) => mapInfo(id));
@@ -73,7 +75,7 @@ const T = {
   realms: { pk: "id", order: "sort, id", config: true, add: true, del: true, cols: { name: "str:32", stages: "uint", sort: "int" } },
   items: {
     pk: "item_key", pkType: "key", order: "sort, item_key", config: true, add: true, del: true,
-    cols: { name: "str:40", kind: "enum:pill|book|material", description: "str:200", price: "uint", heal: "num", exp_base: "uint", exp_per_level: "uint", cooldown: "num", on_sale: "bool", sort: "int" },
+    cols: { name: "str:40", kind: "enum:pill|book|material|rod|bait|fish", description: "str:200", price: "uint", heal: "num", exp_base: "uint", exp_per_level: "uint", cooldown: "num", on_sale: "bool", sort: "int" },
   },
   monsters: {
     pk: "type", pkType: "key", order: "type", config: true, add: true, del: true,
@@ -93,6 +95,8 @@ const T = {
   settings: { pk: "k", order: "k", config: true, cols: { v: "num" } },
   // the ready-made houses are designed in code (shared/gia-vien.js): an admin names them and prices them (0: not sold)
   houses: { pk: "house_key", pkType: "key", order: "sort, house_key", config: true, cols: { name: "str:40", price: "uint", sort: "int" } },
+  // Câu Cá: how often each catch bites, against the others' rates (the catches are designed in shared/cau-ca.js)
+  fish_rates: { pk: "fish_key", pkType: "key", order: "fish_key", config: true, cols: { rate: "num", stones_min: "uint", stones_max: "uint" } },
   // the sect treasure house (Tông Môn Bảo Khố): what members buy with cống hiến
   sect_shop: { pk: "item_key", pkType: "key", order: "sort, item_key", add: true, del: true, cols: { cost: "uint", min_level: "uint", daily_limit: "uint", on_sale: "bool", sort: "int" } },
   cosmetics: {
@@ -192,6 +196,20 @@ export function adminApp(world) {
     await q("DELETE FROM admin_sessions WHERE admin_id = ? AND token_hash <> ?", [req.admin.id, sha(req.admin.token)]);
     await log(req.admin, "password", req.admin.name, null);
     res.json({ ok: true });
+  }));
+
+  // ---- Câu Cá: the rods, baits and catches with their names, prices and rates as set now, and the chances that come of
+  // the rates (bare, with the cheapest rod and bait, with the best); names and prices are edited through /t/items, the
+  // rates through /t/fish_rates (both checked as the whole config, applied at once)
+  r.get("/fishing", wrap(async (req, res) => {
+    const it = (k, d) => ({ key: k, name: ITEMS[k]?.name ?? d.name, price: ITEMS[k]?.price ?? d.price, desc: ITEMS[k]?.desc ?? d.desc, item: !!ITEMS[k] });
+    const asMap = (a, b) => Object.fromEntries(odds(a, b));
+    res.json({
+      rods: Object.entries(RODS).map(([k, d]) => ({ ...it(k, d), tier: d.tier, bar: d.bar, power: d.power, luck: d.luck, hook: d.hook })),
+      baits: Object.entries(BAITS).map(([k, d]) => ({ ...it(k, d), tier: d.tier, speed: d.speed, luck: d.luck })),
+      fish: Object.entries(FISH).map(([k, d]) => ({ ...it(k, d), rate: RATES[k], rarity: d.rarity, rarityName: RARITY[d.rarity].name, color: RARITY[d.rarity].color, kg: d.kg, stones: CHEST[k] ?? null, stones_min: CHEST[k]?.[0], stones_max: CHEST[k]?.[1] })),
+      odds: { bare: asMap(null, null), low: asMap("cc_can_truc", "cc_moi_giun"), high: asMap("cc_can_long", "cc_moi_tien") },
+    });
   }));
 
   // ---- admin accounts

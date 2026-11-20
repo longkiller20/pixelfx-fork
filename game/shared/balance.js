@@ -13,6 +13,7 @@
 //    at most +10%, so a newcomer can still beat a veteran there. Healing pills can't be used on PvP maps.
 //  - Rewards for killing the same player again are cut off for a while, so friends can't farm each other.
 import { CONG_PHAP_BY_KEY } from "./cong-phap.js";
+import { FISH, setRates } from "./cau-ca.js";
 
 export const TICK_HZ = 20;
 // Maps (size, walls, spawn, the spirit vein, the ways out) live in shared/maps/.
@@ -275,13 +276,27 @@ export function checkConfig(c) {
     // chance is a weight now: one item is picked per drop, each with chance / (the list's total)
     (drops[d.monster] ??= []).push({ item: d.item, chance: num(d.chance, `trọng số rơi ${d.item}`, 0, 1e6), min, max });
   }
-  return { realms, skills, items, monsters, settings: S, arts, drops };
+  // Câu Cá: how often each catch bites (the fish_rates table); at least one must
+  const fishRates = {}, chest = {};
+  for (const r of c.fishRates ?? []) {
+    if (!FISH[r.key]) continue;
+    fishRates[r.key] = num(r.rate, `tỉ lệ câu ${FISH[r.key].name}`, 0, 1e6);
+    // a chest: how many linh thạch it holds, min..max
+    if (FISH[r.key].stones && r.stonesMax !== undefined) {
+      const lo = num(r.stonesMin, `linh thạch tối thiểu của ${FISH[r.key].name}`, 0, 1e9) | 0, hi = num(r.stonesMax, `linh thạch tối đa của ${FISH[r.key].name}`, 0, 1e9) | 0;
+      if (hi < lo) throw new Error(`${FISH[r.key].name}: linh thạch tối đa nhỏ hơn tối thiểu`);
+      chest[r.key] = [lo, hi];
+    }
+  }
+  if ((c.fishRates ?? []).length && !Object.values(fishRates).some((v) => v > 0)) throw new Error("Câu cá: cần ít nhất một loại có tỉ lệ lớn hơn 0");
+  return { realms, skills, items, monsters, settings: S, arts, drops, fishRates, chest };
 }
 
 /** Make c the live numbers (checks it first; on error nothing changes and the error is thrown). Returns the checked c. */
 export function applyConfig(c) {
   const k = checkConfig(c), S = k.settings;
   SET = S;
+  setRates(k.fishRates, k.chest);
   REALMS.splice(0, REALMS.length, ...k.realms);
   LEVELS = [[0, 1]];
   k.realms.forEach((r, i) => {

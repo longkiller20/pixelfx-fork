@@ -237,6 +237,56 @@ const SHOP_TEST = "Hàng thử nghiệm";
     assert.ok(hc.name === "Nhà Thử Nghiệm" && hc.price === 1234, "the game has the new name and price");
     assert.equal((await adm("/t/houses/gamer", { token, method: "PATCH", body: { name: "x".repeat(41) } })).status, 400, "a name too long is refused");
     await adm("/t/houses/gamer", { token, method: "PATCH", body: { name: hb.name, price: hb.price } });
+    // Câu Cá: a rod renamed and repriced, a fish's rate changed: the game has them at once; a broken rate is refused
+    const fa = (await adm("/fishing", { token })).data;
+    const cc0 = await import("../shared/cau-ca.js");
+    const rod0 = fa.rods.find((r) => r.key === "cc_can_dong"), ro0 = fa.fish.find((f) => f.key === "cc_ca_ro");
+    assert.equal((await adm("/t/items/cc_can_dong", { token, method: "PATCH", body: { name: "Cần Thử", price: 4321 } })).status, 200, "a rod renamed");
+    assert.equal((await adm("/t/fish_rates/cc_ca_ro", { token, method: "PATCH", body: { rate: 0 } })).status, 200, "a fish's rate set");
+    const fc = (await call("/config")).data;
+    assert.ok(fc.items.some((i) => i.key === "cc_can_dong" && i.name === "Cần Thử" && i.price === 4321), "the game has the rod's new name and price");
+    assert.equal(fc.fishRates.find((r) => r.key === "cc_ca_ro").rate, 0, "and the fish's rate");
+    assert.equal((await adm("/fishing", { token })).data.odds.bare.cc_ca_ro, undefined, "rate 0: never caught");
+    assert.equal((await adm("/t/fish_rates/cc_ca_ro", { token, method: "PATCH", body: { rate: -1 } })).status, 400, "a rate below 0 is refused");
+    // and a bait and a fish (anything caught): renamed and repriced the same way
+    const bait0 = fa.baits.find((b) => b.key === "cc_moi_tom"), carp0 = fa.fish.find((f) => f.key === "cc_ca_chep");
+    assert.equal((await adm("/t/items/cc_moi_tom", { token, method: "PATCH", body: { name: "Mồi Thử", price: 7 } })).status, 200, "a bait renamed");
+    assert.equal((await adm("/t/items/cc_ca_chep", { token, method: "PATCH", body: { name: "Cá Thử", price: 99 } })).status, 200, "a fish renamed");
+    const fc2 = (await call("/config")).data.items;
+    assert.ok(fc2.some((i) => i.key === "cc_moi_tom" && i.name === "Mồi Thử" && i.price === 7) && fc2.some((i) => i.key === "cc_ca_chep" && i.name === "Cá Thử" && i.price === 99), "the game has them");
+    // the sunken chest too: its name, and how many linh thạch it holds; max under min refused
+    const chest0 = fa.fish.find((f) => f.key === "cc_ruong");
+    assert.ok(chest0.item && chest0.stones, "the chest is listed with its name and its linh thạch");
+    assert.equal((await adm("/t/items/cc_ruong", { token, method: "PATCH", body: { name: "Rương Thử" } })).status, 200, "the chest renamed");
+    assert.equal((await adm("/t/fish_rates/cc_ruong", { token, method: "PATCH", body: { stones_min: 10, stones_max: 20 } })).status, 200, "its linh thạch set");
+    const fc3 = (await call("/config")).data;
+    assert.ok(fc3.items.some((i) => i.key === "cc_ruong" && i.name === "Rương Thử"), "the game has the chest's new name");
+    const cr = fc3.fishRates.find((r) => r.key === "cc_ruong");
+    assert.ok(cr.stonesMin === 10 && cr.stonesMax === 20, "and what it holds");
+    assert.equal((await adm("/t/fish_rates/cc_ruong", { token, method: "PATCH", body: { stones_min: 30, stones_max: 20 } })).status, 400, "max under min refused");
+    await adm("/t/items/cc_ruong", { token, method: "PATCH", body: { name: chest0.name } });
+    await adm("/t/fish_rates/cc_ruong", { token, method: "PATCH", body: { stones_min: chest0.stones[0], stones_max: chest0.stones[1] } });
+    await adm("/t/items/cc_moi_tom", { token, method: "PATCH", body: { name: bait0.name, price: bait0.price } });
+    await adm("/t/items/cc_ca_chep", { token, method: "PATCH", body: { name: carp0.name, price: carp0.price } });
+    await adm("/t/items/cc_can_dong", { token, method: "PATCH", body: { name: rod0.name, price: rod0.price } });
+    // every rod, every bait and every catch (fish, junk, the chest) can be renamed by the admin, and the game has it
+    {
+      const all = [...fa.rods, ...fa.baits, ...fa.fish];
+      assert.equal(all.length, Object.keys(cc0.RODS).length + Object.keys(cc0.BAITS).length + Object.keys(cc0.FISH).length, "the tab lists them all");
+      for (const it of all) {
+        assert.ok(it.item, `${it.key} has a name to edit`);
+        assert.equal((await adm(`/t/items/${it.key}`, { token, method: "PATCH", body: { name: `Thử ${it.key}`.slice(0, 40) } })).status, 200, `${it.key} renamed`);
+      }
+      const names = Object.fromEntries((await call("/config")).data.items.map((i) => [i.key, i.name]));
+      for (const it of all) assert.equal(names[it.key], `Thử ${it.key}`.slice(0, 40), `the game has ${it.key}'s new name`);
+      for (const it of all) await adm(`/t/items/${it.key}`, { token, method: "PATCH", body: { name: it.name } });
+      // and every catch's rate
+      for (const f of fa.fish) assert.equal((await adm(`/t/fish_rates/${f.key}`, { token, method: "PATCH", body: { rate: f.rate + 1 } })).status, 200, `${f.key}'s rate set`);
+      const rates = Object.fromEntries((await call("/config")).data.fishRates.map((r) => [r.key, r.rate]));
+      for (const f of fa.fish) assert.equal(rates[f.key], f.rate + 1, `the game has ${f.key}'s rate`);
+      for (const f of fa.fish) await adm(`/t/fish_rates/${f.key}`, { token, method: "PATCH", body: { rate: f.rate } });
+    }
+    await adm("/t/fish_rates/cc_ca_ro", { token, method: "PATCH", body: { rate: ro0.rate } });
     // a house given by the admin: the Gia Viên unlocked for nothing if need be, given once, taken back once
     const house = (give, h = "gamer") => adm(`/players/${u.id}/houses`, { token, method: "POST", body: { house: h, give } });
     assert.equal((await house(true)).status, 200, "a house given");
@@ -1187,9 +1237,9 @@ const SHOP_TEST = "Hàng thử nghiệm";
   const id = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [`tf_${tag}`])).insertId;
   await q("INSERT INTO characters (user_id, name, class, gender, hair, robe, exp, stones) VALUES (?, ?, 'tu', 'm', 8, 16, 1000, 20000)", [id, `F${tag.slice(0, 6)}`]);
   const A = { uid: id, token: await createSession(id) };
-  const post = async (path, body) => {
+  const post = async (path, body, token = A.token) => {
     for (;;) {
-      const r = await call(`/fishing${path}`, { token: A.token, method: "POST", body });
+      const r = await call(`/fishing${path}`, { token, method: "POST", body });
       if (r.status !== 429) return r;
       await sleep(1500);
     }
@@ -1216,6 +1266,9 @@ const SHOP_TEST = "Hàng thử nghiệm";
   assert.equal((await post("/enter")).status, 200);
   await sleep(2500);
   assert.equal(msgs("welcome").pop().map, cc.FISH_MAP, "at the lake");
+  const k0 = msgs("fkhu").filter((m) => m.n).pop();
+  assert.ok(k0?.n >= 1 && k0.occ.length === cc.KHU_COUNT, "put in a Khu, told how full all 30 are");
+  assert.equal(k0.n, k0.occ.findIndex((n) => n < cc.KHU_CAP) + 1, "the first Khu with room");
   // ---- the stall: nothing is sold away from it
   const rod = "cc_can_truc", bait = "cc_moi_giun", P = { rod: cc.RODS[rod].price, bait: cc.BAITS[bait].price };
   assert.equal((await post("/buy", { item: rod, qty: 1, requestId: crypto.randomUUID() })).status, 403, "away from the stall: no buying");
@@ -1244,41 +1297,53 @@ const SHOP_TEST = "Hàng thử nghiệm";
   send(c, { t: "fish", a: "cast" });
   assert.match((await fishMsg((m) => m.s === "end")).m, /cầu/, "the shore is no place to fish from");
   // ---- Khu 1, place 3
-  const SPOT = 29.5 * 32;
+  const SPOT = (await import("../shared/maps/cauca.js")).PIER.spots[2] * 32;
   await walkTo(c, SPOT, me0()[2]);
   await sleep(1400);
-  // struck too early: reeled in empty, nothing spent
-  send(c, { t: "fish", a: "cast" });
-  const cast1 = await fishMsg((m) => m.s === "cast" || m.s === "end");
-  assert.equal(cast1.s, "cast", JSON.stringify(cast1));
-  assert.equal(cast1.zone, "ben", "the shallows");
-  assert.equal(cast1.khu, 1);
-  assert.equal(cast1.n, 3, "place number 3");
-  await sleep(200);
-  assert.equal(msgs("fzones").pop().occ[0], 1, "Khu 1: one fishing");
-  // someone else can't sit on that mat; they are told which are free; they cross to Khu 2
-  {
+  // a second angler, standing on the same mat (to try it once the first has a line out)
+  const B2 = await (async () => {
     const id2 = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [`tf2_${tag}`])).insertId;
     await q("INSERT INTO characters (user_id, name, class, gender, hair, robe, exp, stones) VALUES (?, ?, 'tu', 'm', 8, 16, 1000, 0)", [id2, `G${tag.slice(0, 6)}`]);
     await q("INSERT INTO inventory (user_id, item, qty) VALUES (?, 'cc_can_truc', 1), (?, 'cc_moi_giun', 5)", [id2, id2]);
     const B = { token: await createSession(id2) }, b = await connect(B.token);
-    await call("/fishing/enter", { token: B.token, method: "POST", body: {} });
+    assert.equal((await post("/enter", {}, B.token)).status, 200);
     await sleep(2500);
+    assert.equal(b.msgs.filter((m) => m.t === "fkhu" && m.n).pop()?.n, k0.n, "the next one comes into the same Khu while it has room");
     const bp = () => b.snap?.P.find((p) => p[0] === b.id);
     await walkTo(b, SPOT, bp()[2]);
     await sleep(600);
+    return { b, bp, B };
+  })();
+  // struck too early: reeled in empty, nothing spent
+  send(c, { t: "fish", a: "cast" });
+  const cast1 = await fishMsg((m) => m.s === "cast" || m.s === "end");
+  assert.equal(cast1.s, "cast", JSON.stringify(cast1));
+  assert.equal(cast1.khu, k0.n, "in that Khu");
+  assert.equal(cast1.n, 3, "place number 3");
+  await sleep(200);
+  assert.equal(msgs("fzones").pop().occ[0], 1, "Khu 1: one fishing");
+  // someone else can't sit on that mat; they are told which are free; they cross to another Khu
+  {
+    const { b, bp, B } = B2;
     send(b, { t: "fish", a: "cast" });
-    await sleep(500);
+    for (let i = 0; i < 20 && !b.msgs.some((m) => m.t === "fish" && m.s === "end"); i++) await sleep(100);
     const no = b.msgs.filter((m) => m.t === "fish" && m.s === "end").pop();
-    assert.match(no?.m ?? "", /Chỗ số 3 có người câu rồi.*1, 2, 4/, JSON.stringify(no));
-    send(b, { t: "fish", a: "goto", k: 2 });
-    await sleep(500);
-    const went = b.msgs.filter((m) => m.t === "fish" && m.s === "goto").pop();
-    assert.equal(went?.khu, 2, "across to Khu 2");
-    assert.ok(Math.abs(bp()[1] - 41.5 * 32) < 2, "on its first place");
+    assert.match(no?.m ?? "", /Chỗ số 3 có người câu rồi.*1, 2, 4, 5, 6, 7, 8/, JSON.stringify(no));
+    assert.equal((await post("/enter", { khu: 31 }, B.token)).status, 400, "no Khu 31");
+    const occ0 = (await call("/fishing", { token: B.token })).data.occ;
+    const other = occ0.findIndex((n, i) => i + 1 !== k0.n && n < cc.KHU_CAP - 1) + 1, before = occ0[other - 1];
+    const sw = await post("/enter", { khu: other }, B.token);
+    assert.equal(sw.status, 200, JSON.stringify(sw.data));
+    await sleep(800);
+    assert.equal(b.msgs.filter((m) => m.t === "fkhu" && m.n).pop()?.n, other, "moved to the Khu chosen");
+    assert.equal(sw.data.view.occ[other - 1], before + 1, "and counted there");
+    await sleep(1300);
+    assert.equal(msgs("fkhu").pop().occ[other - 1], before + 1, "everyone at the lake hears how full the Khu are");
+    // the way out of a Khu leads back to where they came from (not the Khu before)
     b.ws.close();
   }
   await sleep(200);
+  for (let i = 0; i < 20 && !(c.snap.P.find((p) => p[0] === c.id)?.length > 6); i++) await sleep(100);
   assert.ok(c.snap.P.find((p) => p[0] === c.id).length > 6, "the float shows in the snapshot");
   send(c, { t: "fish", a: "hook" });
   assert.equal((await end()).why, "early");
@@ -1315,7 +1380,6 @@ const SHOP_TEST = "Hàng thử nghiệm";
   }
   assert.ok(landed, "a fish landed");
   assert.ok(cc.FISH[landed.fish] && landed.g >= cc.FISH[landed.fish].kg[0] * 1000 && landed.g <= cc.FISH[landed.fish].kg[1] * 1000, "a fish of that spot, its weight in its range");
-  assert.ok(cc.FISH[landed.fish].zones.includes("ben"));
   const log = await q("SELECT n, best_g FROM fish_log WHERE user_id = ? AND fish = ?", [A.uid, landed.fish]);
   assert.equal(Number(log[0].best_g), landed.g, "in the Ngư Lục with its weight");
   const f = (await q("SELECT casts, catches FROM fishers WHERE user_id = ?", [A.uid]))[0];
@@ -1334,7 +1398,56 @@ const SHOP_TEST = "Hàng thử nghiệm";
     assert.equal(await qty(landed.fish), 0);
   }
   c.ws.close();
-  ok("Câu Cá: to the lake from the menu; a rod bought once and paid once, bait by the handful, only at the stall; a strike too early costs nothing, moving reels in, a bite takes one bait; only from a free place on a pier (a taken one says which are free, another Khu is a step away), the reeling run by the server lands a fish of that spot into the bag and the Ngư Lục; selling paid once");
+  ok("Câu Cá: to the lake from the menu; a rod bought once and paid once, bait by the handful, only at the stall; a strike too early costs nothing, moving reels in, a bite takes one bait; put in the first of 30 Khu with room, the next one in the same, moving to the Khu chosen and everyone hearing how full each is; only from a free place on the pier (a taken one says which are free), the reeling run by the server lands a fish of that spot into the bag and the Ngư Lục; selling paid once");
+}
+
+// Câu Cá: a Khu holds 20 at most, however many come at once: 18 go in, then 5 at the same moment for the 2 places left
+// (exactly 2 get in), a 21st is refused for that Khu; arriving without a Khu skips the full one
+{
+  const { q } = await import("../server/db.js");
+  const { createSession } = await import("../server/auth.js");
+  const cc = await import("../shared/cau-ca.js");
+  const tag = uid();
+  const mk = async (i) => {
+    const id = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [`tk_${tag}_${i}`])).insertId;
+    await q("INSERT INTO characters (user_id, name, class, gender, hair, robe, exp, stones) VALUES (?, ?, 'tu', 'm', 8, 16, 1000, 0)", [id, `K${tag.slice(0, 5)} ${i}`]);
+    const token = await createSession(id);
+    return { token, c: await connect(token) };
+  };
+  const enter = async (P, body) => {
+    for (;;) {
+      const r = await call("/fishing/enter", { token: P.token, method: "POST", body });
+      if (r.status !== 429) return r;
+      await sleep(1500);
+    }
+  };
+  const people = [];
+  for (let i = 0; i < 24; i++) people.push(await mk(i));
+  // the highest-numbered empty Khu, so the others' Khu are not in the way
+  const occ0 = (await call("/fishing", { token: people[0].token })).data.occ;
+  const K = occ0.lastIndexOf(0) + 1;
+  assert.ok(K > 0, "an empty Khu to fill");
+  const first = await Promise.all(people.slice(0, cc.KHU_CAP - 2).map((P) => enter(P, { khu: K })));
+  assert.ok(first.every((r) => r.status === 200), "18 go in");
+  const five = await Promise.all(people.slice(cc.KHU_CAP - 2, cc.KHU_CAP + 3).map((P) => enter(P, { khu: K })));
+  assert.equal(five.filter((r) => r.status === 200).length, 2, "five at once for two places: two get in");
+  assert.ok(five.filter((r) => r.status !== 200).every((r) => r.status === 409 && /đủ 20 người/.test(r.data.error)), "the others are told it is full");
+  const late = people[cc.KHU_CAP + 3];
+  const r21 = await enter(late, { khu: K });
+  assert.equal(r21.status, 409, "a 21st is refused");
+  const v = (await call("/fishing", { token: late.token })).data;
+  assert.equal(v.occ[K - 1], cc.KHU_CAP, `Khu ${K} holds exactly ${cc.KHU_CAP}`);
+  // arriving without a Khu: the first with room, never the full one
+  const auto = await enter(late, {});
+  assert.equal(auto.status, 200);
+  assert.notEqual(auto.data.khu, K, "not put in the full Khu");
+  assert.equal(auto.data.khu, v.occ.findIndex((n) => n < cc.KHU_CAP) + 1, "the lowest-numbered Khu with room");
+  // the box's dot for a full Khu is red, for an empty one green
+  assert.equal(cc.khuLevel(cc.KHU_CAP), 2);
+  assert.equal(cc.khuLevel(0), 0);
+  assert.equal(cc.khuLevel(10), 1);
+  for (const P of people) P.c.ws.close();
+  ok(`Câu Cá: a Khu never holds more than ${cc.KHU_CAP} (five at once for the last two places: two get in, a 21st refused); arriving without a Khu skips the full one for the lowest with room`);
 }
 
 {

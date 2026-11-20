@@ -394,3 +394,7 @@ canvas.fxprev { width: 100%; height: auto; image-rendering: pixelated; border-ra
 }
 @media (prefers-reduced-motion: reduce) { #modal, #modalBox, .tabpane { animation: none; } }
 body.noscroll { overflow: hidden; }
+.fwrap { overflow-x: auto; margin: 8px 0 14px; }
+.ftbl { border-collapse: collapse; font-size: 13px; min-width: 520px; }
+.ftbl th, .ftbl td { padding: 4px 10px; border-bottom: 1px solid #ffffff14; text-align: left; white-space: nowrap; }
+.ftbl th { color: var(--dim, #9a90b0); font-weight: 600; }
