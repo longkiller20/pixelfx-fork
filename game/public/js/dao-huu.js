@@ -166,19 +166,28 @@ export function initSocial({ call, panel, flash, game, openSect }) {
     badge();
   }
 
+  // Two screens in one panel: the list (friends, requests, finding, blocked) or, once someone is picked, a conversation
+  // of its own filling the panel, with an arrow back to the list.
   function drawFriends(first = false) {
     const fit = screenFit();
     const wrap = h("div.friendp");
     wrap.classList.toggle("short", fit.short);
-    wrap.classList.toggle("narrow", fit.narrow);
-    wrap.classList.toggle("talking", !!openUid);
+    wrap.classList.toggle("talking", !!(openUid && convo));
     if (fit.short) wrap.style.setProperty("--avail", `${Math.max(220, fit.H - 82)}px`);
-    wrap.append(listSide(), talkSide());
-    if (first || !panelOpen("friendp")) panel("Đạo Hữu", wrap);
-    else document.getElementById("panelBody").replaceChildren(wrap);
+    // what was being typed stays, and so does the cursor
+    const hadFocus = document.activeElement?.closest?.(".friendp .composer");
+    wrap.append(openUid && convo ? talkView() : listSide());
+    const title = openUid && convo ? "Truyền Âm" : "Đạo Hữu";
+    if (first || !panelOpen("friendp")) panel(title, wrap);
+    else {
+      document.getElementById("panelTitle").textContent = title;
+      document.getElementById("panelBody").replaceChildren(wrap);
+    }
     const log = wrap.querySelector(".pmlog");
     if (log) log.scrollTop = log.scrollHeight;
+    if (hadFocus || (openUid && convo && matchMedia("(pointer: fine)").matches)) wrap.querySelector(".composer input")?.focus({ preventScroll: true });
   }
+  const back = () => ((openUid = null), (convo = null), drawFriends());
 
   function listSide() {
     const tabs = [["friends", `Đạo Hữu (${view.friends.length})`], ["requests", `Lời mời${view.incoming.length ? ` (${view.incoming.length})` : ""}`], ["find", "Tìm"], ["blocked", "Chặn"]];
@@ -276,55 +285,96 @@ export function initSocial({ call, panel, flash, game, openSect }) {
       convo = null;
     }
   }
-  function talkSide() {
+  // ---- the conversation screen
+  const drafts = new Map(); // uid -> what was being typed to them
+  const SVG = {
+    back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    send: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 11.1 19.6 3.6c.8-.4 1.6.4 1.2 1.2L13.3 21c-.4.8-1.6.7-1.8-.2l-1.6-6.4-6.4-1.6c-.9-.2-1-1.4-.1-1.7z" fill="currentColor"/><path d="M9.9 14.3 20.4 4" stroke="#7a4a0c" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg>',
+  };
+  const icon = (name) => {
+    const s = h("span.ic");
+    s.innerHTML = SVG[name]; // our own drawings only
+    return s;
+  };
+  function talkView() {
     const f = view.friends.find((x) => x.uid === openUid);
-    if (!f || !convo)
-      return h("div.ftalk.none", {}, h("div.pmempty", {}, h("span.big", { text: "✉" }), h("p", { text: "Chọn một Đạo Hữu để Truyền Âm." }),
-        h("small.dim", { text: "Truyền Âm chỉ giữa Đạo Hữu với nhau, lưu 30 ngày." })));
+    if (!f) return listSide();
+    // header: back to the list, who it is, where they are, and the actions behind ⋯
+    const menu = h("div.tmenu", { hidden: true },
+      sure("Huỷ kết giao", "Bấm lần nữa để huỷ", (b) => act("/remove", { uid: f.uid }, `Đã huỷ kết giao với ${f.name}.`, b).then(back), "ghost"),
+      sure("Chặn người này", "Bấm lần nữa để chặn", (b) => act("/block", { uid: f.uid }, `Đã chặn ${f.name}.`, b).then(back), "ghost danger"));
     const head = h("div.thead", {},
-      h("button.back", { type: "button", text: "‹", title: "Danh sách", onclick: () => ((openUid = null), (convo = null), drawFriends()) }),
-      avatar(f.name, f.online),
-      h("div.fmain", {}, h("b", { text: f.name }), h("small", { text: f.online ? `Đang ở ${f.map}${f.sect ? ` · ${f.sect}` : ""}` : "Ngoại tuyến: sẽ thấy khi vào game" })),
-      h("div.tact", {},
-        sure("Huỷ kết giao", "Chắc chưa?", (b) => act("/remove", { uid: f.uid }, `Đã huỷ kết giao với ${f.name}.`, b).then(() => ((openUid = null), (convo = null), drawFriends())), "ghost small"),
-        sure("Chặn", "Chặn thật?", (b) => act("/block", { uid: f.uid }, `Đã chặn ${f.name}.`, b).then(() => ((openUid = null), (convo = null), drawFriends())), "ghost small danger")));
+      h("button.back", { type: "button", title: "Về danh sách Đạo Hữu", "aria-label": "Về danh sách Đạo Hữu", onclick: back }, icon("back"), h("span", { text: "Đạo Hữu" })),
+      h("div.who", {}, avatar(f.name, f.online),
+        h("div.fmain", {}, h("b", { text: f.name }),
+          h("small", { className: f.online ? "on" : "", text: f.online ? `Đang trực tuyến · ${f.map}` : "Ngoại tuyến · sẽ thấy tin khi vào game" }))),
+      h("button.moreb", { type: "button", title: "Tuỳ chọn", "aria-label": "Tuỳ chọn", onclick: (e) => (e.stopPropagation(), (menu.hidden = !menu.hidden)) }, icon("more")),
+      menu);
+    const chips = h("div.tchips", {}, h("span.chip", { text: realmName(f.level) }), f.sect ? h("span.chip.gold", { text: `〔${f.sect}〕` }) : null,
+      h("span.chip", { text: `Đạo Hữu từ ${dayOf(f.at)}` }));
     const log = h("div.pmlog");
-    if (convo.more) log.append(h("button.ghost.older", { type: "button", text: "Xem tin cũ hơn", onclick: async () => {
-      const keep = log.scrollHeight - log.scrollTop;
-      await loadConvo(f.uid, true);
-      drawFriends();
-      const l2 = document.querySelector(".friendp .pmlog");
-      if (l2) l2.scrollTop = l2.scrollHeight - keep;
-    } }));
-    if (!convo.messages.length) log.append(h("p.dim.pmhint", { text: `Hãy gửi lời đầu tiên cho ${f.name}.` }));
-    let day = "";
-    for (const m of convo.messages) {
-      const d = dayOf(m.at);
-      if (d !== day) log.append(h("div.day", { text: (day = d) }));
-      log.append(bubble(m));
-    }
-    const input = h("input", { maxLength: 200, placeholder: `Truyền Âm cho ${f.name}...`, autocomplete: "off", enterKeyHint: "send" });
+    fillLog(log, f);
+    // the composer: a rounded field, the count near the limit, a round send button
+    const input = h("input", { maxLength: 200, placeholder: `Truyền Âm cho ${f.name}...`, autocomplete: "off", enterKeyHint: "send", value: drafts.get(f.uid) ?? "", "aria-label": `Truyền Âm cho ${f.name}` });
+    const left = h("small.left");
+    const sendB = h("button.sendb", { type: "button", title: "Gửi (Enter)", "aria-label": "Gửi" }, icon("send"));
+    const sync = () => {
+      const n = [...input.value].length;
+      drafts.set(f.uid, input.value);
+      left.textContent = n > 150 ? `${n}/200` : "";
+      sendB.disabled = !input.value.trim();
+    };
     const sendIt = () => {
       const v = input.value.trim();
       if (!v) return;
       const c = Math.random().toString(36).slice(2, 10);
       // shown at once, faded until the server confirms it (or says why not)
-      const tmp = { id: 0, mine: true, text: v, at: new Date().toISOString(), c, sending: true };
-      convo.messages.push(tmp);
-      log.querySelector(".pmhint")?.remove();
-      log.append(bubble(tmp));
-      log.scrollTop = log.scrollHeight;
+      convo.messages.push({ id: 0, mine: true, text: v, at: new Date().toISOString(), c, sending: true });
       game()?.pm(f.uid, v, c);
       input.value = "";
+      sync();
+      fillLog(log, f);
+      log.scrollTop = log.scrollHeight;
       input.focus();
     };
+    input.addEventListener("input", sync);
     input.addEventListener("keydown", (e) => (e.stopPropagation(), e.key === "Enter" && sendIt()));
-    return h("div.ftalk", {}, head, log, h("div.crow", {}, input, h("button.primary", { type: "button", text: "Gửi", onclick: sendIt })));
+    sendB.addEventListener("click", sendIt);
+    sync();
+    return h("div.ftalk", { onclick: (e) => !e.target.closest(".tmenu, .moreb") && (menu.hidden = true) }, head, chips, log, h("div.composer", {}, input, left, sendB));
   }
-  function bubble(m) {
-    const b = h("div.bub", { className: `${m.mine ? "mine" : "theirs"}${m.sending ? " sending" : ""}${m.failed ? " failed" : ""}`, "data-c": m.c ?? "" },
-      h("span.txt", { text: m.text }), h("small", { text: m.failed ? "Không gửi được" : hm(m.at) }));
-    return b;
+  /** The messages: a pill for each day, one sender's lines close together, the time under the last of each group, "Đã xem" under my last one read. */
+  function fillLog(log, f) {
+    const keepBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+    const kids = [];
+    if (convo.more) kids.push(h("button.older", { type: "button", text: "Xem tin cũ hơn", onclick: async () => {
+      const keep = log.scrollHeight - log.scrollTop;
+      await loadConvo(f.uid, true);
+      fillLog(log, f);
+      log.scrollTop = log.scrollHeight - keep;
+    } }));
+    if (!convo.messages.length)
+      kids.push(h("div.pmstart", {}, h("span.av.big", { text: [...f.name][0]?.toUpperCase() ?? "?" }), h("b", { text: f.name }),
+        h("p", { text: "Hai đạo hữu chưa Truyền Âm cho nhau. Hãy gửi lời đầu tiên." }), h("small", { text: "Chỉ hai người thấy. Tin được lưu 30 ngày." })));
+    const ms = convo.messages, lastRead = [...ms].reverse().find((m) => m.mine && m.read);
+    let day = "";
+    ms.forEach((m, i) => {
+      const d = dayOf(m.at);
+      if (d !== day) kids.push(h("div.day", {}, h("span", { text: (day = d) })));
+      const prev = ms[i - 1], next = ms[i + 1];
+      const near = (a, b) => a && b && a.mine === b.mine && dayOf(a.at) === dayOf(b.at) && Math.abs(new Date(b.at) - new Date(a.at)) < 180000;
+      const first = !near(prev, m), last = !near(m, next);
+      kids.push(bubble(m, first, last));
+      if (m === lastRead && !ms.slice(i + 1).some((x) => x.mine)) kids.push(h("small.seen", { text: "Đã xem" }));
+    });
+    log.replaceChildren(...kids);
+    if (keepBottom) log.scrollTop = log.scrollHeight;
+  }
+  function bubble(m, first = true, last = true) {
+    return h("div.bub", { className: `${m.mine ? "mine" : "theirs"}${first ? " first" : ""}${last ? " last" : ""}${m.sending ? " sending" : ""}${m.failed ? " failed" : ""}` },
+      h("span.txt", { text: m.text }),
+      last || m.failed || m.sending ? h("small", { text: m.failed ? "Không gửi được · thử lại" : m.sending ? "Đang gửi..." : hm(m.at) }) : null);
   }
 
   /** A Truyền Âm, sent by me (the server's echo) or to me. */
@@ -335,12 +385,13 @@ export function initSocial({ call, panel, flash, game, openSect }) {
     const showing = panelOpen("friendp") && openUid === m.with && convo?.uid === m.with;
     if (showing) {
       const i = m.mine ? convo.messages.findIndex((x) => x.c && x.c === m.c) : -1;
-      const msg = { id: m.id, mine: m.mine, text: m.text, at: m.at };
+      const msg = { id: m.id, mine: m.mine, text: m.text, at: m.at, read: false };
       if (i >= 0) convo.messages[i] = msg;
       else convo.messages.push(msg);
       // what arrives while the conversation is open is read: told to the server a moment later, once
       if (!m.mine) (clearTimeout(readT), (readT = setTimeout(() => call("/friends/read", { method: "POST", body: { uid: m.with } }).catch(() => {}), 1200)));
-      drawFriends();
+      const log = document.querySelector(".friendp .pmlog");
+      if (log && f) fillLog(log, f);
       return;
     }
     if (!m.mine) {
@@ -354,7 +405,8 @@ export function initSocial({ call, panel, flash, game, openSect }) {
     if (!convo) return;
     const x = convo.messages.find((y) => y.c && y.c === m.c);
     if (x) (x.sending = false), (x.failed = true);
-    if (panelOpen("friendp")) drawFriends();
+    const log = document.querySelector(".friendp .pmlog"), f = view?.friends.find((y) => y.uid === convo.uid);
+    if (log && f) fillLog(log, f);
   }
 
   addEventListener("resize", () => {

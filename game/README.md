@@ -477,15 +477,30 @@ Bài test `test/race.mjs` có một phần riêng cho Tông Môn, gửi yêu c�
 ### Truyền Âm
 
 - **Chỉ giữa hai Đạo Hữu**, tối đa 200 ký tự một câu, lưu `pm.keep_days` ngày (mặc định 30) rồi tự xoá.
-- **Giao diện:** bấm một Đạo Hữu để mở cuộc trò chuyện.
-  - Tin hiện thành bong bóng: của mình màu vàng bên phải, của người kia màu tím bên trái. Có ngăn theo ngày và giờ gửi.
-  - Mỗi lần tải 40 tin, có nút "Xem tin cũ hơn".
-  - Tin vừa gửi hiện mờ cho đến khi máy chủ xác nhận; gửi không được thì đỏ lên và ghi lý do.
+- **Hai màn riêng trong bảng Đạo Hữu:**
+  - **Màn danh sách:** các tab Đạo Hữu, Lời mời, Tìm, Chặn. Mỗi Đạo Hữu một dòng, có mũi tên ›.
+  - **Màn Truyền Âm:** bấm một người thì màn chat của riêng người đó chiếm cả bảng. Nút **‹ Đạo Hữu** ở góc trái để quay
+    lại danh sách.
+- **Đầu màn Truyền Âm:**
+  - Avatar (chấm xanh nếu đang trực tuyến), đạo hiệu, "Đang trực tuyến · bản đồ" hoặc "Ngoại tuyến".
+  - Một hàng nhãn: cảnh giới, tông môn, kết giao từ ngày nào.
+  - Nút **⋯** mở menu Huỷ kết giao và Chặn người này (bấm 2 lần để chắc).
+- **Tin nhắn dạng bong bóng:** của mình màu vàng bên phải, của người kia màu tím bên trái.
+  - Có vạch ngăn theo ngày.
+  - Tin liên tiếp của một người trong vòng 3 phút dính liền thành một cụm; giờ gửi chỉ ghi dưới tin cuối của cụm.
+  - Dưới tin cuối của mình mà người kia đã đọc có chữ "Đã xem".
+  - Nút "Xem tin cũ hơn" tải thêm 40 tin.
+  - Chưa nói gì với nhau thì hiện avatar lớn và lời mời gửi tin đầu tiên.
+- **Ô soạn tin:**
+  - Bo tròn, có nút gửi tròn hình mũi tên giấy; nút mờ khi ô còn trống. Enter cũng gửi.
+  - Đếm ký tự khi gần tới 200.
+  - Chữ đang gõ dở được giữ: có tin mới tới, danh sách cập nhật hay quay lại danh sách rồi vào lại thì vẫn còn.
+  - Tin vừa gửi ghi "Đang gửi..." cho đến khi máy chủ xác nhận; gửi không được thì đỏ lên.
 - **Gửi cho người đang ngoại tuyến** vẫn được: họ thấy khi vào game.
 - **Đánh dấu đã đọc:** mở cuộc trò chuyện là các tin đã được đọc. Nút 🤝 có huy hiệu đỏ đếm tin chưa đọc cộng lời mời đang chờ.
 - **Trên điện thoại:**
-  - Màn hẹp thì mỗi lúc một khung: danh sách, hoặc cuộc trò chuyện (có nút ‹ để quay lại).
-  - Điện thoại nằm ngang thì hai khung cạnh nhau, cao vừa màn hình.
+  - Hai màn như trên, cao vừa màn hình, chữ và nút nhỏ lại.
+  - Hàng nhãn ở đầu màn Truyền Âm ẩn bớt để dành chỗ cho tin nhắn.
 
 ### Bảo mật
 

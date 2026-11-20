@@ -1038,76 +1038,120 @@ body.rotated .ncard { padding: 10px 12px; gap: 7px; }
 .namemenu b { color: var(--gold2); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .namemenu button { padding: 7px 10px; border-radius: 8px; border: 1px solid #ffffff26; background: #ffffff0d; color: #e8e0ff; font-weight: 600; cursor: pointer; }
 .namemenu button:first-of-type { border-color: #f0c05077; color: var(--gold2); }
-/* ---- Đạo Hữu: the list on the left, the conversation on the right */
-#panel .pbox:has(.friendp) { width: min(920px, 100%); }
-.friendp { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 12px; height: min(72vh, 600px); }
-.friendp .fside, .friendp .ftalk { min-height: 0; display: flex; flex-direction: column; min-width: 0; }
-.friendp .fbody { flex: 1; min-height: 0; overflow: auto; }
+/* ---- Đạo Hữu: one screen at a time. The list (tabs: friends, requests, finding, blocked); a friend picked, their
+   conversation fills the panel: a header with the arrow back, who they are and where, then the messages, then the composer. */
+#panel .pbox:has(.friendp) { width: min(600px, 100%); }
+.friendp { display: flex; flex-direction: column; height: min(74vh, 620px); min-height: 0; }
+.friendp .fside, .friendp .ftalk { flex: 1; min-height: 0; display: flex; flex-direction: column; min-width: 0; }
+.friendp .fbody { flex: 1; min-height: 0; overflow: auto; padding-right: 2px; }
 .friendp .flist { display: flex; flex-direction: column; gap: 5px; }
+.friendp .cap { display: block; margin: 0 0 4px; }
 .friendp h4 { margin: 6px 0 2px; color: var(--gold2); font-size: 13px; }
-.friendp .av { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #2a1604; position: relative;
-  background: radial-gradient(circle at 35% 30%, #fff2b8, #c88a1c 75%); box-shadow: inset 0 0 0 2px #4a2a0855; }
-.friendp .av::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #4a4260; border: 2px solid #120e1e; }
+.friendp .av { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #2a1604; position: relative;
+  background: radial-gradient(circle at 35% 30%, #fff2b8, #c88a1c 75%); box-shadow: inset 0 0 0 2px #4a2a0855, 0 2px 6px #0008; }
+.friendp .av::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; background: #4a4260; border: 2px solid #120e1e; }
 .friendp .av.on::after { background: #5cf0a0; box-shadow: 0 0 6px #5cf0a0; }
-.friendp .frow, .friendp .rrow { display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 10px; background: #ffffff05; border: 1px solid #ffffff0e; text-align: left; color: inherit; font: inherit; width: 100%; }
-.friendp .frow:hover { border-color: #f0c05044; }
-.friendp .frow.on { border-color: #f0c05088; background: #f0c05012; }
+.friendp .frow, .friendp .rrow { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 12px; background: #ffffff05; border: 1px solid #ffffff0e; text-align: left; color: inherit; font: inherit; width: 100%; }
+.friendp .frow { position: relative; transition: background 0.12s, border-color 0.12s; }
+.friendp .frow::after { content: "›"; color: #6f6688; font-size: 20px; line-height: 1; margin-left: 2px; }
+.friendp .frow:hover { border-color: #f0c05055; background: #f0c0500a; }
 .friendp .frow:not(.online) .av { filter: grayscale(0.7) brightness(0.8); }
-.friendp .fmain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.friendp .fmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .friendp .fname { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .friendp .fmain b { color: #ffe8c8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .friendp .fmain small { color: var(--dim); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .friendp .fmain small.last { color: #b8aed6; }
 .friendp .fmain small.last.new { color: #fff; font-weight: 600; }
 .friendp .count { flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #e0283c; color: #fff; font: 700 11px/18px system-ui, sans-serif; text-align: center; }
-.friendp .when { flex: none; align-self: flex-start; color: #6f6688; font-size: 10.5px; }
+.friendp .when { flex: none; align-self: flex-start; color: #6f6688; font-size: 10.5px; margin-top: 2px; }
 .friendp .ract { display: flex; gap: 5px; flex: none; }
 .friendp .fempty { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .friendp .search { margin-bottom: 8px; }
-.friendp .ftalk { border-radius: 12px; background: #0b0814; border: 1px solid #ffffff12; padding: 8px; gap: 6px; }
-.friendp .ftalk.none { display: grid; place-items: center; }
-.friendp .pmempty { text-align: center; color: var(--dim); }
-.friendp .pmempty .big { font-size: 34px; display: block; opacity: 0.6; }
-.friendp .thead { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid #ffffff10; }
-.friendp .tact { display: flex; gap: 5px; flex: none; }
-.friendp .ghost.small { padding: 4px 8px; font-size: 12px; }
-.friendp .back { display: none; width: 30px; height: 30px; border-radius: 8px; border: 1px solid #ffffff26; background: #ffffff0a; color: var(--gold2); font-size: 20px; line-height: 1; flex: none; }
-.friendp .pmlog { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 4px; padding: 2px 4px; }
-.friendp .older { align-self: center; font-size: 12px; padding: 4px 10px; }
-.friendp .day { align-self: center; margin: 6px 0 2px; padding: 1px 10px; border-radius: 999px; background: #ffffff0a; color: #8a80a8; font-size: 11px; }
-.friendp .pmhint { text-align: center; }
-.friendp .bub { max-width: 78%; padding: 6px 10px 4px; border-radius: 14px; display: flex; flex-direction: column; gap: 1px; overflow-wrap: anywhere; }
+/* the conversation */
+.friendp .ftalk { border-radius: 14px; background: linear-gradient(180deg, #120e1e, #0b0814); border: 1px solid #ffffff14; overflow: hidden; position: relative; }
+.friendp .thead { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: linear-gradient(180deg, #221a36, #18122a); border-bottom: 1px solid #f0c05026; }
+.friendp .ic { display: inline-grid; place-items: center; width: 18px; height: 18px; }
+.friendp .ic svg { width: 100%; height: 100%; display: block; }
+.friendp .back { display: inline-flex; align-items: center; gap: 2px; flex: none; height: 34px; padding: 0 10px 0 6px; border-radius: 10px; border: 1px solid #f0c05044;
+  background: #f0c05010; color: var(--gold2); font: 600 13px system-ui, sans-serif; cursor: pointer; }
+.friendp .back:hover { background: #f0c05022; border-color: var(--gold); }
+.friendp .who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding-left: 4px; }
+.friendp .who b { font-size: 15px; }
+.friendp .who small.on { color: #8af0b8; }
+.friendp .moreb { flex: none; width: 34px; height: 34px; border-radius: 10px; border: 1px solid #ffffff1c; background: #ffffff08; color: #d8d0f0; display: grid; place-items: center; }
+.friendp .moreb:hover { border-color: #ffffff44; }
+.friendp .tmenu { position: absolute; right: 10px; top: 52px; z-index: 2; display: flex; flex-direction: column; gap: 5px; padding: 8px; min-width: 190px; border-radius: 12px;
+  background: #1f1834; border: 1px solid #ffffff26; box-shadow: 0 14px 30px #000c; }
+.friendp .tmenu button { text-align: left; }
+.friendp .tchips { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 12px; border-bottom: 1px solid #ffffff0a; background: #ffffff03; }
+.friendp .chip { font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid #ffffff1c; background: #ffffff08; color: #cfc6ea; white-space: nowrap; }
+.friendp .chip.gold { color: var(--gold2); border-color: #f0c05055; background: #f0c05010; }
+.friendp .pmlog { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; scroll-behavior: auto;
+  background: radial-gradient(circle at 50% 0%, #f0c05008, #0000 60%); }
+.friendp .older { align-self: center; margin-bottom: 6px; padding: 4px 12px; border-radius: 999px; border: 1px solid #ffffff22; background: #ffffff08; color: #cfc6ea; font-size: 12px; }
+.friendp .day { display: flex; align-items: center; gap: 10px; margin: 10px 0 6px; color: #8a80a8; font-size: 11px; }
+.friendp .day::before, .friendp .day::after { content: ""; flex: 1; height: 1px; background: #ffffff10; }
+.friendp .day span { padding: 1px 10px; border-radius: 999px; background: #ffffff0a; }
+.friendp .bub { max-width: 76%; padding: 7px 12px 5px; border-radius: 16px; display: flex; flex-direction: column; overflow-wrap: anywhere; line-height: 1.4; box-shadow: 0 1px 2px #0006; }
 .friendp .bub .txt { white-space: pre-wrap; }
-.friendp .bub small { align-self: flex-end; font-size: 10px; opacity: 0.7; }
-.friendp .bub.theirs { align-self: flex-start; background: #2a2240; color: #f0eaff; border-bottom-left-radius: 4px; }
-.friendp .bub.mine { align-self: flex-end; background: linear-gradient(180deg, #c8902a, #9a6514); color: #fff8e6; border-bottom-right-radius: 4px; }
-.friendp .bub.sending { opacity: 0.55; }
-.friendp .bub.failed { background: #5a1420; }
-/* one pane at a time on a narrow screen: the list, or (with ‹ back) the conversation */
-.friendp.narrow { grid-template-columns: minmax(0, 1fr); }
-.friendp.narrow .ftalk { display: none; }
-.friendp.narrow.talking .fside { display: none; }
-.friendp.narrow.talking .ftalk { display: flex; }
-.friendp.narrow .back { display: grid; place-items: center; }
+.friendp .bub small { align-self: flex-end; font-size: 10px; opacity: 0.72; margin-top: 1px; }
+.friendp .bub.first { margin-top: 6px; }
+.friendp .bub.theirs { align-self: flex-start; background: #2c2444; color: #f0eaff; border: 1px solid #ffffff10; }
+.friendp .bub.theirs:not(.first) { border-top-left-radius: 5px; }
+.friendp .bub.theirs:not(.last) { border-bottom-left-radius: 5px; }
+.friendp .bub.theirs.last { border-bottom-left-radius: 4px; }
+.friendp .bub.mine { align-self: flex-end; background: linear-gradient(180deg, #d49a30, #a86c14); color: #fffaf0; text-shadow: 0 1px 0 #6a3c0866; }
+.friendp .bub.mine:not(.first) { border-top-right-radius: 5px; }
+.friendp .bub.mine:not(.last) { border-bottom-right-radius: 5px; }
+.friendp .bub.mine.last { border-bottom-right-radius: 4px; }
+.friendp .bub.sending { opacity: 0.6; }
+.friendp .bub.failed { background: #6a1a28; }
+.friendp .seen { align-self: flex-end; color: #8a80a8; font-size: 10.5px; margin: 2px 2px 0; }
+.friendp .pmstart { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; color: var(--dim); padding: 16px; }
+.friendp .pmstart b { color: #ffe8c8; font-size: 16px; }
+.friendp .pmstart p { margin: 2px 0; }
+.friendp .av.big { width: 64px; height: 64px; font-size: 26px; margin-bottom: 4px; }
+.friendp .av.big::after { display: none; }
+.friendp .composer { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid #ffffff10; background: #15102a; position: relative; }
+.friendp .composer input { flex: 1; border-radius: 999px; padding: 10px 16px; background: #0b0814; border: 1px solid #ffffff1c; }
+.friendp .composer input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px #f0c05022; }
+.friendp .composer .left { position: absolute; right: 64px; top: -16px; font-size: 10.5px; color: #cfc6ea; }
+.friendp .sendb { flex: none; width: 42px; height: 42px; border-radius: 50%; border: 0; display: grid; place-items: center; color: #2a1604;
+  background: radial-gradient(circle at 35% 30%, #fff2b8, #e0a83a 60%, #b07418); box-shadow: 0 2px 8px #0009, 0 0 10px #f0c05044; transition: transform 0.1s, opacity 0.15s; }
+.friendp .sendb .ic { width: 20px; height: 20px; transform: translateX(-1px); }
+.friendp .sendb:hover:not(:disabled) { transform: scale(1.06); }
+.friendp .sendb:disabled { opacity: 0.35; cursor: default; box-shadow: none; }
 /* low screens (a phone on its side, or turned by the page): the height of the screen, everything smaller */
 #panel:has(.friendp.short), #panel:has(.chatp.short) { padding: 4px; }
 #panel .pbox:has(.friendp.short), #panel .pbox:has(.chatp.short) { border-width: 14px; border-image-width: 14px; }
 #panel .pbox:has(.friendp.short) header h3, #panel .pbox:has(.chatp.short) header h3 { font-size: 15px; margin: 0; }
 #panel .pbox:has(.friendp.short) header h3::after, #panel .pbox:has(.chatp.short) header h3::after { display: none; }
-.friendp.short { height: var(--avail); grid-template-columns: minmax(220px, 270px) minmax(0, 1fr); gap: 8px; font-size: 12.5px; }
-.friendp.short.narrow { grid-template-columns: minmax(0, 1fr); }
+#panel .pbox:has(.friendp.short) { width: min(720px, 100%); }
+.friendp.short { height: var(--avail); font-size: 12.5px; }
 .chatp.short { height: calc(var(--avail, 300px)); font-size: 12.5px; }
 .chatp.short .cnote { display: none; }
 .friendp.short .stabs, .chatp.short .stabs { margin-bottom: 5px; padding: 2px; }
 .friendp.short .stabs button, .chatp.short .stabs button { padding: 4px 8px; font-size: 12px; }
-.friendp.short .av { width: 28px; height: 28px; font-size: 12px; }
-.friendp.short .frow, .friendp.short .rrow { padding: 5px 7px; gap: 8px; }
+.friendp.short .av { width: 30px; height: 30px; font-size: 12px; }
+.friendp.short .frow, .friendp.short .rrow { padding: 5px 8px; gap: 8px; }
 .friendp.short .fmain small { font-size: 10.5px; }
 .friendp.short input, .chatp.short input { padding: 5px 8px; font-size: 12.5px; }
 .friendp.short .ghost, .chatp.short .ghost { padding: 4px 8px; font-size: 12px; }
 .friendp.short .primary, .chatp.short .primary { padding: 0 10px; font-size: 12px; border-width: 6px; border-image-width: 6px; }
-.friendp.short .ftalk { padding: 5px; gap: 4px; }
-.friendp.short .bub { padding: 4px 8px 3px; font-size: 12.5px; }
+.friendp.short .thead { padding: 5px 8px; }
+.friendp.short .back, .friendp.short .moreb { height: 30px; }
+.friendp.short .moreb { width: 30px; }
+.friendp.short .who b { font-size: 13.5px; }
+.friendp.short .tchips { display: none; }
+.friendp.short .tmenu { top: 44px; }
+.friendp.short .pmlog { padding: 6px 10px; }
+.friendp.short .bub { padding: 5px 10px 4px; font-size: 12.5px; }
+.friendp.short .composer { padding: 5px 8px; }
+.friendp.short .composer input { padding: 7px 12px; }
+.friendp.short .sendb { width: 34px; height: 34px; }
+.friendp.short .sendb .ic { width: 16px; height: 16px; }
+.friendp.short .pmstart { padding: 6px; }
+.friendp.short .av.big { width: 44px; height: 44px; font-size: 18px; }
 .chatp.short .clog { padding: 4px 6px; margin-bottom: 5px; }
 .chatp.short .cline { padding: 2px 0; }
 .chatp.short .cline .who { font-size: 12.5px; }
