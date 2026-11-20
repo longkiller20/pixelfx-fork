@@ -7,6 +7,7 @@ import { effects } from "/hieu-ung/fx/index.js";
 import { ITEMS } from "/shared/balance.js";
 import { FISH_MAP, RODS, BAITS, FISH, ZONES, RARITY, odds, fishName, fishPrice, kgText, reelZone } from "/shared/cau-ca.js";
 import { h } from "./tong-mon.js";
+import { mapInfo } from "/shared/maps/index.js";
 import { confirmBox } from "./gia-vien.js";
 
 const fmt = (n) => Number(n ?? 0).toLocaleString("vi-VN");
@@ -65,7 +66,8 @@ const rarityOf = (k) => RARITY[FISH[k]?.rarity ?? 1];
  * Returns the layer: draw() each frame, onMsg() for the server's "fish" and "fr", onEvent() for a landing, key().
  */
 export function createFishLayer(G) {
-  const L = { st: null, onChange: () => {}, onLand: () => {}, onShop: () => {} };
+  // occ: how many fish in each Khu (the server says when it changes)
+  const L = { st: null, occ: [], onChange: () => {}, onLand: () => {}, onShop: () => {}, onFull: () => {} };
   const floats = new Map(); // player id -> their float's effect
   let nibbleUntil = 0, holding = false;
   const ROD_C = { 1: ["#a0a83a", "#d0d070"], 2: ["#9a7a34", "#c8a858"], 3: ["#2a9a62", "#6ad89a"], 4: ["#e8b028", "#ffe070"] };
@@ -116,13 +118,16 @@ export function createFishLayer(G) {
 
   /** The server about this player's own cast. */
   L.onMsg = (m) => {
+    if (m.t === "fzones") return void ((L.occ = m.occ ?? []), L.onChange());
     if (m.t === "fr") {
       if (L.st?.s === "reel") Object.assign(L.st.srv, { f: m.f, z: m.z, p: m.p, on: m.on });
       return;
     }
     if (m.s === "cast") {
       L.st = { s: "wait", rod: m.rod, bait: m.bait, zone: m.zone, left: m.left };
-      G.toast(`Đã thả câu ở ${ZONES[m.zone]?.name ?? "hồ"} · ${name(m.bait)}: còn ${fmt(m.left)}`);
+      G.toast(`Khu ${m.khu} · chỗ số ${m.n} (${ZONES[m.zone]?.name ?? "hồ"}) · ${name(m.bait)}: còn ${fmt(m.left)}`);
+    } else if (m.s === "goto") {
+      G.toast(`Đã tới Khu ${m.khu}, chỗ số ${m.n}. Bấm Thả câu để câu.`);
     } else if (m.s === "nib") {
       nibbleUntil = performance.now() / 1000 + 0.45;
       L.nib = performance.now();
@@ -146,10 +151,12 @@ export function createFishLayer(G) {
         lost: `Con cá ${R ? `[${R.name}] ` : ""}đã giãy thoát!`,
         nobait: "Hết mồi câu rồi. Hãy mua thêm ở quầy Ngư Cụ.",
         no: m.m,
+        full: m.m,
       }[m.why];
       if (say) G.toast(say);
       if (m.why === "lost" || m.why === "miss") G.log(say);
       if (m.why === "land") L.onLand(m, was);
+      if (m.why === "full") (G.log(m.m), L.onFull(m));
     }
     L.onChange();
   };
@@ -198,8 +205,9 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
   // ---- the fishing bar: the big button (what it does depends on the cast), reel in, the stall
   const act = h("button.fact", { type: "button" }, h("span.fi"), h("b"), h("small"));
   const stopB = h("button.fsmall", { type: "button", title: "Thu cần", "aria-label": "Thu cần", onclick: () => layer()?.stop() }, "✕");
+  const khuB = h("button.fsmall.khu", { type: "button", title: "Khu câu: xem chỗ trống, sang khu khác", onclick: () => khuBox() }, h("span", { text: "🗺" }), h("small", { text: "Khu câu" }));
   const shopB = h("button.fsmall.shop", { type: "button", title: "Ngư Cụ: cần, mồi, bán cá, Ngư Lục", onclick: () => open() }, h("span", { text: "🎣" }), h("small", { text: "Ngư Cụ" }));
-  bar.append(shopB, stopB, act);
+  bar.append(khuB, shopB, stopB, act);
   act.querySelector(".fi").append(fishPic("cc_can_truc"));
   const press = (down) => (e) => {
     e.preventDefault();
@@ -218,8 +226,48 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
   });
   addEventListener("keyup", (e) => e.key.toLowerCase() === "e" && onLake() && (layer()?.action(false), paint()));
 
+  /** The Khu the player stands in (by where they are), or null. */
+  const KHU = mapInfo(FISH_MAP).def.fishing;
+  function khuHere() {
+    const pos = game()?.myPos?.();
+    return pos ? KHU.find((k) => Math.abs(pos.y - k.row * 32) < 6 && pos.x >= k.x0 * 32 - 8 && pos.x <= (k.x1 + 1) * 32 + 8) ?? null : null;
+  }
+  /** The Khu: how full each is (a dot a place), which water, and a button to go there. */
+  let khuOpen = null;
+  function khuBox(note = null) {
+    khuOpen?.(null);
+    const L = layer(), here = khuHere(), rodTier = RODS[view?.rod]?.tier ?? 0;
+    const rows = KHU.map((k) => {
+      const n = L?.occ[k.id - 1] ?? 0, all = k.spots.length, full = n >= all, Z = ZONES[k.zone], low = view && rodTier < Z.minRod;
+      return h(`div.ckline${here === k ? ".on" : ""}`, {},
+        h("div.ckmain", {}, h("b", { text: `${k.name} · ${Z.name}` }),
+          h("small", { text: low ? `Cần ${Object.values(RODS).find((r) => r.tier === Z.minRod)?.name} trở lên` : Z.desc.split(".")[0] })),
+        h("div.ckdots", { title: `${n}/${all} chỗ có người` }, ...k.spots.map((_, i) => h(`i${i < n ? ".on" : ""}`))),
+        h("button.primary", { type: "button", text: here === k ? "Đang ở" : full ? "Đầy" : "Tới", disabled: here === k || full || !!L?.st,
+          onclick: () => (game()?.fishGoto?.(k.id), khuOpen?.(null)) }));
+    });
+    const p = new Promise((done) => {
+      const host = $("panel")?.parentElement ?? document.body;
+      const end = () => (removeEventListener("keydown", key, true), shade.remove(), (khuOpen = null), done());
+      const key = (e) => e.key === "Escape" && (e.stopPropagation(), end());
+      const shade = h("div.cshade", { onclick: (e) => e.target === shade && end() },
+        h("div.cbox.ccbox.ckbox", { role: "dialog", "aria-modal": "true" },
+          h("h4", { text: "Khu câu" }),
+          note ? h("p.cknote", { text: note }) : h("p", { text: "Chỉ câu được trên cầu. Mỗi chỗ (bồ đoàn có số) một người; khu đầy thì sang khu khác." }),
+          ...rows,
+          L?.st ? h("p.dim", { text: "Đang câu: thu cần rồi mới sang khu khác được." }) : null,
+          h("div.cbtns", {}, h("button.ghost", { type: "button", text: "Đóng", onclick: () => end() }))));
+      addEventListener("keydown", key, true);
+      host.append(shade);
+      khuOpen = end;
+    });
+    return p;
+  }
   function paint() {
     const L = layer(), here = onLake();
+    const k = here ? khuHere() : null;
+    if (k) khuB.querySelector("small").textContent = `${k.name} · ${L?.occ[k.id - 1] ?? 0}/${k.spots.length}`;
+    else khuB.querySelector("small").textContent = "Khu câu";
     bar.hidden = !here;
     if (!here) return void (reel.hidden = true);
     const s = L?.st?.s;
@@ -231,10 +279,15 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
     reel.hidden = s !== "reel";
   }
   /** Each frame: the reeling game, when a fish is on (and a nibble's shake). */
-  let lastMap = null;
+  let lastMap = null, lastKhu = null;
   function frame(dt) {
     const L = layer();
     if (!L) return;
+    // a Khu full: say so in the box of Khu, with the others' room
+    if (!L.onFull.set) (L.onFull = (m) => khuBox(m.m)), (L.onFull.set = 1);
+    // walking onto a pier or off it: the Khu button says where
+    const kh = onLake() ? khuHere() : null;
+    if (kh !== lastKhu) (lastKhu = kh), paint();
     // a new map: the bar shows (the lake) or hides
     if (game()?.mapId() !== lastMap) (lastMap = game()?.mapId()), paint();
     L.update(dt);

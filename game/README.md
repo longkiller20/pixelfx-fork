@@ -20,9 +20,19 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     Chọn một mục, bấm ra ngoài hoặc Esc thì khung đóng lại.
 - **Câu Cá (trong nút ▦ Thêm):** bản đồ riêng **Vọng Nguyệt Hồ**, hồ câu dưới trăng, không có yêu thú. Bấm Câu Cá ở bất
   cứ đâu là dịch chuyển tới hồ; lối ra ở bờ tây đưa về đúng chỗ vừa đi. Đang ở hồ thì nút Câu Cá mở quầy Ngư Cụ.
-  - **Bản đồ** (`shared/maps/cauca.js`), tây sang đông: bờ hồ có quầy **Ngư Cụ** (ông lão đội nón lá, hút tẩu); **Bến
-    Thuyền**, bến gỗ dài trên cọc qua vùng nước nông; **Thạch Đài**, tảng đá giữa **Hồ Sâu**; vách đá ba bậc, trên đỉnh là
-    **Linh Tuyền** với các đài sen mây để đứng câu. Rơi xuống hồ thì đi dưới đáy, có bậc để leo lên.
+  - **Bản đồ** (`shared/maps/cauca.js`): mặt nước thấp hơn bờ một hàng như hồ thật; các cầu câu ngang mặt đất, đứng trên
+    cọc. Tây sang đông: bờ hồ có quầy **Ngư Cụ** (ông lão đội nón lá, hút tẩu), **Khu 1**, bãi lau, **Khu 2**, Thạch Đài,
+    **Khu 3**, Thạch Đảo, **Khu 4**, bờ đông, vách đá ba bậc, trên đỉnh là Linh Tuyền với **Khu 5**. Rơi xuống hồ thì đi
+    dưới đáy, có bậc để leo lên cầu.
+  - **Khu câu:** chỉ câu được trên cầu. Mỗi khu là một cây cầu có vài chỗ ngồi (bồ đoàn, cột biển số 1, 2, 3...): Khu 1, 2
+    (nước nông, 4 chỗ), Khu 3, 4 (Hồ Sâu, 4 chỗ), Khu 5 (Linh Tuyền, 3 chỗ, cần Bích Ngọc Can trở lên).
+    - Đứng chỗ nào trên cầu rồi thả câu thì ngồi vào chỗ gần nhất. Mỗi chỗ một người, giữ chỗ suốt lúc đang câu.
+    - Chỗ đó có người: báo số chỗ còn trống của khu. Khu kín chỗ: báo "Khu 1 đã kín chỗ (4/4). Còn trống: Khu 2 (3 chỗ)..."
+      và mở bảng khu.
+    - Biển mỗi khu ghi số người đang câu (xanh còn chỗ, đỏ khi đầy), cập nhật ngay khi có người ngồi vào hay rời đi.
+    - Nút **Khu câu** cạnh nút Thả câu ghi khu đang đứng (vd "Khu 2 · 3/4") và mở bảng khu: mỗi khu một dòng, chấm cho từng
+      chỗ (cam là có người), nút **Tới** để dịch chuyển thẳng sang chỗ trống đầu tiên của khu đó (đang câu thì phải thu cần
+      trước; khu đầy thì báo).
   - **Mọi hình vẽ bằng pixelfx** (`../src/fx/fishing/`): 15 loại cá và vật câu được, 4 cần, 4 mồi, phao (nổi, cá rỉa, cá
     cắn, đang kéo), quầy Ngư Cụ, cọc bến, lau sậy, lá sen, thuyền, phao neo, sương linh tuyền, cá nhảy khỏi mặt nước khi
     lên bờ. Icon cần, mồi, cá trong túi đồ cũng vẽ từ đó.
@@ -40,7 +50,8 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     - **Ngư Lục:** 15 loại, loại chưa câu được chỉ hiện bóng đen. Mỗi loại ghi đã câu bao nhiêu, con nặng nhất, và kỷ lục
       của cả máy chủ (ai câu, nặng bao nhiêu). Kèm số lần cá cắn, số cá lên bờ, linh thạch đã bán được.
   - **Cách câu** (nút to giữa đáy màn hình, hoặc phím **E**):
-    1. Đứng yên sát mép nước (bến gỗ, bờ hồ, bờ Linh Tuyền) rồi **Thả câu**. Phao rơi xuống nước phía trước, xa gần theo cần.
+    1. Đứng trên cầu câu rồi **Thả câu**: ngồi vào chỗ gần nhất, phao rơi xuống nước phía trước (gặp bờ thì quăng ra phía
+       sau), xa gần theo cần.
     2. Chờ. Phao thỉnh thoảng **rỉa** (giật nhẹ): giật lúc này là sớm, thu cần trắng tay nhưng không mất mồi.
     3. Phao **chìm hẳn** (nút đỏ "GIẬT!", điện thoại rung): giật ngay. Chậm tay thì cá ăn mất mồi. Mồi chỉ mất khi cá cắn.
     4. **Kéo:** cột kéo hiện bên cạnh. Giữ nút (hoặc E) thì vùng xanh nổi lên, thả ra thì chìm. Giữ con cá trong vùng xanh để

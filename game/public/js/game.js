@@ -163,6 +163,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       // Câu Cá: this player's cast (cast, nibble, bite, reel, end) and the reeling game's state
       case "fish":
       case "fr":
+      case "fzones":
         fish.onMsg(m);
         onFish?.(m);
         break;
@@ -1237,17 +1238,27 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       c.fillText("Lối ra", x, y);
     }
     home.labels(c, k, camX, camY, labels.width, labels.height, now);
-    // the names of a map's places, over them (the Gia Viên writes its own on its signboards)
+    // the names of a map's places, over them (the Gia Viên writes its own on its signboards); a fishing Khu's sign also
+    // shows how many of its places are taken, green with room, red when full
     if (map.id !== "giavien")
-      for (const [x, row, s] of map.def.signs ?? []) {
-        const fs = Math.max(10, Math.round(5 * k)), sx = (x * map.T - camX) * k, sy = (row * map.T - (s === "Ngư Cụ" ? 96 : 62) - camY) * k;
+      for (const [x, row, s, khu] of map.def.signs ?? []) {
+        const fs = Math.max(10, Math.round(5 * k)), sx = (x * map.T - camX) * k, base = row * map.T - camY;
         if (sx < -200 || sx > labels.width + 200) continue;
+        const sy = (base - (s === "Ngư Cụ" ? 96 : khu ? 50 : 62)) * k;
         c.font = `800 ${fs}px system-ui, sans-serif`;
         c.lineWidth = Math.max(2, fs / 4);
         c.strokeStyle = "rgba(0,0,0,.85)";
         c.strokeText(s, sx, sy);
         c.fillStyle = "#ffe9c0";
         c.fillText(s, sx, sy);
+        const K = khu && map.def.fishing?.find((z) => z.id === khu);
+        if (K) {
+          const n = fish.occ[khu - 1] ?? 0, all = K.spots.length, t = n >= all ? `Đầy ${n}/${all}` : `${n}/${all} người`;
+          c.font = `800 ${Math.round(fs * 0.9)}px system-ui, sans-serif`;
+          c.strokeText(t, sx, (base - 29) * k);
+          c.fillStyle = n >= all ? "#ff8a7a" : "#9affb0";
+          c.fillText(t, sx, (base - 29) * k);
+        }
       }
     for (let i = texts.length - 1; i >= 0; i--) {
       const t = texts[i], age = now - t.at;
@@ -1275,6 +1286,13 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     // the Câu Cá layer (public/js/cau-ca.js): this player's cast
     fish,
     mapId: () => map?.id ?? "",
+    // across the lake to another fishing Khu (the server checks it has room)
+    fishGoto: (k) => send({ t: "fish", a: "goto", k }),
+    // where this player stands now (as drawn), for what is near them
+    myPos: () => {
+      const e = drawn.get(myId);
+      return e ? { x: e.x, y: e.y } : null;
+    },
     close() {
       alive = false;
       ws.close();
