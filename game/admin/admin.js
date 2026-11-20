@@ -1079,6 +1079,20 @@ async function playerView(id) {
         el("div", { class: "bar" }, pick, el("button", { class: "small", onclick: () => pick.value && act(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: Number(pick.value), own: true } }), "Đã tặng.") }, "Tặng"))));
     }
 
+    // ---- Gia Viên: the houses had; give one (unlocking the Gia Viên if need be), or take one back
+    if (p.home) {
+      const H = p.home, had = new Set(H.owned.map((o) => o.house)), nameOf = (k) => H.catalog.find((c) => c.id === k)?.name ?? k;
+      const givable = H.catalog.filter((c) => !had.has(c.id));
+      const pickH = el("select", {}, givable.map((c) => el("option", { value: c.id }, `${c.name} (${c.price ? fmt(c.price) + " linh thạch" : "không bán"})`)));
+      parts.push(section("Gia Viên", H.unlocked ? `đang ở ${H.catalog.some((c) => c.id === H.house) ? nameOf(H.house) : H.defaultHouse}` : "chưa mở khoá",
+        el("p", { class: "dim" }, "Tặng nhà: người chơi có ngay, chưa mở khoá Gia Viên thì được mở miễn phí. Thu hồi: nếu đang ở nhà đó thì về nhà mặc định. Giá từng nhà chỉnh ở tab Cài đặt, nhóm Gia Viên (home.price.*)."),
+        el("div", { class: "chips" }, H.owned.length
+          ? H.owned.map((o) => el("span", { class: "chip" }, el("span", {}, nameOf(o.house), el("small", { class: "dim" }, o.paid ? ` · trả ${fmt(o.paid)}` : " · được tặng")),
+            el("button", { class: "small danger", title: "Thu hồi", onclick: () => confirm(`Thu hồi ${nameOf(o.house)} của người này?`) && act(() => api(`/players/${p.id}/houses`, { method: "POST", body: { house: o.house, give: false } }), "Đã thu hồi.") }, "✕")))
+          : el("span", { class: "dim" }, `Chỉ có ${H.defaultHouse}${H.unlocked ? "" : " (khi mở khoá)"}.`)),
+        givable.length ? el("div", { class: "bar" }, pickH, el("button", { class: "small", onclick: () => pickH.value && confirm(`Tặng ${nameOf(pickH.value)} cho người này?`) && act(() => api(`/players/${p.id}/houses`, { method: "POST", body: { house: pickH.value, give: true } }), "Đã tặng nhà.") }, "Tặng nhà")) : null));
+    }
+
     // ---- chat: barred for a while (every channel and Truyền Âm)
     const muteMin = el("select", {}, [[10, "10 phút"], [60, "1 giờ"], [360, "6 giờ"], [1440, "1 ngày"], [10080, "7 ngày"], [43200, "30 ngày"]].map(([v, l]) => el("option", { value: v }, l)));
     parts.push(section("Trò chuyện", p.chat_muted_until ? `cấm chat đến ${when(p.chat_muted_until)}` : "đang được chat",

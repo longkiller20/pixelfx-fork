@@ -12,7 +12,7 @@ import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
 import { GameError } from "./store.js";
 import { HOME } from "../shared/balance.js";
-import { ANIMALS, CROPS, LAYOUT, HOUSES, DEFAULT_HOUSE } from "../shared/gia-vien.js";
+import { ANIMALS, CROPS, LAYOUT, HOUSES, DEFAULT_HOUSE, housePrice } from "../shared/gia-vien.js";
 
 const no = (m, status = 400) => new GameError(m, status);
 const fmt = (n) => Number(n).toLocaleString("vi-VN");
@@ -94,14 +94,15 @@ const houseOf_ = (id) => {
 };
 /** Buy a ready-made house, once, and move into it. A retried request counts once. */
 export function buyHouse(uid, rawHouse, rawReq) {
-  const id = houseOf_(rawHouse), H = HOUSES[id], rid = reqId(rawReq);
+  const id = houseOf_(rawHouse), H = HOUSES[id], rid = reqId(rawReq), price = housePrice(id, HOME.prices);
+  if (id !== DEFAULT_HOUSE && !price) throw no(`${H.name} không bán.`, 409);
   return run(uid, async (c) => {
     await lockHome(c, uid);
     if (!(await once(c, uid, rid))) return { repeat: true };
     if (id === DEFAULT_HOUSE || (await c.query("SELECT 1 FROM home_houses WHERE user_id = ? AND house = ?", [uid, id])).length) throw no(`Đạo hữu đã có ${H.name} rồi.`, 409);
-    await pay(c, uid, H.price, `để mua ${H.name}`);
+    await pay(c, uid, price, `để mua ${H.name}`);
     try {
-      await c.query("INSERT INTO home_houses (user_id, house, paid) VALUES (?, ?, ?)", [uid, id, H.price]);
+      await c.query("INSERT INTO home_houses (user_id, house, paid) VALUES (?, ?, ?)", [uid, id, price]);
     } catch (e) {
       if (isDup(e)) throw no(`Đạo hữu đã có ${H.name} rồi.`, 409);
       throw e;
@@ -118,6 +119,31 @@ export function useHouse(uid, rawHouse) {
     if (id !== DEFAULT_HOUSE && !(await c.query("SELECT 1 FROM home_houses WHERE user_id = ? AND house = ?", [uid, id])).length) throw no(`Đạo hữu chưa có ${HOUSES[id].name}.`, 403);
     await c.query("UPDATE homes SET house = ? WHERE user_id = ?", [id, uid]);
   });
+}
+
+/**
+ * An admin gives a house (give: true; the Gia Viên is unlocked for nothing if it wasn't), or takes one back (false: if
+ * it was lived in, the default one is). Returns whether anything changed, and whether the home's house changed.
+ */
+export function adminHouse(uid, rawHouse, give) {
+  const id = houseOf_(rawHouse);
+  if (id === DEFAULT_HOUSE) throw no("Nhà mặc định ai mở khoá Gia Viên cũng có.");
+  return run(uid, async (c) => {
+    if (!(await c.query("SELECT 1 FROM characters WHERE user_id = ?", [uid])).length) throw no("Người này chưa tạo nhân vật.");
+    if (give) {
+      await c.query("INSERT IGNORE INTO homes (user_id, paid, house) VALUES (?, 0, ?)", [uid, DEFAULT_HOUSE]);
+      const r = await c.query("INSERT IGNORE INTO home_houses (user_id, house, paid) VALUES (?, ?, 0)", [uid, id]);
+      return { changed: r.affectedRows === 1, moved: false };
+    }
+    const r = await c.query("DELETE FROM home_houses WHERE user_id = ? AND house = ?", [uid, id]);
+    const m = await c.query("UPDATE homes SET house = ? WHERE user_id = ? AND house = ?", [DEFAULT_HOUSE, uid, id]);
+    return { changed: r.affectedRows === 1, moved: m.affectedRows === 1 };
+  });
+}
+/** For the admin: whether unlocked, the house lived in, the houses had. */
+export async function adminView(uid) {
+  const [[h], owned] = await Promise.all([q("SELECT house FROM homes WHERE user_id = ?", [uid]), q("SELECT house, paid, bought_at FROM home_houses WHERE user_id = ? ORDER BY bought_at", [uid])]);
+  return { unlocked: !!h, house: h?.house ?? null, owned: owned.map((o) => ({ house: o.house, paid: Number(o.paid), at: o.bought_at })) };
 }
 
 // ---------------------------------------------------------------- animals

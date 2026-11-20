@@ -11,12 +11,14 @@ import { ROOT, config } from "./config.js";
 import { assetsJson, hasPart, hasFx, PART_DIRS, ART_DIR } from "./assets.js";
 import { hashPassword, verifyPassword, dummyVerify, rateLimit } from "./auth.js";
 import { readConfig, loadConfig } from "./gameconfig.js";
-import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS } from "../shared/balance.js";
+import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS, HOME } from "../shared/balance.js";
 import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem, adminArt, loadCharacter, grantArtMany } from "./store.js";
 import { userLock } from "./lock.js";
 import { MAPS as MAP_DEFS, mapInfo } from "../shared/maps/index.js";
 import { CONG_PHAP } from "../shared/cong-phap.js";
 import * as sects from "./tong-mon.js";
+import * as gv from "./gia-vien.js";
+import { HOUSES, DEFAULT_HOUSE, housePrice } from "../shared/gia-vien.js";
 
 const MAPS = Object.keys(MAP_DEFS).map((id) => mapInfo(id));
 
@@ -396,6 +398,8 @@ export function adminApp(world) {
     return {
       ...shapePlayer(p), inventory: await inventory(id), owned, buys, pvp, history, learned: ch?.learned ?? [], slots: ch?.slots ?? [],
       buffs: await activeBuffs(id), expiredBuffs: oldBuffs.map((b) => ({ ...b, id: Number(b.id) })), live: world.liveInfo(id),
+      // Gia Viên: unlocked or not, the house lived in, the houses had; and every house there is, to give
+      home: { ...(await gv.adminView(id)), catalog: Object.entries(HOUSES).filter(([k]) => k !== DEFAULT_HOUSE).map(([k, H]) => ({ id: k, name: H.name, price: housePrice(k, HOME.prices) })), defaultHouse: HOUSES[DEFAULT_HOUSE].name },
     };
   }
   r.get("/players/:id", wrap(async (req, res) => res.json(await playerDetail(playerId(req.params.id)))));
@@ -429,6 +433,18 @@ export function adminApp(world) {
     await adminItem(id, String(item ?? ""), op === "set" ? "set" : "add", op === "sub" ? -v : v);
     await log(req.admin, "player.item", id, { item, op, value: v });
     await world.sendInv(id);
+    res.json(await playerDetail(id));
+  }));
+  // give a ready-made house (the Gia Viên unlocked for nothing if it wasn't), or take one back (its owner, if living in
+  // it, moves into the default one); an online owner sees it at once
+  r.post("/players/:id/houses", wrap(async (req, res) => {
+    const id = playerId(req.params.id), house = String(req.body?.house ?? ""), give = req.body?.give === true;
+    const out = await gv.adminHouse(id, house, give);
+    if (!out.changed) throw bad(give ? "Người này đã có nhà này rồi." : "Người này không có nhà này.", 409);
+    await log(req.admin, give ? "player.house_give" : "player.house_take", id, { house });
+    await world.homeHouse(id);
+    world.homeState(id);
+    world.toastUser?.(id, give ? `Đạo hữu được tặng ${HOUSES[house].name}! Xem ở Gia Viên, bảng Nhà Ở.` : `${HOUSES[house].name} đã bị thu hồi.`);
     res.json(await playerDetail(id));
   }));
   // the arts as designed in code, each with the admin's switches (cong_phap)

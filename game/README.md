@@ -464,7 +464,7 @@ Viên lưu nhà đang có ở cột `homes.house`.
     thủy mặc, cửa sổ song, hai đèn lồng.
   - **Tầng trên:** giường, bình hoa, kệ sách, bàn và ghế, rương, cửa sổ, tranh, đèn lồng. Nhảy lên bậc gỗ cạnh cửa rồi
     nhảy tiếp lên sàn gỗ tầng trên; sàn này nhảy xuyên từ dưới lên được, ↓ + nhảy để xuống.
-- **Nhà Game Thủ** (150.000 linh thạch): căn nhà ba tầng rực đèn neon, vẽ từ ảnh có sẵn (`tools/gia-vien-nguon/nha-gamer.png`).
+- **Nhà Game Thủ** (mặc định 150.000 linh thạch, admin chỉnh ở `home.price.gamer`): căn nhà ba tầng rực đèn neon, vẽ từ ảnh có sẵn (`tools/gia-vien-nguon/nha-gamer.png`).
   - **Tầng trệt:** phòng stream phông xanh, quầy bar, tủ lạnh, máy arcade, cửa chính.
   - **Tầng giữa:** phòng khách TV lớn, tủ figure, cúp, cầu thang.
   - **Tầng trên:** phòng ngủ có mèo, góc gaming ba màn hình, ban công dù tím.
@@ -483,10 +483,18 @@ Viên lưu nhà đang có ở cột `homes.house`.
       đèn studio sáng lên tắt xuống.
 - **Va chạm thật:** tường và sàn của nhà chặn và đỡ người chơi, máy chủ và trình duyệt tính giống nhau.
 - **Bảng 🏠 Nhà Ở** (mở được cả khi ở ngoài Gia Viên): mỗi trang một căn, mũi tên ‹ › hai bên ảnh (hoặc vuốt ảnh, hoặc
-  bấm chấm dưới ảnh) để xem căn khác; mở ra ở đúng căn đang ở. Mỗi trang có ảnh, tên, giá, mô tả.
-  - Nhà chưa có: nút **Mua**, bấm hai lần để chắc. Mua xong dọn vào ở ngay.
+  bấm chấm dưới ảnh) để xem căn khác; mở ra ở đúng căn đang ở. Dưới ảnh chỉ có tên nhà, giá và một nút nhỏ.
+  - Nhà chưa có: nút **Mua** mở hộp xác nhận (ảnh nhà, giá, Huỷ / Mua) để tránh bấm nhầm. Mua xong dọn vào ở ngay.
+  - Giá 0 thì nhà không bán (chỉ admin tặng), hiện "Không bán".
   - Nhà đã có: nút **Dọn vào ở**, đổi qua lại bất cứ lúc nào.
   - Khi đổi nhà mà đang ở trong Gia Viên, người trong đó được đưa về cổng (tường nhà mới có thể ở đúng chỗ đang đứng).
+- **Admin:**
+  - **Giá:** tab Cài đặt, nhóm Gia Viên, mỗi nhà một dòng `home.price.<mã nhà>`. Đổi là có hiệu lực ngay.
+  - **Tặng / thu hồi:** trang người chơi có mục Gia Viên. Ở đó xem nhà đang ở và các nhà đã có (đã trả bao nhiêu hay
+    được tặng), chọn nhà để **Tặng nhà**, hoặc ✕ để thu hồi.
+  - Tặng cho người chưa mở khoá Gia Viên thì Gia Viên được mở miễn phí luôn. Thu hồi nhà đang ở thì người đó về nhà
+    mặc định. Người đang online thấy ngay và nhận thông báo.
+  - Mọi lần tặng / thu hồi được ghi vào nhật ký admin.
 - **Lưu:** nhà đã mua ở bảng `home_houses` (mỗi nhà một dòng, nên không mua trùng được), nhà đang ở là `homes.house`.
 - **Thiết kế một căn nhà:** liệt kê các mảnh `[lớp, cột, hàng, loại]` trên khu Nhà Ở (cột 3-36, hàng 2-15):
   - `f`: khối đặc hoặc sàn.
@@ -577,6 +585,8 @@ Bài test `test/race.mjs` có phần "Gia Viên":
   - Mua xong dọn vào ngay, người đang ở trong được đưa về cổng.
   - Tên nhà lạ bị từ chối; đổi qua lại giữa các nhà đã có.
   - Sàn Nhà Game Thủ đúng hàng 13 và 10.
+- **Admin tặng nhà:** tặng được, Gia Viên tự mở khoá, không trả tiền; không tặng trùng; nhà lạ hay nhà mặc định bị từ
+  chối; hiện ở trang người chơi; thu hồi được một lần.
 - **Nông Trại:** mua 15 con cùng lúc thì chuồng chỉ nhận đúng 12; cho ăn 2 lần cùng lúc chỉ tính 1 lần và chỉ trừ tiền 1 lần;
   chưa đến giờ thì không thu được; thu 2 lần cùng lúc chỉ được 1 lần, mỗi con 1 quả trứng.
 - **Vườn Dược:** gieo một luống 5 lần cùng lúc chỉ gieo 1; chưa chín thì không thu được; thu 2 lần cùng lúc chỉ được 1 lần.
@@ -584,7 +594,8 @@ Bài test `test/race.mjs` có phần "Gia Viên":
 
 ### Admin
 
-Tab Cài đặt có nhóm Gia Viên (`home.*`): giá mở khoá, số vật nuôi tối đa. Các sản phẩm của Gia Viên nằm trong tab Vật phẩm, sửa tên và mô tả như mọi món khác.
+Tab Cài đặt có nhóm Gia Viên (`home.*`): giá mở khoá, số vật nuôi tối đa, giá từng kiểu nhà (`home.price.<mã>`, 0 là
+không bán). Trang người chơi có mục Gia Viên để tặng hoặc thu hồi nhà. Các sản phẩm của Gia Viên nằm trong tab Vật phẩm, sửa tên và mô tả như mọi món khác.
 
 ## Trò chuyện, Đạo Hữu và Truyền Âm
 

@@ -117,6 +117,8 @@ export const DEFAULTS = {
     // Gia Viên (shared/gia-vien.js, server/gia-vien.js)
     "home.unlock_cost": [50000, "Linh thạch để mở khoá Gia Viên (mỗi người một lần)"],
     "home.max_animals": [12, "Số vật nuôi tối đa trong Nông Trại"],
+    // giá từng kiểu nhà làm sẵn (shared/gia-vien.js HOUSES), theo mã nhà: home.price.<mã>
+    "home.price.gamer": [150000, "Giá Nhà Game Thủ (linh thạch). 0: không bán, chỉ admin tặng"],
     // trò chuyện, Đạo Hữu, Truyền Âm (server/dao-huu.js)
     "chat.world_cooldown": [4, "Giây chờ giữa hai lần nói ở kênh Thế Giới (kênh Khu Vực, Tông Môn: 1 giây)"],
     "social.friends_max": [100, "Mỗi người có tối đa bấy nhiêu Đạo Hữu"],
@@ -329,6 +331,8 @@ export function applyConfig(c) {
   }
   Object.assign(HOME, {
     unlockCost: S["home.unlock_cost"] | 0, maxAnimals: Math.max(1, S["home.max_animals"] | 0),
+    // each house's price by its id (home.price.<id>); 0: not sold, only given by an admin
+    prices: Object.fromEntries(Object.entries(S).filter(([k]) => k.startsWith("home.price.")).map(([k, v]) => [k.slice(11), Math.max(0, v | 0)])),
   });
   Object.assign(SOCIAL, {
     worldCooldown: Math.max(1, S["chat.world_cooldown"]), friendsMax: Math.max(1, S["social.friends_max"] | 0), requestsMax: Math.max(1, S["social.requests_max"] | 0),

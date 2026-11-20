@@ -230,6 +230,17 @@ const SHOP_TEST = "Hàng thử nghiệm";
     const [u] = await q("SELECT u.id, u.username FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [p.name]);
     assert.equal((await adm(`/players/${u.id}/adjust`, { token, method: "POST", body: { field: "stones", op: "set", value: 777 } })).status, 200);
     assert.equal((await me(p.token)).character.stones, 777);
+    // a house given by the admin: the Gia Viên unlocked for nothing if need be, given once, taken back once
+    const house = (give, h = "gamer") => adm(`/players/${u.id}/houses`, { token, method: "POST", body: { house: h, give } });
+    assert.equal((await house(true)).status, 200, "a house given");
+    assert.equal(Number((await q("SELECT COUNT(*) AS n FROM homes WHERE user_id = ?", [u.id]))[0].n), 1, "its Gia Viên unlocked for nothing");
+    assert.equal(Number((await q("SELECT paid FROM home_houses WHERE user_id = ? AND house = 'gamer'", [u.id]))[0].paid), 0, "given, not paid");
+    assert.equal((await house(true)).status, 409, "not given twice");
+    assert.equal((await house(true, "kim_lau")).status, 400, "no such house");
+    assert.equal((await house(true, "co_trach")).status, 400, "the default one isn't given");
+    assert.equal((await adm(`/players/${u.id}`, { token })).data.home.owned.length, 1, "shown in the player's page");
+    assert.equal((await house(false)).status, 200, "taken back");
+    assert.equal((await house(false)).status, 409, "not taken twice");
 
     // the player is online and everything happens at once: 20 admin top-ups, 10 admin deductions, 3 purchases, the
     // daily gift, a buff, and the world's own saves. Every stone must be accounted for, in the database and on screen.

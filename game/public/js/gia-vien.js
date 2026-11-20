@@ -6,7 +6,7 @@ import { createFrame, clearFrame, createFx, painterFor } from "/hieu-ung/core/in
 import { effects } from "/hieu-ung/fx/index.js";
 import { ITEMS, HOME } from "/shared/balance.js";
 import { KHOI } from "/shared/gia-vien-khoi.js";
-import { BLOCKS, ANIMALS, CROPS, LAYOUT, HOUSES, HomeGrid, cropStage, houseCells } from "/shared/gia-vien.js";
+import { BLOCKS, ANIMALS, CROPS, LAYOUT, HOUSES, DEFAULT_HOUSE, HomeGrid, cropStage, houseCells, housePrice } from "/shared/gia-vien.js";
 import { h, sure } from "./tong-mon.js";
 
 const T = 32;
@@ -33,6 +33,36 @@ async function loadAtlas() {
   atlas = { w: img.width, h: img.height, px: new Uint32Array(d.data.buffer) };
   return atlas;
 }
+/**
+ * Ask before something that can't be undone (spending stones): a box over the panel with Huỷ and the action. Resolves
+ * true for yes; Huỷ, a click beside the box or Esc is no.
+ */
+export function confirmBox({ title, text, ok = "Đồng ý", cancel = "Huỷ", pic = null }) {
+  return new Promise((done) => {
+    const host = document.getElementById("panel")?.parentElement ?? document.body;
+    const end = (yes) => {
+      removeEventListener("keydown", key, true);
+      shade.remove();
+      done(yes);
+    };
+    const key = (e) => {
+      if (e.key === "Escape") (e.stopPropagation(), end(false));
+      if (e.key === "Enter") (e.stopPropagation(), end(true));
+    };
+    const box = h("div.cbox", { role: "dialog", "aria-modal": "true" },
+      h("h4", { text: title }),
+      pic,
+      h("p", { text }),
+      h("div.cbtns", {},
+        h("button.ghost", { type: "button", text: cancel, onclick: () => end(false) }),
+        h("button.primary", { type: "button", text: ok, onclick: () => end(true) })));
+    const shade = h("div.cshade", { onclick: (e) => e.target === shade && end(false) }, box);
+    host.append(shade);
+    addEventListener("keydown", key, true);
+    box.querySelector(".primary").focus();
+  });
+}
+
 /** A house's picture (pixels with their alpha, ABGR), loaded once. */
 const pics = new Map();
 function loadPic(src) {
@@ -517,21 +547,27 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
   }
 
   // ---- 🏠 the house: the one this home has, and the ready-made houses (more to be bought later)
-  // one house a page: ‹ › (or the dots, or swiping) to look through them; it opens on the one lived in
+  // one house a page: ‹ › (or the dots, or swiping) to look through them; it opens on the one lived in. Under the
+  // picture only its name, its price and a small button; buying asks first.
   let housePage = -1;
   function housePanel(page = housePage) {
     const v = st() ?? view ?? {}, cur = v.house, owned = new Set(v.houses ?? []), ids = Object.keys(HOUSES);
     if (page < 0) page = Math.max(0, ids.indexOf(cur));
     housePage = page = (page + ids.length) % ids.length;
-    const id = ids[page], H = HOUSES[id], has = id === cur, own = owned.has(id) || !H.price;
+    const id = ids[page], H = HOUSES[id], price = housePrice(id, HOME.prices), has = id === cur, own = owned.has(id) || id === DEFAULT_HOUSE;
     const go = (d) => housePanel(page + d);
-    const act_ = has
+    const btn = has
       ? h("span.tag", { text: "Đang ở" })
       : own
-        ? h("button.primary", { type: "button", text: "Dọn vào ở", onclick: (e) => act("/house/use", { house: id }, `Đã dọn vào ${H.name}.`, e.target) })
-        : sure(`Mua · ${fmt(H.price)} linh thạch`, "Bấm lần nữa để mua", (b) => act("/house/buy", { house: id, requestId: uuid() }, `Đã mua ${H.name}!`, b), "primary");
-    const arrow = (d) => h("button.gvarrow", { type: "button", "aria-label": d < 0 ? "Nhà trước" : "Nhà sau", disabled: ids.length < 2, onclick: () => go(d) },
-      svgArrow(d));
+        ? h("button.primary.small", { type: "button", text: "Dọn vào ở", onclick: (e) => act("/house/use", { house: id }, `Đã dọn vào ${H.name}.`, e.target) })
+        : price
+          ? h("button.primary.small", { type: "button", text: "Mua", onclick: async (e) => {
+            const b = e.currentTarget;
+            if (await confirmBox({ title: "Mua nhà", text: `Mua ${H.name} với giá ${fmt(price)} linh thạch? Mua xong sẽ dọn vào ở ngay.`, ok: `Mua · ${fmt(price)}`, pic: houseCanvas(id, 260) }))
+              act("/house/buy", { house: id, requestId: uuid() }, `Đã mua ${H.name}!`, b);
+          } })
+          : null;
+    const arrow = (d) => h("button.gvarrow", { type: "button", "aria-label": d < 0 ? "Nhà trước" : "Nhà sau", disabled: ids.length < 2, onclick: () => go(d) }, svgArrow(d));
     const pic = h("div.gvhpic", {}, houseCanvas(id, 520));
     // a swipe on the picture turns the page too
     let sx = null;
@@ -540,16 +576,11 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
       if (sx !== null && Math.abs(e.clientX - sx) > 40) go(e.clientX < sx ? 1 : -1);
       sx = null;
     });
-    const wrap = h("div.gvp.house",
-      {},
+    const priceText = has || own ? (id === DEFAULT_HOUSE ? "Tặng kèm" : "Đã có") : price ? `${fmt(price)} linh thạch` : "Không bán";
+    const wrap = h("div.gvp.house", {},
       h("div.gvpager", {}, arrow(-1), pic, arrow(1)),
       h("div.gvdots", {}, ...ids.map((k, n) => h("button", { type: "button", className: `${n === page ? "on" : ""}${k === cur ? " home" : ""}`, title: HOUSES[k].name, "aria-label": HOUSES[k].name, onclick: () => housePanel(n) }))),
-      h("div.gvhouse", { className: has ? "on" : "" },
-        h("div.gvmain", {},
-          h("div.gvhrow", {}, h("b", { text: H.name }), h("span.price", { text: H.price ? `${fmt(H.price)} linh thạch` : "Tặng kèm" })),
-          h("small", { text: H.desc }),
-          h("div.gvhfoot", {}, act_, h("span.dim", { text: `${page + 1} / ${ids.length}` })))),
-      h("p.dim", { text: "Nhà làm sẵn, mua là dọn vào ở ngay. Nhà đã mua có thể đổi qua lại bất cứ lúc nào." }));
+      h("div.gvhbar", { className: has ? "on" : "" }, h("b", { text: H.name }), h("span.price", { text: priceText }), btn));
     show("Nhà Ở", wrap);
   }
   const svgArrow = (d) => {
