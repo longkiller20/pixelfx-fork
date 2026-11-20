@@ -59,7 +59,7 @@ const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
-await page.addInitScript((t) => localStorage.setItem("dvtt.token", t), await person("Ngư Thử UI"));
+await page.addInitScript((t) => localStorage.setItem("dvtt.token", t), await person(`Ngư UI ${tag}`));
 await page.goto(BASE);
 await page.waitForSelector("#moreBtn");
 await sleep(2500);
