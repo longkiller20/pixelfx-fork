@@ -15,7 +15,7 @@ import * as dao from "./dao-huu.js";
 import * as gv from "./gia-vien.js";
 import { HomeGrid, HOME_MAP, houseCells } from "../shared/gia-vien.js";
 import * as cc from "./cau-ca.js";
-import { FISH_MAP, RODS, BAITS, FISH, ZONES, CAST as FCAST, rollFish, rollWeight, reelStart, reelStep, kgText, RARITY } from "../shared/cau-ca.js";
+import { FISH_MAP, RODS, BAITS, FISH, CAST as FCAST, rollFish, rollWeight, reelStart, reelStep, kgText, RARITY, KHU_COUNT, KHU_CAP, khuKey, khuOf } from "../shared/cau-ca.js";
 import { SOCIAL } from "../shared/balance.js";
 import { SECT } from "../shared/balance.js";
 import { sectBonus } from "../shared/tong-mon.js";
@@ -52,7 +52,11 @@ export class World {
     this.map = mapInfo(mapId);
     // which world this is in the Universe: the map's id, or for a Gia Viên "gv:<owner>" (one copy per owner)
     this.key = mapId;
-    if (home) {
+    if (home?.khu) {
+      // a Khu of the fishing lake: one of KHU_COUNT copies of it, numbered
+      this.key = home.key;
+      this.khu = home.khu;
+    } else if (home) {
       // a Gia Viên: its owner's ready-made house over the plain map, its walls and floors carrying people like the ground
       this.key = home.key;
       this.owner = home.owner;
@@ -98,6 +102,7 @@ export class World {
     }
     this.broadcast({ t: "pi", ...info(p) }, p);
     if (this.map.def.fishing) send(p.ws, { t: "fzones", occ: this.khuOcc() });
+    if (this.khu) send(p.ws, { t: "fkhu", n: this.khu, occ: this.u?.khuCounts() ?? [] });
     this.sendArts(p);
     this.sendMe(p);
   }
@@ -108,7 +113,7 @@ export class World {
     this.ents.delete(p.id);
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
     this.broadcast({ t: "gone", id: p.id });
-    if (this.grid && !this.players.size) this.u?.dropHomeLater(this.key);
+    if ((this.grid || this.khu) && !this.players.size) this.u?.dropHomeLater(this.key);
   }
 
   /** Take a player out and save what they earned. Safe to call twice. */
@@ -120,7 +125,7 @@ export class World {
     this.ents.delete(p.id);
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
     this.broadcast({ t: "gone", id: p.id });
-    if (this.grid && !this.players.size) this.u?.dropHomeLater(this.key);
+    if ((this.grid || this.khu) && !this.players.size) this.u?.dropHomeLater(this.key);
     await this.save(p);
   }
 
@@ -607,18 +612,18 @@ export class World {
   khuOcc() {
     return (this.map.def.fishing ?? []).map((k) => this.khuTaken(k).size);
   }
-  /** The other Khu with room, as words: "Khu 2 (3 chỗ), Khu 3 (4 chỗ)". */
-  khuRoom(but) {
-    const list = (this.map.def.fishing ?? []).filter((k) => k !== but).map((k) => [k, k.spots.length - this.khuTaken(k).size]).filter(([, n]) => n > 0);
-    return list.length ? `Còn trống: ${list.map(([k, n]) => `${k.name} (${n} chỗ)`).join(", ")}.` : "Các khu khác cũng đã kín, hãy đợi một lát.";
+  /** What to do when the pier is full: the other Khu with fewest people. */
+  khuRoom() {
+    const occ = this.u?.khuCounts() ?? [], best = occ.map((n, i) => [n, i + 1]).filter(([n, i]) => i !== this.khu && n < KHU_CAP).sort((a, b) => a[0] - b[0]).slice(0, 3);
+    return best.length ? `Đợi người khác thu cần, hoặc sang khu khác: ${best.map(([n, i]) => `Khu ${i} (${n}/${KHU_CAP} người)`).join(", ")}.` : "Hãy đợi người khác thu cần.";
   }
   /** The place a player stands at, free: { khu, i, x }; or why not (and, when the Khu is full, which). */
   fishPlace(p) {
     const T = this.map.T, khus = this.map.def.fishing ?? [];
     const k = khus.find((k) => Math.abs(p.y - k.row * T) < 3 && p.x >= k.x0 * T - 8 && p.x <= (k.x1 + 1) * T + 8);
-    if (!k) return { why: "Chỉ câu được trên cầu câu (Khu 1-5). Ra cầu, đứng vào một chỗ có bồ đoàn đánh số rồi thả câu." };
+    if (!k) return { why: "Chỉ câu được trên cầu câu. Ra cầu, đứng vào một trong 8 chỗ có bồ đoàn đánh số rồi thả câu." };
     const taken = this.khuTaken(k, p), free = k.spots.map((_, i) => i).filter((i) => !taken.has(i));
-    if (!free.length) return { why: `${k.name} đã kín chỗ (${k.spots.length}/${k.spots.length}). ${this.khuRoom(k)}`, full: k.id };
+    if (!free.length) return { why: `${k.name}${this.khu ? ` Khu ${this.khu}` : ""} đã kín chỗ (${k.spots.length}/${k.spots.length}). ${this.khuRoom()}`, full: this.khu ?? 1 };
     let i = 0;
     k.spots.forEach((x, n) => Math.abs(p.x - x * T) < Math.abs(p.x - k.spots[i] * T) && (i = n));
     const nums = free.map((n) => n + 1).join(", ");
@@ -640,19 +645,6 @@ export class World {
     }
     return null;
   }
-  /** Across the lake to another Khu: onto its first free place (not while a line is out). */
-  fishGoto(p, id) {
-    const k = (this.map.def.fishing ?? []).find((z) => z.id === id), t = this.t;
-    if (!k || p.fish || p.dead || p.warping || t < (p.gotoAt ?? 0)) return;
-    p.gotoAt = t + 1.5;
-    const taken = this.khuTaken(k), i = k.spots.findIndex((_, n) => !taken.has(n));
-    if (i < 0) return send(p.ws, { t: "fish", s: "end", why: "full", m: `${k.name} đã kín chỗ (${k.spots.length}/${k.spots.length}). ${this.khuRoom(k)}`, khu: k.id });
-    this.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
-    Object.assign(p, { x: k.spots[i] * this.map.T, y: k.row * this.map.T, vx: 0, vy: 0, ground: false, flying: false });
-    p.in = { dx: 0, dy: 0, jump: false, down: false };
-    this.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 0 });
-    send(p.ws, { t: "fish", s: "goto", khu: k.id, n: i + 1 });
-  }
   fishInput(p, m) {
     if (m.a === "cast") return void this.fishCast(p).catch((e) => console.error("fish", e.message));
     if (m.a === "hook") return this.fishHook(p);
@@ -661,7 +653,6 @@ export class World {
       return;
     }
     if (m.a === "stop" && p.fish && p.fish.s !== "landing") return this.fishEnd(p, "stop");
-    if (m.a === "goto" && Number.isInteger(m.k)) return this.fishGoto(p, m.k);
   }
   async fishCast(p) {
     const t = this.t;
@@ -677,8 +668,7 @@ export class World {
     if (p.fish !== me || p.world !== this || p.gone) return;
     if (!g.rod) return fail("Đạo hữu chưa có cần câu. Hãy mua ở quầy Ngư Cụ.");
     if (!g.bait) return fail("Hết mồi câu rồi. Hãy mua mồi ở quầy Ngư Cụ.");
-    const rod = RODS[g.rod], bait = BAITS[g.bait], k = place.khu, z = ZONES[k.zone];
-    if (rod.tier < z.minRod) return fail(`${k.name} (${z.name}) cần ${Object.values(RODS).find((r) => r.tier === z.minRod)?.name ?? "cần tốt hơn"} trở lên.`);
+    const rod = RODS[g.rod], bait = BAITS[g.bait], k = place.khu;
     const spot = this.fishSpot(p, k, place.x, rod.reach);
     if (!spot) return fail("Không quăng được câu từ chỗ này.");
     // seated on the mat, facing the water
@@ -686,8 +676,8 @@ export class World {
     p.face = spot.dir;
     const wait = (FCAST.wait[0] + Math.random() * (FCAST.wait[1] - FCAST.wait[0])) / bait.speed;
     const nib = Array.from({ length: Math.floor(Math.random() * (FCAST.nibbles + 1)) }, () => t + 0.8 + Math.random() * Math.max(0.2, wait - 1.4)).sort((a, b) => a - b);
-    Object.assign(me, { s: "wait", rod: g.rod, bait: g.bait, zone: k.zone, bx: spot.bx, by: spot.by, biteAt: t + 0.6 + wait, nib, struck: false });
-    send(p.ws, { t: "fish", s: "cast", bx: Math.round(spot.bx), by: spot.by, rod: g.rod, bait: g.bait, zone: k.zone, khu: k.id, n: place.i + 1, left: g.baitLeft });
+    Object.assign(me, { s: "wait", rod: g.rod, bait: g.bait, bx: spot.bx, by: spot.by, biteAt: t + 0.6 + wait, nib, struck: false });
+    send(p.ws, { t: "fish", s: "cast", bx: Math.round(spot.bx), by: spot.by, rod: g.rod, bait: g.bait, khu: this.khu ?? 0, n: place.i + 1, left: g.baitLeft });
   }
   fishHook(p) {
     const f = p.fish;
@@ -718,7 +708,7 @@ export class World {
       cc.takeBait(p.userId, f.bait).then((ok) => {
         if (p.fish !== f) return;
         if (!ok) return this.fishEnd(p, "nobait");
-        f.key = rollFish(f.zone, f.rod, f.bait);
+        f.key = rollFish(f.rod, f.bait);
         f.s = "bite";
         f.until = this.t + FCAST.window + RODS[f.rod].hook + FCAST.grace;
         send(p.ws, { t: "fish", s: "bite", window: +(FCAST.window + RODS[f.rod].hook).toFixed(2) });
@@ -1121,7 +1111,9 @@ export class Universe {
     // one tick for every map, so all their clocks stay equal
     this.timer = setInterval(() => {
       for (const w of this.worlds.values()) w.step();
+      if (++this.ticks % TICK_HZ === 0) this.pushKhu();
     }, 1000 / TICK_HZ);
+    this.ticks = 0;
     // Truyền Âm older than pm.keep_days goes, once an hour
     this.pruner = setInterval(() => dao.prune().catch((e) => console.error("pm prune", e.message)), 3600_000);
     this.pruner.unref?.();
@@ -1266,7 +1258,7 @@ export class Universe {
     to.enter(p, inv, at);
     to.ev({ e: "warp", id: p.id, x: Math.round(at.x), y: Math.round(at.y), out: 0 });
     // a Gia Viên isn't remembered: logging in again starts where they came from
-    if (!to.grid) store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
+    if (!to.grid && !to.khu) store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
     if (to.grid) to.ev({ e: "spawn", id: p.id });
   }
 
@@ -1296,27 +1288,65 @@ export class Universe {
       p.warping = false;
     }
   }
-  /** Take a player to the fishing lake (Vọng Nguyệt Hồ) from wherever they are; the way out leads back there. */
-  async enterFishing(uid) {
+  // ---- Câu Cá: the lake is KHU_COUNT Khu (worlds "cc:<n>", made when someone goes in, dropped a while after the last leaves),
+  // each for at most KHU_CAP people; someone on their way in counts already, so a Khu never takes more than its room
+  /** How many are in (or on their way into) Khu n. */
+  khuCount(n) {
+    const w = this.worlds.get(khuKey(n));
+    return w ? w.players.size + (w.coming ?? 0) : 0;
+  }
+  khuCounts() {
+    return Array.from({ length: KHU_COUNT }, (_, i) => this.khuCount(i + 1));
+  }
+  /**
+   * Take a player to the lake: into Khu `want`, or (null) the first Khu with room, from wherever they are (moving from
+   * one Khu to another keeps where they came from, for the way out).
+   */
+  async enterFishing(uid, want = null) {
     const p = this.players.get(uid);
     if (!p) throw new Error("not online");
-    if (p.world.key === FISH_MAP) return;
-    if (p.warping || p.dead) throw Object.assign(new Error("Không thể tới Vọng Nguyệt Hồ lúc này."), { status: 409 });
-    p.homeFrom = { key: p.world.key, at: { x: p.x, y: p.y } };
-    send(p.ws, { t: "warp", to: FISH_MAP });
-    p.warping = true;
-    p.world.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
-    await new Promise((r) => setTimeout(r, WARP_DELAY * 1000));
+    const no = (m) => Object.assign(new Error(m), { status: 409 });
+    const cur = khuOf(p.world.key);
+    if (want !== null && (!Number.isInteger(want) || want < 1 || want > KHU_COUNT)) throw Object.assign(new Error("Không có khu này."), { status: 400 });
+    if (cur && (want === null || want === cur)) return cur;
+    if (p.warping || p.dead) throw no("Không thể tới Vọng Nguyệt Hồ lúc này.");
+    if (p.fish) throw no("Hãy thu cần trước khi đổi khu.");
+    let n = want;
+    if (n === null) {
+      for (let i = 1; i <= KHU_COUNT && n === null; i++) if (this.khuCount(i) < KHU_CAP) n = i;
+      if (n === null) throw no(`Cả ${KHU_COUNT} khu đều đã đủ ${KHU_CAP} người, hãy thử lại sau.`);
+    } else if (this.khuCount(n) >= KHU_CAP) throw no(`Khu ${n} đã đủ ${KHU_CAP} người, hãy chọn khu khác.`);
+    const key = khuKey(n);
+    let w = this.worlds.get(key);
+    if (!w) this.worlds.set(key, (w = new World(FISH_MAP, this, { key, khu: n })));
+    clearTimeout(this.homeDrops?.get(key));
+    w.coming = (w.coming ?? 0) + 1;
     try {
-      await this.transfer(p, FISH_MAP, p.world.key);
+      if (!cur) p.homeFrom = { key: p.world.key, at: { x: p.x, y: p.y } };
+      send(p.ws, { t: "warp", to: key });
+      p.warping = true;
+      p.world.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
+      await new Promise((r) => setTimeout(r, WARP_DELAY * 1000));
+      await this.transfer(p, key, p.world.key);
     } finally {
+      w.coming--;
       p.warping = false;
+      if (!w.players.size) this.dropHomeLater(key);
     }
+    return n;
+  }
+  /** Every second: if how full the Khu are changed, everyone at the lake is told (for the box of Khu). */
+  pushKhu() {
+    const occ = this.khuCounts(), j = JSON.stringify(occ);
+    if (j === this.lastKhu) return;
+    this.lastKhu = j;
+    const raw = JSON.stringify({ t: "fkhu", occ });
+    for (const w of this.worlds.values()) if (w.khu) for (const q of w.players.values()) sendRaw(q.ws, raw);
   }
   /** Whether a player stands at the Ngư Cụ stall (buying and selling are done there, in person). */
   atFishShop(uid) {
     const p = this.players.get(uid), sh = p?.world.map.def.shop;
-    return !!(p && sh && p.world.key === FISH_MAP && Math.abs(p.x - sh.x * p.world.map.T) <= sh.r * p.world.map.T && !p.dead);
+    return !!(p && sh && p.world.khu && Math.abs(p.x - sh.x * p.world.map.T) <= sh.r * p.world.map.T && !p.dead);
   }
   /** Back out of a Gia Viên to where they came from. */
   async leaveHome(uid) {
@@ -1330,7 +1360,7 @@ export class Universe {
     clearTimeout(this.homeDrops.get(key));
     this.homeDrops.set(key, setTimeout(() => {
       const w = this.worlds.get(key);
-      if (w && w.grid && !w.players.size) this.worlds.delete(key);
+      if (w && (w.grid || w.khu) && !w.players.size && !w.coming) this.worlds.delete(key);
     }, 60_000));
   }
   /**

@@ -164,6 +164,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "fish":
       case "fr":
       case "fzones":
+      case "fkhu":
         fish.onMsg(m);
         onFish?.(m);
         break;
@@ -1286,8 +1287,6 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     // the Câu Cá layer (public/js/cau-ca.js): this player's cast
     fish,
     mapId: () => map?.id ?? "",
-    // across the lake to another fishing Khu (the server checks it has room)
-    fishGoto: (k) => send({ t: "fish", a: "goto", k }),
     // where this player stands now (as drawn), for what is near them
     myPos: () => {
       const e = drawn.get(myId);

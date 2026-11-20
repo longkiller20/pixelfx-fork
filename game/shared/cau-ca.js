@@ -14,12 +14,21 @@
 // items too (kind "fish", their price is what the Ngư Cụ pays for one). Names and prices are in the items table, so an
 // admin changes them in the admin's Vật phẩm tab; the numbers that make a rod or bait what it is are here.
 
-/** The fishing map. */
+/** The fishing map. It is copied into KHU_COUNT Khu (a world each, numbered, all alike), each for at most KHU_CAP people,
+ * each with PLACES places on its pier. */
 export const FISH_MAP = "cauca";
+export const KHU_COUNT = 30, KHU_CAP = 20, PLACES = 8;
+/** A Khu's world key, and back. */
+export const khuKey = (n) => `cc:${n}`;
+export const khuOf = (key) => (typeof key === "string" && key.startsWith("cc:") ? Number(key.slice(3)) : null);
+/** How busy a Khu looks: 0 roomy (green), 1 filling (yellow), 2 nearly or quite full (red). */
+export const khuLevel = (n) => (n >= 16 ? 2 : n >= 9 ? 1 : 0);
+export const KHU_COLORS = ["#4ade80", "#facc15", "#f87171"];
 
 /**
  * Rods. tier 1..4. bar: the catch zone's height on the reeling bar (0..1); power: how fast the line comes in on the fish;
  * luck: tips the catch towards rarer fish; hook: extra seconds to strike after a bite; reach: how far it casts (cells).
+ * (Names and prices: the items table, an admin's.)
  */
 export const RODS = {
   cc_can_truc: { name: "Trúc Can", tier: 1, price: 300, bar: 0.26, power: 1, luck: 0, hook: 0, reach: 3, look: "truc",
@@ -27,7 +36,7 @@ export const RODS = {
   cc_can_dong: { name: "Thanh Đồng Can", tier: 2, price: 3000, bar: 0.3, power: 1.15, luck: 0.2, hook: 0.15, reach: 3.5, look: "dong",
     desc: "Cần đồng xanh khắc vân sóng, vùng kéo rộng hơn, dễ gặp cá quý hơn." },
   cc_can_ngoc: { name: "Bích Ngọc Can", tier: 3, price: 15000, bar: 0.34, power: 1.3, luck: 0.45, hook: 0.3, reach: 4, look: "ngoc",
-    desc: "Cần ngọc bích ngâm linh tuyền trăm năm. Câu được ở Linh Tuyền trên vách đá." },
+    desc: "Cần ngọc bích ngâm linh tuyền trăm năm, cá linh khó thoát." },
   cc_can_long: { name: "Kim Long Can", tier: 4, price: 60000, bar: 0.4, power: 1.5, luck: 0.8, hook: 0.45, reach: 4.5, look: "long",
     desc: "Cần vàng chạm rồng, dây tơ băng tằm. Cá tiên cũng khó thoát." },
 };
@@ -51,35 +60,34 @@ export const RARITY = [
 ];
 
 /**
- * The catch. rarity (above), zones it lives in, kg: its weight range, price: what the Ngư Cụ pays for one, fight: how
- * wildly it darts (0..1), look: how pixelfx draws it (fishing/fish), w: its share within its rarity in a zone.
- * stones: a sunken chest, opened on the spot for linh thạch (not kept).
+ * The catch. rarity (above), rate: how often it bites, against the others' rates (an admin changes it: the fish_rates
+ * table, read into RATES), kg: its weight range, price: what the Ngư Cụ pays for one, fight: how wildly it darts (0..1),
+ * look: how pixelfx draws it (fishing/fish). stones: a sunken chest, opened on the spot for linh thạch (not kept).
  */
 export const FISH = {
-  cc_ung_rach: { name: "Ủng Rách", rarity: 0, zones: ["ben", "ho"], kg: [0.4, 1.2], price: 1, fight: 0.05, look: "ung", desc: "Chiếc ủng ai đánh rơi. Chẳng đáng mấy đồng." },
-  cc_rong: { name: "Rong Thủy Linh", rarity: 0, zones: ["ben", "ho"], kg: [0.1, 0.6], price: 2, fight: 0.05, look: "rong", desc: "Bó rong dưới đáy hồ, phơi khô bán được vài đồng." },
-  cc_ca_ro: { name: "Cá Rô Đồng", rarity: 1, zones: ["ben"], kg: [0.1, 0.5], price: 4, fight: 0.15, look: "ro", desc: "Cá rô đồng vảy sẫm, gai lưng sắc." },
-  cc_ca_diec: { name: "Cá Diếc", rarity: 1, zones: ["ben", "ho"], kg: [0.2, 0.9], price: 5, fight: 0.18, look: "diec", desc: "Cá diếc bạc, thịt ngọt." },
-  cc_ca_chep: { name: "Cá Chép", rarity: 2, zones: ["ben", "ho"], kg: [1, 6], price: 14, fight: 0.32, look: "chep", desc: "Cá chép vàng đồng, khoẻ và dai sức." },
-  cc_ca_loc: { name: "Cá Lóc", rarity: 2, zones: ["ben", "ho"], kg: [1, 5], price: 16, fight: 0.4, look: "loc", desc: "Cá lóc đầu rắn, giật rất mạnh." },
-  cc_ca_tre: { name: "Cá Trê", rarity: 2, zones: ["ho"], kg: [0.8, 4], price: 15, fight: 0.36, look: "tre", desc: "Cá trê râu dài sống ở đáy hồ sâu." },
-  cc_ca_tam: { name: "Cá Tầm Bạc", rarity: 3, zones: ["ho"], kg: [5, 25], price: 50, fight: 0.52, look: "tam", desc: "Cá tầm mình dài, giáp bạc. Lên tới vài chục cân." },
-  cc_huyet_ly: { name: "Huyết Lý Ngư", rarity: 3, zones: ["ho", "tuyen"], kg: [2, 8], price: 65, fight: 0.58, look: "huyet", desc: "Cá chép đỏ như máu, nghe nói từng nuốt huyết đan." },
-  cc_bang_ngu: { name: "Băng Tinh Ngư", rarity: 3, zones: ["tuyen"], kg: [0.5, 2], price: 85, fight: 0.62, look: "bang", desc: "Cá trong như băng, chỉ sống ở nước linh tuyền lạnh." },
-  cc_ngoc_quy: { name: "Ngọc Giáp Quy", rarity: 4, zones: ["ho", "tuyen"], kg: [3, 15], price: 200, fight: 0.66, look: "quy", desc: "Rùa mai ngọc biếc, sống cả trăm năm." },
-  cc_kim_ly: { name: "Kim Lý Ngư", rarity: 4, zones: ["tuyen"], kg: [2, 10], price: 260, fight: 0.74, look: "kim", desc: "Cá chép vàng ròng. Tương truyền vượt Long Môn thì hoá rồng." },
-  cc_thanh_long: { name: "Thanh Long Ngư", rarity: 5, zones: ["ho", "tuyen"], kg: [10, 60], price: 900, fight: 0.88, look: "long", w: 1, desc: "Cá rồng xanh, râu dài, vảy toả lam quang. Hiếm vô cùng." },
-  cc_hoa_phuong: { name: "Hỏa Phượng Ngư", rarity: 5, zones: ["tuyen"], kg: [5, 30], price: 1200, fight: 0.95, look: "phuong", w: 1, desc: "Cá vây như lông phượng, bơi đến đâu nước ấm đến đó." },
-  cc_ruong: { name: "Rương Chìm", rarity: 3, zones: ["ben", "ho", "tuyen"], kg: [4, 9], price: 0, fight: 0.3, look: "ruong", w: 0.35, stones: [60, 400],
+  cc_ung_rach: { name: "Ủng Rách", rarity: 0, rate: 4, kg: [0.4, 1.2], price: 1, fight: 0.05, look: "ung", desc: "Chiếc ủng ai đánh rơi. Chẳng đáng mấy đồng." },
+  cc_rong: { name: "Rong Thủy Linh", rarity: 0, rate: 4, kg: [0.1, 0.6], price: 2, fight: 0.05, look: "rong", desc: "Bó rong dưới đáy hồ, phơi khô bán được vài đồng." },
+  cc_ca_ro: { name: "Cá Rô Đồng", rarity: 1, rate: 18, kg: [0.1, 0.5], price: 4, fight: 0.15, look: "ro", desc: "Cá rô đồng vảy sẫm, gai lưng sắc." },
+  cc_ca_diec: { name: "Cá Diếc", rarity: 1, rate: 18, kg: [0.2, 0.9], price: 5, fight: 0.18, look: "diec", desc: "Cá diếc bạc, thịt ngọt." },
+  cc_ca_chep: { name: "Cá Chép", rarity: 2, rate: 12, kg: [1, 6], price: 14, fight: 0.32, look: "chep", desc: "Cá chép vàng đồng, khoẻ và dai sức." },
+  cc_ca_loc: { name: "Cá Lóc", rarity: 2, rate: 10, kg: [1, 5], price: 16, fight: 0.4, look: "loc", desc: "Cá lóc đầu rắn, giật rất mạnh." },
+  cc_ca_tre: { name: "Cá Trê", rarity: 2, rate: 10, kg: [0.8, 4], price: 15, fight: 0.36, look: "tre", desc: "Cá trê râu dài sống ở đáy hồ sâu." },
+  cc_ca_tam: { name: "Cá Tầm Bạc", rarity: 3, rate: 6, kg: [5, 25], price: 50, fight: 0.52, look: "tam", desc: "Cá tầm mình dài, giáp bạc. Lên tới vài chục cân." },
+  cc_huyet_ly: { name: "Huyết Lý Ngư", rarity: 3, rate: 5, kg: [2, 8], price: 65, fight: 0.58, look: "huyet", desc: "Cá chép đỏ như máu, nghe nói từng nuốt huyết đan." },
+  cc_bang_ngu: { name: "Băng Tinh Ngư", rarity: 3, rate: 4, kg: [0.5, 2], price: 85, fight: 0.62, look: "bang", desc: "Cá trong như băng, chỉ sống ở nước linh tuyền lạnh." },
+  cc_ngoc_quy: { name: "Ngọc Giáp Quy", rarity: 4, rate: 3, kg: [3, 15], price: 200, fight: 0.66, look: "quy", desc: "Rùa mai ngọc biếc, sống cả trăm năm." },
+  cc_kim_ly: { name: "Kim Lý Ngư", rarity: 4, rate: 2.5, kg: [2, 10], price: 260, fight: 0.74, look: "kim", desc: "Cá chép vàng ròng. Tương truyền vượt Long Môn thì hoá rồng." },
+  cc_thanh_long: { name: "Thanh Long Ngư", rarity: 5, rate: 0.8, kg: [10, 60], price: 900, fight: 0.88, look: "long", desc: "Cá rồng xanh, râu dài, vảy toả lam quang. Hiếm vô cùng." },
+  cc_hoa_phuong: { name: "Hỏa Phượng Ngư", rarity: 5, rate: 0.6, kg: [5, 30], price: 1200, fight: 0.95, look: "phuong", desc: "Cá vây như lông phượng, bơi đến đâu nước ấm đến đó." },
+  cc_ruong: { name: "Rương Chìm", rarity: 3, rate: 2, kg: [4, 9], price: 0, fight: 0.3, look: "ruong", stones: [60, 400],
     desc: "Rương gỗ chìm dưới đáy hồ. Mở ra ngay, bên trong là linh thạch." },
 };
 
-/** The fishing spots by name: what lives there and the rod they want. */
-export const ZONES = {
-  ben: { name: "Bến Thuyền", minRod: 1, desc: "Nước nông quanh bến gỗ. Cá đồng, cá chép." },
-  ho: { name: "Hồ Sâu", minRod: 1, desc: "Lòng hồ sâu quanh Thạch Đài. Cá tầm, cá trê, có khi gặp cá rồng." },
-  tuyen: { name: "Linh Tuyền", minRod: 3, desc: "Suối linh trên vách đá. Cần Bích Ngọc Can trở lên. Cá linh, cá tiên." },
-};
+/** The rates in use (fish key -> rate), as the admin set them; applyConfig fills it, FISH's rate until then. */
+export const RATES = Object.fromEntries(Object.entries(FISH).map(([k, f]) => [k, f.rate]));
+export function setRates(r) {
+  for (const k of Object.keys(FISH)) RATES[k] = Number.isFinite(r?.[k]) ? r[k] : FISH[k].rate;
+}
 
 /** Every item the fishing brings into the game, for the items table (kind, name, price, description). */
 export const FISH_ITEMS = [
@@ -92,29 +100,26 @@ export const FISH_ITEMS = [
 export const fishName = (key, items = {}) => items[key]?.name ?? RODS[key]?.name ?? BAITS[key]?.name ?? FISH[key]?.name ?? key;
 export const fishPrice = (key, items = {}) => items[key]?.price ?? RODS[key]?.price ?? BAITS[key]?.price ?? FISH[key]?.price ?? 0;
 
-/** The chance of each fish in a zone with this rod and bait: [[key, p], ...], largest first. */
-export function odds(zone, rodKey, baitKey) {
-  const rod = RODS[rodKey], bait = BAITS[baitKey];
-  if (!ZONES[zone] || !rod || !bait) return [];
-  const L = rod.luck + bait.luck, out = [];
-  // the weight of each rarity, shared among the fish of that rarity living here
-  const here = Object.entries(FISH).filter(([, f]) => f.zones.includes(zone));
-  for (let r = 0; r < RARITY.length; r++) {
-    const list = here.filter(([, f]) => f.rarity === r && !f.stones);
-    let W = RARITY[r].w * (r === 0 ? 1 / (1 + 2 * L) : 1 + L * (r - 1) * 0.5);
-    if (r === 5 && bait.tier < 3) W = 0;
-    // the spirit spring has no junk and no common fish
-    if (zone === "tuyen" && r < 2) W = 0;
-    const sum = list.reduce((s, [, f]) => s + (f.w ?? 1), 0);
-    for (const [k, f] of list) out.push([k, (W * (f.w ?? 1)) / sum]);
-  }
-  for (const [k, f] of here) if (f.stones) out.push([k, (f.w ?? 1) * (1 + L * 0.5)]);
-  const total = out.reduce((s, [, p]) => s + p, 0);
+/**
+ * The chance of each catch with this rod and bait: [[key, p], ...], largest first. Each starts from its rate; luck (the
+ * rod's plus the bait's) makes junk rarer and the rarer fish likelier (× 1 + luck × (rarity − 1) × 0.5); Tiên fish only
+ * bite a bait of tier 3 or more. rodKey/baitKey may be null: the bare rates.
+ */
+export function odds(rodKey, baitKey, rates = RATES) {
+  const rod = RODS[rodKey], bait = BAITS[baitKey], L = (rod?.luck ?? 0) + (bait?.luck ?? 0);
+  const out = Object.entries(FISH).map(([k, f]) => {
+    let w = Math.max(0, rates[k] ?? f.rate);
+    if (f.rarity === 0) w /= 1 + 2 * L;
+    else w *= 1 + L * (f.rarity - 1) * 0.5;
+    if (f.rarity === 5 && bait && bait.tier < 3) w = 0;
+    return [k, w];
+  });
+  const total = out.reduce((s, [, p]) => s + p, 0) || 1;
   return out.filter(([, p]) => p > 0).map(([k, p]) => [k, p / total]).sort((a, b) => b[1] - a[1]);
 }
 /** Pick a fish (rnd: a function giving 0..1). */
-export function rollFish(zone, rodKey, baitKey, rnd = Math.random) {
-  const list = odds(zone, rodKey, baitKey);
+export function rollFish(rodKey, baitKey, rnd = Math.random) {
+  const list = odds(rodKey, baitKey);
   let u = rnd();
   for (const [k, p] of list) if ((u -= p) <= 0) return k;
   return list[list.length - 1]?.[0] ?? null;
