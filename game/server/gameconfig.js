@@ -5,7 +5,7 @@
 import { q, pool } from "./db.js";
 import { DEFAULTS, applyConfig } from "../shared/balance.js";
 import { CONG_PHAP, ART_ITEMS_SEED, DROPS_SEED, ELEMENTS } from "../shared/cong-phap.js";
-import { HOME_ITEMS } from "../shared/gia-vien.js";
+import { HOME_ITEMS, HOUSES } from "../shared/gia-vien.js";
 
 // the element each critter's drops follow
 const MONSTER_ELEMENT = { ghost: "am", bat: "am", bird: "phong", butterfly: "moc", eyeball: "huyen", fish_school: "thuy", flying_skull: "hoa", frog: "moc", jellyfish: "loi", slime: "thu", snake: "moc", wisp: "quang" };
@@ -88,6 +88,13 @@ export const CONFIG_SCHEMA = [
   "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS shot_speed DOUBLE NOT NULL DEFAULT 0",
   "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS shot_fx VARCHAR(48) NOT NULL DEFAULT ''",
   "ALTER TABLE monsters ADD COLUMN IF NOT EXISTS drop_rate DOUBLE NOT NULL DEFAULT 0",
+  // the ready-made houses (designed in code, shared/gia-vien.js HOUSES): their names and prices, as an admin sets them
+  `CREATE TABLE IF NOT EXISTS houses (
+    house_key VARCHAR(16) NOT NULL PRIMARY KEY,
+    name VARCHAR(40) NOT NULL,
+    price INT UNSIGNED NOT NULL DEFAULT 0,
+    sort INT NOT NULL DEFAULT 0
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS settings (
     k VARCHAR(48) NOT NULL PRIMARY KEY,
     v DOUBLE NOT NULL,
@@ -129,6 +136,11 @@ export async function seedConfig() {
   await pool.batch("INSERT IGNORE INTO skills (slot, name, type, cd, mult, params) VALUES (?, ?, ?, ?, ?, ?)", DEFAULTS.skills.map((s) => [s.slot, s.name, s.type, s.cd, s.mult, JSON.stringify(s.params)]));
   await seedArts(fresh);
   await pool.batch("INSERT IGNORE INTO settings (k, v, note) VALUES (?, ?, ?)", Object.entries(DEFAULTS.settings).map(([k, [v, note]]) => [k, v, note]));
+  // the houses in code that the table hasn't got yet; a price an admin set before as a setting (home.price.<id>) is kept
+  const old = Object.fromEntries((await q("SELECT k, v FROM settings WHERE k LIKE 'home.price.%'")).map((r) => [r.k.slice(11), Number(r.v)]));
+  await pool.batch("INSERT IGNORE INTO houses (house_key, name, price, sort) VALUES (?, ?, ?, ?)",
+    Object.entries(HOUSES).map(([k, H], i) => [k, H.name, Math.max(0, Math.round(old[k] ?? H.price ?? 0)), (i + 1) * 10]));
+  await q("DELETE FROM settings WHERE k LIKE 'home.price.%'");
   // settings that went with building a house by hand (gone: houses are ready-made now)
   await q("DELETE FROM settings WHERE k IN ('home.max_blocks', 'home.reach', 'home.buy_max')");
 }
@@ -170,7 +182,7 @@ async function seedArts(freshMonsters = []) {
 /** Read the config tables into a config object (not yet checked). conn: a connection inside a transaction, optional. */
 export async function readConfig(conn = null) {
   const Q = (sql) => (conn ?? pool).query(sql);
-  const [realms, items, monsters, skills, settings, arts, reqs, drops] = await Promise.all([
+  const [realms, items, monsters, skills, settings, arts, reqs, drops, houses] = await Promise.all([
     Q("SELECT name, stages FROM realms ORDER BY sort, id"),
     Q("SELECT * FROM items ORDER BY sort, item_key"),
     Q("SELECT * FROM monsters"),
@@ -179,6 +191,7 @@ export async function readConfig(conn = null) {
     Q("SELECT * FROM cong_phap"),
     Q("SELECT art_key, item_key, qty FROM cong_phap_reqs ORDER BY id"),
     Q("SELECT monster, item_key, chance, min_qty, max_qty FROM monster_drops ORDER BY id"),
+    Q("SELECT house_key, name, price, sort FROM houses ORDER BY sort, house_key"),
   ]);
   return {
     realms: realms.map((r) => ({ name: r.name, stages: Number(r.stages) })),
@@ -197,6 +210,8 @@ export async function readConfig(conn = null) {
     drops: drops.map((d) => ({ monster: d.monster, item: d.item_key, chance: d.chance, min: Number(d.min_qty), max: Number(d.max_qty) })),
     skills: skills.map((s) => ({ slot: s.slot, name: s.name, type: s.type, cd: s.cd, mult: s.mult, params: s.params })),
     settings: Object.fromEntries(settings.map((s) => [s.k, s.v])),
+    // the ready-made houses' names and prices (the houses themselves are in shared/gia-vien.js)
+    houses: houses.map((h) => ({ key: h.house_key, name: h.name, price: Number(h.price), sort: h.sort })),
   };
 }
 

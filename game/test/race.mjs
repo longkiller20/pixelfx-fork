@@ -230,6 +230,13 @@ const SHOP_TEST = "Hàng thử nghiệm";
     const [u] = await q("SELECT u.id, u.username FROM users u JOIN characters c ON c.user_id = u.id WHERE c.name = ?", [p.name]);
     assert.equal((await adm(`/players/${u.id}/adjust`, { token, method: "POST", body: { field: "stones", op: "set", value: 777 } })).status, 200);
     assert.equal((await me(p.token)).character.stones, 777);
+    // a house renamed and repriced by the admin: the game has it at once; back as it was
+    const hb = (await adm("/t/houses", { token })).data.find((h) => h.house_key === "gamer");
+    assert.equal((await adm("/t/houses/gamer", { token, method: "PATCH", body: { name: "Nhà Thử Nghiệm", price: 1234 } })).status, 200, "a house renamed");
+    const hc = (await call("/config")).data.houses.find((h) => h.key === "gamer");
+    assert.ok(hc.name === "Nhà Thử Nghiệm" && hc.price === 1234, "the game has the new name and price");
+    assert.equal((await adm("/t/houses/gamer", { token, method: "PATCH", body: { name: "x".repeat(41) } })).status, 400, "a name too long is refused");
+    await adm("/t/houses/gamer", { token, method: "PATCH", body: { name: hb.name, price: hb.price } });
     // a house given by the admin: the Gia Viên unlocked for nothing if need be, given once, taken back once
     const house = (give, h = "gamer") => adm(`/players/${u.id}/houses`, { token, method: "POST", body: { house: h, give } });
     assert.equal((await house(true)).status, 200, "a house given");
@@ -1159,7 +1166,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
   assert.ok(gm.plank(20, 13) && gm.plank(20, 10) && !gm.solid(20, 15), "the Gamer house's floors are planks on rows 13 and 10");
   const tp = new gvs.HomeGrid(mapInfo(gvs.HOME_MAP)).load(gvs.houseCells("tien_phu")).wrap();
   assert.ok(tp.plank(20, 13) && tp.plank(20, 11) && !tp.plank(20, 10) && !tp.solid(20, 15), "Tiên Phủ's floors are planks on rows 13 and 11");
-  assert.equal(gvs.housePrice("tien_phu", bal.HOME.prices), 500000, "its price from the settings");
+  assert.equal(gvs.housePrice("tien_phu", bal.HOME.houses), 500000, "its price from the settings");
 
   // ---- leaving: back where they were; the Gia Viên isn't where they log in next time
   assert.equal((await post(A, "/leave")).status, 200);
