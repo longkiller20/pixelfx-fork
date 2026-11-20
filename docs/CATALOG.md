@@ -1,6 +1,6 @@
 # Catalog
 
-261 effects in 23 categories. Every one is a file in
+262 effects in 23 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -424,3 +424,4 @@ doors, windows, tables, beds, lanterns, an alchemy furnace.
 | Furniture | `home/furniture` | loop 2s | 96×80 | Things for a house built a cell (32 px) at a time, one per piece: door, window, table, chair, bed, shelf, vase, scroll, paper wall, wood wall, bamboo, platform, glass, metal door. |
 | Gamer house (live) | `home/gamer-house` | loop 6s | 480×420 | The Gamer house's moving lights, over its picture: neon breathing and flickering, the GAMER sign, screens, arcade, chimney smoke, a blinking cat. part 0/1: its left or right half. |
 | Paper lantern | `home/lantern` | loop 3s | 48×56 | A red paper lantern hung from a bracket, swaying a little, its candle flickering: warm light pools round it and a gold tassel swings under it. |
+| Tiên Phủ (live) | `home/tien-phu` | loop 8s | 480×409 | A celestial palace's moving parts over its picture: waterfalls, ripples, falling petals, a meditating aura, a portal, drifting clouds, glowing swords, lamps. part 0/1: its halves. |

@@ -1157,6 +1157,9 @@ const SHOP_TEST = "Hàng thử nghiệm";
   assert.deepEqual((await call("/home", { token: A.token })).data.houses.sort(), [gvs.DEFAULT_HOUSE, "gamer"].sort(), "both listed as had");
   const gm = new gvs.HomeGrid(mapInfo(gvs.HOME_MAP)).load(gvs.houseCells("gamer")).wrap();
   assert.ok(gm.plank(20, 13) && gm.plank(20, 10) && !gm.solid(20, 15), "the Gamer house's floors are planks on rows 13 and 10");
+  const tp = new gvs.HomeGrid(mapInfo(gvs.HOME_MAP)).load(gvs.houseCells("tien_phu")).wrap();
+  assert.ok(tp.plank(20, 13) && tp.plank(20, 11) && !tp.plank(20, 10) && !tp.solid(20, 15), "Tiên Phủ's floors are planks on rows 13 and 11");
+  assert.equal(gvs.housePrice("tien_phu", bal.HOME.prices), 500000, "its price from the settings");
 
   // ---- leaving: back where they were; the Gia Viên isn't where they log in next time
   assert.equal((await post(A, "/leave")).status, 200);

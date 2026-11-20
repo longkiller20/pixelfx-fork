@@ -481,6 +481,26 @@ Viên lưu nhà đang có ở cột `homes.house`.
     - Dải LED chạy màu, mèo chớp mắt, cúp loé sáng.
     - Máy arcade đang chơi (đàn quái di chuyển, phi thuyền bắn), biển ly nước chập chờn, đèn REC của máy quay nháy,
       đèn studio sáng lên tắt xuống.
+- **Lăng Vân Tiên Phủ** (mặc định 500.000 linh thạch, `home.price.tien_phu`): tiên phủ ba tầng mái ngói lưu ly, cũng
+  làm từ ảnh có sẵn (`tools/gia-vien-nguon/nha-tien-phu.png`).
+  - **Tầng trệt:** cổng trận pháp, giá kiếm linh quang, phòng khách.
+  - **Tầng giữa:** thư phòng, tĩnh thất có người ngồi thiền.
+  - **Tầng trên:** phòng ngủ, cửa sổ trăng, thư các.
+  - **Bên phải:** đảo bay, thác nước, hồ sen, cây anh đào.
+  - **Sàn:** tầng giữa ở hàng 13 (một cú nhảy từ mặt đất). Tầng trên thấp hơn, ở hàng 11 (2 ô trên tầng giữa).
+  - **Chuyển động** bằng pixelfx (`../src/fx/home/tien-phu.js`, hai nửa như Nhà Game Thủ):
+    - Khoảng 60 đèn lồng, đèn chùm, đèn chân đế (script tự dò, cộng vài chiếc thêm tay) lung linh như ánh nến.
+    - Bốn dòng thác chảy xuống, có bọt và hơi nước dưới chân thác; hồ sen gợn sóng.
+    - Hoa anh đào rơi theo gió.
+    - Hào quang của người ngồi thiền lan ra từng vòng, linh khí bay lên.
+    - Cổng trận pháp: hai vòng phù văn xoay ngược chiều, bậc thềm hắt sáng.
+    - Mây trôi trong cửa sổ trăng.
+    - Ánh sáng chạy dọc lưỡi kiếm.
+    - Pha lê loé sáng, sao lấp lánh trên tranh đầu giường.
+    - Linh khí bay quanh tiên phủ và đảo bay.
+- **Nhà vẽ bằng ảnh:** `tools/gia-vien-nha.py` xử lý mọi nhà loại này (`python3 tools/gia-vien-nha.py [mã nhà]`).
+  Mỗi nhà khai báo vị trí các sàn trong ảnh gốc, script thu nhỏ để sàn rơi đúng hàng ô. Trong `shared/gia-vien.js`,
+  hàm `picHouse` dựng sàn ẩn và lớp chuyển động.
 - **Va chạm thật:** tường và sàn của nhà chặn và đỡ người chơi, máy chủ và trình duyệt tính giống nhau.
 - **Bảng 🏠 Nhà Ở** (mở được cả khi ở ngoài Gia Viên): mỗi trang một căn, mũi tên ‹ › hai bên ảnh (hoặc vuốt ảnh, hoặc
   bấm chấm dưới ảnh) để xem căn khác; mở ra ở đúng căn đang ở. Dưới ảnh chỉ có tên nhà, giá và một nút nhỏ.

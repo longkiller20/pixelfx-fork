@@ -129,7 +129,14 @@ export const HOUSES = {
     name: "Nhà Game Thủ",
     price: 150000,
     desc: "Căn nhà ba tầng rực đèn neon của game thủ đa vũ trụ: phòng stream phông xanh, quầy bar, máy arcade; phòng khách TV lớn, tủ figure; phòng ngủ và góc gaming ba màn hình, ban công dù tím.",
-    ...picHouse(),
+    ...picHouse({ file: "gamer", x: 231, ground: 370, w: 798, h: 400, fx: "home/gamer-house", floors: [[13, 55, 1715], [10, 160, 1655]] }),
+  },
+  tien_phu: {
+    name: "Lăng Vân Tiên Phủ",
+    price: 500000,
+    desc: "Tiên phủ ba tầng mái ngói lưu ly, cổng trận pháp, tĩnh thất ngồi thiền, giá kiếm linh quang, thác nước từ đảo bay đổ xuống hồ sen, cây anh đào bên hiên.",
+    // the top storey is lower than the others (its floor two cells over the middle one)
+    ...picHouse({ file: "tien_phu", x: 240, ground: 335, w: 798, h: 389, fx: "home/tien-phu", floors: [[13, 20, 1750], [11, 230, 1620]] }),
   },
 };
 export const DEFAULT_HOUSE = "co_trach";
@@ -142,20 +149,21 @@ export const housePrice = (id, prices = {}) => (id === DEFAULT_HOUSE || !HOUSES[
 export const houseCells = (id) => HOUSES[id]?.cells ?? [];
 
 /**
- * A house drawn as one picture (pic: its file, where its top left stands in world px, its size) instead of pieces: here
- * the Gamer house, from the user's picture (game/tools/gia-vien-nha.py brings it to size, so its three floors fall on
- * cell lines: the ground at row 16, then rows 13 and 10). Its floors are planks hidden under the picture (one can jump up
- * through them, ↓ + jump to drop); live: the pixelfx effect that makes its lights move, in two halves (part 0, 1) drawn
- * at the picture's top left plus PARTS[part] (src/fx/home/gamer-house.js).
+ * A house drawn as one picture (pic: its file, where its top left stands in world px, its size) instead of pieces, from a
+ * picture the user drew (game/tools/gia-vien-nha.py brings it to size: 0.45 across, each storey squeezed so its floor
+ * falls on a cell line). file: its name in public/gia-vien/nha/; x: where its left edge stands (world px); ground: the
+ * picture's row the ground floor stands on (it is put at row 16); floors: [row, from, to] each upper floor, from and to
+ * in the source picture's px. Floors are planks hidden under the picture (one can jump up through them, ↓ + jump to drop);
+ * live: the pixelfx effect that makes it move, in two halves (part 0, 1) drawn at the picture's top left plus
+ * parts[part] (its file in src/fx/home/).
  */
-function picHouse() {
-  const T = 32, S = 0.45, x = 231, y = 16 * T - 370, out = [];
-  // each floor: its row, and how far it runs in the source picture's pixels
-  for (const [row, a, b] of [[13, 55, 1715], [10, 160, 1655]]) {
+function picHouse({ file, x, ground, w, h, fx, floors }) {
+  const T = 32, S = 0.45, y = 16 * T - ground, out = [];
+  for (const [row, a, b] of floors) {
     const x0 = x + a * S, x1 = x + b * S;
     for (let cx = Math.floor(x0 / T); cx * T < x1; cx++) if (Math.min(x1, cx * T + T) - Math.max(x0, cx * T) >= 16) out.push(["f", cx, row, "san_an"]);
   }
-  return { pic: { src: "/gia-vien/nha/gamer.png", x, y, w: 798, h: 400 }, live: [{ fx: "home/gamer-house", parts: [0, 318] }], cells: out };
+  return { pic: { src: `/gia-vien/nha/${file}.png`, x, y, w, h }, live: [{ fx, parts: [0, w - 480] }], cells: out };
 }
 
 /**

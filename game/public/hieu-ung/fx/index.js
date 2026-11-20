@@ -39,6 +39,7 @@ import * as home_furnace from "./home/furnace.js";
 import * as home_furniture from "./home/furniture.js";
 import * as home_gamer_house from "./home/gamer-house.js";
 import * as home_lantern from "./home/lantern.js";
+import * as home_tien_phu from "./home/tien-phu.js";
 import * as impacts_ground_slam from "./impacts/ground-slam.js";
 import * as impacts_hit_spark from "./impacts/hit-spark.js";
 import * as lightning_charge_up from "./lightning/charge-up.js";
@@ -103,6 +104,7 @@ export const effects = {
   "home/furniture": home_furniture,
   "home/gamer-house": home_gamer_house,
   "home/lantern": home_lantern,
+  "home/tien-phu": home_tien_phu,
   "impacts/ground-slam": impacts_ground_slam,
   "impacts/hit-spark": impacts_hit_spark,
   "lightning/charge-up": lightning_charge_up,
