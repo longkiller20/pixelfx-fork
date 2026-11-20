@@ -253,6 +253,18 @@ const SHOP_TEST = "Hàng thử nghiệm";
     assert.equal((await adm("/t/items/cc_ca_chep", { token, method: "PATCH", body: { name: "Cá Thử", price: 99 } })).status, 200, "a fish renamed");
     const fc2 = (await call("/config")).data.items;
     assert.ok(fc2.some((i) => i.key === "cc_moi_tom" && i.name === "Mồi Thử" && i.price === 7) && fc2.some((i) => i.key === "cc_ca_chep" && i.name === "Cá Thử" && i.price === 99), "the game has them");
+    // the sunken chest too: its name, and how many linh thạch it holds; max under min refused
+    const chest0 = fa.fish.find((f) => f.key === "cc_ruong");
+    assert.ok(chest0.item && chest0.stones, "the chest is listed with its name and its linh thạch");
+    assert.equal((await adm("/t/items/cc_ruong", { token, method: "PATCH", body: { name: "Rương Thử" } })).status, 200, "the chest renamed");
+    assert.equal((await adm("/t/fish_rates/cc_ruong", { token, method: "PATCH", body: { stones_min: 10, stones_max: 20 } })).status, 200, "its linh thạch set");
+    const fc3 = (await call("/config")).data;
+    assert.ok(fc3.items.some((i) => i.key === "cc_ruong" && i.name === "Rương Thử"), "the game has the chest's new name");
+    const cr = fc3.fishRates.find((r) => r.key === "cc_ruong");
+    assert.ok(cr.stonesMin === 10 && cr.stonesMax === 20, "and what it holds");
+    assert.equal((await adm("/t/fish_rates/cc_ruong", { token, method: "PATCH", body: { stones_min: 30, stones_max: 20 } })).status, 400, "max under min refused");
+    await adm("/t/items/cc_ruong", { token, method: "PATCH", body: { name: chest0.name } });
+    await adm("/t/fish_rates/cc_ruong", { token, method: "PATCH", body: { stones_min: chest0.stones[0], stones_max: chest0.stones[1] } });
     await adm("/t/items/cc_moi_tom", { token, method: "PATCH", body: { name: bait0.name, price: bait0.price } });
     await adm("/t/items/cc_ca_chep", { token, method: "PATCH", body: { name: carp0.name, price: carp0.price } });
     await adm("/t/items/cc_can_dong", { token, method: "PATCH", body: { name: rod0.name, price: rod0.price } });

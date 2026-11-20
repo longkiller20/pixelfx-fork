@@ -68,7 +68,8 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     "đang giữ" hay "đã thả"). Mua bán có mã giao dịch, chỉ trừ tiền và đồ bằng câu lệnh có điều kiện, một người một việc
     một lúc. Cần mua đúng một lần, bán cá gửi 5 lần cùng lúc cũng chỉ được trả một lần.
   - **Admin (tab Câu Cá):** đổi **tên và giá** từng cần (giá Ngư Cụ bán), từng mồi (giá một viên), từng loại cá và vật câu
-    được (giá Ngư Cụ mua; 0 là không bán/không mua), và **tỉ lệ cắn câu** của từng loại (0 là không bao giờ câu được). Có bảng
+    được (giá Ngư Cụ mua; 0 là không bán/không mua; Rương Chìm thì chỉnh số linh thạch mở ra được, ít nhất và nhiều nhất), và
+    **tỉ lệ cắn câu** của từng loại (0 là không bao giờ câu được). Có bảng
     tính sẵn cơ hội thật của từng loại: không tính cần mồi, với Trúc Can + Giun Đất, với Kim Long Can + Tiên Đào Nhị. Lưu là
     có hiệu lực ngay (cả game kiểm tra lại toàn bộ số liệu trước khi lưu; tỉ lệ âm hay tất cả bằng 0 bị từ chối). Tỉ lệ nằm
     ở bảng `fish_rates`, tên giá ở bảng `items`. Tặng hay lấy lại cần, mồi ở mục túi đồ trong trang người chơi; mục Câu Cá ở

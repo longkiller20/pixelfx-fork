@@ -408,15 +408,18 @@ const VIEWS = {
     out.append(el("div", { class: "fwrap" }, tbl));
     for (const f of d.fish) {
       const saveRate = async (c) => {
-        const { rate, ...rest } = c;
+        const { rate, stones_min, stones_max, ...rest } = c, fr = Object.fromEntries(Object.entries({ rate, stones_min, stones_max }).filter(([, v]) => v !== undefined));
         if (Object.keys(rest).length && f.item && !(await guard(() => api(`/t/items/${f.key}`, { method: "PATCH", body: rest }), "Đã lưu."))) return;
-        if (rate !== undefined && !(await guard(() => api(`/t/fish_rates/${f.key}`, { method: "PATCH", body: { rate } }), "Đã lưu tỉ lệ."))) return;
+        if (Object.keys(fr).length && !(await guard(() => api(`/t/fish_rates/${f.key}`, { method: "PATCH", body: fr }), "Đã lưu tỉ lệ."))) return;
         reload();
       };
       out.append(record({
         title: f.name, sub: `${f.key} · [${f.rarityName}] · ${f.kg[0]}-${f.kg[1]} cân · ${f.stones ? `rương: mở ra ${f.stones[0]}-${f.stones[1]} linh thạch` : f.price ? `Ngư Cụ mua ${fmt(f.price)}` : "Ngư Cụ không mua"} · cơ hội gốc ${pct(d.odds.bare[f.key])}`,
         row: f,
-        fields: [...(f.item ? [{ k: "name", label: "Tên" }, { k: "price", label: "Giá Ngư Cụ mua (0 = không mua)", type: "number", step: 1 }] : []), { k: "rate", label: "Tỉ lệ cắn câu (trọng số, 0 = không bao giờ)", type: "number", step: "any" }],
+        fields: [...(f.item ? [{ k: "name", label: "Tên" }] : []),
+          ...(f.stones ? [{ k: "stones_min", label: "Mở ra được ít nhất (linh thạch)", type: "number", step: 1 }, { k: "stones_max", label: "Nhiều nhất (linh thạch)", type: "number", step: 1 }]
+            : f.item ? [{ k: "price", label: "Giá Ngư Cụ mua (0 = không mua)", type: "number", step: 1 }] : []),
+          { k: "rate", label: "Tỉ lệ cắn câu (trọng số, 0 = không bao giờ)", type: "number", step: "any" }],
         onSave: saveRate,
       }));
     }

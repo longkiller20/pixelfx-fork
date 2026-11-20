@@ -19,7 +19,7 @@ import { CONG_PHAP } from "../shared/cong-phap.js";
 import * as sects from "./tong-mon.js";
 import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
-import { RODS, BAITS, FISH, RARITY, RATES, odds } from "../shared/cau-ca.js";
+import { RODS, BAITS, FISH, RARITY, RATES, CHEST, odds } from "../shared/cau-ca.js";
 import { ITEMS } from "../shared/balance.js";
 import { HOUSES, DEFAULT_HOUSE, housePrice, houseName } from "../shared/gia-vien.js";
 
@@ -96,7 +96,7 @@ const T = {
   // the ready-made houses are designed in code (shared/gia-vien.js): an admin names them and prices them (0: not sold)
   houses: { pk: "house_key", pkType: "key", order: "sort, house_key", config: true, cols: { name: "str:40", price: "uint", sort: "int" } },
   // Câu Cá: how often each catch bites, against the others' rates (the catches are designed in shared/cau-ca.js)
-  fish_rates: { pk: "fish_key", pkType: "key", order: "fish_key", config: true, cols: { rate: "num" } },
+  fish_rates: { pk: "fish_key", pkType: "key", order: "fish_key", config: true, cols: { rate: "num", stones_min: "uint", stones_max: "uint" } },
   // the sect treasure house (Tông Môn Bảo Khố): what members buy with cống hiến
   sect_shop: { pk: "item_key", pkType: "key", order: "sort, item_key", add: true, del: true, cols: { cost: "uint", min_level: "uint", daily_limit: "uint", on_sale: "bool", sort: "int" } },
   cosmetics: {
@@ -207,7 +207,7 @@ export function adminApp(world) {
     res.json({
       rods: Object.entries(RODS).map(([k, d]) => ({ ...it(k, d), tier: d.tier, bar: d.bar, power: d.power, luck: d.luck, hook: d.hook })),
       baits: Object.entries(BAITS).map(([k, d]) => ({ ...it(k, d), tier: d.tier, speed: d.speed, luck: d.luck })),
-      fish: Object.entries(FISH).map(([k, d]) => ({ ...it(k, d), rate: RATES[k], rarity: d.rarity, rarityName: RARITY[d.rarity].name, color: RARITY[d.rarity].color, kg: d.kg, stones: d.stones ?? null })),
+      fish: Object.entries(FISH).map(([k, d]) => ({ ...it(k, d), rate: RATES[k], rarity: d.rarity, rarityName: RARITY[d.rarity].name, color: RARITY[d.rarity].color, kg: d.kg, stones: CHEST[k] ?? null, stones_min: CHEST[k]?.[0], stones_max: CHEST[k]?.[1] })),
       odds: { bare: asMap(null, null), low: asMap("cc_can_truc", "cc_moi_giun"), high: asMap("cc_can_long", "cc_moi_tien") },
     });
   }));

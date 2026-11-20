@@ -85,15 +85,19 @@ export const FISH = {
 
 /** The rates in use (fish key -> rate), as the admin set them; applyConfig fills it, FISH's rate until then. */
 export const RATES = Object.fromEntries(Object.entries(FISH).map(([k, f]) => [k, f.rate]));
-export function setRates(r) {
+/** What a chest gives when opened, [min, max] linh thạch, as the admin set it (FISH's stones until then). */
+export const CHEST = Object.fromEntries(Object.entries(FISH).filter(([, f]) => f.stones).map(([k, f]) => [k, [...f.stones]]));
+export function setRates(r, chest = {}) {
   for (const k of Object.keys(FISH)) RATES[k] = Number.isFinite(r?.[k]) ? r[k] : FISH[k].rate;
+  for (const k of Object.keys(CHEST)) CHEST[k] = chest[k] ?? [...FISH[k].stones];
 }
 
 /** Every item the fishing brings into the game, for the items table (kind, name, price, description). */
 export const FISH_ITEMS = [
   ...Object.entries(RODS).map(([key, r], i) => ({ key, kind: "rod", name: r.name, price: r.price, desc: r.desc, sort: 400 + i })),
   ...Object.entries(BAITS).map(([key, b], i) => ({ key, kind: "bait", name: b.name, price: b.price, desc: b.desc, sort: 410 + i })),
-  ...Object.entries(FISH).filter(([, f]) => !f.stones).map(([key, f], i) => ({ key, kind: "fish", name: f.name, price: f.price, desc: f.desc, sort: 420 + i })),
+  // (a chest too, for its name: it is never in the bag, its price is not used)
+  ...Object.entries(FISH).map(([key, f], i) => ({ key, kind: "fish", name: f.name, price: f.price, desc: f.desc, sort: 420 + i })),
 ];
 
 /** A rod's or bait's or fish's name and price as the admin set them (items), or as designed here. */

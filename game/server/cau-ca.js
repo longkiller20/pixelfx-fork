@@ -11,7 +11,7 @@ import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
 import { GameError } from "./store.js";
 import { ITEMS } from "../shared/balance.js";
-import { RODS, BAITS, FISH, fishName, fishPrice } from "../shared/cau-ca.js";
+import { RODS, BAITS, FISH, CHEST, fishName, fishPrice } from "../shared/cau-ca.js";
 
 const no = (m, status = 400) => new GameError(m, status);
 const fmt = (n) => Number(n).toLocaleString("vi-VN");
@@ -169,7 +169,8 @@ export function land(uid, fish, grams, rnd = Math.random) {
     ]);
     let stones = 0;
     if (f.stones) {
-      stones = Math.round(f.stones[0] + (f.stones[1] - f.stones[0]) * rnd() * rnd());
+      const [lo, hi] = CHEST[fish] ?? f.stones;
+      stones = Math.round(lo + (hi - lo) * rnd() * rnd());
       await c.query("UPDATE characters SET stones = stones + ? WHERE user_id = ?", [stones, uid]);
     } else await give(c, uid, fish, 1);
     // best_at before best_g: MariaDB assigns left to right, so it still sees the old best

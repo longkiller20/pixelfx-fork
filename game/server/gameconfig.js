@@ -101,6 +101,9 @@ export const CONFIG_SCHEMA = [
     fish_key VARCHAR(32) NOT NULL PRIMARY KEY,
     rate DOUBLE NOT NULL DEFAULT 0
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // a chest's linh thạch, min..max (0 for anything that isn't a chest)
+  "ALTER TABLE fish_rates ADD COLUMN IF NOT EXISTS stones_min INT UNSIGNED NOT NULL DEFAULT 0",
+  "ALTER TABLE fish_rates ADD COLUMN IF NOT EXISTS stones_max INT UNSIGNED NOT NULL DEFAULT 0",
   `CREATE TABLE IF NOT EXISTS settings (
     k VARCHAR(48) NOT NULL PRIMARY KEY,
     v DOUBLE NOT NULL,
@@ -130,7 +133,9 @@ export async function seedConfig() {
     "INSERT IGNORE INTO items (item_key, name, kind, description, price, heal, exp_base, exp_per_level, cooldown, on_sale, sort) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 1, 0, ?)",
     FISH_ITEMS.map((i) => [i.key, i.name, i.kind, i.desc, i.price, i.sort]),
   );
-  await pool.batch("INSERT IGNORE INTO fish_rates (fish_key, rate) VALUES (?, ?)", Object.entries(FISH).map(([k, f]) => [k, f.rate]));
+  await pool.batch("INSERT IGNORE INTO fish_rates (fish_key, rate, stones_min, stones_max) VALUES (?, ?, ?, ?)", Object.entries(FISH).map(([k, f]) => [k, f.rate, f.stones?.[0] ?? 0, f.stones?.[1] ?? 0]));
+  // a chest from before the columns: its first range
+  for (const [k, f] of Object.entries(FISH)) if (f.stones) await q("UPDATE fish_rates SET stones_min = ?, stones_max = ? WHERE fish_key = ? AND stones_max = 0", [f.stones[0], f.stones[1], k]);
   // the monsters a database doesn't have yet get their own drop list too (after the items exist, in seedArts)
   const had = new Set((await q("SELECT type FROM monsters")).map((r) => r.type));
   await pool.batch(
@@ -205,7 +210,7 @@ export async function readConfig(conn = null) {
     Q("SELECT art_key, item_key, qty FROM cong_phap_reqs ORDER BY id"),
     Q("SELECT monster, item_key, chance, min_qty, max_qty FROM monster_drops ORDER BY id"),
     Q("SELECT house_key, name, price, sort FROM houses ORDER BY sort, house_key"),
-    Q("SELECT fish_key, rate FROM fish_rates ORDER BY fish_key"),
+    Q("SELECT fish_key, rate, stones_min, stones_max FROM fish_rates ORDER BY fish_key"),
   ]);
   return {
     realms: realms.map((r) => ({ name: r.name, stages: Number(r.stages) })),
@@ -227,7 +232,7 @@ export async function readConfig(conn = null) {
     // the ready-made houses' names and prices (the houses themselves are in shared/gia-vien.js)
     houses: houses.map((h) => ({ key: h.house_key, name: h.name, price: Number(h.price), sort: h.sort })),
     // Câu Cá: how often each catch bites (the catches themselves are in shared/cau-ca.js)
-    fishRates: fishRates.map((r) => ({ key: r.fish_key, rate: Number(r.rate) })),
+    fishRates: fishRates.map((r) => ({ key: r.fish_key, rate: Number(r.rate), stonesMin: Number(r.stones_min), stonesMax: Number(r.stones_max) })),
   };
 }
 
