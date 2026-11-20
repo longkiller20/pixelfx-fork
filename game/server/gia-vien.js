@@ -2,18 +2,16 @@
 //  1. Unlocking is once: homes is keyed by the person; the stones go in the same transaction, so a refused unlock costs nothing.
 //  2. Everything about one home runs in one transaction that first locks its row (SELECT ... FOR UPDATE), and per person
 //     one at a time (userLock): two buys, a feed racing a collect, two herbs sown in one bed... happen one after another.
-//  3. Money and stock only move by conditional updates (stones - n WHERE stones >= n, qty - 1 WHERE qty > 0); a block is
-//     one row per cell and layer (its key), so the same cell can't be filled twice nor the same stock spent twice.
+//  3. Money only moves by conditional updates (stones - n WHERE stones >= n).
 //  4. Buying carries a request id: sent twice, it counts once.
 //  5. Time is the database's: an animal is ready, a herb ripe, when NOW() says so, not when the browser says so. What a
 //     herb gives is rolled here.
-// Where a block may go (the house plot, what holds it up, not on top of someone) is the world's to check, since it knows
-// where everyone stands (server/world.js, World.build); it then calls place() / unplace() here.
+// The house is ready-made (shared/gia-vien.js HOUSES): a home only keeps which one it has.
 import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
 import { GameError } from "./store.js";
 import { HOME } from "../shared/balance.js";
-import { BLOCKS, ANIMALS, CROPS, LAYOUT } from "../shared/gia-vien.js";
+import { ANIMALS, CROPS, LAYOUT, HOUSES, DEFAULT_HOUSE } from "../shared/gia-vien.js";
 
 const no = (m, status = 400) => new GameError(m, status);
 const fmt = (n) => Number(n).toLocaleString("vi-VN");
@@ -49,82 +47,40 @@ const run = (uid, fn) => userLock.run(uid, () => tx(fn));
 export async function unlocked(uid) {
   return (await q("SELECT 1 FROM homes WHERE user_id = ?", [uid])).length > 0;
 }
-/** The animals and herb beds with what the database's clock says about them, and the building stock. */
+/** The house, the animals and herb beds with what the database's clock says about them. */
 export async function state(uid) {
-  const [animals, plots, stock, [now]] = await Promise.all([
+  const [[home], animals, plots, [now]] = await Promise.all([
+    q("SELECT house FROM homes WHERE user_id = ?", [uid]),
     q("SELECT id, kind, ready_at, (ready_at IS NOT NULL AND ready_at <= NOW()) AS ready FROM home_animals WHERE user_id = ? ORDER BY id", [uid]),
     q("SELECT plot, crop, planted_at, ready_at, (ready_at <= NOW()) AS ripe FROM home_plots WHERE user_id = ? ORDER BY plot", [uid]),
-    q("SELECT kind, qty FROM home_stock WHERE user_id = ? AND qty > 0", [uid]),
     q("SELECT NOW() AS now"),
   ]);
   // times as ms, with the database's clock beside them so the browser can count down on its own
   return {
     now: new Date(now.now).getTime(),
+    house: HOUSES[home?.house] ? home.house : DEFAULT_HOUSE,
     animals: animals.map((a) => ({ id: a.id, kind: a.kind, readyAt: a.ready_at ? new Date(a.ready_at).getTime() : null, ready: !!a.ready })),
     plots: plots.map((p) => ({ plot: p.plot, crop: p.crop, plantedAt: new Date(p.planted_at).getTime(), readyAt: new Date(p.ready_at).getTime(), ripe: !!p.ripe })),
-    stock: Object.fromEntries(stock.map((s) => [s.kind, Number(s.qty)])),
   };
 }
-/** Every block of a home, for its world: [layer, cx, cy, kind]. */
-export async function blocks(uid) {
-  return (await q("SELECT layer, cx, cy, kind FROM home_blocks WHERE user_id = ?", [uid])).map((b) => [b.layer, b.cx, b.cy, b.kind]);
+/** Which house a home has (for its world). */
+export async function houseOf(uid) {
+  const [h] = await q("SELECT house FROM homes WHERE user_id = ?", [uid]);
+  return HOUSES[h?.house] ? h.house : DEFAULT_HOUSE;
 }
 
-// ---------------------------------------------------------------- unlocking, buying
+// ---------------------------------------------------------------- unlocking (the default house comes with it)
 export function unlock(uid) {
   return run(uid, async (c) => {
     if ((await c.query("SELECT 1 FROM homes WHERE user_id = ?", [uid])).length) throw no("Gia Viên đã mở khoá rồi.", 409);
     if (!(await c.query("SELECT 1 FROM characters WHERE user_id = ?", [uid])).length) throw no("Hãy tạo nhân vật trước.");
     await pay(c, uid, HOME.unlockCost, "để mở khoá Gia Viên");
     try {
-      await c.query("INSERT INTO homes (user_id, paid) VALUES (?, ?)", [uid, HOME.unlockCost]);
+      await c.query("INSERT INTO homes (user_id, paid, house) VALUES (?, ?, ?)", [uid, HOME.unlockCost, DEFAULT_HOUSE]);
     } catch (e) {
       if (isDup(e)) throw no("Gia Viên đã mở khoá rồi.", 409);
       throw e;
     }
-  });
-}
-
-/** Buy building materials into stock: qty of one kind, paid at once. */
-export function buyBlocks(uid, kind, rawQty, rawReq) {
-  const b = BLOCKS[kind], qty = Number(rawQty), rid = reqId(rawReq);
-  if (!b) throw no("Không có vật liệu này.");
-  if (!Number.isInteger(qty) || qty < 1 || qty > HOME.buyMax) throw no(`Mỗi lần mua 1-${HOME.buyMax} cái.`);
-  return run(uid, async (c) => {
-    await lockHome(c, uid);
-    if (!(await once(c, uid, rid))) return { repeat: true };
-    await pay(c, uid, b.price * qty, `để mua ${qty} ${b.name}`);
-    await c.query("INSERT INTO home_stock (user_id, kind, qty) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE qty = qty + VALUES(qty)", [uid, kind, qty]);
-    return { repeat: false };
-  });
-}
-
-// ---------------------------------------------------------------- building (the world checked where; this is the stock and the row)
-/** Put one of `kind` from stock at (layer, cx, cy). */
-export function place(uid, layer, cx, cy, kind) {
-  return run(uid, async (c) => {
-    await lockHome(c, uid);
-    const [{ n }] = await c.query("SELECT COUNT(*) AS n FROM home_blocks WHERE user_id = ?", [uid]);
-    if (Number(n) >= HOME.maxBlocks) throw no(`Gia Viên đã có đủ ${fmt(HOME.maxBlocks)} khối.`, 409);
-    const r = await c.query("UPDATE home_stock SET qty = qty - 1 WHERE user_id = ? AND kind = ? AND qty > 0", [uid, kind]);
-    if (r.affectedRows !== 1) throw no(`Hết ${BLOCKS[kind].name}. Mua thêm ở bảng xây dựng.`, 409);
-    try {
-      await c.query("INSERT INTO home_blocks (user_id, layer, cx, cy, kind) VALUES (?, ?, ?, ?, ?)", [uid, layer, cx, cy, kind]);
-    } catch (e) {
-      if (isDup(e)) throw no("Ô này đã có rồi.", 409);
-      throw e;
-    }
-  });
-}
-/** Take down what is at (layer, cx, cy): it goes back to stock. Returns its kind. */
-export function unplace(uid, layer, cx, cy) {
-  return run(uid, async (c) => {
-    await lockHome(c, uid);
-    const [b] = await c.query("SELECT kind FROM home_blocks WHERE user_id = ? AND layer = ? AND cx = ? AND cy = ? FOR UPDATE", [uid, layer, cx, cy]);
-    if (!b) throw no("Ô này không có gì.", 404);
-    await c.query("DELETE FROM home_blocks WHERE user_id = ? AND layer = ? AND cx = ? AND cy = ?", [uid, layer, cx, cy]);
-    await c.query("INSERT INTO home_stock (user_id, kind, qty) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE qty = qty + 1", [uid, b.kind]);
-    return b.kind;
   });
 }
 

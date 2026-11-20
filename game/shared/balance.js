@@ -117,9 +117,6 @@ export const DEFAULTS = {
     // Gia Viên (shared/gia-vien.js, server/gia-vien.js)
     "home.unlock_cost": [50000, "Linh thạch để mở khoá Gia Viên (mỗi người một lần)"],
     "home.max_animals": [12, "Số vật nuôi tối đa trong Nông Trại"],
-    "home.max_blocks": [3000, "Số khối, vách, đồ đạc tối đa trong một Gia Viên"],
-    "home.reach": [7, "Xây được cách nhân vật tối đa bấy nhiêu ô"],
-    "home.buy_max": [999, "Mỗi lần mua vật liệu xây tối đa bấy nhiêu cái"],
     // trò chuyện, Đạo Hữu, Truyền Âm (server/dao-huu.js)
     "chat.world_cooldown": [4, "Giây chờ giữa hai lần nói ở kênh Thế Giới (kênh Khu Vực, Tông Môn: 1 giây)"],
     "social.friends_max": [100, "Mỗi người có tối đa bấy nhiêu Đạo Hữu"],
@@ -331,8 +328,7 @@ export function applyConfig(c) {
     });
   }
   Object.assign(HOME, {
-    unlockCost: S["home.unlock_cost"] | 0, maxAnimals: Math.max(1, S["home.max_animals"] | 0), maxBlocks: Math.max(1, S["home.max_blocks"] | 0),
-    reach: Math.max(1, S["home.reach"]), buyMax: Math.max(1, S["home.buy_max"] | 0),
+    unlockCost: S["home.unlock_cost"] | 0, maxAnimals: Math.max(1, S["home.max_animals"] | 0),
   });
   Object.assign(SOCIAL, {
     worldCooldown: Math.max(1, S["chat.world_cooldown"]), friendsMax: Math.max(1, S["social.friends_max"] | 0), requestsMax: Math.max(1, S["social.requests_max"] | 0),

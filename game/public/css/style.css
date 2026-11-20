@@ -1157,42 +1157,27 @@ body.rotated .ncard { padding: 10px 12px; gap: 7px; }
 .chatp.short .cline .who { font-size: 12.5px; }
 
 /* ================================================================ Gia Viên (🏡): public/js/gia-vien.js
-   In one's own Gia Viên: a row of shortcuts under the character card; while building, a bar of materials at the bottom
-   (groups, the place / break tool, each material with what is in stock), the art buttons out of the way. The panels:
-   unlock and enter, the farm's animals, the garden's eight beds, buying materials. */
+   In one's own Gia Viên: a row of shortcuts under the character card. The panels: unlock and enter, the house, the
+   farm's animals, the garden's eight beds. */
 #homebar { position: absolute; left: 10px; top: 112px; display: flex; gap: 6px; z-index: 3; }
 #homebar button { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 52px; padding: 5px 6px 4px; border-radius: 12px; cursor: pointer;
   background: linear-gradient(180deg, #2a2040ee, #160f26ee); border: 1px solid #f0c05055; color: var(--gold2); box-shadow: 0 4px 12px #0008; }
 #homebar button span { font-size: 18px; line-height: 1.1; }
 #homebar button small { font-size: 10.5px; font-weight: 700; white-space: nowrap; }
 #homebar button:hover { border-color: var(--gold); }
-body.building #homebar button:first-child { background: linear-gradient(180deg, #5a3a10, #2a1a08); border-color: var(--gold); box-shadow: 0 0 12px #f0c05066; }
 /* phones: a row of small round buttons under the menu, out of the counters' way */
 body.touch #homebar { top: 50px; left: auto; right: 8px; gap: 5px; }
 body.touch #homebar button { min-width: 0; width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 50%; }
 body.touch #homebar button small { display: none; }
 body.touch #homebar button span { font-size: 17px; }
-#buildbar { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: min(760px, calc(100% - 16px)); z-index: 4; display: flex; flex-direction: column; gap: 5px;
-  padding: 7px 9px; border-radius: 14px; background: linear-gradient(180deg, #1c1530f2, #100c1cf2); border: 1px solid #f0c05055; box-shadow: 0 10px 30px #000b; }
-#buildbar .bbtop { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
-#buildbar .bbtabs, #buildbar .bbtools { display: flex; gap: 4px; }
-#buildbar .bbtabs button, #buildbar .bbtools button { padding: 4px 10px; border-radius: 8px; border: 1px solid #ffffff1e; background: #ffffff08; color: #d8d0f0; font: 600 12.5px system-ui, sans-serif; cursor: pointer; }
-#buildbar .bbtabs button.on, #buildbar .bbtools button.on { background: linear-gradient(180deg, #3a2a12, #2a1d0c); color: var(--gold2); border-color: #f0c05077; }
-#buildbar .bbtools .done { background: #2f9a6a33; border-color: #5cf0a066; color: #b8ffd8; }
-#buildbar .bbitems { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
-#buildbar .bbit { flex: none; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 2px 3px; border-radius: 10px; cursor: pointer;
-  border: 1px solid #ffffff14; background: #0b0814; color: #e8e0ff; position: relative; }
-#buildbar .bbit.on { border-color: var(--gold); background: radial-gradient(circle at 50% 30%, #f0c05022, #0b0814 70%); box-shadow: 0 0 10px #f0c05044; }
-#buildbar .bbit.empty .gvic { opacity: 0.45; }
-#buildbar .bbit .nm { font-size: 10px; line-height: 1.15; text-align: center; max-width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#buildbar .bbit .qty { font: 700 10px system-ui, sans-serif; color: var(--gold2); }
-#buildbar .bbit.empty .qty { color: #9af0c0; }
-#buildbar .bbhint { font-size: 11px; color: var(--dim); text-align: center; }
 .gvic { image-rendering: pixelated; display: block; }
-body.building .skills .art, body.building .skills .item, body.building .chat { display: none; }
-body.touch #buildbar .bbhint { display: none; }
-body.touch #buildbar { bottom: 4px; padding: 5px 7px; }
-body.touch #buildbar .bbit { width: 56px; }
+.gvhousepic { image-rendering: pixelated; display: block; border-radius: 10px; border: 1px solid #f0c05044; align-self: center; height: auto; }
+.gvhouse { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; border: 1px solid #ffffff14; background: #0b0814; }
+.gvhouse.on { border-color: #f0c05088; box-shadow: 0 0 14px #f0c05022; }
+.gvhouse .gvmain { display: flex; flex-direction: column; gap: 3px; }
+.gvhouse b { color: var(--gold2); font-size: 15px; }
+.gvhouse small { color: var(--dim); line-height: 1.4; }
+.gvhouse .tag { align-self: flex-start; padding: 2px 9px; border-radius: 999px; font: 700 11.5px system-ui, sans-serif; background: #2f9a6a33; border: 1px solid #5cf0a066; color: #b8ffd8; }
 /* the panels */
 #panel .pbox:has(.gvp) { width: min(640px, 100%); }
 .gvp { display: flex; flex-direction: column; gap: 10px; font-size: 14px; min-width: 0; }

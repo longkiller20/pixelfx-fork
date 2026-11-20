@@ -443,39 +443,31 @@ thấy và không vào được. Khi ra (cổng bên phải, hoặc nút 🚪 R�
 lúc đang ở trong Gia Viên thì lần sau vào game ở chỗ cũ bên ngoài.
 
 Từ trái sang phải, bản đồ có ba khu: **Nhà Ở**, **Nông Trại** và **Vườn Dược**, mỗi khu có biển gỗ ghi tên. Khi đang ở
-trong Gia Viên của mình, dưới bảng nhân vật có thêm bốn nút: 🔨 Xây, 🐔 Nông Trại, 🌿 Vườn và 🚪 Rời. Trên điện thoại,
+trong Gia Viên của mình, dưới bảng nhân vật có thêm bốn nút: 🏠 Nhà Ở, 🐔 Nông Trại, 🌿 Vườn và 🚪 Rời. Trên điện thoại,
 bốn nút này là nút tròn nằm dưới menu.
 
-### Nhà Ở: xây từng ô như game đi ngang
+### Nhà Ở: nhà làm sẵn
 
-- **Mua vật liệu bằng linh thạch** rồi đặt từng ô 32 px, như Terraria. Mỗi lần mua được 1 đến `home.buy_max` cái. Đặt
-  xuống thì trừ 1 trong kho; phá đi thì cái đó về lại kho.
-- **Bảy nhóm vật liệu, ba phong cách** hợp với đa vũ trụ tu tiên: cổ trang, hiện đại và khoa huyễn (tương lai):
+Không còn tự xây từng ô. Nhà được thiết kế sẵn, mua là ở ngay (danh mục `HOUSES` trong `shared/gia-vien.js`). Mỗi Gia
+Viên lưu nhà đang có ở cột `homes.house`.
 
-| Nhóm | Gồm | Tác dụng |
-| --- | --- | --- |
-| Khối | Ván Gỗ, Thùng Gỗ, Gỗ Tròn, Khối Tre, Đá Xám, Đá Cát, Đá Xanh, Đất Nung; Sàn Gỗ, Vân Đài | Khối đặc chắn đường và đứng lên được. Sàn đứng được, nhảy xuyên từ dưới lên, ↓ + nhảy để rơi xuống. |
-| Mái | Ngói Xám, Lam, Đỏ, Ngọc (khối đặc); Hiên Ngói 4 màu (sàn có mép vảy cá) | Lợp mái nhà |
-| Vách | Vách Giấy, Vách Gỗ, Vách Đá Xanh, Vách Đất Nung | Tường phía sau, tối hơn một chút, không chắn đường |
-| Nội thất | Cửa Gỗ, Cửa Sổ Song, Bàn Trà, Ghế Tựa, Giường, Kệ Sách, Bình Hoa, Tranh Thủy Mặc, Đèn Lồng, Lò Luyện Đan, Rương, Thùng Rượu | Trang trí; đèn lồng đung đưa, lò đan cháy và bốc khói |
-| Đền Đài | Gạch Đền, Đá Cẩm Thạch (khối và vách); Cột Đền, Cột Cẩm Thạch (cao 3 ô), Tượng Thần (cao 2 ô), Bàn Đá; Phướn Đền (2×4) và Phù Điêu (4×4) treo trên vách | Đền miếu, điện thờ |
-| Hiện Đại | Gạch Xám, Đá Ong, Đá Ong Xây, Gạch Hoa 4 màu, Bê Tông, Kính Cường Lực; Vách Gạch Xám, Vách Bê Tông; Sofa, Giường Nệm, Bàn Bi-a (rộng 2 ô), Bồn Tắm, Tủ Bếp, Bếp Ga, Quầy Gỗ, Bàn Làm Việc, Đàn Piano, Dàn Âm Thanh, Loa | Nhà phố hiện đại |
-| Khoa Huyễn | Thép Vát, Thép Đinh Tán, Khung Thép, Khối Tản Nhiệt, Khối Đèn Lam, Khối Cảnh Báo, Thép Gỉ; Sàn Thép; Vách Thép, Vách Mạch, Vách Lưới; Máy Chủ (2×2), Tủ Điều Khiển, Cửa Thép Trượt (cao 2 ô), Hộp Kim Loại, Trạm Truyền Tin | Căn cứ, phi thuyền tương lai |
+- **Nhà mặc định: Thanh Vân Cổ Trạch**, tặng kèm khi mở khoá Gia Viên.
+  - Nhà gỗ hai tầng, mái ngói đỏ bốn tầng cong vút, mỗi tầng mái có hiên vảy cá; một hàng hiên giữa hai tầng, đèn lồng
+    treo dưới hiên.
+  - Tường ngoài bằng đá xanh. Cửa ở bên phải (phía người chơi đi tới), đi thẳng vào được.
+  - **Tầng dưới:** lò luyện đan (có lửa và khói), rương, bàn trà và hai ghế, kệ sách, bình hoa, hai thùng rượu, tranh
+    thủy mặc, cửa sổ song, hai đèn lồng.
+  - **Tầng trên:** giường, bình hoa, kệ sách, bàn và ghế, rương, cửa sổ, tranh, đèn lồng. Nhảy lên bậc gỗ cạnh cửa rồi
+    nhảy tiếp lên sàn gỗ tầng trên; sàn này nhảy xuyên từ dưới lên được, ↓ + nhảy để xuống.
+- **Va chạm thật:** tường và sàn của nhà chặn và đỡ người chơi, máy chủ và trình duyệt tính giống nhau.
+- **Bảng 🏠 Nhà Ở:** ảnh căn nhà, tên, mô tả, và nhãn "Đang ở". Các kiểu nhà mới để mua sẽ hiện thêm ở bảng này.
+- **Thiết kế một căn nhà:** liệt kê các mảnh `[lớp, cột, hàng, loại]` trên khu Nhà Ở (cột 3-36, hàng 2-15):
+  - `f`: khối đặc hoặc sàn.
+  - `b`: vách phía sau.
+  - `d`: đồ đạc, tính theo ô dưới cùng bên trái.
 
-- **Luật đặt** (máy chủ kiểm tra; trình duyệt dùng cùng luật để hiện ô xanh/đỏ trước khi bấm):
-  - Chỉ đặt được trong khu Nhà Ở, và cách nhân vật không quá `home.reach` ô.
-  - Khối phải tựa vào mặt đất, khối khác hoặc vách. Vách phải nối với mặt đất, khối hoặc vách khác.
-  - Không đặt khối đặc lên chỗ có người đang đứng.
-  - Đồ đạc cần chỗ dựa: đồ thường cần sàn bên dưới, cửa sổ và tranh cần vách phía sau, đèn lồng cần khối phía trên.
-    Đồ to chiếm nhiều ô: cửa và kệ sách cao 2 ô, giường rộng 2 ô, lò đan cao 2 ô, cột cao 3 ô, phù điêu 4×4.
-  - Không phá được khối đang đỡ đồ đạc: phải dỡ đồ trước.
-  - Mỗi Gia Viên có tối đa `home.max_blocks` món đã đặt.
-- **Cách xây:** bấm 🔨 Xây để mở thanh vật liệu ở dưới màn hình. Thanh có các tab nhóm, nút ✋ Đặt và ⛏ Phá, mỗi món kèm
-  số còn trong kho; bấm vào món đã hết để mua thêm. Ô dưới chuột hiện hình mờ của món định đặt, viền xanh nếu đặt được, đỏ
-  nếu không.
-  - **Máy tính:** chuột trái đặt (giữ và kéo để đặt liền nhiều ô), chuột phải phá.
-  - **Điện thoại:** chạm vào ô để đặt hoặc phá. Khi đang xây, các nút chiêu và khung chat tạm ẩn cho đỡ chật.
-- **Khối đặt xuống chắn đường thật:** máy chủ và trình duyệt cùng tính va chạm với các khối đã đặt.
+  Mảnh lấy từ danh mục `BLOCKS`: các khối cổ trang, Đền Đài, Hiện Đại, Khoa Huyễn đã cắt sẵn trong `khoi.png`, cùng
+  nội thất vẽ bằng pixelfx.
 
 ### Nông Trại: nuôi gà, vịt, lợn, bò
 
@@ -519,8 +511,9 @@ bốn nút này là nút tròn nằm dưới menu.
   - **Bốn cây dược thảo**, mỗi cây 4 giai đoạn (`stage` 0-3).
   - **Đồ nông trại:** luống đất khô/ướt, hàng rào, máng ăn, chuồng gà, đống rơm, biển gỗ.
   - **Nội thất:** cửa, cửa sổ, bàn, ghế, giường, kệ, bình hoa, tranh, vách giấy, vách gỗ, khối tre, sàn gỗ; đèn lồng và lò
-    luyện đan có chuyển động; Kính Cường Lực và Cửa Thép Trượt (không tìm được asset hợp).
-- **Lấy từ asset có sẵn, tất cả CC0 (miễn phí, dùng thương mại được):**
+    luyện đan có chuyển động; Kính Cường Lực và Cửa Thép Trượt (dành cho các kiểu nhà sau).
+- **Lấy từ asset có sẵn, tất cả CC0 (miễn phí, dùng thương mại được).** Nhà mặc định dùng nhóm cổ trang; các nhóm
+  khác để dành cho những kiểu nhà sau:
   - Cổ trang: Frogatto (gỗ, đá, rương, thùng rượu), Xianxia Pixel Pack (đá xanh, đất nung, vân đài, vách), Oriental Roof
     Tiles (ngói, hiên).
   - Đền Đài: Sunset Temple Tiles (gạch đền, cột, phướn, phù điêu), Classical Temple Tiles (cẩm thạch, cột, tượng, bàn đá).
@@ -534,18 +527,12 @@ bốn nút này là nút tròn nằm dưới menu.
 
 - **Mỗi thao tác chạy trong một transaction** và khoá dòng Gia Viên của người đó trước (`SELECT ... FOR UPDATE`). Cộng
   thêm khoá theo tài khoản, các thao tác của cùng một người luôn chạy lần lượt.
-- **Tiền và kho chỉ đổi bằng câu lệnh có điều kiện:** `stones - n WHERE stones >= n`, `qty - 1 WHERE qty > 0`.
+- **Tiền chỉ đổi bằng câu lệnh có điều kiện:** `stones - n WHERE stones >= n`.
 - **Không làm hai lần:**
   - Mở khoá chỉ một lần (khoá chính theo người).
-  - Mỗi ô của mỗi lớp chỉ có một món (khoá chính theo ô).
   - Mỗi luống chỉ một cây.
-  - Mua vật liệu và mua vật nuôi có mã giao dịch, gửi lại nhiều lần cũng chỉ tính một lần.
-- **Xây dựng đi qua WebSocket:**
-  - Chỉ chủ Gia Viên, và chỉ khi đang ở trong đó.
-  - Kiểm tra tầm với và luật đặt.
-  - Các thao tác của một Gia Viên xếp hàng chạy lần lượt.
-  - Trừ kho trong database xong thì thế giới game mới đổi.
-  - Mỗi người tối đa khoảng 12 thao tác xây mỗi giây.
+  - Mua vật nuôi có mã giao dịch, gửi lại nhiều lần cũng chỉ tính một lần.
+- **Nhà do máy chủ quyết:** trình duyệt chỉ biết tên nhà để vẽ; không có lệnh nào để sửa nhà.
 - **Thời gian là của database** (`NOW()`): khi nào con vật có sản phẩm, khi nào cây chín, máy chủ tự xét; trình duyệt không
   báo thay được.
 - **Giới hạn tần suất:** mỗi người tối đa 20 thao tác Gia Viên mỗi 10 giây.
@@ -554,13 +541,8 @@ Bài test `test/race.mjs` có phần "Gia Viên":
 
 - **Mở khoá:** không đủ tiền thì không mở được và không mất gì; chưa mở thì không vào được; mở 5 lần cùng lúc chỉ ra 1 và trừ
   tiền 1 lần.
-- **Mua vật liệu:** cùng một lần mua gửi 5 lần chỉ trừ 1 lần; số lượng sai hoặc món lạ bị từ chối.
-- **Xây dựng:**
-  - Ở ngoài Gia Viên thì tin nhắn xây không có tác dụng.
-  - Cùng một ô gửi 2 lệnh cùng lúc: chỉ 1 khối, chỉ trừ 1.
-  - Bị từ chối khi: ngoài khu Nhà Ở, lơ lửng giữa trời, đè lên người, ngoài tầm với, hết hàng.
-  - Giường đặt lên hai khối; phá khối dưới giường bị chặn; dỡ giường rồi phá khối thì cả hai về kho.
-  - Lệnh giả mạo không đổi được gì.
+- **Nhà mặc định:** mở khoá là có, máy chủ báo đúng tên nhà; tường chặn người chơi (đi qua cửa vào trong, dừng ở tường
+  bên trái); sàn tầng trên, bậc và tường đúng chỗ; đường mua vật liệu và lệnh xây cũ không còn tác dụng.
 - **Nông Trại:** mua 15 con cùng lúc thì chuồng chỉ nhận đúng 12; cho ăn 2 lần cùng lúc chỉ tính 1 lần và chỉ trừ tiền 1 lần;
   chưa đến giờ thì không thu được; thu 2 lần cùng lúc chỉ được 1 lần, mỗi con 1 quả trứng.
 - **Vườn Dược:** gieo một luống 5 lần cùng lúc chỉ gieo 1; chưa chín thì không thu được; thu 2 lần cùng lúc chỉ được 1 lần.
@@ -568,8 +550,7 @@ Bài test `test/race.mjs` có phần "Gia Viên":
 
 ### Admin
 
-Tab Cài đặt có nhóm Gia Viên (`home.*`): giá mở khoá, số vật nuôi tối đa, số khối tối đa, tầm với khi xây, số lượng tối
-đa mỗi lần mua. Các sản phẩm của Gia Viên nằm trong tab Vật phẩm, sửa tên và mô tả như mọi món khác.
+Tab Cài đặt có nhóm Gia Viên (`home.*`): giá mở khoá, số vật nuôi tối đa. Các sản phẩm của Gia Viên nằm trong tab Vật phẩm, sửa tên và mô tả như mọi món khác.
 
 ## Trò chuyện, Đạo Hữu và Truyền Âm
 
@@ -786,11 +767,11 @@ game/
   server/tong-mon.js     Tông Môn: mọi luật (lập, gia nhập, chức vị, quyên góp, Bảo Khố, đại trận), an toàn khi tranh chấp
   shared/tong-mon.js     chức vị và quyền, huy hiệu, quy tắc đặt tên, cấp tông môn (dùng chung máy chủ và trình duyệt)
   public/js/tong-mon.js  bảng Tông Môn trong game
-  server/gia-vien.js     Gia Viên: mở khoá, kho vật liệu, xây, vật nuôi, luống thuốc, an toàn khi tranh chấp
-  shared/gia-vien.js     danh mục khối, vật nuôi, cây; bố cục khu đất; luật đặt khối (HomeGrid) dùng chung
+  server/gia-vien.js     Gia Viên: mở khoá (kèm nhà mặc định), vật nuôi, luống thuốc, an toàn khi tranh chấp
+  shared/gia-vien.js     các nhà làm sẵn và mảnh ghép, vật nuôi, cây; bố cục khu đất (dùng chung)
   shared/maps/giavien.js bản đồ Gia Viên (mỗi người một bản sao trên máy chủ)
-  public/js/gia-vien.js  vẽ Gia Viên (khối, vật nuôi, cây), chế độ xây, bảng Nông Trại, Vườn Dược
-  tools/gia-vien-khoi.py cắt các khối xây từ tileset (tools/gia-vien-nguon/) vào public/gia-vien/khoi.png
+  public/js/gia-vien.js  vẽ Gia Viên (nhà, vật nuôi, cây), bảng Nhà Ở, Nông Trại, Vườn Dược
+  tools/gia-vien-khoi.py cắt các mảnh nhà từ tileset (tools/gia-vien-nguon/) vào public/gia-vien/khoi.png
   server/dao-huu.js      Đạo Hữu (kết giao, lời mời, chặn) và Truyền Âm, an toàn khi tranh chấp
   public/js/dao-huu.js   bảng Đàm Đạo (các kênh chat) và bảng Đạo Hữu (danh sách, lời mời, Truyền Âm)
   server/store.js        mọi thay đổi dữ liệu nhân vật (cả mua và mặc đồ ở Y Các), an toàn khi tranh chấp

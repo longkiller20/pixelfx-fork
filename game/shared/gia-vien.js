@@ -1,6 +1,7 @@
 // Gia Viên: each player's own homestead, a private map of three parts, left to right:
-//   Nhà Ở      a plot to build a house on, a cell (32 px) at a time like a side-view sandbox: solid blocks, platforms,
-//              back walls and furniture, each bought with spirit stones and placed by hand; taken down, it goes back to stock
+//   Nhà Ở      a ready-made house (HOUSES below): bought whole, it stands on the house plot; people walk in, climb
+//              to the upper floor, and its walls and floors carry them like the ground. Unlocking the Gia Viên comes
+//              with the default house; others are to be bought.
 //   Nông Trại  a fenced pen for animals (hens, ducks, pigs, cows): fed, they give eggs, milk... after a while
 //   Vườn Dược  a row of soil beds for herbs: sown, they grow on their own and are picked when ripe
 // What the animals and herbs give is kept in the bag for later (alchemy, crafting); for now it is only collected.
@@ -12,7 +13,7 @@ export const HOME_MAP = "giavien";
 /** The layout, in cells. floor: the row the ground starts at (people stand on its top edge). */
 export const LAYOUT = {
   floor: 16,
-  // where building is allowed: columns x0..x1, rows y0..floor-1
+  // the house plot: columns x0..x1, rows y0..floor-1 (a house is designed to fit in it)
   house: { x0: 3, x1: 36, y0: 2 },
   // the pen the animals wander in (px are worked out from these)
   farm: { x0: 41, x1: 65 },
@@ -21,103 +22,177 @@ export const LAYOUT = {
 };
 
 /**
- * What can be built. layer: "f" solid or platform in front (it blocks or carries people), "b" a wall behind, "d" a
- * thing standing in the room (furniture: w x h cells, its bottom left on the cell placed; wall: hangs on a back wall,
- * hang: hangs from a block above; otherwise stands on a floor). art: a picture in public/gia-vien/khoi.png (named in shared/gia-vien-khoi.js), or a
- * pixelfx effect (fx, and its options). price: spirit stones each.
+ * The pieces houses are made of. layer: "f" solid or platform in front (it blocks or carries people), "b" a wall
+ * behind, "d" a thing standing in the room (furniture: w x h cells, its bottom left on its cell). art: a picture in
+ * public/gia-vien/khoi.png (named in shared/gia-vien-khoi.js), or a pixelfx effect (fx, and its options).
  */
 export const BLOCKS = {
   // ---- solid blocks
-  go: { name: "Ván Gỗ", layer: "f", solid: true, price: 6, atlas: "plank", group: "khoi" },
-  thung: { name: "Thùng Gỗ", layer: "f", solid: true, price: 8, atlas: "crate", group: "khoi" },
-  go_tron: { name: "Gỗ Tròn", layer: "f", solid: true, price: 8, atlas: "logend", group: "khoi" },
-  tre: { name: "Khối Tre", layer: "f", solid: true, price: 8, fx: "home/furniture", o: { piece: "bamboo" }, group: "khoi" },
-  da_xam: { name: "Đá Xám", layer: "f", solid: true, price: 8, atlas: "grey", group: "khoi" },
-  da_cat: { name: "Đá Cát", layer: "f", solid: true, price: 8, atlas: "sand", group: "khoi" },
-  da_xanh: { name: "Đá Xanh", layer: "f", solid: true, price: 12, atlas: "bluestone", group: "khoi" },
-  dat_nung: { name: "Đất Nung", layer: "f", solid: true, price: 10, atlas: "redclay", group: "khoi" },
-  ngoi_xam: { name: "Ngói Xám", layer: "f", solid: true, price: 14, atlas: "roof_grey", group: "mai" },
-  ngoi_lam: { name: "Ngói Lam", layer: "f", solid: true, price: 14, atlas: "roof_blue", group: "mai" },
-  ngoi_do: { name: "Ngói Đỏ", layer: "f", solid: true, price: 14, atlas: "roof_red", group: "mai" },
-  ngoi_ngoc: { name: "Ngói Ngọc", layer: "f", solid: true, price: 16, atlas: "roof_jade", group: "mai" },
+  go: { name: "Ván Gỗ", layer: "f", solid: true, atlas: "plank" },
+  thung: { name: "Thùng Gỗ", layer: "f", solid: true, atlas: "crate" },
+  go_tron: { name: "Gỗ Tròn", layer: "f", solid: true, atlas: "logend" },
+  tre: { name: "Khối Tre", layer: "f", solid: true, fx: "home/furniture", o: { piece: "bamboo" } },
+  da_xam: { name: "Đá Xám", layer: "f", solid: true, atlas: "grey" },
+  da_cat: { name: "Đá Cát", layer: "f", solid: true, atlas: "sand" },
+  da_xanh: { name: "Đá Xanh", layer: "f", solid: true, atlas: "bluestone" },
+  dat_nung: { name: "Đất Nung", layer: "f", solid: true, atlas: "redclay" },
+  ngoi_xam: { name: "Ngói Xám", layer: "f", solid: true, atlas: "roof_grey" },
+  ngoi_lam: { name: "Ngói Lam", layer: "f", solid: true, atlas: "roof_blue" },
+  ngoi_do: { name: "Ngói Đỏ", layer: "f", solid: true, atlas: "roof_red" },
+  ngoi_ngoc: { name: "Ngói Ngọc", layer: "f", solid: true, atlas: "roof_jade" },
   // ---- platforms: stand on them, jump up through them, down + jump to drop
-  hien_xam: { name: "Hiên Ngói Xám", layer: "f", plank: true, price: 10, atlas: "eave_grey", group: "mai" },
-  hien_lam: { name: "Hiên Ngói Lam", layer: "f", plank: true, price: 10, atlas: "eave_blue", group: "mai" },
-  hien_do: { name: "Hiên Ngói Đỏ", layer: "f", plank: true, price: 10, atlas: "eave_red", group: "mai" },
-  hien_ngoc: { name: "Hiên Ngói Ngọc", layer: "f", plank: true, price: 12, atlas: "eave_jade", group: "mai" },
-  san_go: { name: "Sàn Gỗ", layer: "f", plank: true, price: 5, fx: "home/furniture", o: { piece: "platform" }, group: "khoi" },
-  van_dai: { name: "Vân Đài", layer: "f", plank: true, price: 20, atlas: "cloud_plat", group: "khoi" },
+  hien_xam: { name: "Hiên Ngói Xám", layer: "f", plank: true, atlas: "eave_grey" },
+  hien_lam: { name: "Hiên Ngói Lam", layer: "f", plank: true, atlas: "eave_blue" },
+  hien_do: { name: "Hiên Ngói Đỏ", layer: "f", plank: true, atlas: "eave_red" },
+  hien_ngoc: { name: "Hiên Ngói Ngọc", layer: "f", plank: true, atlas: "eave_jade" },
+  san_go: { name: "Sàn Gỗ", layer: "f", plank: true, fx: "home/furniture", o: { piece: "platform" } },
+  van_dai: { name: "Vân Đài", layer: "f", plank: true, atlas: "cloud_plat" },
   // ---- walls behind
-  vach_giay: { name: "Vách Giấy", layer: "b", price: 4, fx: "home/furniture", o: { piece: "paperwall" }, group: "vach" },
-  vach_go: { name: "Vách Gỗ", layer: "b", price: 4, fx: "home/furniture", o: { piece: "woodwall" }, group: "vach" },
-  vach_da: { name: "Vách Đá Xanh", layer: "b", price: 5, atlas: "wall_blue", group: "vach" },
-  vach_dat: { name: "Vách Đất Nung", layer: "b", price: 5, atlas: "wall_red", group: "vach" },
+  vach_giay: { name: "Vách Giấy", layer: "b", fx: "home/furniture", o: { piece: "paperwall" } },
+  vach_go: { name: "Vách Gỗ", layer: "b", fx: "home/furniture", o: { piece: "woodwall" } },
+  vach_da: { name: "Vách Đá Xanh", layer: "b", atlas: "wall_blue" },
+  vach_dat: { name: "Vách Đất Nung", layer: "b", atlas: "wall_red" },
   // ---- furniture
-  cua: { name: "Cửa Gỗ", layer: "d", w: 1, h: 2, price: 120, fx: "home/furniture", o: { piece: "door" }, group: "noi_that" },
-  cua_so: { name: "Cửa Sổ Song", layer: "d", w: 1, h: 1, wall: true, price: 80, fx: "home/furniture", o: { piece: "window" }, group: "noi_that" },
-  ban: { name: "Bàn Trà", layer: "d", w: 1, h: 1, price: 150, fx: "home/furniture", o: { piece: "table" }, group: "noi_that" },
-  ghe: { name: "Ghế Tựa", layer: "d", w: 1, h: 1, price: 80, fx: "home/furniture", o: { piece: "chair" }, group: "noi_that" },
-  giuong: { name: "Giường", layer: "d", w: 2, h: 1, price: 300, fx: "home/furniture", o: { piece: "bed" }, group: "noi_that" },
-  ke_sach: { name: "Kệ Sách", layer: "d", w: 1, h: 2, price: 250, fx: "home/furniture", o: { piece: "shelf" }, group: "noi_that" },
-  binh_hoa: { name: "Bình Hoa", layer: "d", w: 1, h: 1, price: 100, fx: "home/furniture", o: { piece: "vase" }, group: "noi_that" },
-  tranh: { name: "Tranh Thủy Mặc", layer: "d", w: 1, h: 1, wall: true, price: 150, fx: "home/furniture", o: { piece: "scroll" }, group: "noi_that" },
-  den_long: { name: "Đèn Lồng", layer: "d", w: 1, h: 1, hang: true, price: 120, fx: "home/lantern", live: true, group: "noi_that" },
-  lo_dan: { name: "Lò Luyện Đan", layer: "d", w: 1, h: 2, price: 2000, fx: "home/furnace", live: true, group: "noi_that" },
-  ruong: { name: "Rương", layer: "d", w: 1, h: 1, price: 200, atlas: "chest", group: "noi_that" },
-  thung_ruou: { name: "Thùng Rượu", layer: "d", w: 1, h: 1, price: 120, atlas: "barrel", group: "noi_that" },
+  cua: { name: "Cửa Gỗ", layer: "d", w: 1, h: 2, fx: "home/furniture", o: { piece: "door" } },
+  cua_so: { name: "Cửa Sổ Song", layer: "d", w: 1, h: 1, wall: true, fx: "home/furniture", o: { piece: "window" } },
+  ban: { name: "Bàn Trà", layer: "d", w: 1, h: 1, fx: "home/furniture", o: { piece: "table" } },
+  ghe: { name: "Ghế Tựa", layer: "d", w: 1, h: 1, fx: "home/furniture", o: { piece: "chair" } },
+  giuong: { name: "Giường", layer: "d", w: 2, h: 1, fx: "home/furniture", o: { piece: "bed" } },
+  ke_sach: { name: "Kệ Sách", layer: "d", w: 1, h: 2, fx: "home/furniture", o: { piece: "shelf" } },
+  binh_hoa: { name: "Bình Hoa", layer: "d", w: 1, h: 1, fx: "home/furniture", o: { piece: "vase" } },
+  tranh: { name: "Tranh Thủy Mặc", layer: "d", w: 1, h: 1, wall: true, fx: "home/furniture", o: { piece: "scroll" } },
+  den_long: { name: "Đèn Lồng", layer: "d", w: 1, h: 1, hang: true, fx: "home/lantern", live: true },
+  lo_dan: { name: "Lò Luyện Đan", layer: "d", w: 1, h: 2, fx: "home/furnace", live: true },
+  ruong: { name: "Rương", layer: "d", w: 1, h: 1, atlas: "chest" },
+  thung_ruou: { name: "Thùng Rượu", layer: "d", w: 1, h: 1, atlas: "barrel" },
   // ---- Đền Đài: temple stone of the sunset temple and the marble of the classical one
-  gach_den: { name: "Gạch Đền", layer: "f", solid: true, price: 14, atlas: "temple_brick", group: "den" },
-  da_cam_thach: { name: "Đá Cẩm Thạch", layer: "f", solid: true, price: 16, atlas: "marble_wall", group: "den" },
-  vach_den: { name: "Vách Gạch Đền", layer: "b", price: 6, atlas: "temple_brick", group: "den" },
-  vach_cam_thach: { name: "Vách Cẩm Thạch", layer: "b", price: 7, atlas: "marble_wall", group: "den" },
-  cot_den: { name: "Cột Đền", layer: "d", w: 1, h: 3, price: 260, atlas: "temple_pillar", group: "den" },
-  cot_cam_thach: { name: "Cột Cẩm Thạch", layer: "d", w: 1, h: 3, price: 300, atlas: "marble_column", group: "den" },
-  tuong_than: { name: "Tượng Thần", layer: "d", w: 1, h: 2, price: 600, atlas: "marble_statue", group: "den" },
-  ban_da: { name: "Bàn Đá", layer: "d", w: 1, h: 1, price: 180, atlas: "marble_altar", group: "den" },
-  phuong: { name: "Phướn Đền", layer: "d", w: 2, h: 4, wall: true, price: 500, atlas: "temple_banner", group: "den" },
-  phu_dieu: { name: "Phù Điêu", layer: "d", w: 4, h: 4, wall: true, price: 1200, atlas: "temple_relief", group: "den" },
+  gach_den: { name: "Gạch Đền", layer: "f", solid: true, atlas: "temple_brick" },
+  da_cam_thach: { name: "Đá Cẩm Thạch", layer: "f", solid: true, atlas: "marble_wall" },
+  vach_den: { name: "Vách Gạch Đền", layer: "b", atlas: "temple_brick" },
+  vach_cam_thach: { name: "Vách Cẩm Thạch", layer: "b", atlas: "marble_wall" },
+  cot_den: { name: "Cột Đền", layer: "d", w: 1, h: 3, atlas: "temple_pillar" },
+  cot_cam_thach: { name: "Cột Cẩm Thạch", layer: "d", w: 1, h: 3, atlas: "marble_column" },
+  tuong_than: { name: "Tượng Thần", layer: "d", w: 1, h: 2, atlas: "marble_statue" },
+  ban_da: { name: "Bàn Đá", layer: "d", w: 1, h: 1, atlas: "marble_altar" },
+  phuong: { name: "Phướn Đền", layer: "d", w: 2, h: 4, wall: true, atlas: "temple_banner" },
+  phu_dieu: { name: "Phù Điêu", layer: "d", w: 4, h: 4, wall: true, atlas: "temple_relief" },
   // ---- Hiện Đại: the modern world
-  gach_xam: { name: "Gạch Xám", layer: "f", solid: true, price: 10, atlas: "brick_grey", group: "hien_dai" },
-  da_ong: { name: "Đá Ong", layer: "f", solid: true, price: 10, atlas: "tile_0", group: "hien_dai" },
-  da_ong_xay: { name: "Đá Ong Xây", layer: "f", solid: true, price: 10, atlas: "tile_1", group: "hien_dai" },
-  gach_hoa_xam: { name: "Gạch Hoa Xám", layer: "f", solid: true, price: 12, atlas: "tile_2", group: "hien_dai" },
-  gach_hoa_ngoc: { name: "Gạch Hoa Ngọc", layer: "f", solid: true, price: 12, atlas: "tile_3", group: "hien_dai" },
-  gach_hoa_vang: { name: "Gạch Hoa Vàng", layer: "f", solid: true, price: 12, atlas: "tile_4", group: "hien_dai" },
-  gach_hoa_nau: { name: "Gạch Hoa Nâu", layer: "f", solid: true, price: 12, atlas: "tile_5", group: "hien_dai" },
-  be_tong: { name: "Bê Tông", layer: "f", solid: true, price: 12, atlas: "concrete", group: "hien_dai" },
-  kinh: { name: "Kính Cường Lực", layer: "f", solid: true, price: 18, fx: "home/furniture", o: { piece: "glass" }, group: "hien_dai" },
-  vach_gach: { name: "Vách Gạch Xám", layer: "b", price: 5, atlas: "brick_grey", group: "hien_dai" },
-  vach_be_tong: { name: "Vách Bê Tông", layer: "b", price: 5, atlas: "concrete", group: "hien_dai" },
-  sofa: { name: "Sofa", layer: "d", w: 2, h: 1, price: 400, atlas: "sofa", group: "hien_dai" },
-  giuong_nem: { name: "Giường Nệm", layer: "d", w: 2, h: 1, price: 450, atlas: "bed_modern", group: "hien_dai" },
-  ban_bia: { name: "Bàn Bi-a", layer: "d", w: 2, h: 1, price: 700, atlas: "pool_table", group: "hien_dai" },
-  bon_tam: { name: "Bồn Tắm", layer: "d", w: 1, h: 1, price: 300, atlas: "bathtub", group: "hien_dai" },
-  tu_bep: { name: "Tủ Bếp", layer: "d", w: 1, h: 1, price: 250, atlas: "kitchen", group: "hien_dai" },
-  bep_ga: { name: "Bếp Ga", layer: "d", w: 1, h: 1, price: 300, atlas: "stove", group: "hien_dai" },
-  quay_go: { name: "Quầy Gỗ", layer: "d", w: 1, h: 1, price: 200, atlas: "counter", group: "hien_dai" },
-  ban_lam_viec: { name: "Bàn Làm Việc", layer: "d", w: 1, h: 1, price: 220, atlas: "desk", group: "hien_dai" },
-  dan_piano: { name: "Đàn Piano", layer: "d", w: 1, h: 1, price: 800, atlas: "piano", group: "hien_dai" },
-  dan_am_thanh: { name: "Dàn Âm Thanh", layer: "d", w: 1, h: 1, price: 500, atlas: "hifi", group: "hien_dai" },
-  loa: { name: "Loa", layer: "d", w: 1, h: 1, price: 150, atlas: "speaker", group: "hien_dai" },
+  gach_xam: { name: "Gạch Xám", layer: "f", solid: true, atlas: "brick_grey" },
+  da_ong: { name: "Đá Ong", layer: "f", solid: true, atlas: "tile_0" },
+  da_ong_xay: { name: "Đá Ong Xây", layer: "f", solid: true, atlas: "tile_1" },
+  gach_hoa_xam: { name: "Gạch Hoa Xám", layer: "f", solid: true, atlas: "tile_2" },
+  gach_hoa_ngoc: { name: "Gạch Hoa Ngọc", layer: "f", solid: true, atlas: "tile_3" },
+  gach_hoa_vang: { name: "Gạch Hoa Vàng", layer: "f", solid: true, atlas: "tile_4" },
+  gach_hoa_nau: { name: "Gạch Hoa Nâu", layer: "f", solid: true, atlas: "tile_5" },
+  be_tong: { name: "Bê Tông", layer: "f", solid: true, atlas: "concrete" },
+  kinh: { name: "Kính Cường Lực", layer: "f", solid: true, fx: "home/furniture", o: { piece: "glass" } },
+  vach_gach: { name: "Vách Gạch Xám", layer: "b", atlas: "brick_grey" },
+  vach_be_tong: { name: "Vách Bê Tông", layer: "b", atlas: "concrete" },
+  sofa: { name: "Sofa", layer: "d", w: 2, h: 1, atlas: "sofa" },
+  giuong_nem: { name: "Giường Nệm", layer: "d", w: 2, h: 1, atlas: "bed_modern" },
+  ban_bia: { name: "Bàn Bi-a", layer: "d", w: 2, h: 1, atlas: "pool_table" },
+  bon_tam: { name: "Bồn Tắm", layer: "d", w: 1, h: 1, atlas: "bathtub" },
+  tu_bep: { name: "Tủ Bếp", layer: "d", w: 1, h: 1, atlas: "kitchen" },
+  bep_ga: { name: "Bếp Ga", layer: "d", w: 1, h: 1, atlas: "stove" },
+  quay_go: { name: "Quầy Gỗ", layer: "d", w: 1, h: 1, atlas: "counter" },
+  ban_lam_viec: { name: "Bàn Làm Việc", layer: "d", w: 1, h: 1, atlas: "desk" },
+  dan_piano: { name: "Đàn Piano", layer: "d", w: 1, h: 1, atlas: "piano" },
+  dan_am_thanh: { name: "Dàn Âm Thanh", layer: "d", w: 1, h: 1, atlas: "hifi" },
+  loa: { name: "Loa", layer: "d", w: 1, h: 1, atlas: "speaker" },
   // ---- Khoa Huyễn: steel, light and machines of the far future
-  thep_vat: { name: "Thép Vát", layer: "f", solid: true, price: 16, atlas: "steel_bevel", group: "khoa_huyen" },
-  thep_dinh: { name: "Thép Đinh Tán", layer: "f", solid: true, price: 16, atlas: "steel_rivet", group: "khoa_huyen" },
-  khung_thep: { name: "Khung Thép", layer: "f", solid: true, price: 16, atlas: "steel_frame", group: "khoa_huyen" },
-  tan_nhiet: { name: "Khối Tản Nhiệt", layer: "f", solid: true, price: 18, atlas: "steel_vent", group: "khoa_huyen" },
-  den_lam: { name: "Khối Đèn Lam", layer: "f", solid: true, price: 24, atlas: "light_block", group: "khoa_huyen" },
-  canh_bao: { name: "Khối Cảnh Báo", layer: "f", solid: true, price: 14, atlas: "hazard", group: "khoa_huyen" },
-  gi_set: { name: "Thép Gỉ", layer: "f", solid: true, price: 12, atlas: "rust_block", group: "khoa_huyen" },
-  san_thep: { name: "Sàn Thép", layer: "f", plank: true, price: 12, atlas: "steel_floor", group: "khoa_huyen" },
-  vach_thep: { name: "Vách Thép", layer: "b", price: 7, atlas: "steel_plate", group: "khoa_huyen" },
-  vach_mach: { name: "Vách Mạch", layer: "b", price: 7, atlas: "steel_cross", group: "khoa_huyen" },
-  vach_luoi: { name: "Vách Lưới", layer: "b", price: 7, atlas: "steel_grille", group: "khoa_huyen" },
-  may_chu: { name: "Máy Chủ", layer: "d", w: 2, h: 2, price: 1500, atlas: "server", group: "khoa_huyen" },
-  tu_dieu_khien: { name: "Tủ Điều Khiển", layer: "d", w: 1, h: 2, price: 900, atlas: "console", group: "khoa_huyen" },
-  cua_thep: { name: "Cửa Thép Trượt", layer: "d", w: 1, h: 2, price: 600, fx: "home/furniture", o: { piece: "metaldoor" }, group: "khoa_huyen" },
-  hop_kim_loai: { name: "Hộp Kim Loại", layer: "d", w: 1, h: 1, price: 150, atlas: "metal_box", group: "khoa_huyen" },
-  tram_truyen_tin: { name: "Trạm Truyền Tin", layer: "d", w: 1, h: 1, price: 700, atlas: "terminal", group: "khoa_huyen" },
+  thep_vat: { name: "Thép Vát", layer: "f", solid: true, atlas: "steel_bevel" },
+  thep_dinh: { name: "Thép Đinh Tán", layer: "f", solid: true, atlas: "steel_rivet" },
+  khung_thep: { name: "Khung Thép", layer: "f", solid: true, atlas: "steel_frame" },
+  tan_nhiet: { name: "Khối Tản Nhiệt", layer: "f", solid: true, atlas: "steel_vent" },
+  den_lam: { name: "Khối Đèn Lam", layer: "f", solid: true, atlas: "light_block" },
+  canh_bao: { name: "Khối Cảnh Báo", layer: "f", solid: true, atlas: "hazard" },
+  gi_set: { name: "Thép Gỉ", layer: "f", solid: true, atlas: "rust_block" },
+  san_thep: { name: "Sàn Thép", layer: "f", plank: true, atlas: "steel_floor" },
+  vach_thep: { name: "Vách Thép", layer: "b", atlas: "steel_plate" },
+  vach_mach: { name: "Vách Mạch", layer: "b", atlas: "steel_cross" },
+  vach_luoi: { name: "Vách Lưới", layer: "b", atlas: "steel_grille" },
+  may_chu: { name: "Máy Chủ", layer: "d", w: 2, h: 2, atlas: "server" },
+  tu_dieu_khien: { name: "Tủ Điều Khiển", layer: "d", w: 1, h: 2, atlas: "console" },
+  cua_thep: { name: "Cửa Thép Trượt", layer: "d", w: 1, h: 2, fx: "home/furniture", o: { piece: "metaldoor" } },
+  hop_kim_loai: { name: "Hộp Kim Loại", layer: "d", w: 1, h: 1, atlas: "metal_box" },
+  tram_truyen_tin: { name: "Trạm Truyền Tin", layer: "d", w: 1, h: 1, atlas: "terminal" },
 };
-export const BLOCK_GROUPS = { khoi: "Khối", mai: "Mái", vach: "Vách", noi_that: "Nội thất", den: "Đền Đài", hien_dai: "Hiện Đại", khoa_huyen: "Khoa Huyễn" };
+
+/**
+ * Ready-made houses: bought whole, each a list of pieces [layer, cx, cy, kind] on the house plot (LAYOUT.house),
+ * furniture by its bottom-left cell. price in spirit stones (0: comes with unlocking the Gia Viên).
+ */
+export const HOUSES = {
+  co_trach: { name: "Thanh Vân Cổ Trạch", price: 0, desc: "Ngôi nhà gỗ hai tầng mái ngói đỏ cong vút, đi kèm khi mở khoá Gia Viên. Tầng dưới có lò luyện đan, bàn trà, kệ sách; tầng trên là phòng ngủ.", cells: coTrach() },
+};
+export const DEFAULT_HOUSE = "co_trach";
+/** The pieces of a house (none for an unknown one). */
+export const houseCells = (id) => HOUSES[id]?.cells ?? [];
+
+/**
+ * Thanh Vân Cổ Trạch, the default house: two floors and a curved red roof, its door on the right (the side people come
+ * from). Columns 7..28, the ground floor rows 11..15 under a wooden floor (row 10) one can jump up through, by a step
+ * (row 13) inside the door; the upper floor rows 6..9; the roof rises in tiers from row 5 to row 2, a scalloped eave at
+ * the end of each tier and one between the floors.
+ */
+function coTrach() {
+  const out = [], put = (l, x, y, k) => out.push([l, x, y, k]);
+  const X0 = 7, X1 = 28;
+  // back walls: paper panels between wooden posts below, wood with paper windows above
+  for (let x = X0 + 1; x < X1; x++) {
+    const post = (x - X0) % 5 === 0;
+    for (let y = 11; y <= 15; y++) put("b", x, y, post ? "vach_go" : "vach_giay");
+    for (let y = 6; y <= 9; y++) put("b", x, y, post || y === 6 ? "vach_go" : "vach_giay");
+    put("b", x, 10, "vach_go"); // behind the floor between them
+  }
+  // behind the doorway, and over it
+  for (let y = 13; y <= 15; y++) put("b", X1, y, "vach_go");
+  // the outer walls of blue stone, the right one open at the bottom for the door
+  for (let y = 6; y <= 15; y++) put("f", X0, y, "da_xanh");
+  for (let y = 6; y <= 12; y++) put("f", X1, y, "da_xanh");
+  // the upper floor (a platform), a step up to it inside the door, eaves between the floors
+  for (let x = X0 + 1; x < X1; x++) put("f", x, 10, "san_go");
+  for (let x = 24; x <= 26; x++) put("f", x, 13, "san_go");
+  for (const x of [X0 - 2, X0 - 1, X1 + 1, X1 + 2]) put("f", x, 10, "hien_do");
+  // the roof: four tiers of red tiles, each ending in a scalloped eave
+  [[5, X0 - 2, X1 + 2], [4, X0, X1], [3, X0 + 2, X1 - 2], [2, X0 + 5, X1 - 5]].forEach(([y, a, b]) => {
+    for (let x = a; x <= b; x++) put("f", x, y, "ngoi_do");
+    put("f", a - 1, y, "hien_do");
+    put("f", b + 1, y, "hien_do");
+  });
+  put("f", X0 - 4, 5, "hien_do");
+  put("f", X1 + 4, 5, "hien_do");
+  // downstairs: the alchemy furnace, a chest, tea table and chairs, a bookshelf, a vase, wine by the step
+  put("d", 9, 15, "lo_dan");
+  put("d", 11, 15, "ruong");
+  put("d", 14, 15, "ghe");
+  put("d", 15, 15, "ban");
+  put("d", 16, 15, "ghe");
+  put("d", 19, 15, "ke_sach");
+  put("d", 21, 15, "binh_hoa");
+  put("d", 25, 15, "thung_ruou");
+  put("d", 26, 15, "thung_ruou");
+  put("d", 17, 12, "tranh");
+  put("d", 22, 12, "cua_so");
+  put("d", 13, 11, "den_long");
+  put("d", 20, 11, "den_long");
+  put("d", X1, 15, "cua");
+  // upstairs: the bed, a vase, shelf, a table and chair, a chest; windows and a scroll on the walls
+  put("d", 9, 9, "giuong");
+  put("d", 11, 9, "binh_hoa");
+  put("d", 14, 9, "ke_sach");
+  put("d", 18, 9, "ban");
+  put("d", 19, 9, "ghe");
+  put("d", 25, 9, "ruong");
+  put("d", 11, 7, "cua_so");
+  put("d", 16, 7, "tranh");
+  put("d", 22, 7, "cua_so");
+  put("d", 21, 6, "den_long");
+  // lanterns under the outer eaves
+  put("d", X0 - 2, 11, "den_long");
+  put("d", X1 + 2, 11, "den_long");
+  return out;
+}
 
 /**
  * The animals. price to buy one, feed: spirit stones a meal; fed, it gives `product` (an item) after `cycle` seconds,
@@ -157,8 +232,6 @@ export function cropStage(plantedAt, readyAt, now = Date.now()) {
   const u = (now - a) / Math.max(1, b - a);
   return u < 0.3 ? 0 : u < 0.65 ? 1 : 2;
 }
-/** Whether cell (cx, cy) is where building is allowed. */
-export const inHouse = (cx, cy) => cx >= LAYOUT.house.x0 && cx <= LAYOUT.house.x1 && cy >= LAYOUT.house.y0 && cy < LAYOUT.floor;
 /** The cells a thing of `kind` placed at (cx, cy) covers (its bottom left there, growing up and right). */
 export function cellsOf(kind, cx, cy) {
   const b = BLOCKS[kind], w = b?.w ?? 1, h = b?.h ?? 1, out = [];
@@ -167,8 +240,7 @@ export function cellsOf(kind, cx, cy) {
 }
 
 /**
- * What is built in one home, cell by cell, and the rules of where things go (the same rules on the server, which
- * decides, and in the browser, which shows a green or red outline before you click).
+ * One home's house, cell by cell (the server moves people on it, the browser draws it).
  *   f  a solid block or platform in front, per cell
  *   b  a back wall, per cell
  *   d  furniture: stored at its anchor (bottom left) and covering w x h cells
@@ -227,69 +299,5 @@ export class HomeGrid {
     m.solid = (cx, cy) => base.solid(cx, cy) || this.solidAt(cx, cy);
     m.plank = (cx, cy) => base.plank(cx, cy) || this.plankAt(cx, cy);
     return m;
-  }
-  // what holds a cell up: the ground, a block, a wall
-  firm(cx, cy) {
-    return this.base.solid(cx, cy) || this.f.has(HomeGrid.key(cx, cy));
-  }
-  floorUnder(cx, cy) {
-    return this.base.solid(cx, cy + 1) || this.base.plank(cx, cy + 1) || this.f.has(HomeGrid.key(cx, cy + 1));
-  }
-  /** Whether furniture of `kind` at (cx, cy) has what it needs: a floor under it, a wall behind it, a beam over it. */
-  held(kind, cx, cy) {
-    const b = BLOCKS[kind], cells = cellsOf(kind, cx, cy);
-    if (b.wall) return cells.every(([x, y]) => this.b.has(HomeGrid.key(x, y)));
-    if (b.hang) return cells.filter(([, y]) => y === cy - (b.h ?? 1) + 1).every(([x, y]) => this.firm(x, y - 1));
-    return cells.filter(([, y]) => y === cy).every(([x, y]) => this.floorUnder(x, y));
-  }
-  /**
-   * Why `kind` can't go at (cx, cy), or null if it can. bodies: [x, y] of people (feet), so a solid block is never put
-   * on top of someone; fits(x, y, map) is the physics' check.
-   */
-  canPut(kind, cx, cy, bodies = [], fits = null) {
-    const b = BLOCKS[kind];
-    if (!b) return "Không có vật liệu này.";
-    const cells = b.layer === "d" ? cellsOf(kind, cx, cy) : [[cx, cy]];
-    if (!cells.every(([x, y]) => inHouse(x, y))) return "Chỉ xây được trong khu Nhà Ở.";
-    if (b.layer === "f") {
-      if (this.f.has(HomeGrid.key(cx, cy))) return "Ô này đã có khối.";
-      if (b.solid && this.dAt.has(HomeGrid.key(cx, cy))) return "Ô này đang có đồ đạc.";
-      // a block hangs on something: a block or the ground beside it, or a wall behind it
-      const near = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => this.firm(cx + dx, cy + dy) || this.plankAt(cx + dx, cy + dy));
-      if (!near && !this.b.has(HomeGrid.key(cx, cy))) return "Khối phải tựa vào mặt đất, khối khác hoặc vách.";
-      if (b.solid && fits) {
-        this.f.set(HomeGrid.key(cx, cy), kind);
-        const m = this.wrap(), ok = bodies.every(([x, y]) => fits(x, y, m));
-        this.f.delete(HomeGrid.key(cx, cy));
-        if (!ok) return "Có người đang đứng ở đó.";
-      }
-      return null;
-    }
-    if (b.layer === "b") {
-      if (this.b.has(HomeGrid.key(cx, cy))) return "Ô này đã có vách.";
-      const near = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => this.firm(cx + dx, cy + dy) || this.b.has(HomeGrid.key(cx + dx, cy + dy)));
-      if (!near && !this.f.has(HomeGrid.key(cx, cy))) return "Vách phải nối với mặt đất, khối hoặc vách khác.";
-      return null;
-    }
-    for (const [x, y] of cells) {
-      if (this.dAt.has(HomeGrid.key(x, y))) return "Chỗ này đã có đồ đạc.";
-      if (this.solidAt(x, y) || this.base.solid(x, y)) return "Chỗ này bị khối chắn.";
-    }
-    if (!this.held(kind, cx, cy)) return b.wall ? "Cần có vách phía sau để treo." : b.hang ? "Cần có khối phía trên để treo." : "Cần có sàn bên dưới.";
-    return null;
-  }
-  /** Why what is at (layer, cx, cy) can't be taken down, or null. Furniture resting on it must go first. */
-  canTake(layer, cx, cy) {
-    if (layer === "d") return this.d.has(HomeGrid.key(cx, cy)) ? null : "Ô này không có đồ đạc.";
-    if (!this[layer].has(HomeGrid.key(cx, cy))) return "Ô này không có gì.";
-    const kind = this[layer].get(HomeGrid.key(cx, cy));
-    this[layer].delete(HomeGrid.key(cx, cy));
-    let bad = null;
-    for (const [K, k] of this.d) {
-      const [x, y] = K.split(",").map(Number);
-      if (Math.abs(x - cx) <= 3 && Math.abs(y - cy) <= 3 && !this.held(k, x, y)) bad = `Hãy dỡ ${BLOCKS[k].name} trước.`;
-    }
-    this[layer].set(HomeGrid.key(cx, cy), kind);
-    return bad;
   }
 }

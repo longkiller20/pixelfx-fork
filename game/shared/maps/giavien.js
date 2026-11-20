@@ -1,6 +1,6 @@
 // Gia Viên: a player's own homestead (shared/gia-vien.js). The same map for everyone, but every player has their own
 // copy of it on the server (an instance only they enter), with their house, animals and herbs on it. Left to right: a
-// cliff, the house plot (built on by the player), the farm's fenced pen, the herb garden's beds, the way out.
+// cliff, the house plot (the house the player owns stands on it), the farm's fenced pen, the herb garden's beds, the way out.
 import { canvas, box, ground, rows } from "./build.js";
 import { LAYOUT } from "../gia-vien.js";
 
@@ -34,7 +34,7 @@ const props = [
 export const GIAVIEN = {
   id: "giavien",
   name: "Gia Viên",
-  sub: "Gia viên của riêng đạo hữu: xây nhà, nuôi gia súc, trồng dược thảo.",
+  sub: "Gia viên của riêng đạo hữu: nhà ở, nuôi gia súc, trồng dược thảo.",
   music: "1-liyan",
   instanced: true,
   cell: 32,

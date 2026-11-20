@@ -13,8 +13,7 @@ import * as store from "./store.js";
 import { sectOf } from "./tong-mon.js";
 import * as dao from "./dao-huu.js";
 import * as gv from "./gia-vien.js";
-import { HomeGrid, BLOCKS as HOME_BLOCKS, HOME_MAP } from "../shared/gia-vien.js";
-import { HOME } from "../shared/balance.js";
+import { HomeGrid, HOME_MAP, houseCells } from "../shared/gia-vien.js";
 import { SOCIAL } from "../shared/balance.js";
 import { SECT } from "../shared/balance.js";
 import { sectBonus } from "../shared/tong-mon.js";
@@ -52,12 +51,12 @@ export class World {
     // which world this is in the Universe: the map's id, or for a Gia Viên "gv:<owner>" (one copy per owner)
     this.key = mapId;
     if (home) {
-      // a Gia Viên: its owner's blocks over the plain map, standing and colliding like the ground
+      // a Gia Viên: its owner's ready-made house over the plain map, its walls and floors carrying people like the ground
       this.key = home.key;
       this.owner = home.owner;
-      this.grid = new HomeGrid(this.map).load(home.blocks);
+      this.house = home.house;
+      this.grid = new HomeGrid(this.map).load(houseCells(home.house));
       this.map = this.grid.wrap();
-      this.buildQ = Promise.resolve();
     }
     this.spawnMonsters();
   }
@@ -90,11 +89,9 @@ export class World {
     this.players.set(p.userId, p);
     this.ents.set(p.id, p);
     send(p.ws, { t: "welcome", id: p.id, tick: this.tick, inv, map: this.map.id, players: [...this.players.values()].map(info) });
-    // a Gia Viên: everything built in it, and the farm's animals and herbs
+    // a Gia Viên: which house stands in it (the browser has the designs), and the farm's animals and herbs
     if (this.grid) {
-      const all = [];
-      for (const l of ["f", "b", "d"]) for (const [K, k] of this.grid[l]) all.push([l, ...K.split(",").map(Number), k]);
-      send(p.ws, { t: "home", owner: this.owner, mine: p.userId === this.owner, blocks: all });
+      send(p.ws, { t: "home", owner: this.owner, mine: p.userId === this.owner, house: this.house });
       this.u?.homeState(this.owner);
     }
     this.broadcast({ t: "pi", ...info(p) }, p);
@@ -391,9 +388,6 @@ export class World {
       case "hist":
         // a channel's last lines (the chat panel opening it), without anyone this player blocked
         return this.u?.history(p, m.ch);
-      case "build":
-        // Gia Viên: put a block down or take one up (its owner only)
-        return this.build(p, m);
       case "pm":
         // Truyền Âm: to a friend, by id (or đạo hiệu); checked and saved by server/dao-huu.js, then delivered
         return this.u?.whisper(p, m);
@@ -772,53 +766,6 @@ export class World {
     this.ents.set(m.id, m);
     return m;
   }
-  // ---------------------------------------------------------------- Gia Viên: building
-  /**
-   * The owner puts down (op "put": kind at layer l, cell x y) or takes up (op "del") a block. Checked here against the
-   * rules (shared/gia-vien.js HomeGrid: the house plot, what holds it, never on someone) and the reach; then the stock
-   * and the row are changed in the database (server/gia-vien.js); only then does the world change and everyone here see
-   * it. One at a time per home, in order, so two clicks never pass the same check.
-   */
-  build(p, m) {
-    if (!this.grid || p.userId !== this.owner) return;
-    const op = m.op, l = m.l, x = m.x, y = m.y, c = typeof m.c === "string" ? m.c.slice(0, 16) : "";
-    const fail = (why) => send(p.ws, { t: "blkerr", c, m: why });
-    if ((op !== "put" && op !== "del") || !["f", "b", "d"].includes(l) || !Number.isInteger(x) || !Number.isInteger(y) || Math.abs(x) > 1000 || Math.abs(y) > 1000) return;
-    const now = Date.now();
-    if (now < (p.buildAt ?? 0)) return fail("Chậm lại một chút.");
-    p.buildAt = now + 80;
-    const T = this.map.T, reach = HOME.reach * T;
-    if (Math.hypot((x + 0.5) * T - p.x, (y + 0.5) * T - (p.y - 30)) > reach + T) return fail("Xa quá, hãy lại gần hơn.");
-    this.buildQ = this.buildQ.then(async () => {
-      if (p.gone || p.world !== this) return;
-      const G = this.grid;
-      if (op === "put") {
-        const kind = typeof m.k === "string" ? m.k : "", b = HOME_BLOCKS[kind];
-        if (!b || b.layer !== l) return fail("Không có vật liệu này.");
-        const bodies = [...this.players.values()].map((q) => [q.x, q.y]);
-        const why = G.canPut(kind, x, y, bodies, fits);
-        if (why) return fail(why);
-        await gv.place(this.owner, l, x, y, kind);
-        G.set(l, x, y, kind);
-        this.broadcast({ t: "blk", l, x, y, k: kind, c });
-      } else {
-        // furniture is taken by any cell it covers
-        let ax = x, ay = y;
-        if (l === "d") {
-          const cov = G.dCover(x, y);
-          if (!cov) return fail("Ô này không có đồ đạc.");
-          [ax, ay] = cov;
-        }
-        const why = G.canTake(l, ax, ay);
-        if (why) return fail(why);
-        await gv.unplace(this.owner, l, ax, ay);
-        G.del(l, ax, ay);
-        this.broadcast({ t: "blk", l, x: ax, y: ay, k: null, c });
-      }
-      this.u?.homeState(this.owner);
-    }).catch((e) => fail(e?.status ? e.message : "Không xây được, hãy thử lại."));
-  }
-
   spawnMonsters() {
     for (const m of this.map.mobs) this.addMonster(m.type, m.x, m.y);
   }
@@ -1154,8 +1101,8 @@ export class Universe {
     if (p.warping || p.dead) throw Object.assign(new Error("Không thể vào Gia Viên lúc này."), { status: 409 });
     let w = this.worlds.get(key);
     if (!w) {
-      const blocks = await gv.blocks(uid);
-      w = this.worlds.get(key) ?? new World(HOME_MAP, this, { key, owner: uid, blocks });
+      const house = await gv.houseOf(uid);
+      w = this.worlds.get(key) ?? new World(HOME_MAP, this, { key, owner: uid, house });
       this.worlds.set(key, w);
     }
     clearTimeout(this.homeDrops?.get(key));
@@ -1185,7 +1132,7 @@ export class Universe {
       if (w && w.grid && !w.players.size) this.worlds.delete(key);
     }, 60_000));
   }
-  /** The farm and the stock changed (or someone came in): tell whoever is in that Gia Viên. */
+  /** The farm changed (or someone came in): tell whoever is in that Gia Viên. */
   async homeState(owner) {
     const w = this.worlds.get(`gv:${owner}`);
     if (!w || !w.players.size) return;

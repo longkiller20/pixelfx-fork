@@ -133,7 +133,6 @@ export function api(world) {
     world.enterHome(req.userId).catch((e) => console.error("home", e.message));
   });
   homeRoute("/leave", async (req) => void world.leaveHome(req.userId).catch((e) => console.error("home", e.message)));
-  homeRoute("/buy", async (req) => gv.buyBlocks(req.userId, req.body?.kind, req.body?.qty, req.body?.requestId));
   homeRoute("/animal/buy", async (req) => gv.buyAnimal(req.userId, req.body?.kind, req.body?.requestId));
   homeRoute("/animal/feed", async (req) => gv.feed(req.userId, req.body?.ids));
   homeRoute("/animal/collect", async (req) => {
