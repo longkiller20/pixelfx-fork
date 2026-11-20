@@ -114,6 +114,12 @@ export const DEFAULTS = {
     "fly.realm": [2, "Cảnh giới mở khoá Ngự Kiếm Phi Hành, đếm từ 1 (1 = Luyện Khí, 2 = Trúc Cơ, 3 = Kim Đan…): tới tầng 1 của cảnh giới này là bay được"],
     "fly.speed": [1.35, "Tốc độ bay = tốc độ đi × hệ số này"],
     "fly.arena": [0, "1: được ngự kiếm trong đấu trường; 0: không"],
+    // trò chuyện, Đạo Hữu, Truyền Âm (server/dao-huu.js)
+    "chat.world_cooldown": [4, "Giây chờ giữa hai lần nói ở kênh Thế Giới (kênh Khu Vực, Tông Môn: 1 giây)"],
+    "social.friends_max": [100, "Mỗi người có tối đa bấy nhiêu Đạo Hữu"],
+    "social.requests_max": [20, "Mỗi người gửi tối đa bấy nhiêu lời mời kết giao đang chờ"],
+    "social.blocks_max": [200, "Mỗi người chặn tối đa bấy nhiêu người"],
+    "pm.keep_days": [30, "Truyền Âm được lưu bấy nhiêu ngày rồi tự xoá"],
     // Tông Môn (shared/tong-mon.js, server/tong-mon.js)
     "sect.create_level": [6, "Cấp tối thiểu để khai lập tông môn (6 = Trúc Cơ tầng 1 với cảnh giới mặc định)"],
     "sect.create_cost": [1000, "Linh thạch để khai lập tông môn"],
@@ -156,6 +162,8 @@ export const MEDITATE = {};
 export const START = {};
 // Tông Môn's numbers (settings sect.*), by name
 export const SECT = {};
+// chat, Đạo Hữu and Truyền Âm's numbers (settings chat.*, social.*, pm.*)
+export const SOCIAL = {};
 // ngự kiếm phi hành: unlocked at level FLY.level (the first stage of realm FLY.realm), flying at FLY.speed × walking
 export const FLY = { realm: 2, level: 6, speed: 1.35, arena: false };
 export let RESPAWN_WORLD = 4, DAILY_STONES = 30, BUY_MAX = 10;
@@ -314,6 +322,10 @@ export function applyConfig(c) {
       arrayMinutes: Math.max(1, g("array_minutes")), arrayAtk: g("array_atk"),
     });
   }
+  Object.assign(SOCIAL, {
+    worldCooldown: Math.max(1, S["chat.world_cooldown"]), friendsMax: Math.max(1, S["social.friends_max"] | 0), requestsMax: Math.max(1, S["social.requests_max"] | 0),
+    blocksMax: Math.max(1, S["social.blocks_max"] | 0), keepDays: Math.max(1, S["pm.keep_days"]),
+  });
   DAILY_STONES = S["daily.stones"] | 0;
   BUY_MAX = Math.max(1, S["shop.buy_max"] | 0);
   return k;

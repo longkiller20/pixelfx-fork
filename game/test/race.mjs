@@ -915,6 +915,131 @@ const SHOP_TEST = "Hàng thử nghiệm";
   ok("Tông Môn: founding once and paid once, names checked, never past the cap, one sect per person, ranks only downward with caps, donations idempotent and never below zero, one check-in a day, the treasure house, the sect channel private, disbanding racing joins");
 }
 
+// Chat and Đạo Hữu: who hears what, friendships that stay whole when requests race, Truyền Âm only between friends, blocks
+{
+  const { q } = await import("../server/db.js");
+  const { createSession } = await import("../server/auth.js");
+  const tag = uid();
+  let n = 0;
+  const mk = async (map = null) => {
+    const k = n++;
+    const id = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [`tc_${tag}_${k}`])).insertId;
+    const name = `C${tag.slice(0, 5)} ${k}`;
+    await q("INSERT INTO characters (user_id, name, class, gender, hair, robe, exp, stones, map_id) VALUES (?, ?, 'tu', 'm', 8, 16, 1000, 0, ?)", [id, name, map]);
+    return { uid: id, token: await createSession(id), name };
+  };
+  const post = async (P, path, body) => {
+    for (;;) {
+      const r = await call(`/friends${path}`, { token: P.token, method: "POST", body });
+      if (r.status !== 429) return r;
+      await sleep(1500);
+    }
+  };
+  const rows = async (sql, a) => Number((await q(sql, a))[0].n);
+  const chats = (c, text) => c.msgs.filter((m) => m.t === "chat" && m.m === text);
+
+  // ---- requests racing: A and B ask each other at once: friends once, both rows, no request left
+  const A = await mk(), B = await mk(), C = await mk("bichlac"), D = await mk();
+  await Promise.all([post(A, "/request", { uid: B.uid }), post(B, "/request", { uid: A.uid })]);
+  assert.equal(await rows("SELECT COUNT(*) AS n FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)", [A.uid, B.uid, B.uid, A.uid]), 2, "asking each other at once: friends, both ways");
+  assert.equal(await rows("SELECT COUNT(*) AS n FROM friend_requests WHERE from_id IN (?, ?) AND to_id IN (?, ?)", [A.uid, B.uid, A.uid, B.uid]), 0, "and no request left over");
+  // the same request eight times: one
+  const eight = await Promise.all(Array.from({ length: 8 }, () => post(D, "/request", { name: A.name })));
+  assert.equal(eight.filter((r) => r.status === 200).length, 1, "asked 8 times at once: one request");
+  // accepted twice at once: one friendship
+  const acc = await Promise.all([post(A, "/answer", { uid: D.uid, accept: true }), post(A, "/answer", { uid: D.uid, accept: true })]);
+  assert.equal(acc.filter((r) => r.status === 200).length, 1, "accepted twice at once: once");
+  assert.equal(await rows("SELECT COUNT(*) AS n FROM friends WHERE user_id = ? AND friend_id = ?", [D.uid, A.uid]), 1);
+  for (const bad of [{ uid: A.uid }, { uid: "abc" }, { uid: -1 }, { name: "" }, { name: "Không Có Ai Tên Này" }])
+    assert.ok((await post(A, "/request", bad)).status >= 400, `refused: ${JSON.stringify(bad)}`);
+  assert.equal((await post(A, "/request", { uid: B.uid })).status, 409, "already friends");
+  // search shows what each is to me
+  const found = (await call(`/friends/search?q=${encodeURIComponent(`C${tag.slice(0, 5)}`)}`, { token: A.token })).data;
+  assert.equal(found.find((r) => r.uid === B.uid)?.state, "friend", "search knows a friend");
+
+  // ---- the channels: Thế Giới everywhere, Khu Vực only on the map, Tông Môn only the sect
+  const [ca, cb, cc, cd] = [await connect(A.token), await connect(B.token), await connect(C.token), await connect(D.token)];
+  await sleep(500);
+  send(ca, { t: "chat", ch: "w", m: "the gioi " + tag });
+  await sleep(1100);
+  send(ca, { t: "chat", ch: "k", m: "khu vuc " + tag });
+  await sleep(1100);
+  send(ca, { t: "chat", ch: "w", m: "the gioi lan hai " + tag });
+  await sleep(400);
+  assert.equal(chats(cc, "the gioi " + tag).length, 1, "Thế Giới reaches another map");
+  assert.equal(chats(cb, "khu vuc " + tag).length, 1, "Khu Vực reaches the same map");
+  assert.equal(chats(cc, "khu vuc " + tag).length, 0, "and not another map");
+  assert.equal(chats(cb, "the gioi lan hai " + tag).length, 0, "Thế Giới waits its cooldown");
+  send(ca, { t: "chat", ch: "s", m: "tong mon " + tag });
+  await sleep(1100);
+  assert.equal(chats(cb, "tong mon " + tag).length, 0, "no sect, no sect channel");
+  // a line cleaned of hidden and markup characters
+  send(ca, { t: "chat", ch: "k", m: "xin‮ chào <script>" });
+  await sleep(1100);
+  assert.ok(cb.msgs.some((m) => m.t === "chat" && m.m === "xin chào script"), "chat lines are cleaned");
+  // the channel's last lines for someone opening it
+  send(cb, { t: "hist", ch: "k" });
+  await sleep(300);
+  assert.ok(cb.msgs.find((m) => m.t === "hist")?.list.some((m) => m.m === "khu vuc " + tag), "Khu Vực's last lines");
+
+  // ---- Truyền Âm: only to a friend, saved, delivered, history only for the two
+  send(ca, { t: "pm", to: C.uid, m: "khong phai ban", c: "x1" });
+  await sleep(700);
+  assert.ok(ca.msgs.some((m) => m.t === "pmerr" && m.c === "x1"), "no Truyền Âm to a stranger");
+  send(ca, { t: "pm", toName: C.name, m: "khong phai ban", c: "x2" });
+  await sleep(700);
+  assert.ok(ca.msgs.some((m) => m.t === "pmerr" && m.c === "x2"), "nor by name");
+  send(ca, { t: "pm", to: B.uid, m: "chao <b>ban</b>", c: "x3" });
+  await sleep(700);
+  const got = cb.msgs.find((m) => m.t === "pm" && !m.mine);
+  assert.equal(got?.text, "chao bban/b", "a friend gets it, cleaned");
+  assert.ok(ca.msgs.some((m) => m.t === "pm" && m.mine && m.c === "x3"), "and the sender sees it sent");
+  // ten at once: the rest are told to slow down, nothing lost silently
+  for (let i = 0; i < 10; i++) send(ca, { t: "pm", to: B.uid, m: `nhanh ${i}`, c: `f${i}` });
+  await sleep(800);
+  const sent = ca.msgs.filter((m) => m.t === "pm" && m.mine && /^f/.test(m.c)).length, slowed = ca.msgs.filter((m) => m.t === "pmerr" && /^f/.test(m.c)).length;
+  assert.ok(sent >= 1 && sent + slowed === 10, `a burst of Truyền Âm: ${sent} sent, ${slowed} told to slow down`);
+  const hist = (await call(`/friends/${A.uid}/messages`, { token: B.token })).data;
+  assert.ok(hist.messages.some((m) => m.text === "chao bban/b" && !m.mine), "B reads it in the history");
+  assert.equal((await call(`/friends/${B.uid}/messages`, { token: C.token })).status, 403, "a third person can't read it");
+  assert.equal(await rows("SELECT COUNT(*) AS n FROM private_messages WHERE to_id = ? AND read_at IS NULL", [B.uid]), 0, "opening it marks it read");
+  // a long conversation comes 40 at a time
+  await q(`INSERT INTO private_messages (lo, hi, from_id, to_id, body) VALUES ${Array.from({ length: 45 }, () => "(?, ?, ?, ?, ?)").join(",")}`,
+    Array.from({ length: 45 }, (_, i) => [Math.min(A.uid, D.uid), Math.max(A.uid, D.uid), D.uid, A.uid, `cu ${i}`]).flat());
+  const p1 = (await call(`/friends/${D.uid}/messages`, { token: A.token })).data;
+  assert.equal(p1.messages.length, 40, "40 at a time");
+  assert.ok(p1.more, "and more to come");
+  const p2 = (await call(`/friends/${D.uid}/messages?before=${p1.messages[0].id}`, { token: A.token })).data;
+  assert.equal(p2.messages.length, 5, "the rest before them");
+
+  // ---- block: friendship ends, nothing of theirs gets through, they can't ask again (and aren't told why)
+  assert.equal((await post(B, "/block", { uid: A.uid })).status, 200);
+  assert.equal(await rows("SELECT COUNT(*) AS n FROM friends WHERE (user_id = ? AND friend_id = ?) OR (user_id = ? AND friend_id = ?)", [A.uid, B.uid, B.uid, A.uid]), 0, "a block ends the friendship");
+  await sleep(1100);
+  send(ca, { t: "chat", ch: "k", m: "bi chan " + tag });
+  send(ca, { t: "pm", to: B.uid, m: "con do khong", c: "x9" });
+  await sleep(800);
+  assert.equal(chats(cb, "bi chan " + tag).length, 0, "the blocked one's chat doesn't reach the blocker");
+  assert.ok(chats(cd, "bi chan " + tag).length === 1, "but reaches everyone else");
+  assert.ok(ca.msgs.some((m) => m.t === "pmerr" && m.c === "x9"), "no Truyền Âm through a block");
+  const again = await post(A, "/request", { uid: B.uid });
+  assert.equal(again.status, 403);
+  assert.equal(again.data.error, "Không gửi được lời mời cho người này.", "asking again: refused, without saying it's a block");
+  assert.equal((await call(`/friends/${A.uid}/messages`, { token: B.token })).status, 403, "and the history is closed");
+  assert.equal((await post(B, "/unblock", { uid: A.uid })).status, 200);
+
+  // ---- an admin's chat ban
+  await q("UPDATE users SET chat_muted_until = NOW() + INTERVAL 5 MINUTE WHERE id = ?", [D.uid]);
+  cd.ws.close();
+  const cd2 = await connect(D.token);
+  await sleep(400);
+  send(cd2, { t: "chat", ch: "k", m: "bi cam " + tag });
+  await sleep(500);
+  assert.equal(chats(cb, "bi cam " + tag).length, 0, "barred from chat: nothing said");
+  for (const c of [ca, cb, cc, cd2]) c.ws.close();
+  ok("chat and Đạo Hữu: Thế Giới everywhere with a cooldown, Khu Vực on the map, lines cleaned; requests racing make one friendship; Truyền Âm only to friends, saved, paged, private, rate-limited; a block stops everything silently; an admin's chat ban");
+}
+
 {
   const { q, pool } = await import("../server/db.js");
   await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);

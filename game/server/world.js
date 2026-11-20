@@ -11,6 +11,8 @@ import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
 import { CAST, stepReturning } from "./cong-phap.js";
 import * as store from "./store.js";
 import { sectOf } from "./tong-mon.js";
+import * as dao from "./dao-huu.js";
+import { SOCIAL } from "../shared/balance.js";
 import { SECT } from "../shared/balance.js";
 import { sectBonus } from "../shared/tong-mon.js";
 import { userFromToken } from "./auth.js";
@@ -49,7 +51,7 @@ export class World {
 
   // ---------------------------------------------------------------- arriving and leaving
   /** A player logging in onto this map (the Universe has checked the token and loaded the character). */
-  admit(ws, ch, inv, buffs, sect = null) {
+  admit(ws, ch, inv, buffs, sect = null, social = null) {
     const p = {
       id: nextId(), kind: "p", userId: ch.userId, ws, name: ch.name, cls: ch.cls, look: ch.look,
       ...this.spawnPoint(), face: 1, in: { dx: 0, dy: 0, jump: false, down: false }, flying: false, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
@@ -58,6 +60,8 @@ export class World {
       medAcc: 0, meditating: false, base: null, pend: zero(), fly: zero(), level: 1, medLeft: 0, saving: null, gone: false, buffs,
       // their Tông Môn as the database says (server/tong-mon.js sectOf): its bonus counts in stats(), its name shows over them
       sect,
+      // Đạo Hữu and who they blocked (server/dao-huu.js socialOf): Truyền Âm goes only to friends, nothing from the blocked arrives
+      friends: social?.friends ?? new Set(), blocked: social?.blocked ?? new Set(), worldAt: 0, pmAt: 0, lastLine: null,
     };
     this.applyBase(p, ch, true);
     ws.player = p;
@@ -341,18 +345,33 @@ export class World {
         return this.cast(p, i, ax, ay, to);
       }
       case "chat": {
+        // three channels: Thế Giới (w, every map), Khu Vực (k, this map), Tông Môn (s, the sect wherever its members are)
         if (typeof m.m !== "string" || this.t < p.chatAt) return;
-        const text = m.m.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff<>]/g, "").trim().slice(0, 120);
+        const ch = m.ch === "k" || m.ch === "s" ? m.ch : "w";
+        const text = dao.cleanLine(m.m, 120);
         if (!text) return;
+        if (ch === "w" && this.t < p.worldAt)
+          return send(p.ws, { t: "toast", m: `Kênh Thế Giới: đợi ${Math.ceil(p.worldAt - this.t)} giây nữa.` });
+        // the same line again within 10 s is dropped (no flooding by repeating)
+        if (p.lastLine && p.lastLine.text === text && p.lastLine.ch === ch && this.t - p.lastLine.t < 10) return send(p.ws, { t: "toast", m: "Đừng lặp lại một câu liên tục." });
+        if (p.chatMuted && p.chatMuted > Date.now()) return send(p.ws, { t: "toast", m: `Đạo hữu đang bị cấm chat, còn ${Math.ceil((p.chatMuted - Date.now()) / 60000)} phút.` });
         p.chatAt = this.t + 1;
-        // the sect's own channel: only its members, wherever they are, see it
-        if (m.ch === "s") {
+        if (ch === "w") p.worldAt = this.t + SOCIAL.worldCooldown;
+        p.lastLine = { text, ch, t: this.t };
+        const msg = { t: "chat", ch, n: p.name, lv: p.level, m: text, at: Date.now() };
+        if (ch === "s") {
           if (!p.sect) return send(p.ws, { t: "toast", m: "Đạo hữu chưa ở tông môn nào." });
-          return this.u?.sectChat(p.sect.id, { t: "chat", ch: "s", n: p.name, m: text });
+          return this.u?.say(msg, p, (q) => q.sect?.id === p.sect.id, `s${p.sect.id}`);
         }
-        // chat reaches everyone, on every map
-        return this.u ? this.u.broadcast({ t: "chat", n: p.name, m: text }) : this.broadcast({ t: "chat", n: p.name, m: text });
+        if (ch === "k") return this.u ? this.u.say({ ...msg, map: this.map.name }, p, (q) => q.world === this, `k${this.map.id}`) : this.broadcast(msg);
+        return this.u ? this.u.say(msg, p, () => true, "w") : this.broadcast(msg);
       }
+      case "hist":
+        // a channel's last lines (the chat panel opening it), without anyone this player blocked
+        return this.u?.history(p, m.ch);
+      case "pm":
+        // Truyền Âm: to a friend, by id (or đạo hiệu); checked and saved by server/dao-huu.js, then delivered
+        return this.u?.whisper(p, m);
       case "use":
         if (typeof m.item === "string") this.useItem(p, m.item);
         return;
@@ -903,6 +922,9 @@ export class Universe {
     this.timer = setInterval(() => {
       for (const w of this.worlds.values()) w.step();
     }, 1000 / TICK_HZ);
+    // Truyền Âm older than pm.keep_days goes, once an hour
+    this.pruner = setInterval(() => dao.prune().catch((e) => console.error("pm prune", e.message)), 3600_000);
+    this.pruner.unref?.();
     this.saver = setInterval(() => {
       for (const w of this.worlds.values()) w.saveAll();
     }, 5000);
@@ -964,7 +986,11 @@ export class Universe {
     ws.on("close", () => {
       clearTimeout(authTimer);
       const p = ws.player;
-      if (p) sessionLock.run(p.userId, () => p.world.remove(p)).catch((e) => console.error("leave", e));
+      if (p) {
+        sessionLock.run(p.userId, () => p.world.remove(p)).catch((e) => console.error("leave", e));
+        // gone for good (not replaced by a new tab of the same account): friends hear it
+        setTimeout(() => !this.players.has(p.userId) && this.presence(p, false), 1500);
+      }
     });
     ws.on("error", () => {});
   }
@@ -992,9 +1018,18 @@ export class Universe {
       const inv = await store.inventory(uid);
       const buffs = await store.activeBuffs(uid);
       const sect = await sectOf(uid);
+      const social = await dao.socialOf(uid);
+      const unread = await dao.unreadCount(uid);
+      const mute = (await store.chatMute(uid)) ?? 0;
       if (ws.readyState !== WebSocket.OPEN) return;
       // back on the map they were last on (at its arrival point), or the starter town
-      (this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect);
+      (this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect, social);
+      const me = ws.player;
+      if (me) {
+        me.chatMuted = mute;
+        send(ws, { t: "unread", n: unread });
+        this.presence(me, true);
+      }
     });
   }
 
@@ -1033,6 +1068,77 @@ export class Universe {
     store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
   }
 
+  // ---- chat: who hears a line, and the last lines of each channel (kept in memory, for the chat panel)
+  /** Send msg to every player for whom who(player) holds, except those who blocked the sender; remember it under key. */
+  say(msg, from, who, key) {
+    const raw = JSON.stringify(msg);
+    for (const w of this.worlds.values()) for (const q of w.players.values()) if (who(q) && !q.blocked.has(from.userId)) sendRaw(q.ws, raw);
+    this.hist ??= new Map();
+    const list = this.hist.get(key) ?? [];
+    list.push({ u: from.userId, msg });
+    if (list.length > 40) list.shift();
+    this.hist.set(key, list);
+  }
+  history(p, ch) {
+    const key = ch === "k" ? `k${p.world.map.id}` : ch === "s" ? (p.sect ? `s${p.sect.id}` : null) : "w";
+    const list = (key && this.hist?.get(key)) || [];
+    send(p.ws, { t: "hist", ch: ch === "k" || ch === "s" ? ch : "w", list: list.filter((x) => !p.blocked.has(x.u)).map((x) => x.msg) });
+  }
+  /** Truyền Âm: a few a second at most; only to a friend (checked here first, then in the database when it is saved). */
+  whisper(p, m) {
+    const c = typeof m.c === "string" ? m.c.slice(0, 16) : "";
+    const fail = (why) => send(p.ws, { t: "pmerr", c, m: why });
+    if (typeof m.m !== "string") return;
+    const now = Date.now();
+    if (now < p.pmAt) return fail("Truyền Âm quá nhanh, chậm lại một chút.");
+    if (p.chatMuted && p.chatMuted > now) return fail("Đạo hữu đang bị cấm chat.");
+    p.pmAt = now + 500;
+    const to = Number.isInteger(m.to) ? m.to : null;
+    if (to !== null && !p.friends.has(to)) return fail("Chỉ Truyền Âm được cho Đạo Hữu.");
+    dao.send(p.userId, to !== null ? { uid: to } : { name: m.toName }, m.m).then(
+      (out) => {
+        const all = this.players, them = all.get(out.to);
+        send(p.ws, { t: "pm", id: out.id, with: out.to, name: out.toName, mine: true, text: out.text, at: out.at, c });
+        if (them && !them.blocked.has(p.userId)) send(them.ws, { t: "pm", id: out.id, with: p.userId, name: p.name, mine: false, text: out.text, at: out.at });
+      },
+      (e) => fail(e instanceof Error && e.status ? e.message : "Không gửi được Truyền Âm."),
+    );
+  }
+  // ---- Đạo Hữu: the API changed someone's friends or blocks; the world reads them again and their panel reloads
+  async syncSocial(uids, note = null) {
+    const all = this.players;
+    await Promise.all([...new Set(uids)].map(async (uid) => {
+      const p = all.get(uid);
+      if (!p) return;
+      const s = await dao.socialOf(uid);
+      if (p.gone) return;
+      p.friends = s.friends;
+      p.blocked = s.blocked;
+      send(p.ws, { t: "friends", ...(note?.[uid] ? { note: note[uid] } : {}) });
+    }));
+  }
+  /** An admin barred (or freed) this player from chat: at once, wherever they are. */
+  setChatMute(uid, until) {
+    const p = this.players.get(uid);
+    if (!p) return;
+    p.chatMuted = until;
+    send(p.ws, { t: "toast", m: until ? `Đạo hữu bị cấm chat ${Math.ceil((until - Date.now()) / 60000)} phút.` : "Đạo hữu đã được chat trở lại." });
+  }
+  /** How many Truyền Âm this player has not read (for the badge on the Đạo Hữu button). */
+  async sendUnread(uid) {
+    const p = this.players.get(uid);
+    if (p) send(p.ws, { t: "unread", n: await dao.unreadCount(uid) });
+  }
+  /** Someone came or went: their friends online hear it (and their list reloads). */
+  async presence(p, on) {
+    const ids = await dao.friendsOf(p.userId).catch(() => []);
+    const all = this.players;
+    for (const id of ids) {
+      const f = all.get(id);
+      if (f && f !== p && !f.blocked.has(p.userId)) send(f.ws, { t: "friends", presence: { name: p.name, on } });
+    }
+  }
+
   // ---- Tông Môn: the API changed a sect; the world takes it for whoever is online
   /** Save what this player earned and hasn't written yet (before spending stones from the database). */
   async flushUser(uid) {
@@ -1069,11 +1175,7 @@ export class Universe {
   async nameOf(uid) {
     return this.players.get(uid)?.name ?? (await store.loadCharacter(uid))?.name ?? "?";
   }
-  /** A line on the sect channel, to its members online on every map. */
-  sectChat(sectId, msg) {
-    const raw = JSON.stringify(msg);
-    for (const w of this.worlds.values()) for (const p of w.players.values()) if (p.sect?.id === sectId) sendRaw(p.ws, raw);
-  }
+
 
   // ---- the same calls the API and the admin site made on the one world, now for wherever the player is
   refresh(uid, ch) {
