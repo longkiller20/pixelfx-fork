@@ -34,6 +34,12 @@ import * as fire_fireball from "./fire/fireball.js";
 import * as fire_flame_pillar from "./fire/flame-pillar.js";
 import * as fire_meteor from "./fire/meteor.js";
 import * as fire_spirit_flame from "./fire/spirit-flame.js";
+import * as fishing_bobber from "./fishing/bobber.js";
+import * as fishing_catch from "./fishing/catch.js";
+import * as fishing_fish from "./fishing/fish.js";
+import * as fishing_gear from "./fishing/gear.js";
+import * as fishing_props from "./fishing/props.js";
+import * as fishing_stall from "./fishing/stall.js";
 import * as holy_heal from "./holy/heal.js";
 import * as home_furnace from "./home/furnace.js";
 import * as home_furniture from "./home/furniture.js";
@@ -61,6 +67,7 @@ import * as ui_level_up from "./ui/level-up.js";
 import * as ui_menu_icon from "./ui/menu-icon.js";
 import * as water_bubbles from "./water/bubbles.js";
 import * as water_ripples from "./water/ripples.js";
+import * as water_splash from "./water/splash.js";
 import * as water_water_orb from "./water/water-orb.js";
 import * as water_waterfall from "./water/waterfall.js";
 
@@ -99,6 +106,12 @@ export const effects = {
   "fire/flame-pillar": fire_flame_pillar,
   "fire/meteor": fire_meteor,
   "fire/spirit-flame": fire_spirit_flame,
+  "fishing/bobber": fishing_bobber,
+  "fishing/catch": fishing_catch,
+  "fishing/fish": fishing_fish,
+  "fishing/gear": fishing_gear,
+  "fishing/props": fishing_props,
+  "fishing/stall": fishing_stall,
   "holy/heal": holy_heal,
   "home/furnace": home_furnace,
   "home/furniture": home_furniture,
@@ -126,6 +139,7 @@ export const effects = {
   "ui/menu-icon": ui_menu_icon,
   "water/bubbles": water_bubbles,
   "water/ripples": water_ripples,
+  "water/splash": water_splash,
   "water/water-orb": water_water_orb,
   "water/waterfall": water_waterfall,
 };

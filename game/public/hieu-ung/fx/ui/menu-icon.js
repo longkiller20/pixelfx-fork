@@ -4,7 +4,7 @@ import { lit } from "../farm/_lib.js";
 
 export const meta = {
   name: "Menu icon",
-  desc: "Small 20 px icons for a game's menu, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more.",
+  desc: "Small 20 px icons for a game's menu, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more, fishing.",
   tags: ["ui", "icon", "menu", "button"],
   size: [24, 24],
   origin: [12, 12],
@@ -16,7 +16,7 @@ export const meta = {
 };
 
 /** The icons, by name: what each draws (on a 20 x 20 grid, -10..9 each way). */
-export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more"];
+export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more", "fish"];
 
 const H = (a) => a.map(hex);
 const SKIN = H(["#8a4a3a", "#d8996e", "#f6cfa8", "#ffe6cc", "#fff4e8"]);
@@ -168,6 +168,16 @@ const DRAW = {
     }
     g.ellipse(-0.5, -0.5, 6.6, 6.6, ell(STEEL));
     g.ellipse(-0.5, -0.5, 2.6, 2.6, (nx, ny) => (ny < 0 ? STEEL[0] : STEEL[1]));
+  },
+  // a fish leaping past a red and white float: Câu Cá
+  fish(g) {
+    g.ellipse(-1.5, 1, 6.6, 3.8, (nx, ny) => (ny > 0.35 ? PAPER[3] : lit(SKY, nx * 0.4, ny, 2)));
+    g.poly([[-7, 1], [-10.5, -3.5], [-9, 1], [-10.5, 5.5]], (x, y) => (y < 1 ? SKY[2] : SKY[1]));
+    g.poly([[-3, -2.5], [0, -5.5], [2, -2.5]], SKY[1]);
+    g.set(2.5, 0, INK), g.set(2, -0.6, WHITE);
+    g.ellipse(6.5, -6, 2.2, 2.4, (nx, ny) => (ny < 0 ? RED[2] : PAPER[3]));
+    g.line(6.5, -9.5, 6.5, -8.5, RED[3]);
+    g.line(4, 7.5, 9, 7.5, SKY[3]);
   },
   // four gold tiles: more of the menu
   more(g) {

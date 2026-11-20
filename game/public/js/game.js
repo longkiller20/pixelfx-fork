@@ -11,6 +11,7 @@ import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
 import { buildScene } from "./scenery.js";
 import { stepBody, PHYS, zoneLanding } from "/shared/physics.js";
 import { createHomeLayer } from "./gia-vien.js";
+import { createFishLayer } from "./cau-ca.js";
 
 // each buff's status icon (Xianxia Pixel Pack)
 const BUFF_ICON = { hp: "item_peach", atk: "status_burn", def: "status_golden_shield", spd: "status_swift", exp: "item_jade_slip", stones: "item_spirit_stone", med: "item_lingzhi" };
@@ -19,7 +20,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap, onFish, onFrame }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -53,6 +54,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   const send = (o) => ws.readyState === 1 && ws.send(JSON.stringify(o));
   // Gia Viên: its house, farm and garden drawn over the map (public/js/gia-vien.js); the house's walls and floors carry people
   const home = createHomeLayer({ drawFx: (...a) => drawFx(...a) });
+  // Câu Cá: rods, lines and floats over the lake, and this player's own cast (public/js/cau-ca.js)
+  const fish = createFishLayer({
+    drawFx: (...a) => drawFx(...a), addFx: (...a) => addFx(...a), send: (o) => send(o), mapId: () => map?.id, myId: () => myId,
+    toast: (s) => toast(s), log: (s) => logLine(null, s, "sys"),
+  });
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     switch (m.t) {
@@ -62,6 +68,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
           // a new map (logging in, or through a gate): forget everything of the last one
           map = mapInfo(m.map);
           home.onWelcome(m.map);
+          fish.st = null;
           // each map has its own music
           setMapMusic(map.music);
           scene = null;
@@ -153,6 +160,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
           if (map?.id === "giavien") map = mm;
         });
         break;
+      // Câu Cá: this player's cast (cast, nibble, bite, reel, end) and the reeling game's state
+      case "fish":
+      case "fr":
+        fish.onMsg(m);
+        onFish?.(m);
+        break;
       case "homest":
         home.onState(m);
         onHomeState?.();
@@ -201,7 +214,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
 
   function onSnapshot(m) {
     const s = { at: performance.now() / 1000, k: m.k, P: new Map(), M: new Map(), B: m.B };
-    for (const a of m.P) s.P.set(a[0], { id: a[0], x: a[1], y: a[2], face: a[3], hp: a[4] / 1000, f: a[5] });
+    // (a player fishing carries their float: x, y, its state, the rod's tier)
+    for (const a of m.P) s.P.set(a[0], { id: a[0], x: a[1], y: a[2], face: a[3], hp: a[4] / 1000, f: a[5], fb: a.length > 6 ? a.slice(6, 10) : null });
     for (const a of m.M) s.M.set(a[0], { id: a[0], type: a[1], x: a[2], y: a[3], face: a[4], hp: a[5] / 1000, f: a[6] });
     snaps.push(s);
     while (snaps.length > 30) snaps.shift();
@@ -292,6 +306,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         break;
       case "drop":
         addFx("pickups/loot-beam", e.x, e.y, {}, null, 1.4);
+        break;
+      case "fland":
+        fish.onEvent(e, s);
         break;
       case "warp":
         // through a gate: here they break into light and are gone; on the far side a pillar of light sets them down
@@ -1036,6 +1053,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     // everyone, back to front
     const list = [...drawn.values()].filter((e) => on(e.x, e.y)).sort((a, b) => a.y - b.y);
     for (const e of list) drawEntity(p, e, now);
+    fish.draw(p, list, now, dt, camX, camY);
+    onFrame?.(dt);
     const live = new Set();
     for (const b of snaps[snaps.length - 1]?.B ?? []) {
       // a monster's shot ("@type") rides its own effect too
@@ -1218,6 +1237,18 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       c.fillText("Lối ra", x, y);
     }
     home.labels(c, k, camX, camY, labels.width, labels.height, now);
+    // the names of a map's places, over them (the Gia Viên writes its own on its signboards)
+    if (map.id !== "giavien")
+      for (const [x, row, s] of map.def.signs ?? []) {
+        const fs = Math.max(10, Math.round(5 * k)), sx = (x * map.T - camX) * k, sy = (row * map.T - (s === "Ngư Cụ" ? 96 : 62) - camY) * k;
+        if (sx < -200 || sx > labels.width + 200) continue;
+        c.font = `800 ${fs}px system-ui, sans-serif`;
+        c.lineWidth = Math.max(2, fs / 4);
+        c.strokeStyle = "rgba(0,0,0,.85)";
+        c.strokeText(s, sx, sy);
+        c.fillStyle = "#ffe9c0";
+        c.fillText(s, sx, sy);
+      }
     for (let i = texts.length - 1; i >= 0; i--) {
       const t = texts[i], age = now - t.at;
       if (age > 1.1) {
@@ -1241,6 +1272,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   return {
     // the Gia Viên layer (public/js/gia-vien.js): its house, its farm's state
     home,
+    // the Câu Cá layer (public/js/cau-ca.js): this player's cast
+    fish,
+    mapId: () => map?.id ?? "",
     close() {
       alive = false;
       ws.close();

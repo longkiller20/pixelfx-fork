@@ -7,9 +7,11 @@ import { LINHTHUY } from "./linhthuy.js";
 import { UMINH } from "./uminh.js";
 import { MAVUC } from "./mavuc.js";
 import { GIAVIEN } from "./giavien.js";
+import { CAUCA } from "./cauca.js";
 
-// the road east: the starter town, the forest, the lake, the old tombs, the abyss
-export const MAPS = { tanthu: TANTHU, bichlac: BICHLAC, linhthuy: LINHTHUY, uminh: UMINH, mavuc: MAVUC, giavien: GIAVIEN };
+// the road east: the starter town, the forest, the lake, the old tombs, the abyss; and off the road, reached from the menu:
+// the Gia Viên (one each) and the fishing lake
+export const MAPS = { tanthu: TANTHU, bichlac: BICHLAC, linhthuy: LINHTHUY, uminh: UMINH, mavuc: MAVUC, giavien: GIAVIEN, cauca: CAUCA };
 export const START_MAP = "tanthu";
 
 const cache = new Map();

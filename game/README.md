@@ -13,11 +13,49 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Database cũ được dọn một lần khi máy chủ khởi động (migration `retire_shop_2026_11`, rồi `retire_specials_2026_11`). Người đã mua được hoàn linh thạch. Ai đang mặc món bị xoá thì đổi sang món miễn phí.
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật đang đứng.
-- **Thanh menu** (góc phải trên, `public/js/menu.js`): icon vẽ bằng pixelfx (`../src/fx/ui/menu-icon.js`, 14 icon 20 px có
+- **Thanh menu** (góc phải trên, `public/js/menu.js`): icon vẽ bằng pixelfx (`../src/fx/ui/menu-icon.js`, 15 icon 20 px có
   đổ bóng và viền, hiện đúng từng điểm ảnh, căn giữa nút).
   - **Luôn hiện:** Nhân vật, Công Pháp, Gia Viên, Tông Môn, Đạo Hữu, Đàm Đạo, Quà mỗi ngày.
-  - **Nút ▦ Thêm** mở khung xổ xuống gồm Đan Các, Y Các, Phong Thần, Hướng dẫn, Toàn màn hình, Cài đặt (icon kèm tên).
+  - **Nút ▦ Thêm** mở khung xổ xuống gồm Câu Cá, Đan Các, Y Các, Phong Thần, Hướng dẫn, Toàn màn hình, Cài đặt (icon kèm tên).
     Chọn một mục, bấm ra ngoài hoặc Esc thì khung đóng lại.
+- **Câu Cá (trong nút ▦ Thêm):** bản đồ riêng **Vọng Nguyệt Hồ**, hồ câu dưới trăng, không có yêu thú. Bấm Câu Cá ở bất
+  cứ đâu là dịch chuyển tới hồ; lối ra ở bờ tây đưa về đúng chỗ vừa đi. Đang ở hồ thì nút Câu Cá mở quầy Ngư Cụ.
+  - **Bản đồ** (`shared/maps/cauca.js`), tây sang đông: bờ hồ có quầy **Ngư Cụ** (ông lão đội nón lá, hút tẩu); **Bến
+    Thuyền**, bến gỗ dài trên cọc qua vùng nước nông; **Thạch Đài**, tảng đá giữa **Hồ Sâu**; vách đá ba bậc, trên đỉnh là
+    **Linh Tuyền** với các đài sen mây để đứng câu. Rơi xuống hồ thì đi dưới đáy, có bậc để leo lên.
+  - **Mọi hình vẽ bằng pixelfx** (`../src/fx/fishing/`): 15 loại cá và vật câu được, 4 cần, 4 mồi, phao (nổi, cá rỉa, cá
+    cắn, đang kéo), quầy Ngư Cụ, cọc bến, lau sậy, lá sen, thuyền, phao neo, sương linh tuyền, cá nhảy khỏi mặt nước khi
+    lên bờ. Icon cần, mồi, cá trong túi đồ cũng vẽ từ đó.
+  - **Ngư Cụ (chỉ mua bán khi đứng ở quầy):**
+    - Mỗi cần, mồi, cá một dòng gọn: hình, tên, giá và số đang có, nút nhỏ **Chi tiết** (hộp thông tin, chỉ số), **Mua**,
+      **Dùng** (cá: **Bán**). Mua mồi hay bán cá hiện hộp nhập số lượng (−/+, chọn nhanh 1, 10, 50, tối đa), kèm tổng tiền rồi
+      mới xác nhận; mua cần hỏi xác nhận.
+    - **Cần câu** mua một lần, giữ mãi: Trúc Can (300), Thanh Đồng Can (3.000), Bích Ngọc Can (15.000), Kim Long Can
+      (60.000). Cần tốt hơn: vùng kéo rộng hơn, kéo nhanh hơn, dễ gặp cá quý, thêm thời gian giật. Linh Tuyền cần Bích Ngọc
+      Can trở lên.
+    - **Mồi câu** mua 1-99 viên một lần: Giun Đất (3), Tôm Tép (10), Linh Mễ Hoàn (35), Tiên Đào Nhị
+      (120). Mồi tốt hơn: cá cắn sớm hơn, dễ gặp cá quý; cá Tiên chỉ cắn mồi Linh Mễ Hoàn trở lên.
+    - Tab Mồi Câu có **bảng tỉ lệ** (bấm để mở) từng bậc cá ở từng khu với cần và mồi đang dùng.
+    - **Bán Cá:** chọn số lượng từng loại, hoặc bán tất cả (hỏi xác nhận).
+    - **Ngư Lục:** 15 loại, loại chưa câu được chỉ hiện bóng đen. Mỗi loại ghi đã câu bao nhiêu, con nặng nhất, và kỷ lục
+      của cả máy chủ (ai câu, nặng bao nhiêu). Kèm số lần cá cắn, số cá lên bờ, linh thạch đã bán được.
+  - **Cách câu** (nút to giữa đáy màn hình, hoặc phím **E**):
+    1. Đứng yên sát mép nước (bến gỗ, bờ hồ, bờ Linh Tuyền) rồi **Thả câu**. Phao rơi xuống nước phía trước, xa gần theo cần.
+    2. Chờ. Phao thỉnh thoảng **rỉa** (giật nhẹ): giật lúc này là sớm, thu cần trắng tay nhưng không mất mồi.
+    3. Phao **chìm hẳn** (nút đỏ "GIẬT!", điện thoại rung): giật ngay. Chậm tay thì cá ăn mất mồi. Mồi chỉ mất khi cá cắn.
+    4. **Kéo:** cột kéo hiện bên cạnh. Giữ nút (hoặc E) thì vùng xanh nổi lên, thả ra thì chìm. Giữ con cá trong vùng xanh để
+       thanh tiến độ đầy là cá lên bờ; để tuột hết là cá thoát. Cá càng quý càng giãy mạnh.
+    5. Cá nhảy khỏi mặt nước bay về phía người câu, hiện thẻ tên, bậc, cân nặng. Đi lại, nhảy, ngự kiếm thì cần tự thu lại.
+  - **5 bậc cá và tạp vật:** Tạp vật (Ủng Rách, Rong Thủy Linh), Phàm, Lương, Linh, Bảo, Tiên. Bến Thuyền: cá đồng. Hồ Sâu:
+    cá tầm, cá trê, Ngọc Giáp Quy, hiếm lắm mới có Thanh Long Ngư. Linh Tuyền: chỉ cá Linh trở lên (Băng Tinh Ngư, Kim Lý
+    Ngư, Hỏa Phượng Ngư...). Thỉnh thoảng câu được **Rương Chìm**, mở ra ngay được linh thạch.
+  - Câu được cá Bảo, hoặc lập kỷ lục, thì cả hồ thấy; câu được cá Tiên thì cả thế giới thấy.
+  - **An toàn:** máy chủ quyết định hết: lúc cá cắn, cá gì, nặng bao nhiêu, và chạy luôn trò kéo cá (trình duyệt chỉ gửi
+    "đang giữ" hay "đã thả"). Mua bán có mã giao dịch, chỉ trừ tiền và đồ bằng câu lệnh có điều kiện, một người một việc
+    một lúc. Cần mua đúng một lần, bán cá gửi 5 lần cùng lúc cũng chỉ được trả một lần.
+  - **Admin:** cần, mồi, cá là vật phẩm (loại Cần câu, Mồi câu, Cá) ở tab Vật phẩm: đổi tên, giá (giá cần/mồi là giá Ngư
+    Cụ bán, giá cá là giá Ngư Cụ mua; giá 0 là không bán/không mua). Tặng hay lấy lại cần, mồi ở mục túi đồ trong trang
+    người chơi; mục Câu Cá ở đó ghi cần mồi đang dùng, số cá đã câu, Ngư Lục.
 - **Cài đặt (trong nút ▦ Thêm):**
   - **Nhạc nền:** công tắc bật/tắt, thanh kéo âm lượng 0-100%, tên bài và tên bản đồ đang ở.
     - **Mỗi bản đồ một bài riêng**, phát lặp lại khi còn ở đó; người chơi không đổi bài được. Qua bản đồ khác thì bài cũ nhỏ

@@ -1176,6 +1176,141 @@ const SHOP_TEST = "Hàng thử nghiệm";
   ok("Gia Viên: unlocked and paid once, with the default house; its walls stop people and its floors carry them; no building by hand; the pen's cap, feeding, collecting and picking each once; a house bought once, paid once, moved into, switched only between houses one has");
 }
 
+// Câu Cá: to the lake from the menu; rods bought once and paid once, bait by the handful; buying and selling only at the
+// stall; a cast whose bite, strike and reeling the server runs (a strike too early costs nothing, moving reels in, a bite
+// takes one bait); the catch in the bag and the Ngư Lục; selling counted once however fast it's asked
+{
+  const { q } = await import("../server/db.js");
+  const { createSession } = await import("../server/auth.js");
+  const cc = await import("../shared/cau-ca.js");
+  const tag = uid();
+  const id = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [`tf_${tag}`])).insertId;
+  await q("INSERT INTO characters (user_id, name, class, gender, hair, robe, exp, stones) VALUES (?, ?, 'tu', 'm', 8, 16, 1000, 20000)", [id, `F${tag.slice(0, 6)}`]);
+  const A = { uid: id, token: await createSession(id) };
+  const post = async (path, body) => {
+    for (;;) {
+      const r = await call(`/fishing${path}`, { token: A.token, method: "POST", body });
+      if (r.status !== 429) return r;
+      await sleep(1500);
+    }
+  };
+  const stones = async () => Number((await q("SELECT stones FROM characters WHERE user_id = ?", [A.uid]))[0].stones);
+  const qty = async (item) => Number((await q("SELECT qty FROM inventory WHERE user_id = ? AND item = ?", [A.uid, item]))[0]?.qty ?? 0);
+  const c = await connect(A.token);
+  const msgs = (t) => c.msgs.filter((m) => m.t === t);
+  const fishMsg = async (pred, ms = 20000) => {
+    for (let i = 0; i < ms / 50; i++) {
+      const m = c.msgs.find((x) => x.t === "fish" && !x.seen && pred(x));
+      if (m) return (m.seen = true), m;
+      await sleep(50);
+    }
+    throw new Error("no fish message");
+  };
+  const end = () => fishMsg((m) => m.s === "end");
+  const me0 = () => c.snap?.P.find((p) => p[0] === c.id);
+  await sleep(300);
+  // off the lake: casting does nothing but say so
+  send(c, { t: "fish", a: "cast" });
+  await sleep(300);
+  assert.ok(msgs("toast").some((m) => /Vọng Nguyệt Hồ/.test(m.m)), "no fishing off the lake");
+  assert.equal((await post("/enter")).status, 200);
+  await sleep(2500);
+  assert.equal(msgs("welcome").pop().map, cc.FISH_MAP, "at the lake");
+  // ---- the stall: nothing is sold away from it
+  const rod = "cc_can_truc", bait = "cc_moi_giun", P = { rod: cc.RODS[rod].price, bait: cc.BAITS[bait].price };
+  assert.equal((await post("/buy", { item: rod, qty: 1, requestId: crypto.randomUUID() })).status, 403, "away from the stall: no buying");
+  await walkTo(c, 12.5 * 32, me0()[2]);
+  // five buys of the same rod at once: one, paid once; the same request again counts once
+  const five = await Promise.all(Array.from({ length: 5 }, () => post("/buy", { item: rod, qty: 1, requestId: crypto.randomUUID() })));
+  assert.equal(five.filter((r) => r.status === 200).length, 1, "a rod is bought once");
+  assert.equal(await stones(), 20000 - P.rod, "paid once");
+  assert.equal(await qty(rod), 1);
+  const rid = crypto.randomUUID();
+  const twice = await Promise.all([post("/buy", { item: bait, qty: 10, requestId: rid }), post("/buy", { item: bait, qty: 10, requestId: rid })]);
+  assert.ok(twice.every((r) => r.status === 200), JSON.stringify(twice.map((r) => r.data)));
+  assert.equal(await qty(bait), 10, "the same request twice: one handful");
+  await Promise.all(Array.from({ length: 4 }, () => post("/buy", { item: bait, qty: 5, requestId: crypto.randomUUID() })));
+  assert.equal(await qty(bait), 30, "four handfuls at once: all four");
+  assert.equal(await stones(), 20000 - P.rod - 30 * P.bait, "and each paid");
+  assert.equal((await post("/buy", { item: bait, qty: 100, requestId: crypto.randomUUID() })).status, 400, "at most 99 at once");
+  assert.equal((await post("/choose", { rod: "cc_can_long" })).status, 403, "can't pick a rod one doesn't have");
+  const v = (await call("/fishing", { token: A.token })).data;
+  assert.equal(v.rod, rod, "the rod bought is in hand");
+  assert.equal(v.bait, bait, "the bait bought is on the hook");
+  assert.ok(v.atShop && v.here);
+  // ---- from the shore by the dock, facing the water
+  await walkTo(c, 21.4 * 32, me0()[2]);
+  send(c, { t: "in", dx: 0.2, dy: 0 });
+  await sleep(120);
+  send(c, { t: "in", dx: 0, dy: 0 });
+  await sleep(400);
+  // struck too early: reeled in empty, nothing spent
+  send(c, { t: "fish", a: "cast" });
+  const cast1 = await fishMsg((m) => m.s === "cast" || m.s === "end");
+  assert.equal(cast1.s, "cast", JSON.stringify(cast1));
+  assert.equal(cast1.zone, "ben", "the shallows by the dock");
+  await sleep(200);
+  assert.ok(c.snap.P.find((p) => p[0] === c.id).length > 6, "the float shows in the snapshot");
+  send(c, { t: "fish", a: "hook" });
+  assert.equal((await end()).why, "early");
+  assert.equal(await qty(bait), 30, "a strike before the bite costs no bait");
+  // moving reels in
+  await sleep(1400);
+  send(c, { t: "fish", a: "cast" });
+  await fishMsg((m) => m.s === "cast");
+  send(c, { t: "in", dx: -1, dy: 0 });
+  assert.equal((await end()).why, "move", "walking off reels the line in");
+  send(c, { t: "in", dx: 0, dy: 0 });
+  await walkTo(c, 21.4 * 32, me0()[2]);
+  send(c, { t: "in", dx: 0.2, dy: 0 });
+  await sleep(120);
+  send(c, { t: "in", dx: 0, dy: 0 });
+  await sleep(1400);
+  // ---- a real cast: wait for the bite, strike, reel the fish in (holding while the zone is under the fish)
+  let landed = null;
+  for (let tries = 0; tries < 4 && !landed; tries++) {
+    send(c, { t: "fish", a: "cast" });
+    await fishMsg((m) => m.s === "cast");
+    const bite = await fishMsg((m) => m.s === "bite" || m.s === "end", 20000);
+    assert.equal(bite.s, "bite", JSON.stringify(bite));
+    send(c, { t: "fish", a: "hook" });
+    await fishMsg((m) => m.s === "reel");
+    let hold = false, out = null;
+    const seen = c.msgs.length;
+    for (let i = 0; i < 1400 && !out; i++) {
+      const fr = c.msgs.slice(seen).filter((m) => m.t === "fr").pop();
+      if (fr && (fr.z < fr.f) !== hold) send(c, { t: "fish", a: "hold", on: (hold = fr.z < fr.f) });
+      out = c.msgs.find((m) => m.t === "fish" && m.s === "end" && !m.seen);
+      await sleep(25);
+    }
+    out.seen = true;
+    if (out.why === "land") landed = out;
+    await sleep(1400);
+  }
+  assert.ok(landed, "a fish landed");
+  assert.ok(cc.FISH[landed.fish] && landed.g >= cc.FISH[landed.fish].kg[0] * 1000 && landed.g <= cc.FISH[landed.fish].kg[1] * 1000, "a fish of that spot, its weight in its range");
+  assert.ok(cc.FISH[landed.fish].zones.includes("ben"));
+  const log = await q("SELECT n, best_g FROM fish_log WHERE user_id = ? AND fish = ?", [A.uid, landed.fish]);
+  assert.equal(Number(log[0].best_g), landed.g, "in the Ngư Lục with its weight");
+  const f = (await q("SELECT casts, catches FROM fishers WHERE user_id = ?", [A.uid]))[0];
+  assert.equal(30 - (await qty(bait)), Number(f.casts), "one bait a bite");
+  assert.ok(Number(f.catches) >= 1);
+  // ---- selling, back at the stall: five "sell all" at once are paid once
+  if (!cc.FISH[landed.fish].stones) {
+    assert.equal(await qty(landed.fish), 1, "the catch is in the bag");
+    await q("UPDATE inventory SET qty = 7 WHERE user_id = ? AND item = ?", [A.uid, landed.fish]);
+    assert.equal((await post("/sell", { item: landed.fish, qty: 1, requestId: crypto.randomUUID() })).status, 403, "away from the stall: no selling");
+    await walkTo(c, 12.5 * 32, me0()[2]);
+    const s0 = await stones();
+    const sells = await Promise.all(Array.from({ length: 5 }, () => post("/sell", { item: "all", qty: "all", requestId: crypto.randomUUID() })));
+    assert.equal(sells.filter((r) => r.status === 200).length, 1, "five sell-alls: one");
+    assert.equal(await stones(), s0 + 7 * cc.FISH[landed.fish].price, "paid once for the seven");
+    assert.equal(await qty(landed.fish), 0);
+  }
+  c.ws.close();
+  ok("Câu Cá: to the lake from the menu; a rod bought once and paid once, bait by the handful, only at the stall; a strike too early costs nothing, moving reels in, a bite takes one bait; the reeling run by the server lands a fish of that spot into the bag and the Ngư Lục; selling paid once");
+}
+
 {
   const { q, pool } = await import("../server/db.js");
   await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);

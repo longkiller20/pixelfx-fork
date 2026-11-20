@@ -18,6 +18,7 @@ import { MAPS as MAP_DEFS, mapInfo } from "../shared/maps/index.js";
 import { CONG_PHAP } from "../shared/cong-phap.js";
 import * as sects from "./tong-mon.js";
 import * as gv from "./gia-vien.js";
+import * as cc from "./cau-ca.js";
 import { HOUSES, DEFAULT_HOUSE, housePrice, houseName } from "../shared/gia-vien.js";
 
 const MAPS = Object.keys(MAP_DEFS).map((id) => mapInfo(id));
@@ -401,6 +402,8 @@ export function adminApp(world) {
       ...shapePlayer(p), inventory: await inventory(id), owned, buys, pvp, history, learned: ch?.learned ?? [], slots: ch?.slots ?? [],
       buffs: await activeBuffs(id), expiredBuffs: oldBuffs.map((b) => ({ ...b, id: Number(b.id) })), live: world.liveInfo(id),
       // Gia Viên: unlocked or not, the house lived in, the houses had; and every house there is, to give
+      // Câu Cá: the rod and bait in hand, the tallies, the Ngư Lục (rods and baits themselves are items: the bag above)
+      fishing: await cc.adminView(id),
       home: { ...(await gv.adminView(id)), catalog: Object.keys(HOUSES).filter((k) => k !== DEFAULT_HOUSE).map((k) => ({ id: k, name: houseName(k, HOME.houses), price: housePrice(k, HOME.houses) })), defaultHouse: houseName(DEFAULT_HOUSE, HOME.houses) },
     };
   }

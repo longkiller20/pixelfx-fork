@@ -24,4 +24,5 @@ export const categories = [
   { id: "critters", name: "critters", blurb: "slimes, bats, ghosts, frogs" },
   { id: "farm", name: "farm", blurb: "hens, ducks, pigs, cows, herbs growing, fences and plots" },
   { id: "home", name: "home", blurb: "doors, windows, tables, beds, lanterns, an alchemy furnace" },
+  { id: "fishing", name: "fishing", blurb: "fish, rods, bait, a float, a fishmonger's stall, a dock" },
 ];
