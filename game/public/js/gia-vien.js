@@ -427,7 +427,7 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
     if (isOpen("gvp.home")) homePanel();
     else if (isOpen("gvp.farm")) farmPanel();
     else if (isOpen("gvp.garden")) gardenPanel();
-    else if (isOpen("gvp.house")) housePanel();
+    else if (isOpen("gvp.house")) housePanel(housePage);
   }
 
   // ---- 🐔 the farm
@@ -517,27 +517,47 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
   }
 
   // ---- 🏠 the house: the one this home has, and the ready-made houses (more to be bought later)
-  function housePanel() {
-    const v = st() ?? view ?? {}, cur = v.house, owned = new Set(v.houses ?? []);
-    const inside = !!layer()?.active;
-    const wrap = h("div.gvp.house");
-    for (const [id, H] of Object.entries(HOUSES)) {
-      const has = id === cur, own = owned.has(id) || !H.price;
-      const act_ = has
-        ? h("span.tag", { text: "Đang ở" })
-        : own
-          ? h("button.primary", { type: "button", text: "Dọn vào ở", onclick: (e) => act("/house/use", { house: id }, `Đã dọn vào ${H.name}.`, e.target) })
-          : sure(`Mua · ${fmt(H.price)} linh thạch`, "Bấm lần nữa để mua", (b) => act("/house/buy", { house: id, requestId: uuid() }, `Đã mua ${H.name}!`, b), "primary");
-      wrap.append(h("div.gvhouse", { className: has ? "on" : "" },
-        houseCanvas(id, 360),
+  // one house a page: ‹ › (or the dots, or swiping) to look through them; it opens on the one lived in
+  let housePage = -1;
+  function housePanel(page = housePage) {
+    const v = st() ?? view ?? {}, cur = v.house, owned = new Set(v.houses ?? []), ids = Object.keys(HOUSES);
+    if (page < 0) page = Math.max(0, ids.indexOf(cur));
+    housePage = page = (page + ids.length) % ids.length;
+    const id = ids[page], H = HOUSES[id], has = id === cur, own = owned.has(id) || !H.price;
+    const go = (d) => housePanel(page + d);
+    const act_ = has
+      ? h("span.tag", { text: "Đang ở" })
+      : own
+        ? h("button.primary", { type: "button", text: "Dọn vào ở", onclick: (e) => act("/house/use", { house: id }, `Đã dọn vào ${H.name}.`, e.target) })
+        : sure(`Mua · ${fmt(H.price)} linh thạch`, "Bấm lần nữa để mua", (b) => act("/house/buy", { house: id, requestId: uuid() }, `Đã mua ${H.name}!`, b), "primary");
+    const arrow = (d) => h("button.gvarrow", { type: "button", "aria-label": d < 0 ? "Nhà trước" : "Nhà sau", disabled: ids.length < 2, onclick: () => go(d) },
+      svgArrow(d));
+    const pic = h("div.gvhpic", {}, houseCanvas(id, 520));
+    // a swipe on the picture turns the page too
+    let sx = null;
+    pic.addEventListener("pointerdown", (e) => (sx = e.clientX));
+    pic.addEventListener("pointerup", (e) => {
+      if (sx !== null && Math.abs(e.clientX - sx) > 40) go(e.clientX < sx ? 1 : -1);
+      sx = null;
+    });
+    const wrap = h("div.gvp.house",
+      {},
+      h("div.gvpager", {}, arrow(-1), pic, arrow(1)),
+      h("div.gvdots", {}, ...ids.map((k, n) => h("button", { type: "button", className: `${n === page ? "on" : ""}${k === cur ? " home" : ""}`, title: HOUSES[k].name, "aria-label": HOUSES[k].name, onclick: () => housePanel(n) }))),
+      h("div.gvhouse", { className: has ? "on" : "" },
         h("div.gvmain", {},
           h("div.gvhrow", {}, h("b", { text: H.name }), h("span.price", { text: H.price ? `${fmt(H.price)} linh thạch` : "Tặng kèm" })),
           h("small", { text: H.desc }),
-          act_)));
-    }
-    wrap.append(h("p.dim", { text: inside ? "Nhà làm sẵn, mua là dọn vào ở ngay. Nhà đã mua có thể đổi qua lại bất cứ lúc nào." : "Nhà làm sẵn, mua là dọn vào ở ngay. Vào Gia Viên để xem tận nơi." }));
+          h("div.gvhfoot", {}, act_, h("span.dim", { text: `${page + 1} / ${ids.length}` })))),
+      h("p.dim", { text: "Nhà làm sẵn, mua là dọn vào ở ngay. Nhà đã mua có thể đổi qua lại bất cứ lúc nào." }));
     show("Nhà Ở", wrap);
   }
+  const svgArrow = (d) => {
+    const s = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    s.setAttribute("viewBox", "0 0 24 24");
+    s.innerHTML = d < 0 ? '<path d="M15 4l-8 8 8 8"/>' : '<path d="M9 4l8 8-8 8"/>';
+    return s;
+  };
 
   // the game tells us when the farm changed (the server's message) or an animal / bed was tapped
   function onState() {

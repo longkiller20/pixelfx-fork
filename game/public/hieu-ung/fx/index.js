@@ -57,6 +57,7 @@ import * as spawn_respawn_beam from "./spawn/respawn-beam.js";
 import * as status_burning from "./status/burning.js";
 import * as transitions_star_iris from "./transitions/star-iris.js";
 import * as ui_level_up from "./ui/level-up.js";
+import * as ui_menu_icon from "./ui/menu-icon.js";
 import * as water_bubbles from "./water/bubbles.js";
 import * as water_ripples from "./water/ripples.js";
 import * as water_water_orb from "./water/water-orb.js";
@@ -120,6 +121,7 @@ export const effects = {
   "status/burning": status_burning,
   "transitions/star-iris": transitions_star_iris,
   "ui/level-up": ui_level_up,
+  "ui/menu-icon": ui_menu_icon,
   "water/bubbles": water_bubbles,
   "water/ripples": water_ripples,
   "water/water-orb": water_water_orb,

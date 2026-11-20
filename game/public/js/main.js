@@ -8,6 +8,7 @@ import { startGame } from "./game.js";
 import { initSect } from "./tong-mon.js";
 import { initSocial } from "./dao-huu.js";
 import { initHomeUI } from "./gia-vien.js";
+import { initMenu } from "./menu.js";
 import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange } from "./music.js";
 
 const $ = (id) => document.getElementById(id);
@@ -604,7 +605,7 @@ $("wardBtn").addEventListener("click", async () => {
         w = { items: out.items, owned: out.owned };
         owned.clear();
         for (const id of out.owned) owned.add(id);
-        flash(`Đã mua ${it.name}! Mặc ở bảng Nhân vật 👤.`);
+        flash(`Đã mua ${it.name}! Mặc ở bảng Nhân vật.`);
       }
       state.character = me.character;
       bal();
@@ -670,8 +671,8 @@ $("helpBtn").addEventListener("click", () => {
   d.className = "help";
   d.innerHTML = `<p><b>Máy tính:</b> A/D hoặc ←/→ để đi, W/↑/Space để nhảy, S + nhảy để xuống khỏi ván gỗ. Chuột để ngắm. J (hoặc chuột trái) đánh thường; K/L/U/I/O (hoặc 1-5, chuột phải cho ô 1) dùng 5 công pháp trên thanh. Z: Hồi Xuân Đan, X: Tụ Khí Đan. F: ngự kiếm phi hành (khi bay, W/S để lên xuống). Enter để trò chuyện.</p>
   <p><b>Điện thoại:</b> đặt ngón tay ở nửa trái màn hình là hiện cần analog tròn: gạt trái/phải để đi, gạt lên để nhảy, gạt xuống để rơi xuyên ván gỗ hoặc đài mây; góc phải là cụm nút kiểu MOBA: nút to ở góc là Kiếm Khí Trảm (đánh thường), 5 công pháp xếp thành một vòng cung quanh nó, bên trái là 2 đan dược, phía trên là nút phi kiếm (mở khoá từ cảnh giới admin đặt): chạm để ngự kiếm, khi bay gạt cần analog theo mọi hướng. Chiêu vùng (như Tiểu Bạo Phù, Lưu Tinh Hỏa Vũ) kéo được: giữ nút chiêu rồi kéo ngón tay theo hướng muốn ném, vòng xanh là tầm tối đa, vòng vàng là chỗ chiêu sẽ nổ, thả tay để tung chiêu; chạm nhanh thì chiêu tự rơi vào kẻ địch gần nhất. Trên máy tính, chiêu vùng nổ ở chỗ con trỏ chuột. Ô trống có dấu +: chạm vào để gán công pháp.</p>
-  <p><b>Công Pháp (nút 📜):</b> hơn 200 công pháp, mỗi môn cần bí kíp riêng và tinh thạch theo hệ (môn cao cần thêm Linh Tủy), đều rơi ngẫu nhiên khi hạ yêu thú. Đủ vật phẩm thì bấm Lĩnh ngộ; gán tối đa 5 môn lên thanh, đổi lúc nào cũng được.  chiêu tự nhắm kẻ địch gần nhất.</p>
-  <p><b>Y Các (👘):</b> thử và mua kiểu tóc, y phục mới bằng linh thạch; đồ đã mua mặc lại lúc nào cũng được.</p>
+  <p><b>Công Pháp (nút cuộn trục trên menu):</b> hơn 200 công pháp, mỗi môn cần bí kíp riêng và tinh thạch theo hệ (môn cao cần thêm Linh Tủy), đều rơi ngẫu nhiên khi hạ yêu thú. Đủ vật phẩm thì bấm Lĩnh ngộ; gán tối đa 5 môn lên thanh, đổi lúc nào cũng được.  chiêu tự nhắm kẻ địch gần nhất.</p>
+  <p><b>Y Các (trong nút Thêm, góc phải trên):</b> thử và mua kiểu tóc, y phục mới bằng linh thạch; đồ đã mua mặc lại lúc nào cũng được.</p>
   <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (bệ đá dưới đĩa âm dương xoay, trước điện thờ) để tăng tu vi, tối đa mỗi ngày có hạn.</p>
   <p><b>Tân Thủ Thôn:</b> thôn khởi đầu, an toàn, không có yêu thú. Dưới gốc đào tiên có 2 bù nhìn rơm để thử chiêu: số sát thương hiện trên đầu, bù nhìn tự hồi máu khi để yên. Đi sang phải qua vườn đào, lên đồi; mũi tên vàng dưới chân bậc thang đá ở cuối thôn phía đông là lối ra (bản đồ mới sẽ mở sau).</p>
   <p><b>Sắp mở:</b> bản đồ luyện cấp đánh yêu thú và đấu trường tỷ thí. Ở đấu trường, chỉ số được cân bằng (cảnh giới cao chỉ hơn tối đa 10%) và không dùng được đan hồi phục.</p>`;
@@ -784,10 +785,12 @@ async function refreshConfig() {
   }
 }
 await refreshConfig();
+initMenu();
 if (token) {
   // a saved session goes straight in; phones still need one tap to go full screen
   enter().catch(() => show("auth"));
-  if (touch) $("fsBtn").classList.add("pulse");
+  // (the full-screen button sits under Thêm: that one pulses until it's used)
+  if (touch) $("moreBtn").classList.add("pulse"), $("fsBtn").addEventListener("click", () => $("moreBtn").classList.remove("pulse"), { once: true });
 } else show("auth");
 
 // ---------------------------------------------------------------- the character (👤, C): who you are, what you wear, your bag
@@ -991,7 +994,7 @@ async function charPanel(startTab = "all") {
     const d = $$(".cdetail");
     d.replaceChildren();
     if (!sel) {
-      d.innerHTML = `<p class="hint">Chọn một món để xem. Mua thêm tóc, y phục, vũ khí, phi kiếm ở Y Các 👘; đan dược ở Đan Các ⚗.</p>`;
+      d.innerHTML = `<p class="hint">Chọn một món để xem. Mua thêm tóc, y phục, vũ khí, phi kiếm ở Y Các; đan dược ở Đan Các (cả hai trong nút Thêm trên menu).</p>`;
       return;
     }
     const pic = document.createElement("div");
@@ -1050,7 +1053,7 @@ async function charPanel(startTab = "all") {
         act.append(b);
       } else if (it.kind === "book" || it.kind === "material") {
         const b = document.createElement("button");
-        b.textContent = "Công Pháp 📜";
+        b.textContent = "Công Pháp";
         b.title = "Bí kíp và nguyên liệu dùng để lĩnh ngộ công pháp";
         b.addEventListener("click", () => artsPanel());
         act.append(b);

@@ -13,7 +13,12 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Database cũ được dọn một lần khi máy chủ khởi động (migration `retire_shop_2026_11`, rồi `retire_specials_2026_11`). Người đã mua được hoàn linh thạch. Ai đang mặc món bị xoá thì đổi sang món miễn phí.
 - **Tạo nhân vật:** chọn giới tính, nhập đạo hiệu, chọn 1 trong 5 kiểu tóc và 1 trong 5 bộ y phục khởi đầu (giản dị nhất của
   mỗi giới), xem trước nhân vật đang đứng.
-- **Cài đặt (nút ⚙, cuối thanh menu):**
+- **Thanh menu** (góc phải trên, `public/js/menu.js`): icon vẽ bằng pixelfx (`../src/fx/ui/menu-icon.js`, 14 icon 20 px có
+  đổ bóng và viền, hiện đúng từng điểm ảnh, căn giữa nút).
+  - **Luôn hiện:** Nhân vật, Công Pháp, Gia Viên, Tông Môn, Đạo Hữu, Đàm Đạo, Quà mỗi ngày.
+  - **Nút ▦ Thêm** mở khung xổ xuống gồm Đan Các, Y Các, Phong Thần, Hướng dẫn, Toàn màn hình, Cài đặt (icon kèm tên).
+    Chọn một mục, bấm ra ngoài hoặc Esc thì khung đóng lại.
+- **Cài đặt (trong nút ▦ Thêm):**
   - **Nhạc nền:** công tắc bật/tắt, thanh kéo âm lượng 0-100%, tên bài và tên bản đồ đang ở.
     - **Mỗi bản đồ một bài riêng**, phát lặp lại khi còn ở đó; người chơi không đổi bài được. Qua bản đồ khác thì bài cũ nhỏ
       dần, bài mới to dần.
@@ -202,7 +207,7 @@ Có HTTPS thì game tự dùng `wss://`.
 
 - Khi bấm **Đăng nhập** hoặc **Đăng ký**, game xin chế độ toàn màn hình và khoá màn hình nằm ngang. Android Chrome hỗ trợ việc này.
 - iPhone Safari không cho web khoá hướng màn hình. Vì vậy, nếu máy đang cầm dọc, cả giao diện tự xoay ngang 90° để vẫn chơi được.
-- Nút ⛶ trên thanh menu để vào lại toàn màn hình. Trình duyệt chỉ cho phép việc đó sau một lần chạm, nên khi mở lại game bằng phiên đã lưu, bạn cần bấm nút này.
+- Nút Toàn màn hình (trong ▦ Thêm; nút Thêm nhấp nháy cho đến khi bấm) để vào lại toàn màn hình. Trình duyệt chỉ cho phép việc đó sau một lần chạm, nên khi mở lại game bằng phiên đã lưu, bạn cần bấm nút này.
 - Điều khiển: đặt ngón tay ở nửa trái màn hình là hiện cần analog tròn: gạt trái/phải để đi, gạt lên để nhảy (giữ lên thì nhảy liên tục), gạt xuống để rơi xuyên ván gỗ và đài mây.
   Bên phải có các nút chiêu và đan dược. Trên điện thoại, chiêu tự nhắm kẻ địch gần nhất.
 - Từ cảnh giới admin đặt (mặc định Trúc Cơ), nút phi kiếm hiện trên 2 nút đan dược. Chạm vào để ngự kiếm; khi bay, cần analog lái theo mọi hướng. Chạm lần nữa để hạ kiếm.
@@ -477,7 +482,8 @@ Viên lưu nhà đang có ở cột `homes.house`.
     - Máy arcade đang chơi (đàn quái di chuyển, phi thuyền bắn), biển ly nước chập chờn, đèn REC của máy quay nháy,
       đèn studio sáng lên tắt xuống.
 - **Va chạm thật:** tường và sàn của nhà chặn và đỡ người chơi, máy chủ và trình duyệt tính giống nhau.
-- **Bảng 🏠 Nhà Ở** (mở được cả khi ở ngoài Gia Viên): ảnh từng căn, tên, giá, mô tả.
+- **Bảng 🏠 Nhà Ở** (mở được cả khi ở ngoài Gia Viên): mỗi trang một căn, mũi tên ‹ › hai bên ảnh (hoặc vuốt ảnh, hoặc
+  bấm chấm dưới ảnh) để xem căn khác; mở ra ở đúng căn đang ở. Mỗi trang có ảnh, tên, giá, mô tả.
   - Nhà chưa có: nút **Mua**, bấm hai lần để chắc. Mua xong dọn vào ở ngay.
   - Nhà đã có: nút **Dọn vào ở**, đổi qua lại bất cứ lúc nào.
   - Khi đổi nhà mà đang ở trong Gia Viên, người trong đó được đưa về cổng (tường nhà mới có thể ở đúng chỗ đang đứng).
