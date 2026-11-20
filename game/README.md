@@ -450,7 +450,7 @@ bốn nút này là nút tròn nằm dưới menu.
 
 - **Mua vật liệu bằng linh thạch** rồi đặt từng ô 32 px, như Terraria. Mỗi lần mua được 1 đến `home.buy_max` cái. Đặt
   xuống thì trừ 1 trong kho; phá đi thì cái đó về lại kho.
-- **Bốn nhóm vật liệu:**
+- **Bảy nhóm vật liệu, ba phong cách** hợp với đa vũ trụ tu tiên: cổ trang, hiện đại và khoa huyễn (tương lai):
 
 | Nhóm | Gồm | Tác dụng |
 | --- | --- | --- |
@@ -458,13 +458,16 @@ bốn nút này là nút tròn nằm dưới menu.
 | Mái | Ngói Xám, Lam, Đỏ, Ngọc (khối đặc); Hiên Ngói 4 màu (sàn có mép vảy cá) | Lợp mái nhà |
 | Vách | Vách Giấy, Vách Gỗ, Vách Đá Xanh, Vách Đất Nung | Tường phía sau, tối hơn một chút, không chắn đường |
 | Nội thất | Cửa Gỗ, Cửa Sổ Song, Bàn Trà, Ghế Tựa, Giường, Kệ Sách, Bình Hoa, Tranh Thủy Mặc, Đèn Lồng, Lò Luyện Đan, Rương, Thùng Rượu | Trang trí; đèn lồng đung đưa, lò đan cháy và bốc khói |
+| Đền Đài | Gạch Đền, Đá Cẩm Thạch (khối và vách); Cột Đền, Cột Cẩm Thạch (cao 3 ô), Tượng Thần (cao 2 ô), Bàn Đá; Phướn Đền (2×4) và Phù Điêu (4×4) treo trên vách | Đền miếu, điện thờ |
+| Hiện Đại | Gạch Xám, Đá Ong, Đá Ong Xây, Gạch Hoa 4 màu, Bê Tông, Kính Cường Lực; Vách Gạch Xám, Vách Bê Tông; Sofa, Giường Nệm, Bàn Bi-a (rộng 2 ô), Bồn Tắm, Tủ Bếp, Bếp Ga, Quầy Gỗ, Bàn Làm Việc, Đàn Piano, Dàn Âm Thanh, Loa | Nhà phố hiện đại |
+| Khoa Huyễn | Thép Vát, Thép Đinh Tán, Khung Thép, Khối Tản Nhiệt, Khối Đèn Lam, Khối Cảnh Báo, Thép Gỉ; Sàn Thép; Vách Thép, Vách Mạch, Vách Lưới; Máy Chủ (2×2), Tủ Điều Khiển, Cửa Thép Trượt (cao 2 ô), Hộp Kim Loại, Trạm Truyền Tin | Căn cứ, phi thuyền tương lai |
 
 - **Luật đặt** (máy chủ kiểm tra; trình duyệt dùng cùng luật để hiện ô xanh/đỏ trước khi bấm):
   - Chỉ đặt được trong khu Nhà Ở, và cách nhân vật không quá `home.reach` ô.
   - Khối phải tựa vào mặt đất, khối khác hoặc vách. Vách phải nối với mặt đất, khối hoặc vách khác.
   - Không đặt khối đặc lên chỗ có người đang đứng.
   - Đồ đạc cần chỗ dựa: đồ thường cần sàn bên dưới, cửa sổ và tranh cần vách phía sau, đèn lồng cần khối phía trên.
-    Đồ to chiếm nhiều ô: cửa và kệ sách cao 2 ô, giường rộng 2 ô, lò đan cao 2 ô.
+    Đồ to chiếm nhiều ô: cửa và kệ sách cao 2 ô, giường rộng 2 ô, lò đan cao 2 ô, cột cao 3 ô, phù điêu 4×4.
   - Không phá được khối đang đỡ đồ đạc: phải dỡ đồ trước.
   - Mỗi Gia Viên có tối đa `home.max_blocks` món đã đặt.
 - **Cách xây:** bấm 🔨 Xây để mở thanh vật liệu ở dưới màn hình. Thanh có các tab nhóm, nút ✋ Đặt và ⛏ Phá, mỗi món kèm
@@ -516,10 +519,16 @@ bốn nút này là nút tròn nằm dưới menu.
   - **Bốn cây dược thảo**, mỗi cây 4 giai đoạn (`stage` 0-3).
   - **Đồ nông trại:** luống đất khô/ướt, hàng rào, máng ăn, chuồng gà, đống rơm, biển gỗ.
   - **Nội thất:** cửa, cửa sổ, bàn, ghế, giường, kệ, bình hoa, tranh, vách giấy, vách gỗ, khối tre, sàn gỗ; đèn lồng và lò
-    luyện đan có chuyển động.
-- **Lấy từ asset có sẵn (CC0):** các khối Ván Gỗ, Thùng Gỗ, Gỗ Tròn, Đá Xám, Đá Cát, Rương, Thùng Rượu (Frogatto), Đá
-  Xanh, Đất Nung, Vân Đài và hai loại vách đá (Xianxia Pixel Pack), Ngói và Hiên bốn màu (Oriental Roof Tiles).
-  `tools/gia-vien-khoi.py` cắt chúng vào `public/gia-vien/khoi.png`; nguồn ghi ở `public/gia-vien/CREDITS.md`.
+    luyện đan có chuyển động; Kính Cường Lực và Cửa Thép Trượt (không tìm được asset hợp).
+- **Lấy từ asset có sẵn, tất cả CC0 (miễn phí, dùng thương mại được):**
+  - Cổ trang: Frogatto (gỗ, đá, rương, thùng rượu), Xianxia Pixel Pack (đá xanh, đất nung, vân đài, vách), Oriental Roof
+    Tiles (ngói, hiên).
+  - Đền Đài: Sunset Temple Tiles (gạch đền, cột, phướn, phù điêu), Classical Temple Tiles (cẩm thạch, cột, tượng, bàn đá).
+  - Hiện Đại: Sandy Bricks, Basic Bricks (gạch, gạch hoa), Crimelike Furniture (sofa, giường, bếp, piano...).
+  - Khoa Huyễn: Sci-fi platform tiles của Eris (bê tông, đèn, máy chủ...), Sci-fi platformer tiles của bart (thép, vách),
+    Communication terminal (trạm truyền tin).
+  - `tools/gia-vien-khoi.py` cắt chúng vào `public/gia-vien/khoi.png` (tile sheet gốc để ở `tools/gia-vien-nguon/`) và
+    ghi vị trí từng hình vào `shared/gia-vien-khoi.js`; nguồn và tác giả ghi ở `public/gia-vien/CREDITS.md`.
 
 ### Bảo mật
 
@@ -781,7 +790,7 @@ game/
   shared/gia-vien.js     danh mục khối, vật nuôi, cây; bố cục khu đất; luật đặt khối (HomeGrid) dùng chung
   shared/maps/giavien.js bản đồ Gia Viên (mỗi người một bản sao trên máy chủ)
   public/js/gia-vien.js  vẽ Gia Viên (khối, vật nuôi, cây), chế độ xây, bảng Nông Trại, Vườn Dược
-  tools/gia-vien-khoi.py cắt các khối xây từ tileset vào public/gia-vien/khoi.png
+  tools/gia-vien-khoi.py cắt các khối xây từ tileset (tools/gia-vien-nguon/) vào public/gia-vien/khoi.png
   server/dao-huu.js      Đạo Hữu (kết giao, lời mời, chặn) và Truyền Âm, an toàn khi tranh chấp
   public/js/dao-huu.js   bảng Đàm Đạo (các kênh chat) và bảng Đạo Hữu (danh sách, lời mời, Truyền Âm)
   server/store.js        mọi thay đổi dữ liệu nhân vật (cả mua và mặc đồ ở Y Các), an toàn khi tranh chấp

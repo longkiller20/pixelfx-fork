@@ -5,6 +5,7 @@
 import { createFrame, clearFrame, createFx, painterFor, hex } from "/hieu-ung/core/index.js";
 import { effects } from "/hieu-ung/fx/index.js";
 import { ITEMS, HOME } from "/shared/balance.js";
+import { KHOI } from "/shared/gia-vien-khoi.js";
 import { BLOCKS, BLOCK_GROUPS, ANIMALS, CROPS, LAYOUT, HomeGrid, cropStage, cellsOf } from "/shared/gia-vien.js";
 import { fits } from "/shared/physics.js";
 import { h, sure } from "./tong-mon.js";
@@ -53,15 +54,16 @@ function darken(s, k) {
   }
   return { ...s, px };
 }
-/** The picture of a kind (made once): an atlas tile (32 x 32, anchored at its bottom middle) or a still pixelfx piece. */
+/** The picture of a kind (made once): its picture cut from khoi.png, or a still pixelfx piece. */
 function spriteOf(kind) {
   if (sprites.has(kind)) return sprites.get(kind);
   const b = BLOCKS[kind];
   let s = null;
   if (b.atlas !== undefined && atlas) {
-    const px = new Uint32Array(T * T);
-    for (let y = 0; y < T; y++) for (let x = 0; x < T; x++) px[y * T + x] = atlas.px[y * atlas.w + b.atlas * T + x];
-    s = { w: T, h: T, px, ox: 16, oy: T };
+    // its rect in the sheet, w x h cells, anchored at the bottom middle of its bottom-left cell
+    const [ax, ay, w, hh] = KHOI[b.atlas], px = new Uint32Array(w * hh);
+    for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) px[y * w + x] = atlas.px[(ay + y) * atlas.w + ax + x];
+    s = { w, h: hh, px, ox: T / 2, oy: hh };
   } else if (b.fx && !b.live) s = fxSprite(b.fx, b.o ?? {});
   // walls behind are a shade darker, so what stands in front reads
   if (s && b.layer === "b") s = darken(s, 0.72);

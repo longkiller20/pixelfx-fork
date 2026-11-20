@@ -3,7 +3,7 @@ import { Grid, H, RAMP, outline, board, post } from "./_lib.js";
 
 export const meta = {
   name: "Furniture",
-  desc: "Things for a house built a cell (32 px) at a time, one per piece: door, window, table, chair, bed, shelf, vase, scroll, paper wall, wood wall, bamboo, platform.",
+  desc: "Things for a house built a cell (32 px) at a time, one per piece: door, window, table, chair, bed, shelf, vase, scroll, paper wall, wood wall, bamboo, platform, glass, metal door.",
   tags: ["home", "furniture", "house", "door", "window", "table", "bed", "static"],
   size: [96, 80],
   origin: [32, 72],
@@ -30,6 +30,22 @@ const PIECES = {
     });
     for (const x of [-3, 2]) (g.set(x, -30, Au[3]), g.set(x, -29, Au[1]));
     outline(g, W);
+  },
+  // a sliding steel door two cells tall (the far-future house): a heavy frame, two leaves meeting at a lit seam,
+  // a panel light by the side
+  metaldoor(g) {
+    const S = ["#1c2230", "#3a4458", "#5e6a80", "#8a96aa", "#c4ccd8"].map(hex), L = ["#1a6a8a", "#3ac8f0", "#bff4ff"].map(hex);
+    g.shade(-15, -64, 14, -1, (x, y) => {
+      if (x < -12.5 || x > 11.5 || y < -61.5) return x < -13.5 || y < -63 ? S[4] : x > 12.5 ? S[1] : S[3];
+      if (Math.abs(x + 0.5) < 1) return y > -50 && y < -14 ? L[1] : S[0];
+      const sx = x < 0 ? x + 12 : x - 1, band = (y + 61) % 15;
+      if (band < 1) return S[1];
+      if (band > 13) return S[3];
+      return sx < 1 ? S[3] : S[2];
+    });
+    g.shade(-11, -36, -8, -30, (x, y) => (y < -35 || y > -31 ? S[0] : L[0]));
+    g.set(-10, -34, L[2]); g.set(-9, -33, L[1]);
+    g.outline((x, y, nx, ny) => S[0]);
   },
   // a round lattice window in a square frame
   window(g, W) {
@@ -120,6 +136,17 @@ const PIECES = {
       if (c < 1) return B[0];
       if ((y + 32 + (x > 0 ? 6 : 0)) % 16 < 1.5) return B[1];
       return c < 2.5 ? B[4] : c < 5 ? B[3] : B[2];
+    });
+  },
+  // a pane of tempered glass in a thin steel frame, two streaks of light across it (modern and future houses)
+  glass(g) {
+    const S = ["#3a4a58", "#7a8ea0", "#c8d8e4"].map(hex), Q = ["#5aa8c8", "#8ccae0", "#bfe6f2", "#effaff"].map(hex);
+    g.shade(-16, -32, 15, -1, (x, y) => {
+      if (x < -14.5 || y < -30.5) return S[2];
+      if (x > 13.5 || y > -2.5) return S[0];
+      const d = x + y + 32 + 16, k = y + 32;
+      if ((d > 22 && d < 27) || (d > 30 && d < 32)) return Q[3];
+      return k < 10 ? Q[2] : k < 22 ? Q[1] : Q[0];
     });
   },
   // a wooden platform: stand on it, jump up through it
