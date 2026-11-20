@@ -67,6 +67,11 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - **An toàn:** máy chủ quyết định hết: lúc cá cắn, cá gì, nặng bao nhiêu, và chạy luôn trò kéo cá (trình duyệt chỉ gửi
     "đang giữ" hay "đã thả"). Mua bán có mã giao dịch, chỉ trừ tiền và đồ bằng câu lệnh có điều kiện, một người một việc
     một lúc. Cần mua đúng một lần, bán cá gửi 5 lần cùng lúc cũng chỉ được trả một lần.
+  - **Kiểm thử:** `node test/race.mjs` có hai phần Câu Cá. Phần thứ nhất gồm mua bán, chỗ câu, cá lên bờ, vào khu còn chỗ và
+    đổi khu. Phần thứ hai thử giới hạn 20 người: 5 người vào cùng lúc khi còn 2 chỗ thì chỉ 2 vào được, người thứ 21 bị từ chối.
+    `node test/ui-khu.mjs` thử bảng khu trong trình duyệt thật (Playwright). Bài này làm đầy một khu 20 người, một khu 10
+    người, rồi kiểm tra: tự vào khu đầu tiên còn chỗ; bảng có 30 ô, số người và màu chấm khớp máy chủ (xanh/vàng/đỏ); khu đầy bị
+    khoá; bấm ô là sang khu đó.
   - **Admin (tab Câu Cá):** đổi **tên và giá** từng cần (giá Ngư Cụ bán), từng mồi (giá một viên), từng loại cá và vật câu
     được (giá Ngư Cụ mua; 0 là không bán/không mua; Rương Chìm thì chỉnh số linh thạch mở ra được, ít nhất và nhiều nhất), và
     **tỉ lệ cắn câu** của từng loại (0 là không bao giờ câu được). Có bảng
