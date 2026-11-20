@@ -262,6 +262,12 @@ import * as home_furniture from "./home/furniture.js";
 import * as home_gamer_house from "./home/gamer-house.js";
 import * as home_lantern from "./home/lantern.js";
 import * as home_tien_phu from "./home/tien-phu.js";
+import * as fishing_bobber from "./fishing/bobber.js";
+import * as fishing_catch from "./fishing/catch.js";
+import * as fishing_fish from "./fishing/fish.js";
+import * as fishing_gear from "./fishing/gear.js";
+import * as fishing_props from "./fishing/props.js";
+import * as fishing_stall from "./fishing/stall.js";
 
 export { categories } from "./categories.js";
 
@@ -528,4 +534,10 @@ export const effects = {
   "home/gamer-house": home_gamer_house,
   "home/lantern": home_lantern,
   "home/tien-phu": home_tien_phu,
+  "fishing/bobber": fishing_bobber,
+  "fishing/catch": fishing_catch,
+  "fishing/fish": fishing_fish,
+  "fishing/gear": fishing_gear,
+  "fishing/props": fishing_props,
+  "fishing/stall": fishing_stall,
 };

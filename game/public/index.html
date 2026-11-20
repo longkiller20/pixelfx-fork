@@ -101,6 +101,7 @@
         <button id="dailyBtn" data-icon="gift" title="Quà mỗi ngày" aria-label="Quà mỗi ngày"></button>
         <button id="moreBtn" data-icon="more" title="Thêm" aria-label="Thêm" aria-expanded="false" aria-controls="moreMenu"></button>
         <div id="moreMenu" class="moremenu" hidden>
+          <button id="fishBtn" data-icon="fish" title="Câu Cá: tới Vọng Nguyệt Hồ; ở hồ thì mở quầy Ngư Cụ"><span class="lbl">Câu Cá</span></button>
           <button id="shopBtn" data-icon="shop" title="Đan Các"><span class="lbl">Đan Các</span></button>
           <button id="wardBtn" data-icon="ward" title="Y Các: mua tóc, y phục, vũ khí, phi kiếm"><span class="lbl">Y Các</span></button>
           <button id="rankBtn" data-icon="rank" title="Bảng Phong Thần"><span class="lbl">Phong Thần</span></button>
@@ -111,6 +112,10 @@
       </div>
       <!-- in one's own Gia Viên: shortcuts -->
       <div id="homebar" hidden></div>
+      <!-- at the fishing lake: the stall, reel in, and the big button (cast, strike, hold to reel); the reeling game -->
+      <div id="fishbar" hidden></div>
+      <div id="reel" hidden><span class="rn"></span><canvas width="64" height="220"></canvas><small>Giữ nút / phím E: vùng xanh lên. Thả: chìm xuống. Giữ cá trong vùng xanh!</small></div>
+      <div id="fishcatch" hidden></div>
       <div id="zone"></div>
       <div id="toast"></div>
       <div class="chat">

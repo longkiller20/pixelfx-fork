@@ -14,6 +14,8 @@ import { sectOf } from "./tong-mon.js";
 import * as dao from "./dao-huu.js";
 import * as gv from "./gia-vien.js";
 import { HomeGrid, HOME_MAP, houseCells } from "../shared/gia-vien.js";
+import * as cc from "./cau-ca.js";
+import { FISH_MAP, RODS, BAITS, FISH, ZONES, CAST as FCAST, rollFish, rollWeight, reelStart, reelStep, kgText, RARITY } from "../shared/cau-ca.js";
 import { SOCIAL } from "../shared/balance.js";
 import { SECT } from "../shared/balance.js";
 import { sectBonus } from "../shared/tong-mon.js";
@@ -100,6 +102,7 @@ export class World {
   }
   /** Take a player off this map without saving or ending anything: they are walking to another map. */
   leave(p) {
+    p.fish = null;
     if (this.players.get(p.userId) === p) this.players.delete(p.userId);
     this.ents.delete(p.id);
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
@@ -111,6 +114,7 @@ export class World {
   async remove(p) {
     if (p.gone) return p.saving;
     p.gone = true;
+    p.fish = null;
     if (this.players.get(p.userId) === p) this.players.delete(p.userId);
     this.ents.delete(p.id);
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
@@ -349,6 +353,9 @@ export class World {
       }
       case "fly":
         return this.setFlying(p, m.on === true);
+      // Câu Cá: cast, strike, hold the line (on/off) while reeling, or reel in
+      case "fish":
+        return this.fishInput(p, m);
       case "cast": {
         // 0 is the basic attack, 1-5 the arts on the bar
         // (a whole number, nothing else: "1; x", 1.5 or null are not slots)
@@ -586,6 +593,120 @@ export class World {
     this.sendMe(e);
   }
 
+  // ---------------------------------------------------------------- Câu Cá (shared/cau-ca.js; money and things: server/cau-ca.js)
+  // p.fish: { s: wait | biting | bite | reel | landing, rod, bait, zone, bx, by (the float), ... } while a line is out
+  /** Where a cast with this reach lands: the first open water below, ahead (or behind) by the reach; or a reason it can't. */
+  fishSpot(p, reach) {
+    const M = this.map, T = M.T, spots = M.def.fishing ?? [];
+    const row = Math.round(p.y / T), solid = (c) => c === "#" || c === "s" || c === "r";
+    if (M.cell(Math.floor(p.x / T), row - 1) === "w") return { why: "Không thể câu khi đang ở dưới nước." };
+    for (const dir of [p.face || 1, -(p.face || 1)]) {
+      const bx = p.x + dir * reach * T, cx = Math.floor(bx / T), spot = spots.find((z) => cx >= z.x0 && cx <= z.x1);
+      if (!spot) continue;
+      for (let r = row; r <= row + 3; r++) {
+        const c = M.cell(cx, r);
+        if (solid(c)) break;
+        if (c === "w") return { zone: spot.zone, dir, bx, by: r * T };
+      }
+    }
+    return { why: "Hãy đứng sát mép nước (bến gỗ, bờ hồ, bờ Linh Tuyền) rồi thả câu." };
+  }
+  fishInput(p, m) {
+    if (m.a === "cast") return void this.fishCast(p).catch((e) => console.error("fish", e.message));
+    if (m.a === "hook") return this.fishHook(p);
+    if (m.a === "hold") {
+      if (p.fish?.s === "reel") p.fish.hold = m.on === true;
+      return;
+    }
+    if (m.a === "stop" && p.fish && p.fish.s !== "landing") return this.fishEnd(p, "stop");
+  }
+  async fishCast(p) {
+    const t = this.t;
+    if (!this.map.def.fishing) return send(p.ws, { t: "toast", m: "Chỉ câu cá được ở Vọng Nguyệt Hồ." });
+    if (p.fish || p.dead || p.warping || t < (p.fishCd ?? 0)) return;
+    if (p.flying || !p.ground || p.moving) return send(p.ws, { t: "toast", m: "Hãy đứng yên trên bờ hoặc bến gỗ rồi thả câu." });
+    const me = (p.fish = { s: "prep" });
+    const g = await cc.gear(p.userId);
+    if (p.fish !== me || p.world !== this || p.gone) return;
+    const fail = (m) => ((p.fish = null), send(p.ws, { t: "fish", s: "end", why: "no", m }));
+    if (!g.rod) return fail("Đạo hữu chưa có cần câu. Hãy mua ở quầy Ngư Cụ.");
+    if (!g.bait) return fail("Hết mồi câu rồi. Hãy mua mồi ở quầy Ngư Cụ.");
+    const rod = RODS[g.rod], bait = BAITS[g.bait], spot = this.fishSpot(p, rod.reach);
+    if (spot.why) return fail(spot.why);
+    const z = ZONES[spot.zone];
+    if (rod.tier < z.minRod) return fail(`${z.name} cần ${Object.values(RODS).find((r) => r.tier === z.minRod)?.name ?? "cần tốt hơn"} trở lên.`);
+    p.face = spot.dir;
+    const wait = (FCAST.wait[0] + Math.random() * (FCAST.wait[1] - FCAST.wait[0])) / bait.speed;
+    const nib = Array.from({ length: Math.floor(Math.random() * (FCAST.nibbles + 1)) }, () => t + 0.8 + Math.random() * Math.max(0.2, wait - 1.4)).sort((a, b) => a - b);
+    Object.assign(me, { s: "wait", rod: g.rod, bait: g.bait, zone: spot.zone, bx: spot.bx, by: spot.by, biteAt: t + 0.6 + wait, nib, struck: false });
+    send(p.ws, { t: "fish", s: "cast", bx: Math.round(spot.bx), by: spot.by, rod: g.rod, bait: g.bait, zone: spot.zone, left: g.baitLeft });
+  }
+  fishHook(p) {
+    const f = p.fish;
+    if (!f) return;
+    if (f.s === "wait") return this.fishEnd(p, "early");
+    if (f.s === "biting") return void (f.struck = true);
+    if (f.s === "bite") this.fishReel(p);
+  }
+  fishReel(p) {
+    const f = p.fish;
+    f.s = "reel";
+    f.r = reelStart();
+    f.hold = false;
+    const fish = FISH[f.key];
+    send(p.ws, { t: "fish", s: "reel", rarity: fish.rarity, bar: RODS[f.rod].bar, fight: fish.fight });
+  }
+  /** Each tick while a line is out. */
+  stepFish(p) {
+    const f = p.fish, t = this.t;
+    if (f.s === "prep") return;
+    // moving, jumping, taking off, dying: the line comes in (a fish on it is lost)
+    if (p.dead || p.flying || p.warping || p.moving || p.in.jump || !p.ground) return f.s !== "landing" && this.fishEnd(p, "move");
+    if (f.s === "wait") {
+      while (f.nib.length && t >= f.nib[0]) (f.nib.shift(), send(p.ws, { t: "fish", s: "nib" }));
+      if (t < f.biteAt) return;
+      // a bite: the bait is taken (from the bag first), then the fish is on
+      f.s = "biting";
+      cc.takeBait(p.userId, f.bait).then((ok) => {
+        if (p.fish !== f) return;
+        if (!ok) return this.fishEnd(p, "nobait");
+        f.key = rollFish(f.zone, f.rod, f.bait);
+        f.s = "bite";
+        f.until = this.t + FCAST.window + RODS[f.rod].hook + FCAST.grace;
+        send(p.ws, { t: "fish", s: "bite", window: +(FCAST.window + RODS[f.rod].hook).toFixed(2) });
+        if (f.struck) this.fishReel(p);
+      }, (e) => (console.error("fish bait", e.message), p.fish === f && this.fishEnd(p, "stop")));
+      return;
+    }
+    if (f.s === "bite" && t > f.until) return this.fishEnd(p, "miss");
+    if (f.s !== "reel") return;
+    const fish = FISH[f.key], out = reelStep(f.r, f.hold, fish.fight, RODS[f.rod], DT);
+    send(p.ws, { t: "fr", f: +f.r.f.toFixed(3), z: +f.r.z.toFixed(3), p: +f.r.p.toFixed(3), on: f.r.on ? 1 : 0 });
+    if (out === "lost") return this.fishEnd(p, "lost", { rarity: fish.rarity });
+    if (out !== "land") return;
+    f.s = "landing";
+    const g = rollWeight(f.key, f.bait);
+    cc.land(p.userId, f.key, g).then(async (r) => {
+      if (p.fish === f) p.fish = null;
+      p.fishCd = this.t + FCAST.cooldown;
+      const who = p.world ?? this;
+      who.ev({ e: "fland", id: p.id, fish: f.key, x: Math.round(f.bx), y: f.by });
+      send(p.ws, { t: "fish", s: "end", why: "land", fish: f.key, g, best: r.best, record: r.record, stones: r.stones });
+      // a rare one, or a lake record: everyone here hears; a Tiên fish: the whole world does
+      const R = RARITY[fish.rarity], line = `${p.name} câu được ${fish.name} [${R.name}] nặng ${kgText(g)}${r.record ? ", kỷ lục của Vọng Nguyệt Hồ!" : "!"}`;
+      if (fish.rarity >= 5) this.u?.feed(line);
+      else if (fish.rarity >= 4 || (r.record && fish.rarity >= 2)) who.feed(line);
+      who.sendInv(p.userId);
+      if (r.stones) who.refresh(p.userId, await store.loadCharacter(p.userId));
+    }, (e) => (console.error("fish land", e.message), p.fish === f && this.fishEnd(p, "stop")));
+  }
+  /** The line comes in: why (stop, move, early, miss, lost, nobait), told to the player. */
+  fishEnd(p, why, extra = {}) {
+    p.fish = null;
+    p.fishCd = this.t + FCAST.cooldown;
+    send(p.ws, { t: "fish", s: "end", why, ...extra });
+  }
+
   // ---------------------------------------------------------------- the tick
   at(time, fn) {
     this.later.push({ time, fn });
@@ -664,6 +785,7 @@ export class World {
   stepPlayer(p) {
     const t = this.t;
     if (p.dead) {
+      if (p.fish && p.fish.s !== "landing") this.fishEnd(p, "move");
       if (t >= p.respawnAt) {
         Object.assign(p, this.spawnPoint());
         p.dead = false;
@@ -717,7 +839,7 @@ export class World {
     // a way out: to the map it leads to, or (a road still being built) a word and a step back
     const gate0 = this.map.portalAt(p.x, p.y);
     // a Gia Viên's way out leads back to wherever its owner came from
-    const gate = gate0?.to === "@back" ? { ...gate0, to: this.u?.worlds.has(p.homeFrom?.key) ? p.homeFrom.key : START_MAP } : gate0;
+    const gate = gate0?.to === "@back" ? { ...gate0, to: this.u?.worlds.has(p.homeFrom?.key) && p.homeFrom.key !== this.key ? p.homeFrom.key : START_MAP } : gate0;
     if (gate && t >= p.portalAt && gate.to && this.u?.worlds.has(gate.to) && !p.warping) {
       // the teleport: everyone here sees them break into light at the gate, their own screen closes in a star; a moment
       // later they are moved, and the map they arrive on sees a pillar of light bring them down
@@ -726,7 +848,7 @@ export class World {
       p.in = { dx: 0, dy: 0, jump: false, down: false };
       this.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
       send(p.ws, { t: "warp", to: gate.to });
-      const from = this.key, back = gate0.to === "@back" ? p.homeFrom?.at : null;
+      const from = this.key, back = gate0.to === "@back" && gate.to === p.homeFrom?.key ? p.homeFrom?.at : null;
       this.at(t + WARP_DELAY, () => {
         if (p.gone || p.world !== this) return void (p.warping = false);
         this.u.transfer(p, gate.to, from, back).finally(() => (p.warping = false));
@@ -740,6 +862,7 @@ export class World {
       const back = p.x >= gate.x ? 1 : -1;
       if (fits(gate.x + back * gate.r * 2, p.y, this.map)) p.x = gate.x + back * gate.r * 2;
     }
+    if (p.fish) this.stepFish(p);
     // cultivating at the spirit vein: standing still, not fighting, up to today's cap
     p.meditating = !p.moving && !!p.ground && p.medLeft > 0 && t - p.lastHurt > MEDITATE.calmAfterHit && t - p.lastCast > 1.5 && this.map.inSpring(p.x, p.y);
     if (p.meditating) {
@@ -902,7 +1025,9 @@ export class World {
     const t = this.t, P = [], M = [], B = [];
     for (const p of this.players.values())
       P.push([p.id, Math.round(p.x), Math.round(p.y), p.face, Math.round(Math.max(0, p.hpFrac) * 1000),
-        (p.dead ? 1 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128) | (p.flying ? 256 : 0) | (p.rootUntil > t ? 512 : 0)]);
+        (p.dead ? 1 : 0) | (p.slowUntil > t ? 4 : 0) | (p.protectUntil > t ? 8 : 0) | (p.meditating ? 16 : 0) | (p.moving ? 32 : 0) | (p.busyUntil > t ? 64 : 0) | (p.ground ? 0 : 128) | (p.flying ? 256 : 0) | (p.rootUntil > t ? 512 : 0),
+        // fishing: where the float is, what it is doing (1 floating, 2 under, 3 a fish on the line), the rod's tier
+        ...(p.fish?.bx ? [Math.round(p.fish.bx), Math.round(p.fish.by), FSTATE[p.fish.s] ?? 1, RODS[p.fish.rod]?.tier ?? 1] : [])]);
     for (const m of this.ents.values())
       if (m.kind === "m") M.push([m.id, m.type, Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
     // the thrower's id: a flying sword is drawn as the weapon its owner holds
@@ -924,6 +1049,7 @@ export class World {
 }
 
 const zero = () => ({ exp: 0, stones: 0, rank: 0, kills: 0, deaths: 0, med: 0 });
+const FSTATE = { wait: 1, biting: 1, bite: 2, reel: 3, landing: 3 };
 const rnd = (a, b) => a + Math.random() * (b - a);
 const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level, sect: p.sect ? { n: p.sect.name, e: p.sect.emblem, r: p.sect.rank } : null });
 // a client that can't keep up (more than 1 MB queued) skips snapshots instead of growing the server's memory
@@ -1116,6 +1242,28 @@ export class Universe {
     } finally {
       p.warping = false;
     }
+  }
+  /** Take a player to the fishing lake (Vọng Nguyệt Hồ) from wherever they are; the way out leads back there. */
+  async enterFishing(uid) {
+    const p = this.players.get(uid);
+    if (!p) throw new Error("not online");
+    if (p.world.key === FISH_MAP) return;
+    if (p.warping || p.dead) throw Object.assign(new Error("Không thể tới Vọng Nguyệt Hồ lúc này."), { status: 409 });
+    p.homeFrom = { key: p.world.key, at: { x: p.x, y: p.y } };
+    send(p.ws, { t: "warp", to: FISH_MAP });
+    p.warping = true;
+    p.world.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
+    await new Promise((r) => setTimeout(r, WARP_DELAY * 1000));
+    try {
+      await this.transfer(p, FISH_MAP, p.world.key);
+    } finally {
+      p.warping = false;
+    }
+  }
+  /** Whether a player stands at the Ngư Cụ stall (buying and selling are done there, in person). */
+  atFishShop(uid) {
+    const p = this.players.get(uid), sh = p?.world.map.def.shop;
+    return !!(p && sh && p.world.key === FISH_MAP && Math.abs(p.x - sh.x * p.world.map.T) <= sh.r * p.world.map.T && !p.dead);
   }
   /** Back out of a Gia Viên to where they came from. */
   async leaveHome(uid) {

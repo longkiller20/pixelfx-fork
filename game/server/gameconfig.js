@@ -6,6 +6,7 @@ import { q, pool } from "./db.js";
 import { DEFAULTS, applyConfig } from "../shared/balance.js";
 import { CONG_PHAP, ART_ITEMS_SEED, DROPS_SEED, ELEMENTS } from "../shared/cong-phap.js";
 import { HOME_ITEMS, HOUSES } from "../shared/gia-vien.js";
+import { FISH_ITEMS } from "../shared/cau-ca.js";
 
 // the element each critter's drops follow
 const MONSTER_ELEMENT = { ghost: "am", bat: "am", bird: "phong", butterfly: "moc", eyeball: "huyen", fish_school: "thuy", flying_skull: "hoa", frog: "moc", jellyfish: "loi", slime: "thu", snake: "moc", wisp: "quang" };
@@ -117,6 +118,12 @@ export async function seedConfig() {
   await pool.batch(
     "INSERT IGNORE INTO items (item_key, name, kind, description, price, heal, exp_base, exp_per_level, cooldown, on_sale, sort) VALUES (?, ?, 'material', ?, 0, 0, 0, 0, 1, 0, ?)",
     HOME_ITEMS.map((i, n) => [i.key, i.name, i.desc, 300 + n]),
+  );
+  // Câu Cá's rods, baits and fish (shared/cau-ca.js): their price is what the Ngư Cụ asks (rods, baits) or pays (fish);
+  // never at the Đan Các (on_sale 0). An admin may rename them and change the prices like any item
+  await pool.batch(
+    "INSERT IGNORE INTO items (item_key, name, kind, description, price, heal, exp_base, exp_per_level, cooldown, on_sale, sort) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 1, 0, ?)",
+    FISH_ITEMS.map((i) => [i.key, i.name, i.kind, i.desc, i.price, i.sort]),
   );
   // the monsters a database doesn't have yet get their own drop list too (after the items exist, in seedArts)
   const had = new Set((await q("SELECT type FROM monsters")).map((r) => r.type));

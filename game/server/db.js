@@ -329,6 +329,34 @@ const SCHEMA = [
     PRIMARY KEY (user_id, request_id),
     CONSTRAINT fk_hr_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
+  // ---- Câu Cá (server/cau-ca.js): the rod and bait each angler has chosen and their tallies; the Ngư Lục (how many of
+  // each fish, the heaviest); request ids, so a buy or a sale sent twice counts once
+  `CREATE TABLE IF NOT EXISTS fishers (
+    user_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    rod VARCHAR(32) NULL,
+    bait VARCHAR(32) NULL,
+    casts INT UNSIGNED NOT NULL DEFAULT 0,
+    catches INT UNSIGNED NOT NULL DEFAULT 0,
+    sold BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    CONSTRAINT fk_fisher_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS fish_log (
+    user_id INT UNSIGNED NOT NULL,
+    fish VARCHAR(32) NOT NULL,
+    n INT UNSIGNED NOT NULL DEFAULT 0,
+    best_g INT UNSIGNED NOT NULL DEFAULT 0,
+    best_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, fish),
+    KEY k_fl_best (fish, best_g),
+    CONSTRAINT fk_fl_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS fish_requests (
+    user_id INT UNSIGNED NOT NULL,
+    request_id CHAR(36) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, request_id),
+    CONSTRAINT fk_fishreq_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,

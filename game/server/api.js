@@ -8,6 +8,8 @@ import { GameError } from "./store.js";
 import * as sect from "./tong-mon.js";
 import * as dao from "./dao-huu.js";
 import * as gv from "./gia-vien.js";
+import * as cc from "./cau-ca.js";
+import { FISH_MAP } from "../shared/cau-ca.js";
 import { RANKS } from "../shared/tong-mon.js";
 import { USER_RE } from "../shared/balance.js";
 
@@ -157,6 +159,33 @@ export function api(world) {
     return out;
   });
   homeRoute("/clear", async (req) => void (await gv.clearPlot(req.userId, req.body?.plot)));
+
+  // ---------------------------------------------------------------- Câu Cá (server/cau-ca.js decides money and things; the cast
+  // itself is the world's). Buying and selling happen at the Ngư Cụ stall on the lake, so the player must stand there.
+  const fishRead = rateLimit({ windowMs: 10_000, max: 30, key: (req) => `cr${req.userId}` });
+  const fishWrite = rateLimit({ windowMs: 10_000, max: 25, key: (req) => `cw${req.userId}`, message: "Thao tác quá nhanh, hãy chậm lại." });
+  const fishView = async (uid) => ({ ...(await cc.view(uid)), here: world.players.get(uid)?.world?.key === FISH_MAP, atShop: world.atFishShop(uid) });
+  const fishRoute = (path, fn, { shop = false } = {}) => r.post(`/fishing${path}`, requireAuth, writeLimit, fishWrite, wrap(async (req, res) => {
+    if (shop && !world.atFishShop(req.userId)) throw new GameError("Hãy tới quầy Ngư Cụ ở Vọng Nguyệt Hồ để mua bán.", 403);
+    await world.flushUser(req.userId);
+    const out = (await fn(req)) ?? {};
+    const character = await store.loadCharacter(req.userId);
+    world.refresh(req.userId, character);
+    await world.sendInv(req.userId);
+    res.json({ ok: true, ...out, stones: character?.stones ?? 0, view: await fishView(req.userId) });
+  }));
+  let recCache = { at: 0, v: null };
+  r.get("/fishing", requireAuth, fishRead, wrap(async (req, res) => {
+    if (Date.now() - recCache.at > 10_000) recCache = { at: Date.now(), v: await cc.records() };
+    res.json({ ...(await fishView(req.userId)), records: recCache.v });
+  }));
+  fishRoute("/enter", async (req) => {
+    if (!world.players.has(req.userId)) throw new GameError("Hãy vào game trước.", 409);
+    world.enterFishing(req.userId).catch((e) => console.error("fishing", e.message));
+  });
+  fishRoute("/choose", async (req) => void (await cc.choose(req.userId, req.body?.rod, req.body?.bait)));
+  fishRoute("/buy", async (req) => cc.buy(req.userId, req.body?.item, req.body?.qty, req.body?.requestId), { shop: true });
+  fishRoute("/sell", async (req) => cc.sell(req.userId, req.body?.item, req.body?.qty, req.body?.requestId), { shop: true });
 
   // ---------------------------------------------------------------- Đạo Hữu and Truyền Âm (server/dao-huu.js decides)
   // where a friend is, from the world: online, which map, their sect (nothing for someone offline)

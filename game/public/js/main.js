@@ -8,6 +8,7 @@ import { startGame } from "./game.js";
 import { initSect } from "./tong-mon.js";
 import { initSocial } from "./dao-huu.js";
 import { initHomeUI } from "./gia-vien.js";
+import { initFishUI, fishIconUrl } from "./cau-ca.js";
 import { initMenu } from "./menu.js";
 import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange } from "./music.js";
 
@@ -233,6 +234,9 @@ function play() {
     social,
     onHomeState: () => homeUI.onState(),
     onHomeTap: (hit) => homeUI.onTap(hit),
+    // Câu Cá: the bar follows the cast; each frame the reeling game is drawn
+    onFish: (m) => (fishUI.paint(), m.t === "fish" && m.s === "end" && m.why === "land" && fishUI.onLand(m)),
+    onFrame: (dt) => fishUI.frame(dt),
     onFatal: (msg, relog) => {
       game = null;
       $("fatalMsg").textContent = msg;
@@ -262,7 +266,7 @@ $("shopBtn").addEventListener("click", async () => {
   bal.className = "bal";
   bal.textContent = `Linh thạch: ${me.character.stones}`;
   wrap.append(bal);
-  for (const [id, it] of Object.entries(ITEMS).filter(([, it]) => it.onSale).sort((a, b) => a[1].sort - b[1].sort)) {
+  for (const [id, it] of Object.entries(ITEMS).filter(([, it]) => it.onSale && (it.kind ?? "pill") === "pill").sort((a, b) => a[1].sort - b[1].sort)) {
     const row = document.createElement("div");
     row.className = "item";
     const ic = new Image();
@@ -673,6 +677,7 @@ $("helpBtn").addEventListener("click", () => {
   <p><b>Điện thoại:</b> đặt ngón tay ở nửa trái màn hình là hiện cần analog tròn: gạt trái/phải để đi, gạt lên để nhảy, gạt xuống để rơi xuyên ván gỗ hoặc đài mây; góc phải là cụm nút kiểu MOBA: nút to ở góc là Kiếm Khí Trảm (đánh thường), 5 công pháp xếp thành một vòng cung quanh nó, bên trái là 2 đan dược, phía trên là nút phi kiếm (mở khoá từ cảnh giới admin đặt): chạm để ngự kiếm, khi bay gạt cần analog theo mọi hướng. Chiêu vùng (như Tiểu Bạo Phù, Lưu Tinh Hỏa Vũ) kéo được: giữ nút chiêu rồi kéo ngón tay theo hướng muốn ném, vòng xanh là tầm tối đa, vòng vàng là chỗ chiêu sẽ nổ, thả tay để tung chiêu; chạm nhanh thì chiêu tự rơi vào kẻ địch gần nhất. Trên máy tính, chiêu vùng nổ ở chỗ con trỏ chuột. Ô trống có dấu +: chạm vào để gán công pháp.</p>
   <p><b>Công Pháp (nút cuộn trục trên menu):</b> hơn 200 công pháp, mỗi môn cần bí kíp riêng và tinh thạch theo hệ (môn cao cần thêm Linh Tủy), đều rơi ngẫu nhiên khi hạ yêu thú. Đủ vật phẩm thì bấm Lĩnh ngộ; gán tối đa 5 môn lên thanh, đổi lúc nào cũng được.  chiêu tự nhắm kẻ địch gần nhất.</p>
   <p><b>Y Các (trong nút Thêm, góc phải trên):</b> thử và mua kiểu tóc, y phục mới bằng linh thạch; đồ đã mua mặc lại lúc nào cũng được.</p>
+  <p><b>Câu Cá (trong nút Thêm):</b> tới Vọng Nguyệt Hồ. Mua cần và mồi ở quầy Ngư Cụ (bờ tây), ra mép nước bấm Thả câu (phím E). Phao rỉa nhẹ thì chưa giật; phao chìm hẳn (nút đỏ GIẬT!) thì giật ngay. Kéo: giữ nút để vùng xanh nổi lên, thả để chìm, giữ cá trong vùng xanh tới khi đầy thanh. Bán cá và xem Ngư Lục ở quầy Ngư Cụ.</p>
   <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (bệ đá dưới đĩa âm dương xoay, trước điện thờ) để tăng tu vi, tối đa mỗi ngày có hạn.</p>
   <p><b>Tân Thủ Thôn:</b> thôn khởi đầu, an toàn, không có yêu thú. Dưới gốc đào tiên có 2 bù nhìn rơm để thử chiêu: số sát thương hiện trên đầu, bù nhìn tự hồi máu khi để yên. Đi sang phải qua vườn đào, lên đồi; mũi tên vàng dưới chân bậc thang đá ở cuối thôn phía đông là lối ra (bản đồ mới sẽ mở sau).</p>
   <p><b>Sắp mở:</b> bản đồ luyện cấp đánh yêu thú và đấu trường tỷ thí. Ở đấu trường, chỉ số được cân bằng (cảnh giới cao chỉ hơn tối đa 10%) và không dùng được đan hồi phục.</p>`;
@@ -798,8 +803,10 @@ if (token) {
 // things, in tabs (all, equipment, items), as a grid of slots a page at a time; picking one shows it below with what can
 // be done with it: wear it (anything you own), use it (a pill). Buying happens at the Y Các; wearing happens here.
 const KIND_NAME = { hair: "Tóc", robe: "Y phục", weapon: "Vũ khí", sword: "Phi kiếm" };
-const ITEM_KIND_NAME = { pill: "Đan dược", book: "Bí kíp", material: "Nguyên liệu" };
+const ITEM_KIND_NAME = { pill: "Đan dược", book: "Bí kíp", material: "Nguyên liệu", rod: "Cần câu", bait: "Mồi câu", fish: "Cá" };
 const itemIcon = (id) => {
+  // Câu Cá's rods, baits and fish: their own pixelfx pictures
+  if (id.startsWith("cc_")) return fishIconUrl(id);
   const it = ITEMS[id];
   // the Gia Viên's goods: eggs, milk and fat in a gourd, herbs as a lingzhi
   const gv = id.startsWith("gv_") ? (/trung|sua|mo_/.test(id) ? "gourd" : "lingzhi") : null;
@@ -816,6 +823,10 @@ $("sectBtn").addEventListener("click", () => sect.open());
 // ---------------------------------------------------------------- Gia Viên (🏡): public/js/gia-vien.js
 const homeUI = initHomeUI({ call, uuid, panel, flash, game: () => game });
 $("homeBtn").addEventListener("click", () => homeUI.open());
+
+// ---------------------------------------------------------------- Câu Cá (▦ Thêm → Câu Cá): public/js/cau-ca.js
+const fishUI = initFishUI({ call, uuid, panel, flash, game: () => game });
+$("fishBtn").addEventListener("click", () => fishUI.menu());
 
 // ---------------------------------------------------------------- Đàm Đạo (💬) and Đạo Hữu (🤝, H): public/js/dao-huu.js
 const social = initSocial({ call, panel, flash, game: () => game, openSect: () => sect.open() });
@@ -1050,6 +1061,12 @@ async function charPanel(startTab = "all") {
             drawRight();
           }, 700);
         });
+        act.append(b);
+      } else if (it.kind === "rod" || it.kind === "bait" || it.kind === "fish") {
+        const b = document.createElement("button");
+        b.textContent = "Ngư Cụ";
+        b.title = "Cần câu, mồi câu, bán cá (Câu Cá)";
+        b.addEventListener("click", () => fishUI.open());
         act.append(b);
       } else if (it.kind === "book" || it.kind === "material") {
         const b = document.createElement("button");

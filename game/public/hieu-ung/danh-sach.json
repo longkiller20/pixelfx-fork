@@ -33,6 +33,12 @@
  "fire/flame-pillar",
  "fire/meteor",
  "fire/spirit-flame",
+ "fishing/bobber",
+ "fishing/catch",
+ "fishing/fish",
+ "fishing/gear",
+ "fishing/props",
+ "fishing/stall",
  "holy/heal",
  "home/furnace",
  "home/furniture",
@@ -60,6 +66,7 @@
  "ui/menu-icon",
  "water/bubbles",
  "water/ripples",
+ "water/splash",
  "water/water-orb",
  "water/waterfall"
 ]

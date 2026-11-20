@@ -48,7 +48,8 @@ export const mitigate = (def) => 100 / (100 + def);
 export const SKILL_PARAMS = { melee: ["range", "arc"], bolt: ["range", "speed", "r"], zone: ["dist", "r", "delay", "slow", "slowDur"] };
 // Công pháp (arts): each designed in code (shared/cong-phap.js); up to ART_SLOTS of them on the bar at once.
 export const ART_SLOTS = 5;
-export const ITEM_KINDS = ["pill", "book", "material"];
+// pill (used from the bar), book and material (spent on arts); rod, bait, fish: Câu Cá's (shared/cau-ca.js)
+export const ITEM_KINDS = ["pill", "book", "material", "rod", "bait", "fish"];
 // Monsters: any type an admin adds, drawn with a pixelfx effect (`fx`, the critters), or as a straw dummy. The maps place
 // them by type, so the types a map uses must exist. style: melee (rushes in and strikes at `reach`), ranged (keeps its
 // distance and shoots `shotFx` within `range`), none (stands, like the dummies). fly: hovers and goes where it likes;

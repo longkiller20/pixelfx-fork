@@ -283,7 +283,7 @@ const SKILL_TYPE = [["melee", "Cận chiến"], ["bolt", "Phóng (đạn bay)"],
 // công pháp
 const ELEMENTS = [["kim", "Kim"], ["hoa", "Hỏa"], ["thuy", "Thủy"], ["bang", "Băng"], ["loi", "Lôi"], ["moc", "Mộc"], ["tho", "Thổ"], ["quang", "Quang"], ["am", "Ám"], ["huyen", "Huyền"], ["phong", "Phong"], ["di", "Dị Giới"], ["bao", "Bạo"], ["thu", "Ngự Thú"]];
 const MON_STYLE = [["melee", "Đánh gần (lao tới)"], ["ranged", "Đánh xa (bắn)"], ["none", "Đứng yên (bù nhìn)"]];
-const ITEM_KIND = [["pill", "Đan dược (dùng được)"], ["book", "Bí kíp"], ["material", "Nguyên liệu"]];
+const ITEM_KIND = [["pill", "Đan dược (dùng được)"], ["book", "Bí kíp"], ["material", "Nguyên liệu"], ["rod", "Cần câu (giá: Ngư Cụ bán)"], ["bait", "Mồi câu (giá: Ngư Cụ bán)"], ["fish", "Cá (giá: Ngư Cụ mua)"]];
 /**
  * A long list 10 at a time, with page buttons under it. key: the filters the list was made with; the page is remembered
  * for the same tab and filters, so saving something on page 4 brings you back to page 4, while a new search starts at 1.
@@ -1110,6 +1110,15 @@ async function playerView(id) {
             el("button", { class: "small danger", title: "Thu hồi", onclick: () => confirm(`Thu hồi ${nameOf(o.house)} của người này?`) && act(() => api(`/players/${p.id}/houses`, { method: "POST", body: { house: o.house, give: false } }), "Đã thu hồi.") }, "✕")))
           : el("span", { class: "dim" }, `Chỉ có ${H.defaultHouse}${H.unlocked ? "" : " (khi mở khoá)"}.`)),
         givable.length ? el("div", { class: "bar" }, pickH, el("button", { class: "small", onclick: () => pickH.value && confirm(`Tặng ${nameOf(pickH.value)} cho người này?`) && act(() => api(`/players/${p.id}/houses`, { method: "POST", body: { house: pickH.value, give: true } }), "Đã tặng nhà.") }, "Tặng nhà")) : null));
+    }
+
+    // ---- Câu Cá: what they fish with, how much, the Ngư Lục (rods and baits are in the bag above: give or take them there)
+    if (p.fishing) {
+      const F = p.fishing, log = Object.entries(F.log ?? {});
+      parts.push(section("Câu Cá", `${fmt(F.catches)} con lên bờ · ${log.length} loại`,
+        el("p", { class: "dim" }, `Đang dùng: ${F.rod ?? "chưa có cần"} · ${F.bait ?? "chưa có mồi"}. Lần cá cắn: ${fmt(F.casts)}. Đã bán cá được ${fmt(F.sold)} linh thạch. Cần và mồi là vật phẩm (loại Cần câu, Mồi câu): tặng hay lấy lại ở mục túi đồ; giá ở tab Vật phẩm.`),
+        el("div", { class: "chips" }, log.length ? log.map(([k, l]) => el("span", { class: "chip" }, el("span", {}, k, el("small", { class: "dim" }, ` · ${fmt(l.n)} con · nặng nhất ${(l.best / 1000).toFixed(2)} cân`))))
+          : el("span", { class: "dim" }, "Chưa câu được con nào."))));
     }
 
     // ---- chat: barred for a while (every channel and Truyền Âm)

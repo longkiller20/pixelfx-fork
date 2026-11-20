@@ -1,6 +1,6 @@
 # Catalog
 
-262 effects in 23 categories. Every one is a file in
+268 effects in 24 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -425,3 +425,16 @@ doors, windows, tables, beds, lanterns, an alchemy furnace.
 | Gamer house (live) | `home/gamer-house` | loop 6s | 480×420 | The Gamer house's moving lights, over its picture: neon breathing and flickering, the GAMER sign, screens, arcade, chimney smoke, a blinking cat. part 0/1: its left or right half. |
 | Paper lantern | `home/lantern` | loop 3s | 48×56 | A red paper lantern hung from a bracket, swaying a little, its candle flickering: warm light pools round it and a gold tassel swings under it. |
 | Tiên Phủ (live) | `home/tien-phu` | loop 8s | 480×409 | A celestial palace's moving parts over its picture: waterfalls, ripples, falling petals, a meditating aura, a portal, drifting clouds, glowing swords, lamps. part 0/1: its halves. |
+
+## fishing
+
+fish, rods, bait, a float, a fishmonger's stall, a dock.
+
+| effect | id | | size | what it does |
+|---|---|---|---|---|
+| Fishing float | `fishing/bobber` | loop 1.2s | 48×32 | A red and white float on the water, drawn at the waterline: bobbing, nibbled (quick dips), pulled under by a bite (splash, rings), or thrashing with a fish on. |
+| Fish landed | `fishing/catch` | one-shot 1.6s | 200×160 | A catch flies out of the water: a splash and spray, the fish flopping up an arc towards the angler, a burst of light in its rarity's colour at the top, then gone into the bag. |
+| Fish | `fishing/fish` | loop 1.2s | 80×48 | A catch for a fishing game, side view facing right: 15 looks from a boot and pond weed to carp, sturgeon, a jade turtle, dragon and phoenix fish, a sunken chest. Swims or flops. |
+| Fishing gear | `fishing/gear` | loop 1.6s | 32×32 | Icons for a fishing game's rods and baits, 28 px, shaded and outlined: bamboo, bronze, jade and golden dragon rods; earthworms, shrimp, spirit-rice balls, peach blossom. |
+| Lake props | `fishing/props` | loop 2.4s | 96×96 | A fishing lake's pieces, standing on y = 0 (the floor or the waterline): dock stilt, reeds, lily pads with pink or jade lotus, a moored boat, a buoy, a spirit spring's mist. |
+| Fishmonger's stall | `fishing/stall` | loop 3.2s | 176×128 | A lakeside tackle stall: a thatched roof on posts, an old fisherman in a conical hat puffing a long pipe behind the counter, baskets, rods on a rack, dried fish swaying, a net, a lantern. |
