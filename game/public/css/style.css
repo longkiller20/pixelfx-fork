@@ -1297,3 +1297,11 @@ body.rotated .gvp.house > p.dim { display: none; }
 .cbtns { display: flex; justify-content: center; gap: 10px; }
 .cbtns button { min-width: 96px; cursor: pointer; }
 .cbtns .ghost { padding: 6px 11px; border-radius: 8px; border: 1px solid #ffffff26; background: #ffffff0a; color: #e8e0ff; font-weight: 600; }
+/* nothing may spill out of the game's box: a phone's browser would grow the page for it and zoom out (half the screen
+   black), above all with the game turned on its side; and the Thêm list's buttons keep their width and their names
+   whatever size the menu's own buttons take on a phone */
+#app { overflow: hidden; contain: paint; }
+.menu .moremenu button, body.rotated .menu .moremenu button { width: auto; min-width: 0; }
+@media (max-height: 420px) { .menu .moremenu button { width: auto; } }
+.moremenu { max-width: calc(100vw - 20px); }
+body.rotated .moremenu { max-width: calc(100dvh - 20px); }
