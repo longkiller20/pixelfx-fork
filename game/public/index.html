@@ -90,20 +90,24 @@
         <p class="dim">Biểu tượng nhỏ cạnh "Công · Thủ" là buff đang có, kèm thời gian còn lại.</p>
       </div>
       </div>
+      <!-- the menu: the everyday ones, and the rest under ▦ Thêm. Icons drawn with pixelfx (public/js/menu.js) -->
       <div class="menu">
-        <button id="charBtn" title="Nhân vật: trang bị và túi đồ (C)">👤</button>
-        <button id="homeBtn" title="Gia Viên: nhà, nông trại, vườn dược">🏡</button>
-        <button id="sectBtn" title="Tông Môn (T)">🏯</button>
-        <button id="friendBtn" title="Đạo Hữu và Truyền Âm (H)">🤝<span class="badge" hidden></span></button>
-        <button id="chatBtn" title="Đàm Đạo: kênh Thế Giới, Khu Vực, Tông Môn">💬</button>
-        <button id="dailyBtn" title="Quà mỗi ngày">🎁</button>
-        <button id="shopBtn" title="Đan Các">⚗</button>
-        <button id="wardBtn" title="Y Các: mua tóc, y phục, vũ khí, phi kiếm">👘</button>
-        <button id="artsBtn" title="Công Pháp: lĩnh ngộ và gán chiêu">📜</button>
-        <button id="rankBtn" title="Bảng Phong Thần">🏆</button>
-        <button id="helpBtn" title="Hướng dẫn">?</button>
-        <button id="fsBtn" title="Toàn màn hình" aria-label="Toàn màn hình"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
-        <button id="settingsBtn" title="Cài đặt: nhạc nền, đăng xuất" aria-label="Cài đặt"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+        <button id="charBtn" data-icon="char" title="Nhân vật: trang bị và túi đồ (C)" aria-label="Nhân vật"></button>
+        <button id="artsBtn" data-icon="arts" title="Công Pháp: lĩnh ngộ và gán chiêu" aria-label="Công Pháp"></button>
+        <button id="homeBtn" data-icon="home" title="Gia Viên: nhà, nông trại, vườn dược" aria-label="Gia Viên"></button>
+        <button id="sectBtn" data-icon="sect" title="Tông Môn (T)" aria-label="Tông Môn"></button>
+        <button id="friendBtn" data-icon="friend" title="Đạo Hữu và Truyền Âm (H)" aria-label="Đạo Hữu"><span class="badge" hidden></span></button>
+        <button id="chatBtn" data-icon="chat" title="Đàm Đạo: kênh Thế Giới, Khu Vực, Tông Môn" aria-label="Đàm Đạo"></button>
+        <button id="dailyBtn" data-icon="gift" title="Quà mỗi ngày" aria-label="Quà mỗi ngày"></button>
+        <button id="moreBtn" data-icon="more" title="Thêm" aria-label="Thêm" aria-expanded="false" aria-controls="moreMenu"></button>
+        <div id="moreMenu" class="moremenu" hidden>
+          <button id="shopBtn" data-icon="shop" title="Đan Các"><span class="lbl">Đan Các</span></button>
+          <button id="wardBtn" data-icon="ward" title="Y Các: mua tóc, y phục, vũ khí, phi kiếm"><span class="lbl">Y Các</span></button>
+          <button id="rankBtn" data-icon="rank" title="Bảng Phong Thần"><span class="lbl">Phong Thần</span></button>
+          <button id="helpBtn" data-icon="help" title="Hướng dẫn"><span class="lbl">Hướng dẫn</span></button>
+          <button id="fsBtn" data-icon="fs" title="Toàn màn hình"><span class="lbl">Toàn màn hình</span></button>
+          <button id="settingsBtn" data-icon="settings" title="Cài đặt: nhạc nền, đăng xuất"><span class="lbl">Cài đặt</span></button>
+        </div>
       </div>
       <!-- in one's own Gia Viên: shortcuts -->
       <div id="homebar" hidden></div>
