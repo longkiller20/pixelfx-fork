@@ -247,6 +247,14 @@ const SHOP_TEST = "Hàng thử nghiệm";
     assert.equal(fc.fishRates.find((r) => r.key === "cc_ca_ro").rate, 0, "and the fish's rate");
     assert.equal((await adm("/fishing", { token })).data.odds.bare.cc_ca_ro, undefined, "rate 0: never caught");
     assert.equal((await adm("/t/fish_rates/cc_ca_ro", { token, method: "PATCH", body: { rate: -1 } })).status, 400, "a rate below 0 is refused");
+    // and a bait and a fish (anything caught): renamed and repriced the same way
+    const bait0 = fa.baits.find((b) => b.key === "cc_moi_tom"), carp0 = fa.fish.find((f) => f.key === "cc_ca_chep");
+    assert.equal((await adm("/t/items/cc_moi_tom", { token, method: "PATCH", body: { name: "Mồi Thử", price: 7 } })).status, 200, "a bait renamed");
+    assert.equal((await adm("/t/items/cc_ca_chep", { token, method: "PATCH", body: { name: "Cá Thử", price: 99 } })).status, 200, "a fish renamed");
+    const fc2 = (await call("/config")).data.items;
+    assert.ok(fc2.some((i) => i.key === "cc_moi_tom" && i.name === "Mồi Thử" && i.price === 7) && fc2.some((i) => i.key === "cc_ca_chep" && i.name === "Cá Thử" && i.price === 99), "the game has them");
+    await adm("/t/items/cc_moi_tom", { token, method: "PATCH", body: { name: bait0.name, price: bait0.price } });
+    await adm("/t/items/cc_ca_chep", { token, method: "PATCH", body: { name: carp0.name, price: carp0.price } });
     await adm("/t/items/cc_can_dong", { token, method: "PATCH", body: { name: rod0.name, price: rod0.price } });
     await adm("/t/fish_rates/cc_ca_ro", { token, method: "PATCH", body: { rate: ro0.rate } });
     // a house given by the admin: the Gia Viên unlocked for nothing if need be, given once, taken back once
@@ -1361,6 +1369,55 @@ const SHOP_TEST = "Hàng thử nghiệm";
   }
   c.ws.close();
   ok("Câu Cá: to the lake from the menu; a rod bought once and paid once, bait by the handful, only at the stall; a strike too early costs nothing, moving reels in, a bite takes one bait; put in the first of 30 Khu with room, the next one in the same, moving to the Khu chosen and everyone hearing how full each is; only from a free place on the pier (a taken one says which are free), the reeling run by the server lands a fish of that spot into the bag and the Ngư Lục; selling paid once");
+}
+
+// Câu Cá: a Khu holds 20 at most, however many come at once: 18 go in, then 5 at the same moment for the 2 places left
+// (exactly 2 get in), a 21st is refused for that Khu; arriving without a Khu skips the full one
+{
+  const { q } = await import("../server/db.js");
+  const { createSession } = await import("../server/auth.js");
+  const cc = await import("../shared/cau-ca.js");
+  const tag = uid();
+  const mk = async (i) => {
+    const id = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [`tk_${tag}_${i}`])).insertId;
+    await q("INSERT INTO characters (user_id, name, class, gender, hair, robe, exp, stones) VALUES (?, ?, 'tu', 'm', 8, 16, 1000, 0)", [id, `K${tag.slice(0, 5)} ${i}`]);
+    const token = await createSession(id);
+    return { token, c: await connect(token) };
+  };
+  const enter = async (P, body) => {
+    for (;;) {
+      const r = await call("/fishing/enter", { token: P.token, method: "POST", body });
+      if (r.status !== 429) return r;
+      await sleep(1500);
+    }
+  };
+  const people = [];
+  for (let i = 0; i < 24; i++) people.push(await mk(i));
+  // the highest-numbered empty Khu, so the others' Khu are not in the way
+  const occ0 = (await call("/fishing", { token: people[0].token })).data.occ;
+  const K = occ0.lastIndexOf(0) + 1;
+  assert.ok(K > 0, "an empty Khu to fill");
+  const first = await Promise.all(people.slice(0, cc.KHU_CAP - 2).map((P) => enter(P, { khu: K })));
+  assert.ok(first.every((r) => r.status === 200), "18 go in");
+  const five = await Promise.all(people.slice(cc.KHU_CAP - 2, cc.KHU_CAP + 3).map((P) => enter(P, { khu: K })));
+  assert.equal(five.filter((r) => r.status === 200).length, 2, "five at once for two places: two get in");
+  assert.ok(five.filter((r) => r.status !== 200).every((r) => r.status === 409 && /đủ 20 người/.test(r.data.error)), "the others are told it is full");
+  const late = people[cc.KHU_CAP + 3];
+  const r21 = await enter(late, { khu: K });
+  assert.equal(r21.status, 409, "a 21st is refused");
+  const v = (await call("/fishing", { token: late.token })).data;
+  assert.equal(v.occ[K - 1], cc.KHU_CAP, `Khu ${K} holds exactly ${cc.KHU_CAP}`);
+  // arriving without a Khu: the first with room, never the full one
+  const auto = await enter(late, {});
+  assert.equal(auto.status, 200);
+  assert.notEqual(auto.data.khu, K, "not put in the full Khu");
+  assert.equal(auto.data.khu, v.occ.findIndex((n) => n < cc.KHU_CAP) + 1, "the lowest-numbered Khu with room");
+  // the box's dot for a full Khu is red, for an empty one green
+  assert.equal(cc.khuLevel(cc.KHU_CAP), 2);
+  assert.equal(cc.khuLevel(0), 0);
+  assert.equal(cc.khuLevel(10), 1);
+  for (const P of people) P.c.ws.close();
+  ok(`Câu Cá: a Khu never holds more than ${cc.KHU_CAP} (five at once for the last two places: two get in, a 21st refused); arriving without a Khu skips the full one for the lowest with room`);
 }
 
 {
