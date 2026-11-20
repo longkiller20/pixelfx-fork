@@ -400,3 +400,9 @@ export async function leaderboard() {
   const fmt = (rows) => rows.map((r) => ({ name: r.name, look: { g: r.gender, hair: Number(r.hair), robe: Number(r.robe) }, v: Number(r.v), level: levelFromExp(Number(r.exp)) }));
   return { rank: fmt(rank), exp: fmt(exp) };
 }
+
+/** Until when (ms) an admin barred this account from chat, or 0. */
+export async function chatMute(uid) {
+  const [r] = await q("SELECT UNIX_TIMESTAMP(chat_muted_until) AS t FROM users WHERE id = ? AND chat_muted_until > NOW()", [uid]);
+  return r ? Number(r.t) * 1000 : 0;
+}

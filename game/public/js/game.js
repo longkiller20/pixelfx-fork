@@ -18,7 +18,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -133,11 +133,30 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         renderFly();
         break;
       case "chat":
-        // the sect's own channel is marked and kept for the sect panel's chat too
-        if (m.ch === "s") {
-          logLine(`[Tông] ${m.n}`, m.m, "sect");
-          onSectChat?.(m);
-        } else logLine(m.n, m.m);
+        // three channels, each marked in the log; the chat panel (and the sect panel for its own) keep them too
+        logLine(m.n, m.m, `ch-${m.ch ?? "w"}`, CH_TAG[m.ch ?? "w"]);
+        if (m.ch === "s") onSectChat?.(m);
+        social?.onChat(m);
+        break;
+      case "hist":
+        social?.onHist(m);
+        break;
+      case "pm":
+        // Truyền Âm: in the log too, marked; the Đạo Hữu panel shows it in its conversation
+        logLine(m.mine ? `→ ${m.name}` : m.name, m.text, "ch-pm", "Truyền Âm");
+        social?.onPm(m);
+        break;
+      case "pmerr":
+        toast(m.m);
+        social?.onPmErr(m);
+        break;
+      case "friends":
+        if (m.note) (toast(m.note), logLine(null, m.note, "ch-pm"));
+        if (m.presence) logLine(null, `Đạo hữu ${m.presence.name} ${m.presence.on ? "vừa trực tuyến" : "đã rời đi"}.`, "ch-pm");
+        social?.onFriends(m);
+        break;
+      case "unread":
+        social?.onUnread(m.n);
         break;
       case "sect":
         // something in the sect changed (a member, a rank, the treasury...): an open sect panel reads it again
@@ -323,13 +342,30 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   const keys = new Set();
   let joy = { dx: 0, dy: 0 }, mouse = null, sentIn = { dx: 9 }, lastSent = 0, lastDir = { x: 1, y: 0 };
   const chatInput = $("chatInput");
+  // the channel the chat box talks on (the pill left of it; Tab while typing switches): w Thế Giới, k Khu Vực, s Tông Môn
+  const CHANNELS = ["w", "k", "s"], CH_NAME = { w: "Thế Giới", k: "Khu Vực", s: "Tông Môn" };
+  let chatCh = "w";
+  const setCh = (c) => {
+    chatCh = c;
+    $("chatCh").textContent = CH_NAME[c];
+    $("chatCh").className = `ch-${c}`;
+    chatInput.placeholder = `Nói ở kênh ${CH_NAME[c]}...`;
+  };
+  $("chatCh").addEventListener("click", () => (setCh(CHANNELS[(CHANNELS.indexOf(chatCh) + 1) % 3]), chatInput.focus()));
+  chatInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    e.preventDefault();
+    setCh(CHANNELS[(CHANNELS.indexOf(chatCh) + 1) % 3]);
+  });
   addEventListener("keydown", (e) => {
     if (document.activeElement === chatInput) {
       if (e.key === "Enter") {
-        // "/t ..." (or "/tm ...") talks on the sect's channel
-        const v = chatInput.value.trim(), sm = /^\/(t|tm|tong)\s+([\s\S]+)/i.exec(v);
-        if (sm) send({ t: "chat", ch: "s", m: sm[2] });
-        else if (v) send({ t: "chat", m: v });
+        // the channel picked on the pill, or a command: /w Thế Giới, /k Khu Vực, /t Tông Môn, /ta <đạo hiệu> <lời> Truyền Âm
+        const v = chatInput.value.trim();
+        const cmd = /^\/(w|tg|k|kv|t|tm|tong)\s+([\s\S]+)/i.exec(v), ta = /^\/(ta|pm)\s+(\S+(?:\s\S+)*?)\s*:\s*([\s\S]+)/i.exec(v);
+        if (ta) send({ t: "pm", toName: ta[2], m: ta[3], c: "cmd" });
+        else if (cmd) send({ t: "chat", ch: { w: "w", tg: "w", k: "k", kv: "k" }[cmd[1].toLowerCase()] ?? "s", m: cmd[2] });
+        else if (v) send({ t: "chat", ch: chatCh, m: v });
         chatInput.value = "";
         chatInput.blur();
       } else if (e.key === "Escape") chatInput.blur();
@@ -667,9 +703,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   function renderInv() {
     for (const b of document.querySelectorAll("[data-item]")) b.querySelector(".qty").textContent = inv[b.dataset.item] ?? 0;
   }
-  function logLine(name, text, kind = "") {
+  function logLine(name, text, kind = "", tag = "") {
     const box = $("log"), d = document.createElement("div");
     d.className = `line ${kind}`;
+    if (tag) d.append(Object.assign(document.createElement("i"), { className: "tag", textContent: tag }));
     if (name) {
       const n = document.createElement("b");
       n.textContent = `${name}: `;
@@ -680,6 +717,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     while (box.children.length > 40) box.firstChild.remove();
     box.scrollTop = box.scrollHeight;
   }
+  const CH_TAG = { w: "Thế Giới", k: "Khu Vực", s: "Tông Môn" };
   let toastTimer = 0;
   function toast(m) {
     const t = $("toast");
@@ -1180,9 +1218,14 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     arts: () => arts,
     // the latest "me" (level, hp, atk, def, spd, stones, rank...), for the character panel
     me: () => me,
-    mapName: () => map?.name ?? "",
     // a line on the sect's channel (the sect panel's chat)
     sectSay: (text) => send({ t: "chat", ch: "s", m: String(text).slice(0, 120) }),
+    // the chat panel and the Đạo Hữu panel: talk on a channel, ask for its last lines, send a Truyền Âm
+    say: (ch, text) => send({ t: "chat", ch, m: String(text).slice(0, 120) }),
+    hist: (ch) => send({ t: "hist", ch }),
+    pm: (to, text, c) => send({ t: "pm", to, m: String(text).slice(0, 200), c }),
+    mapName: () => map?.name ?? "",
+    myName: () => infos.get(myId)?.name ?? character.name,
     // the panel changed the bar: show it now (the server confirms with an "arts" message too)
     setArts(v) {
       arts = { slots: v.slots, learned: v.learned };

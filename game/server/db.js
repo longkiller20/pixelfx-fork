@@ -242,6 +242,51 @@ const SCHEMA = [
     on_sale TINYINT(1) NOT NULL DEFAULT 1,
     sort INT NOT NULL DEFAULT 0
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // ---- Đạo Hữu (server/dao-huu.js). Friendship is stored both ways (a row for each side), so "my friends" is one key;
+  // a request waits in friend_requests (one per pair and direction); a block stops requests and Truyền Âm both ways.
+  `CREATE TABLE IF NOT EXISTS friends (
+    user_id INT UNSIGNED NOT NULL,
+    friend_id INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, friend_id),
+    KEY k_fr_friend (friend_id),
+    CONSTRAINT fk_fr_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_fr_friend FOREIGN KEY (friend_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS friend_requests (
+    from_id INT UNSIGNED NOT NULL,
+    to_id INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (from_id, to_id),
+    KEY k_frq_to (to_id),
+    CONSTRAINT fk_frq_from FOREIGN KEY (from_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_frq_to FOREIGN KEY (to_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS blocks (
+    user_id INT UNSIGNED NOT NULL,
+    blocked_id INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, blocked_id),
+    KEY k_bl_blocked (blocked_id),
+    CONSTRAINT fk_bl_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_bl_blocked FOREIGN KEY (blocked_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  // Truyền Âm: private messages between two Đạo Hữu; (lo, hi) is the pair whatever the direction, for one conversation's index
+  `CREATE TABLE IF NOT EXISTS private_messages (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    lo INT UNSIGNED NOT NULL,
+    hi INT UNSIGNED NOT NULL,
+    from_id INT UNSIGNED NOT NULL,
+    to_id INT UNSIGNED NOT NULL,
+    body VARCHAR(400) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at DATETIME NULL,
+    KEY k_pm_pair (lo, hi, id),
+    KEY k_pm_unread (to_id, read_at),
+    KEY k_pm_at (created_at),
+    CONSTRAINT fk_pm_from FOREIGN KEY (from_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pm_to FOREIGN KEY (to_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,
@@ -254,6 +299,8 @@ const SCHEMA = [
 
 // columns added after the first release: older databases get them here (characters made before keep the first look)
 const UPGRADES = [
+  // an admin can bar an account from chat (and Truyền Âm) until a time
+  "ALTER TABLE users ADD COLUMN IF NOT EXISTS chat_muted_until DATETIME NULL",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS gender CHAR(1) NOT NULL DEFAULT 'm' AFTER class",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS hair TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER gender",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS robe TINYINT UNSIGNED NOT NULL DEFAULT 0 AFTER hair",

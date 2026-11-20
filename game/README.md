@@ -229,8 +229,11 @@ Có HTTPS thì game tự dùng `wss://`.
 | J K L, 1 2 3, chuột trái/phải | Chiêu 1, 2, 3 |
 | 4 | Hồi Xuân Đan |
 | 5 | Tụ Khí Đan |
-| Enter | Trò chuyện (gõ `/t lời nhắn` để nói trong kênh tông môn) |
+| Enter | Trò chuyện ở kênh đang chọn; Tab đổi kênh (Thế Giới, Khu Vực, Tông Môn) |
+| `/w`, `/k`, `/t` + lời | Nói ở kênh Thế Giới, Khu Vực, Tông Môn |
+| `/ta Đạo Hiệu: lời` | Truyền Âm cho một Đạo Hữu |
 | T | Tông Môn |
+| H | Đạo Hữu và Truyền Âm |
 
 ## Bảo mật và chống race condition
 
@@ -432,6 +435,96 @@ Bài test `test/race.mjs` có một phần riêng cho Tông Môn, gửi yêu c�
 - **Mọi con số chung** (chi phí, giới hạn người, phần thưởng, đại trận...) nằm ở tab Cài đặt, nhóm Tông Môn (`sect.*`). Sửa
   xong có hiệu lực ngay.
 
+## Trò chuyện, Đạo Hữu và Truyền Âm
+
+### Ba kênh trò chuyện
+
+| Kênh | Ai thấy | Chờ giữa hai lần nói |
+| --- | --- | --- |
+| **Thế Giới** | mọi người trên mọi bản đồ | `chat.world_cooldown` giây (mặc định 4) |
+| **Khu Vực** | người đang ở cùng bản đồ | 1 giây |
+| **Tông Môn** | đồng môn, ở bất kỳ đâu | 1 giây |
+
+- **Trên máy tính:** ô trò chuyện có nút chọn kênh bên trái. Bấm vào nút hoặc nhấn Tab khi đang gõ để đổi kênh.
+  - Gõ nhanh: `/w`, `/k`, `/t` + lời để nói ở Thế Giới, Khu Vực, Tông Môn.
+  - `/ta Đạo Hiệu: lời` để Truyền Âm.
+- **Bảng Đàm Đạo (nút 💬, dùng được trên điện thoại):** 4 tab Thế Giới, Khu Vực, Tông Môn, Truyền Âm.
+  - Mỗi kênh hiện 40 câu gần nhất (máy chủ giữ trong bộ nhớ), kèm giờ, đạo hiệu và cảnh giới người nói.
+  - **Bấm tên người nói** để mở menu nhỏ: Truyền Âm (nếu là Đạo Hữu), Kết Đạo Hữu, hoặc Chặn.
+- Mỗi dòng trong khung chat góc màn hình có nhãn kênh màu riêng: Thế Giới xanh dương, Khu Vực xanh lá, Tông Môn vàng, Truyền Âm tím.
+
+### Đạo Hữu (nút 🤝, phím H)
+
+- **Kết giao:** tìm theo đạo hiệu ở tab Tìm, hoặc bấm tên người đó trong kênh chat, rồi gửi lời mời. Người kia nhận lời
+  hoặc từ chối ở tab Lời mời; người mời có thể rút lời mời.
+  - Hai người mời nhau cùng lúc thì thành Đạo Hữu luôn.
+- **Giới hạn:** tối đa `social.friends_max` Đạo Hữu (mặc định 100), `social.requests_max` lời mời đang chờ (mặc định 20).
+  Mỗi người nhận tối đa 100 lời mời chờ.
+- **Danh sách Đạo Hữu** xếp người đang trực tuyến lên trước. Mỗi người hiện:
+  - chấm xanh nếu đang trực tuyến;
+  - cảnh giới, bản đồ đang ở và tông môn;
+  - câu Truyền Âm gần nhất và số tin chưa đọc.
+- **Báo khi Đạo Hữu vào hoặc rời game** (dòng trong khung chat). Khi có lời mời mới hay ai đó nhận lời, người kia nhận
+  thông báo ngay.
+- **Huỷ kết giao** (bấm 2 lần để chắc chắn): cả hai không còn là Đạo Hữu.
+- **Chặn** (tối đa `social.blocks_max` người):
+  - Kết giao giữa hai người kết thúc, lời mời hai chiều bị xoá.
+  - Người bị chặn không mời và không Truyền Âm được nữa.
+  - Lời họ nói ở các kênh không hiện với người chặn.
+  - Họ không được báo là bị chặn: lời mời chỉ bị từ chối với câu chung chung.
+  - Bỏ chặn ở tab Chặn.
+
+### Truyền Âm
+
+- **Chỉ giữa hai Đạo Hữu**, tối đa 200 ký tự một câu, lưu `pm.keep_days` ngày (mặc định 30) rồi tự xoá.
+- **Giao diện:** bấm một Đạo Hữu để mở cuộc trò chuyện.
+  - Tin hiện thành bong bóng: của mình màu vàng bên phải, của người kia màu tím bên trái. Có ngăn theo ngày và giờ gửi.
+  - Mỗi lần tải 40 tin, có nút "Xem tin cũ hơn".
+  - Tin vừa gửi hiện mờ cho đến khi máy chủ xác nhận; gửi không được thì đỏ lên và ghi lý do.
+- **Gửi cho người đang ngoại tuyến** vẫn được: họ thấy khi vào game.
+- **Đánh dấu đã đọc:** mở cuộc trò chuyện là các tin đã được đọc. Nút 🤝 có huy hiệu đỏ đếm tin chưa đọc cộng lời mời đang chờ.
+- **Trên điện thoại:**
+  - Màn hẹp thì mỗi lúc một khung: danh sách, hoặc cuộc trò chuyện (có nút ‹ để quay lại).
+  - Điện thoại nằm ngang thì hai khung cạnh nhau, cao vừa màn hình.
+
+### Bảo mật
+
+- **Máy chủ quyết định ai nói với ai.** Kênh Khu Vực chỉ gửi cho người cùng bản đồ, kênh Tông Môn chỉ cho đồng môn.
+  Truyền Âm chỉ đi khi hai người là Đạo Hữu; điều này được kiểm tra hai lần: trong bộ nhớ của thế giới game, rồi trong
+  database lúc lưu tin.
+- **Mọi câu chat đều được làm sạch:**
+  - bỏ ký tự điều khiển, ký tự ẩn, ký tự đảo chiều chữ và `< >`;
+  - gộp thành một dòng, có giới hạn độ dài;
+  - hiển thị bằng `textContent`.
+- **Chống spam:**
+  - mỗi kênh 1 câu/giây, Thế Giới chờ lâu hơn;
+  - cùng một câu lặp lại trong 10 giây bị bỏ;
+  - Truyền Âm tối đa 2 tin/giây; tin bị chặn vì gửi quá nhanh thì người gửi được báo, không mất trong im lặng;
+  - mỗi kết nối tối đa khoảng 40 tin/giây;
+  - các thao tác Đạo Hữu tối đa 12 lần mỗi 10 giây.
+- **Kết giao an toàn khi nhiều yêu cầu đến cùng lúc:**
+  - mỗi việc giữa hai người chạy trong một transaction, khoá cả hai tài khoản theo thứ tự id nên không deadlock;
+  - mỗi lời mời là một dòng duy nhất cho một cặp và một chiều;
+  - kết giao ghi hai dòng (mỗi bên một) cùng lúc, huỷ thì xoá cả hai;
+  - giới hạn số Đạo Hữu được đếm bên trong khoá.
+- **Lịch sử Truyền Âm chỉ hai người trong cuộc xem được, và chỉ khi còn là Đạo Hữu.**
+- **Admin cấm chat** (trang người chơi, mục Trò chuyện): 10 phút đến 30 ngày, có hiệu lực ngay. Bị cấm thì không nói được ở
+  kênh nào và không Truyền Âm được. Ghi vào nhật ký admin.
+
+### Kiểm tra
+
+Bài test `test/race.mjs` có phần "chat and Đạo Hữu":
+
+- Hai người mời nhau cùng lúc: thành một cặp Đạo Hữu, không còn lời mời thừa.
+- Mời 8 lần cùng lúc chỉ ra 1 lời mời; nhận lời 2 lần cùng lúc chỉ tính 1.
+- Thế Giới tới bản đồ khác; Khu Vực chỉ cùng bản đồ; Thế Giới phải chờ hồi; không có tông môn thì kênh Tông Môn không gửi đi đâu.
+- Câu chat được làm sạch; người mở kênh nhận được các câu gần nhất.
+- Không Truyền Âm được cho người lạ (theo id lẫn theo tên).
+- Đạo Hữu nhận được tin đã làm sạch; người thứ ba không đọc được lịch sử; mở là đánh dấu đã đọc; lịch sử tải 40 tin một lần.
+- Gửi 10 Truyền Âm dồn dập: tin nào cũng hoặc được gửi, hoặc báo "chậm lại".
+- Chặn: kết giao kết thúc, chat và Truyền Âm không lọt qua, mời lại bị từ chối mà không lộ lý do, lịch sử bị đóng.
+- Bị admin cấm chat thì không nói được.
+
 ## Cân bằng
 
 Mọi con số nằm trong database (xem phần "Số liệu game" bên dưới). `shared/balance.js` chỉ giữ bộ số khởi đầu và cách tính, máy chủ và trình duyệt dùng chung.
@@ -542,6 +635,8 @@ game/
   server/tong-mon.js     Tông Môn: mọi luật (lập, gia nhập, chức vị, quyên góp, Bảo Khố, đại trận), an toàn khi tranh chấp
   shared/tong-mon.js     chức vị và quyền, huy hiệu, quy tắc đặt tên, cấp tông môn (dùng chung máy chủ và trình duyệt)
   public/js/tong-mon.js  bảng Tông Môn trong game
+  server/dao-huu.js      Đạo Hữu (kết giao, lời mời, chặn) và Truyền Âm, an toàn khi tranh chấp
+  public/js/dao-huu.js   bảng Đàm Đạo (các kênh chat) và bảng Đạo Hữu (danh sách, lời mời, Truyền Âm)
   server/store.js        mọi thay đổi dữ liệu nhân vật (cả mua và mặc đồ ở Y Các), an toàn khi tranh chấp
   server/db.js           MariaDB: pool, transaction, tạo bảng
   server/auth.js         mật khẩu, phiên đăng nhập, giới hạn tần suất

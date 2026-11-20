@@ -358,7 +358,7 @@ export function adminApp(world) {
   // Every edit of a player goes through store.admin*(), under the player's own lock with atomic SQL, and hands the
   // re-read character to world.refresh() while still holding that lock: an online player's running numbers, their
   // unsaved gains and the save in flight all stay right (see World.applyBase).
-  const PLAYER_COLS = `u.id, u.username, u.banned, u.ban_reason, u.created_at, c.name, c.gender, c.hair, c.robe, c.weapon, c.sword, c.exp, c.stones, c.rank_points,
+  const PLAYER_COLS = `u.id, u.username, u.banned, u.ban_reason, u.created_at, IF(u.chat_muted_until > NOW(), u.chat_muted_until, NULL) AS chat_muted_until, c.name, c.gender, c.hair, c.robe, c.weapon, c.sword, c.exp, c.stones, c.rank_points,
     c.kills, c.deaths, c.created_at AS char_created, (c.med_day = CURDATE()) AS med_today, c.med_exp`;
   const shapePlayer = (p) => ({
     ...p, exp: p.exp === null ? null : Number(p.exp), stones: p.stones === null ? null : Number(p.stones), banned: !!p.banned,
@@ -561,6 +561,17 @@ export function adminApp(world) {
       world.kickUser(id, `Tài khoản đã bị khóa${reason ? `: ${reason}` : "."}`);
     }
     await log(req.admin, banned ? "player.ban" : "player.unban", id, { reason });
+    res.json(await playerDetail(id));
+  }));
+
+  // barred from chat (every channel and Truyền Âm) for some minutes; 0 lifts it. Takes effect at once in the game.
+  r.post("/players/:id/mute", wrap(async (req, res) => {
+    const id = playerId(req.params.id), min = Number(req.body?.minutes);
+    if (!Number.isInteger(min) || min < 0 || min > 525600) throw bad("Số phút từ 0 đến 525600 (một năm).");
+    const out = await q("UPDATE users SET chat_muted_until = IF(? = 0, NULL, NOW() + INTERVAL ? MINUTE) WHERE id = ?", [min, min, id]);
+    if (!out.affectedRows) throw bad("Không có người chơi này.", 404);
+    world.setChatMute(id, min ? Date.now() + min * 60000 : 0);
+    await log(req.admin, min ? "player.mute" : "player.unmute", id, { minutes: min });
     res.json(await playerDetail(id));
   }));
 

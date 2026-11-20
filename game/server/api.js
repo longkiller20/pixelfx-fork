@@ -6,6 +6,7 @@ import * as store from "./store.js";
 import { configJson } from "./gameconfig.js";
 import { GameError } from "./store.js";
 import * as sect from "./tong-mon.js";
+import * as dao from "./dao-huu.js";
 import { RANKS } from "../shared/tong-mon.js";
 import { USER_RE } from "../shared/balance.js";
 
@@ -110,6 +111,61 @@ export function api(world) {
     world.refresh(req.userId, character);
     res.json({ character });
   }));
+
+  // ---------------------------------------------------------------- Đạo Hữu and Truyền Âm (server/dao-huu.js decides)
+  // where a friend is, from the world: online, which map, their sect (nothing for someone offline)
+  const whereIs = (uid) => {
+    const p = world.players.get(uid);
+    return p ? { online: true, map: p.world.map.name, sect: p.sect?.name ?? null, level: p.level } : null;
+  };
+  const socRead = rateLimit({ windowMs: 10_000, max: 30, key: (req) => `fr${req.userId}` });
+  const socWrite = rateLimit({ windowMs: 10_000, max: 12, key: (req) => `fw${req.userId}`, message: "Thao tác quá nhanh, hãy chậm lại." });
+  const target = (b) => (b?.uid !== undefined ? { uid: b.uid } : { name: b?.name });
+  const socRoute = (path, fn) => r.post(`/friends${path}`, requireAuth, writeLimit, socWrite, wrap(async (req, res) => {
+    const out = (await fn(req)) ?? {};
+    res.json({ ok: true, ...out, view: await dao.list(req.userId, whereIs) });
+  }));
+  r.get("/friends", requireAuth, socRead, wrap(async (req, res) => res.json(await dao.list(req.userId, whereIs))));
+  r.get("/friends/search", requireAuth, socRead, wrap(async (req, res) => res.json(await dao.search(req.userId, req.query.q))));
+  r.get("/friends/:uid/messages", requireAuth, socRead, wrap(async (req, res) => {
+    const out = await dao.history(req.userId, req.params.uid, req.query.before);
+    world.sendUnread(req.userId);
+    res.json(out);
+  }));
+  socRoute("/read", async (req) => {
+    await dao.markRead(req.userId, req.body?.uid);
+    world.sendUnread(req.userId);
+  });
+  socRoute("/request", async (req) => {
+    const me = await world.nameOf(req.userId);
+    const out = await dao.request(req.userId, target(req.body));
+    await world.syncSocial([req.userId, out.uid], { [out.uid]: out.friends ? `${me} và đạo hữu đã kết làm Đạo Hữu.` : `${me} muốn kết làm Đạo Hữu.` });
+    return { friends: out.friends, name: out.name };
+  });
+  socRoute("/answer", async (req) => {
+    const me = await world.nameOf(req.userId);
+    const out = await dao.answer(req.userId, req.body?.uid, req.body?.accept === true);
+    await world.syncSocial([req.userId, out.uid], out.friends ? { [out.uid]: `${me} đã nhận lời kết giao.` } : null);
+    return { friends: out.friends, name: out.name };
+  });
+  socRoute("/cancel", async (req) => {
+    await dao.cancel(req.userId, req.body?.uid);
+    await world.syncSocial([req.userId, Number(req.body?.uid)]);
+  });
+  socRoute("/remove", async (req) => {
+    const out = await dao.remove(req.userId, req.body?.uid);
+    await world.syncSocial([req.userId, out.uid]);
+  });
+  socRoute("/block", async (req) => {
+    const out = await dao.block(req.userId, target(req.body));
+    // the blocked one is not told; their list just loses this friend
+    await world.syncSocial([req.userId, out.uid]);
+    return { name: out.name };
+  });
+  socRoute("/unblock", async (req) => {
+    await dao.unblock(req.userId, req.body?.uid);
+    await world.syncSocial([req.userId]);
+  });
 
   // ---------------------------------------------------------------- Tông Môn (server/tong-mon.js decides everything)
   // reading is limited per account, every change is a write (writeLimit) plus a tighter limit of its own; whatever changes,

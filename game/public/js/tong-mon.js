@@ -5,7 +5,7 @@ import { SECT, realmName, ITEMS } from "/shared/balance.js";
 import { RANKS, LEADER, VICE, ELDER, OUTER, CAN, over, grantable, JOIN_MODES, EMBLEMS, emblemUrl, LOG_TEXT, sectBonus, memberCap } from "/shared/tong-mon.js";
 
 /** A small element builder: h("div.card", { title }, child, "text", ...). Strings become text nodes, never markup. */
-function h(tag, props = {}, ...kids) {
+export function h(tag, props = {}, ...kids) {
   const [name, ...cls] = tag.split(".");
   const el = document.createElement(name || "div");
   if (cls.length) el.className = cls.join(" ");
@@ -37,7 +37,7 @@ const ago = (t) => {
 const dur = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} giờ ${Math.floor((s % 3600) / 60)} phút` : s >= 60 ? `${Math.floor(s / 60)} phút` : `${s} giây`);
 const emblem = (i, cls = "emb") => h(`img.${cls}`, { src: emblemUrl(i), alt: "" });
 /** A button that asks once more on itself before it does something that can't be undone. */
-function sure(label, again, fn, cls = "") {
+export function sure(label, again, fn, cls = "") {
   const b = h(`button.${cls || "ghost"}`, { type: "button", text: label });
   let armed = 0;
   b.addEventListener("click", () => {

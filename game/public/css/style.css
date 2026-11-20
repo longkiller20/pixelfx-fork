@@ -111,7 +111,20 @@ input:focus { border-color: var(--gold); }
 #log .sys { color: #b8d8ff; font-style: italic; }
 #log .sect { color: #f5d78a; }
 #log .sect b { color: #ffcf5a; }
-#chatInput { width: 100%; margin-top: 4px; padding: 6px 10px; font-size: 13px; background: #0d0a16cc; }
+#chatInput { width: 100%; padding: 6px 10px; font-size: 13px; background: #0d0a16cc; }
+/* the chat box: the channel it talks on (a pill: click or Tab to switch), then the line */
+.chatrow { display: flex; gap: 4px; margin-top: 4px; }
+.chatrow #chatInput { flex: 1; min-width: 0; }
+#chatCh { flex: none; padding: 0 9px; border-radius: 8px; font-size: 11.5px; font-weight: 700; cursor: pointer; border: 1px solid; background: #0d0a16cc; white-space: nowrap; }
+/* each channel its colour, in the log, the pill and the panels' tabs */
+#chatCh.ch-w, .ch-w > .tag { color: #9fd8ff; border-color: #6ab8ff66; }
+#chatCh.ch-k, .ch-k > .tag { color: #a8f0b0; border-color: #6fe09a66; }
+#chatCh.ch-s, .ch-s > .tag { color: #ffd77a; border-color: #f0c05077; }
+.ch-pm > .tag { color: #f0b0ff; border-color: #d080ff66; }
+#log .line > .tag { display: inline-block; font-style: normal; font-size: 9.5px; font-weight: 700; padding: 0 4px; margin-right: 4px; border: 1px solid; border-radius: 4px; background: #0008; vertical-align: 1px; }
+#log .ch-k b { color: #c8ffd0; }
+#log .ch-pm { color: #f4dcff; }
+#log .ch-pm b { color: #f0b0ff; }
 
 #joyzone { display: none; position: absolute; left: 0; bottom: 0; width: 45%; height: 62%; touch-action: none; }
 #joybase { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; left: 90px; top: 70%; border-radius: 50%; background: #ffffff14; border: 2px solid #ffffff30; opacity: 0.6; }
@@ -986,3 +999,115 @@ body.rotated .charp.short { --cell: clamp(32px, calc((100vh - 330px) / 10), 48px
 .ncard .nfoot .primary { padding: 4px 16px; }
 @media (max-height: 520px) { .ncard { padding: 10px 12px; gap: 7px; } .ncard .ntext { font-size: 13px; } }
 body.rotated .ncard { padding: 10px 12px; gap: 7px; }
+
+/* ================================================================ Đàm Đạo (💬) and Đạo Hữu (🤝, H): public/js/dao-huu.js */
+.menu button { position: relative; }
+.menu button .badge { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #e0283c; color: #fff;
+  font: 700 10px/16px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 2px #1a1028, 0 0 8px #ff4a5a; pointer-events: none; }
+.chatp, .friendp { font-size: 14px; min-width: 0; }
+.chatp button, .friendp button { cursor: pointer; }
+.chatp .ghost, .friendp .ghost, .namemenu .ghost { padding: 6px 11px; border-radius: 8px; border: 1px solid #ffffff26; background: #ffffff0a; color: #e8e0ff; font-weight: 600; }
+.friendp .ghost.danger, .namemenu .sure { color: #ffb0b0; border-color: #ff6a6a55; }
+.chatp .sure, .friendp .sure { background: #5a1420 !important; border-color: #ff6a6a !important; color: #fff !important; }
+.chatp .primary, .friendp .primary { padding: 4px 14px; }
+.chatp input, .friendp input { width: 100%; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: #0c0a14; color: var(--text); font: inherit; outline: none; }
+.chatp input:focus, .friendp input:focus { border-color: var(--gold); }
+.chatp .dim, .friendp .dim { color: var(--dim); font-size: 12.5px; margin: 4px 0; }
+.chatp .stabs, .friendp .stabs { margin: 0 0 8px; overflow-x: auto; scrollbar-width: none; }
+.chatp .stabs button, .friendp .stabs button { white-space: nowrap; }
+.chatp .stabs button.ch-w.on { color: #bfe6ff; }
+.chatp .stabs button.ch-k.on { color: #c8ffd0; }
+.chatp .stabs button.ch-pm { color: #e8c8ff; }
+.crow { display: flex; gap: 6px; align-items: center; }
+.crow input { flex: 1; }
+/* ---- Đàm Đạo */
+#panel .pbox:has(.chatp) { width: min(640px, 100%); }
+.chatp { position: relative; display: flex; flex-direction: column; height: min(70vh, 560px); }
+.chatp .cnote { margin: 0 0 6px; }
+.chatp .clog { flex: 1; min-height: 0; overflow: auto; padding: 6px 8px; border-radius: 10px; background: #0b0814; border: 1px solid #ffffff12; margin-bottom: 8px; }
+.chatp .cline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding: 3px 0; border-bottom: 1px solid #ffffff06; overflow-wrap: anywhere; }
+.chatp .cline .t { color: #6f6688; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.chatp .cline .who { padding: 0; border: 0; background: none; color: var(--gold2); font-weight: 700; font-size: 13.5px; }
+.chatp .cline .who:hover { text-decoration: underline; }
+.chatp .cline.mine .who { color: #fff6c8; cursor: default; text-decoration: none; }
+.chatp .cline .lv { color: #8a80a8; font-size: 10.5px; }
+.chatp .cline .txt { flex-basis: 100%; color: #ece6f6; }
+.chatp .full { width: 100%; margin-top: 6px; }
+.namemenu { position: absolute; left: 50%; bottom: 56px; transform: translateX(-50%); z-index: 3; display: flex; flex-direction: column; gap: 6px; width: min(220px, 90%);
+  padding: 10px; border-radius: 12px; background: #1c1530; border: 1px solid #f0c05066; box-shadow: 0 12px 30px #000c; }
+.namemenu b { color: var(--gold2); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.namemenu button { padding: 7px 10px; border-radius: 8px; border: 1px solid #ffffff26; background: #ffffff0d; color: #e8e0ff; font-weight: 600; cursor: pointer; }
+.namemenu button:first-of-type { border-color: #f0c05077; color: var(--gold2); }
+/* ---- Đạo Hữu: the list on the left, the conversation on the right */
+#panel .pbox:has(.friendp) { width: min(920px, 100%); }
+.friendp { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 12px; height: min(72vh, 600px); }
+.friendp .fside, .friendp .ftalk { min-height: 0; display: flex; flex-direction: column; min-width: 0; }
+.friendp .fbody { flex: 1; min-height: 0; overflow: auto; }
+.friendp .flist { display: flex; flex-direction: column; gap: 5px; }
+.friendp h4 { margin: 6px 0 2px; color: var(--gold2); font-size: 13px; }
+.friendp .av { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: #2a1604; position: relative;
+  background: radial-gradient(circle at 35% 30%, #fff2b8, #c88a1c 75%); box-shadow: inset 0 0 0 2px #4a2a0855; }
+.friendp .av::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #4a4260; border: 2px solid #120e1e; }
+.friendp .av.on::after { background: #5cf0a0; box-shadow: 0 0 6px #5cf0a0; }
+.friendp .frow, .friendp .rrow { display: flex; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 10px; background: #ffffff05; border: 1px solid #ffffff0e; text-align: left; color: inherit; font: inherit; width: 100%; }
+.friendp .frow:hover { border-color: #f0c05044; }
+.friendp .frow.on { border-color: #f0c05088; background: #f0c05012; }
+.friendp .frow:not(.online) .av { filter: grayscale(0.7) brightness(0.8); }
+.friendp .fmain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.friendp .fname { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.friendp .fmain b { color: #ffe8c8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friendp .fmain small { color: var(--dim); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friendp .fmain small.last { color: #b8aed6; }
+.friendp .fmain small.last.new { color: #fff; font-weight: 600; }
+.friendp .count { flex: none; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #e0283c; color: #fff; font: 700 11px/18px system-ui, sans-serif; text-align: center; }
+.friendp .when { flex: none; align-self: flex-start; color: #6f6688; font-size: 10.5px; }
+.friendp .ract { display: flex; gap: 5px; flex: none; }
+.friendp .fempty { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.friendp .search { margin-bottom: 8px; }
+.friendp .ftalk { border-radius: 12px; background: #0b0814; border: 1px solid #ffffff12; padding: 8px; gap: 6px; }
+.friendp .ftalk.none { display: grid; place-items: center; }
+.friendp .pmempty { text-align: center; color: var(--dim); }
+.friendp .pmempty .big { font-size: 34px; display: block; opacity: 0.6; }
+.friendp .thead { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid #ffffff10; }
+.friendp .tact { display: flex; gap: 5px; flex: none; }
+.friendp .ghost.small { padding: 4px 8px; font-size: 12px; }
+.friendp .back { display: none; width: 30px; height: 30px; border-radius: 8px; border: 1px solid #ffffff26; background: #ffffff0a; color: var(--gold2); font-size: 20px; line-height: 1; flex: none; }
+.friendp .pmlog { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 4px; padding: 2px 4px; }
+.friendp .older { align-self: center; font-size: 12px; padding: 4px 10px; }
+.friendp .day { align-self: center; margin: 6px 0 2px; padding: 1px 10px; border-radius: 999px; background: #ffffff0a; color: #8a80a8; font-size: 11px; }
+.friendp .pmhint { text-align: center; }
+.friendp .bub { max-width: 78%; padding: 6px 10px 4px; border-radius: 14px; display: flex; flex-direction: column; gap: 1px; overflow-wrap: anywhere; }
+.friendp .bub .txt { white-space: pre-wrap; }
+.friendp .bub small { align-self: flex-end; font-size: 10px; opacity: 0.7; }
+.friendp .bub.theirs { align-self: flex-start; background: #2a2240; color: #f0eaff; border-bottom-left-radius: 4px; }
+.friendp .bub.mine { align-self: flex-end; background: linear-gradient(180deg, #c8902a, #9a6514); color: #fff8e6; border-bottom-right-radius: 4px; }
+.friendp .bub.sending { opacity: 0.55; }
+.friendp .bub.failed { background: #5a1420; }
+/* one pane at a time on a narrow screen: the list, or (with ‹ back) the conversation */
+.friendp.narrow { grid-template-columns: minmax(0, 1fr); }
+.friendp.narrow .ftalk { display: none; }
+.friendp.narrow.talking .fside { display: none; }
+.friendp.narrow.talking .ftalk { display: flex; }
+.friendp.narrow .back { display: grid; place-items: center; }
+/* low screens (a phone on its side, or turned by the page): the height of the screen, everything smaller */
+#panel:has(.friendp.short), #panel:has(.chatp.short) { padding: 4px; }
+#panel .pbox:has(.friendp.short), #panel .pbox:has(.chatp.short) { border-width: 14px; border-image-width: 14px; }
+#panel .pbox:has(.friendp.short) header h3, #panel .pbox:has(.chatp.short) header h3 { font-size: 15px; margin: 0; }
+#panel .pbox:has(.friendp.short) header h3::after, #panel .pbox:has(.chatp.short) header h3::after { display: none; }
+.friendp.short { height: var(--avail); grid-template-columns: minmax(220px, 270px) minmax(0, 1fr); gap: 8px; font-size: 12.5px; }
+.friendp.short.narrow { grid-template-columns: minmax(0, 1fr); }
+.chatp.short { height: calc(var(--avail, 300px)); font-size: 12.5px; }
+.chatp.short .cnote { display: none; }
+.friendp.short .stabs, .chatp.short .stabs { margin-bottom: 5px; padding: 2px; }
+.friendp.short .stabs button, .chatp.short .stabs button { padding: 4px 8px; font-size: 12px; }
+.friendp.short .av { width: 28px; height: 28px; font-size: 12px; }
+.friendp.short .frow, .friendp.short .rrow { padding: 5px 7px; gap: 8px; }
+.friendp.short .fmain small { font-size: 10.5px; }
+.friendp.short input, .chatp.short input { padding: 5px 8px; font-size: 12.5px; }
+.friendp.short .ghost, .chatp.short .ghost { padding: 4px 8px; font-size: 12px; }
+.friendp.short .primary, .chatp.short .primary { padding: 0 10px; font-size: 12px; border-width: 6px; border-image-width: 6px; }
+.friendp.short .ftalk { padding: 5px; gap: 4px; }
+.friendp.short .bub { padding: 4px 8px 3px; font-size: 12.5px; }
+.chatp.short .clog { padding: 4px 6px; margin-bottom: 5px; }
+.chatp.short .cline { padding: 2px 0; }
+.chatp.short .cline .who { font-size: 12.5px; }

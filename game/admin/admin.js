@@ -762,7 +762,7 @@ const VIEWS = {
     const [rows, realms] = await Promise.all([api("/t/settings"), api("/t/realms")]);
     const groups = {};
     for (const r of rows) (groups[r.k.split(".")[0]] ??= []).push(r);
-    const NAMES = { class: "Chỉ số nhân vật", exp: "Tu vi & lên cấp", level: "Sức mạnh theo cấp", arena: "Đấu trường", start: "Quà tân thủ", daily: "Quà mỗi ngày", shop: "Đan Các", meditate: "Tu luyện", pvp: "PvP", respawn: "Hồi sinh", fly: "Ngự Kiếm Phi Hành", sect: "Tông Môn" };
+    const NAMES = { class: "Chỉ số nhân vật", exp: "Tu vi & lên cấp", level: "Sức mạnh theo cấp", arena: "Đấu trường", start: "Quà tân thủ", daily: "Quà mỗi ngày", shop: "Đan Các", meditate: "Tu luyện", pvp: "PvP", respawn: "Hồi sinh", fly: "Ngự Kiếm Phi Hành", sect: "Tông Môn", chat: "Trò chuyện", social: "Đạo Hữu", pm: "Truyền Âm" };
     const card = (r) => {
       const shown = r.k === "fly.realm" ? realms[r.v - 1]?.name ?? "Khoá" : fmt(r.v);
       return record({
@@ -1078,6 +1078,14 @@ async function playerView(id) {
           : el("span", { class: "dim" }, "Chưa mua món nào (các món miễn phí ai cũng có).")),
         el("div", { class: "bar" }, pick, el("button", { class: "small", onclick: () => pick.value && act(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: Number(pick.value), own: true } }), "Đã tặng.") }, "Tặng"))));
     }
+
+    // ---- chat: barred for a while (every channel and Truyền Âm)
+    const muteMin = el("select", {}, [[10, "10 phút"], [60, "1 giờ"], [360, "6 giờ"], [1440, "1 ngày"], [10080, "7 ngày"], [43200, "30 ngày"]].map(([v, l]) => el("option", { value: v }, l)));
+    parts.push(section("Trò chuyện", p.chat_muted_until ? `cấm chat đến ${when(p.chat_muted_until)}` : "đang được chat",
+      el("p", { class: "dim" }, "Cấm chat: không nói được ở kênh Thế Giới, Khu Vực, Tông Môn và không Truyền Âm được. Có hiệu lực ngay."),
+      el("div", { class: "bar" }, muteMin,
+        el("button", { class: "small danger", onclick: () => act(() => api(`/players/${p.id}/mute`, { method: "POST", body: { minutes: Number(muteMin.value) } }), "Đã cấm chat.") }, "Cấm chat"),
+        p.chat_muted_until ? el("button", { class: "small", onclick: () => act(() => api(`/players/${p.id}/mute`, { method: "POST", body: { minutes: 0 } }), "Đã bỏ cấm chat.") }, "Bỏ cấm") : null)));
 
     // ---- the account
     const reason = el("input", { placeholder: "Lý do khóa (người chơi sẽ thấy)", value: p.ban_reason ?? "" });
