@@ -12,7 +12,7 @@ import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
 import { GameError } from "./store.js";
 import { HOME } from "../shared/balance.js";
-import { ANIMALS, CROPS, LAYOUT, HOUSES, DEFAULT_HOUSE, housePrice } from "../shared/gia-vien.js";
+import { ANIMALS, CROPS, LAYOUT, HOUSES, DEFAULT_HOUSE, housePrice, houseName } from "../shared/gia-vien.js";
 
 const no = (m, status = 400) => new GameError(m, status);
 const fmt = (n) => Number(n).toLocaleString("vi-VN");
@@ -94,7 +94,7 @@ const houseOf_ = (id) => {
 };
 /** Buy a ready-made house, once, and move into it. A retried request counts once. */
 export function buyHouse(uid, rawHouse, rawReq) {
-  const id = houseOf_(rawHouse), H = HOUSES[id], rid = reqId(rawReq), price = housePrice(id, HOME.prices);
+  const id = houseOf_(rawHouse), H = { name: houseName(id, HOME.houses) }, rid = reqId(rawReq), price = housePrice(id, HOME.houses);
   if (id !== DEFAULT_HOUSE && !price) throw no(`${H.name} không bán.`, 409);
   return run(uid, async (c) => {
     await lockHome(c, uid);
@@ -116,7 +116,7 @@ export function useHouse(uid, rawHouse) {
   const id = houseOf_(rawHouse);
   return run(uid, async (c) => {
     await lockHome(c, uid);
-    if (id !== DEFAULT_HOUSE && !(await c.query("SELECT 1 FROM home_houses WHERE user_id = ? AND house = ?", [uid, id])).length) throw no(`Đạo hữu chưa có ${HOUSES[id].name}.`, 403);
+    if (id !== DEFAULT_HOUSE && !(await c.query("SELECT 1 FROM home_houses WHERE user_id = ? AND house = ?", [uid, id])).length) throw no(`Đạo hữu chưa có ${houseName(id, HOME.houses)}.`, 403);
     await c.query("UPDATE homes SET house = ? WHERE user_id = ?", [id, uid]);
   });
 }

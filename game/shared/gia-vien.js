@@ -141,10 +141,11 @@ export const HOUSES = {
 };
 export const DEFAULT_HOUSE = "co_trach";
 /**
- * What a house costs now: the admin's setting home.price.<id> (prices, from shared/balance.js HOME.prices) or else its
- * price here. 0: not for sale (the default house; or one an admin only gives).
+ * A house's name and price now: as the admin set them (the houses table, given here as `houses`, from shared/balance.js
+ * HOME.houses), or else as written here. Price 0: not for sale (the default house; or one an admin only gives).
  */
-export const housePrice = (id, prices = {}) => (id === DEFAULT_HOUSE || !HOUSES[id] ? 0 : prices[id] ?? HOUSES[id].price);
+export const housePrice = (id, houses = {}) => (id === DEFAULT_HOUSE || !HOUSES[id] ? 0 : houses[id]?.price ?? HOUSES[id].price);
+export const houseName = (id, houses = {}) => houses[id]?.name || HOUSES[id]?.name || id;
 /** The pieces of a house (none for an unknown one). */
 export const houseCells = (id) => HOUSES[id]?.cells ?? [];
 

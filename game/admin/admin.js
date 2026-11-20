@@ -366,6 +366,25 @@ const VIEWS = {
     return wrap;
   },
 
+  // the ready-made houses of the Gia Viên: designed in code, named and priced here
+  async houses() {
+    const rows = await api("/t/houses");
+    const pics = { gamer: "/gia-vien/nha/gamer.png", tien_phu: "/gia-vien/nha/tien_phu.png" };
+    const out = el("div");
+    out.append(el("h2", {}, "Nhà Ở (Gia Viên)"),
+      el("p", { class: "dim" }, "Các kiểu nhà làm sẵn được thiết kế trong code (shared/gia-vien.js). Ở đây đổi tên, giá và thứ tự hiện trong bảng Nhà Ở của người chơi. Giá 0: không bán, chỉ admin tặng (ở trang người chơi, mục Gia Viên). Nhà mặc định luôn tặng kèm khi mở khoá Gia Viên, giá không dùng. Lưu là có hiệu lực ngay."));
+    for (const r of rows) {
+      const isDefault = r.house_key === "co_trach";
+      out.append(record({
+        title: r.name, sub: `${r.house_key}${isDefault ? " · nhà mặc định" : r.price ? ` · ${fmt(r.price)} linh thạch` : " · không bán"}`, row: r,
+        extra: pics[r.house_key] ? el("img", { src: pics[r.house_key], alt: r.name, style: "height:44px;image-rendering:pixelated;vertical-align:middle" }) : null,
+        fields: [{ k: "name", label: "Tên nhà" }, ...(isDefault ? [] : [{ k: "price", label: "Giá (linh thạch, 0 = không bán)", type: "number", step: 1 }]), { k: "sort", label: "Thứ tự (nhỏ hiện trước)", type: "number", step: 1 }],
+        onSave: async (c) => (await guard(() => api(`/t/houses/${r.house_key}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload(),
+      }));
+    }
+    return out;
+  },
+
   async realms() {
     const rows = await api("/t/realms");
     // each realm's levels, counted through the whole list
@@ -895,7 +914,7 @@ const ACTIONS = {
 };
 function logItem(l) {
   const [t, a] = l.action.split(".");
-  const what = ACTIONS[l.action] ?? `${{ realms: "cảnh giới", items: "vật phẩm", monsters: "yêu thú", skills: "đánh thường", settings: "cài đặt", cosmetics: "tóc/áo", arts: "công pháp", cong_phap: "công pháp", cong_phap_reqs: "vật phẩm lĩnh ngộ", art_reqs: "yêu cầu công pháp", monster_drops: "rơi đồ" }[t] ?? t} · ${{ edit: "sửa", add: "thêm", del: "xóa" }[a] ?? a}`;
+  const what = ACTIONS[l.action] ?? `${{ realms: "cảnh giới", items: "vật phẩm", monsters: "yêu thú", skills: "đánh thường", settings: "cài đặt", houses: "nhà ở", cosmetics: "tóc/áo", arts: "công pháp", cong_phap: "công pháp", cong_phap_reqs: "vật phẩm lĩnh ngộ", art_reqs: "yêu cầu công pháp", monster_drops: "rơi đồ" }[t] ?? t} · ${{ edit: "sửa", add: "thêm", del: "xóa" }[a] ?? a}`;
   return el("div", { class: "logitem" }, el("b", {}, l.admin), ` ${what} `, l.target ? el("span", { class: "tag" }, l.target) : null, el("span", { class: "dim" }, ` · ${when(l.at)}`),
     l.detail ? el("div", {}, el("code", {}, l.detail)) : null);
 }

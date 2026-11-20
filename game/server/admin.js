@@ -18,7 +18,7 @@ import { MAPS as MAP_DEFS, mapInfo } from "../shared/maps/index.js";
 import { CONG_PHAP } from "../shared/cong-phap.js";
 import * as sects from "./tong-mon.js";
 import * as gv from "./gia-vien.js";
-import { HOUSES, DEFAULT_HOUSE, housePrice } from "../shared/gia-vien.js";
+import { HOUSES, DEFAULT_HOUSE, housePrice, houseName } from "../shared/gia-vien.js";
 
 const MAPS = Object.keys(MAP_DEFS).map((id) => mapInfo(id));
 
@@ -90,6 +90,8 @@ const T = {
   monster_drops: { pk: "id", order: "monster, id", config: true, add: true, del: true, cols: { monster: "str:16", item_key: "str:32", chance: "num", min_qty: "uint", max_qty: "uint" } },
   skills: { pk: "slot", order: "slot", config: true, cols: { name: "str:40", type: "enum:melee|bolt|zone", cd: "num", mult: "num", params: "json" } },
   settings: { pk: "k", order: "k", config: true, cols: { v: "num" } },
+  // the ready-made houses are designed in code (shared/gia-vien.js): an admin names them and prices them (0: not sold)
+  houses: { pk: "house_key", pkType: "key", order: "sort, house_key", config: true, cols: { name: "str:40", price: "uint", sort: "int" } },
   // the sect treasure house (Tông Môn Bảo Khố): what members buy with cống hiến
   sect_shop: { pk: "item_key", pkType: "key", order: "sort, item_key", add: true, del: true, cols: { cost: "uint", min_level: "uint", daily_limit: "uint", on_sale: "bool", sort: "int" } },
   cosmetics: {
@@ -399,7 +401,7 @@ export function adminApp(world) {
       ...shapePlayer(p), inventory: await inventory(id), owned, buys, pvp, history, learned: ch?.learned ?? [], slots: ch?.slots ?? [],
       buffs: await activeBuffs(id), expiredBuffs: oldBuffs.map((b) => ({ ...b, id: Number(b.id) })), live: world.liveInfo(id),
       // Gia Viên: unlocked or not, the house lived in, the houses had; and every house there is, to give
-      home: { ...(await gv.adminView(id)), catalog: Object.entries(HOUSES).filter(([k]) => k !== DEFAULT_HOUSE).map(([k, H]) => ({ id: k, name: H.name, price: housePrice(k, HOME.prices) })), defaultHouse: HOUSES[DEFAULT_HOUSE].name },
+      home: { ...(await gv.adminView(id)), catalog: Object.keys(HOUSES).filter((k) => k !== DEFAULT_HOUSE).map((k) => ({ id: k, name: houseName(k, HOME.houses), price: housePrice(k, HOME.houses) })), defaultHouse: houseName(DEFAULT_HOUSE, HOME.houses) },
     };
   }
   r.get("/players/:id", wrap(async (req, res) => res.json(await playerDetail(playerId(req.params.id)))));
@@ -444,7 +446,7 @@ export function adminApp(world) {
     await log(req.admin, give ? "player.house_give" : "player.house_take", id, { house });
     await world.homeHouse(id);
     world.homeState(id);
-    world.toastUser?.(id, give ? `Đạo hữu được tặng ${HOUSES[house].name}! Xem ở Gia Viên, bảng Nhà Ở.` : `${HOUSES[house].name} đã bị thu hồi.`);
+    world.toastUser?.(id, give ? `Đạo hữu được tặng ${houseName(house, HOME.houses)}! Xem ở Gia Viên, bảng Nhà Ở.` : `${houseName(house, HOME.houses)} đã bị thu hồi.`);
     res.json(await playerDetail(id));
   }));
   // the arts as designed in code, each with the admin's switches (cong_phap)
@@ -659,6 +661,8 @@ export function adminApp(world) {
   app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type("application/json").send(assetsJson()));
   for (const d of [...Object.keys(PART_DIRS), ART_DIR, "nhan-vat"]) app.use(`/${d}`, express.static(join(ROOT, "public", d), { maxAge: 0 }));
   app.use("/xianxia", express.static(join(ROOT, "public", "xianxia"), { maxAge: "1h" }));
+  // the Gia Viên's house pictures, shown in the Nhà Ở tab
+  app.use("/gia-vien", express.static(join(ROOT, "public", "gia-vien"), { maxAge: "1h" }));
   // the pixel effects, for the công pháp previews: the game's own copy (public/hieu-ung/)
   app.use("/hieu-ung", express.static(join(ROOT, "public", "hieu-ung"), { maxAge: 0 }));
   app.use(express.static(join(ROOT, "admin"), { index: "index.html", maxAge: 0 }));

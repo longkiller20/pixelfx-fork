@@ -6,7 +6,7 @@ import { createFrame, clearFrame, createFx, painterFor } from "/hieu-ung/core/in
 import { effects } from "/hieu-ung/fx/index.js";
 import { ITEMS, HOME } from "/shared/balance.js";
 import { KHOI } from "/shared/gia-vien-khoi.js";
-import { BLOCKS, ANIMALS, CROPS, LAYOUT, HOUSES, DEFAULT_HOUSE, HomeGrid, cropStage, houseCells, housePrice } from "/shared/gia-vien.js";
+import { BLOCKS, ANIMALS, CROPS, LAYOUT, HOUSES, DEFAULT_HOUSE, HomeGrid, cropStage, houseCells, housePrice, houseName } from "/shared/gia-vien.js";
 import { h, sure } from "./tong-mon.js";
 
 const T = 32;
@@ -419,7 +419,7 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
         h("div.gvhero", {}, h("h4", { text: "Gia Viên của riêng đạo hữu" }),
           h("p", { text: "Một mảnh đất riêng, chỉ mình đạo hữu bước vào. Chia ba khu:" }),
           h("ul", {},
-            h("li", {}, h("b", { text: "Nhà Ở: " }), `tặng kèm ${HOUSES.co_trach.name}, ngôi nhà gỗ hai tầng mái ngói đỏ: lò luyện đan, bàn trà, kệ sách, phòng ngủ trên lầu. Vào ở được ngay.`),
+            h("li", {}, h("b", { text: "Nhà Ở: " }), `tặng kèm ${houseName(DEFAULT_HOUSE, HOME.houses)}, ngôi nhà gỗ hai tầng mái ngói đỏ: lò luyện đan, bàn trà, kệ sách, phòng ngủ trên lầu. Vào ở được ngay.`),
             h("li", {}, h("b", { text: "Nông Trại: " }), "nuôi gà, vịt, lợn, bò. Cho ăn, đợi một lúc là có trứng, sữa, mỡ."),
             h("li", {}, h("b", { text: "Vườn Dược: " }), "8 luống gieo Linh Thảo, Kim Ngân Hoa, Nhân Sâm, Linh Chi. Chín thì thu hoạch."))),
         houseCanvas("co_trach", 300),
@@ -551,10 +551,12 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
   // picture only its name, its price and a small button; buying asks first.
   let housePage = -1;
   function housePanel(page = housePage) {
-    const v = st() ?? view ?? {}, cur = v.house, owned = new Set(v.houses ?? []), ids = Object.keys(HOUSES);
+    const v = st() ?? view ?? {}, cur = v.house, owned = new Set(v.houses ?? []);
+    // in the admin's order
+    const ids = Object.keys(HOUSES).sort((a, b) => (HOME.houses?.[a]?.sort ?? 0) - (HOME.houses?.[b]?.sort ?? 0));
     if (page < 0) page = Math.max(0, ids.indexOf(cur));
     housePage = page = (page + ids.length) % ids.length;
-    const id = ids[page], H = HOUSES[id], price = housePrice(id, HOME.prices), has = id === cur, own = owned.has(id) || id === DEFAULT_HOUSE;
+    const id = ids[page], H = { name: houseName(id, HOME.houses) }, price = housePrice(id, HOME.houses), has = id === cur, own = owned.has(id) || id === DEFAULT_HOUSE;
     const go = (d) => housePanel(page + d);
     const btn = has
       ? h("span.tag", { text: "Đang ở" })
@@ -579,7 +581,7 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
     const priceText = has || own ? (id === DEFAULT_HOUSE ? "Tặng kèm" : "Đã có") : price ? `${fmt(price)} linh thạch` : "Không bán";
     const wrap = h("div.gvp.house", {},
       h("div.gvpager", {}, arrow(-1), pic, arrow(1)),
-      h("div.gvdots", {}, ...ids.map((k, n) => h("button", { type: "button", className: `${n === page ? "on" : ""}${k === cur ? " home" : ""}`, title: HOUSES[k].name, "aria-label": HOUSES[k].name, onclick: () => housePanel(n) }))),
+      h("div.gvdots", {}, ...ids.map((k, n) => h("button", { type: "button", className: `${n === page ? "on" : ""}${k === cur ? " home" : ""}`, title: houseName(k, HOME.houses), "aria-label": houseName(k, HOME.houses), onclick: () => housePanel(n) }))),
       h("div.gvhbar", { className: has ? "on" : "" }, h("b", { text: H.name }), h("span.price", { text: priceText }), btn));
     show("Nhà Ở", wrap);
   }
