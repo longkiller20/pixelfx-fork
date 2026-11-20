@@ -12,6 +12,9 @@ import { CAST, stepReturning } from "./cong-phap.js";
 import * as store from "./store.js";
 import { sectOf } from "./tong-mon.js";
 import * as dao from "./dao-huu.js";
+import * as gv from "./gia-vien.js";
+import { HomeGrid, BLOCKS as HOME_BLOCKS, HOME_MAP } from "../shared/gia-vien.js";
+import { HOME } from "../shared/balance.js";
 import { SOCIAL } from "../shared/balance.js";
 import { SECT } from "../shared/balance.js";
 import { sectBonus } from "../shared/tong-mon.js";
@@ -35,7 +38,7 @@ const nextId = () => NID++;
  * same thing on whichever map they are.
  */
 export class World {
-  constructor(mapId = START_MAP, universe = null) {
+  constructor(mapId = START_MAP, universe = null, home = null) {
     this.u = universe;
     this.ents = new Map(); // id -> player or monster
     this.players = new Map(); // userId -> player
@@ -46,6 +49,16 @@ export class World {
     this.t = 0;
     this.tick = 0;
     this.map = mapInfo(mapId);
+    // which world this is in the Universe: the map's id, or for a Gia Viên "gv:<owner>" (one copy per owner)
+    this.key = mapId;
+    if (home) {
+      // a Gia Viên: its owner's blocks over the plain map, standing and colliding like the ground
+      this.key = home.key;
+      this.owner = home.owner;
+      this.grid = new HomeGrid(this.map).load(home.blocks);
+      this.map = this.grid.wrap();
+      this.buildQ = Promise.resolve();
+    }
     this.spawnMonsters();
   }
 
@@ -77,6 +90,13 @@ export class World {
     this.players.set(p.userId, p);
     this.ents.set(p.id, p);
     send(p.ws, { t: "welcome", id: p.id, tick: this.tick, inv, map: this.map.id, players: [...this.players.values()].map(info) });
+    // a Gia Viên: everything built in it, and the farm's animals and herbs
+    if (this.grid) {
+      const all = [];
+      for (const l of ["f", "b", "d"]) for (const [K, k] of this.grid[l]) all.push([l, ...K.split(",").map(Number), k]);
+      send(p.ws, { t: "home", owner: this.owner, mine: p.userId === this.owner, blocks: all });
+      this.u?.homeState(this.owner);
+    }
     this.broadcast({ t: "pi", ...info(p) }, p);
     this.sendArts(p);
     this.sendMe(p);
@@ -87,6 +107,7 @@ export class World {
     this.ents.delete(p.id);
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
     this.broadcast({ t: "gone", id: p.id });
+    if (this.grid && !this.players.size) this.u?.dropHomeLater(this.key);
   }
 
   /** Take a player out and save what they earned. Safe to call twice. */
@@ -97,6 +118,7 @@ export class World {
     this.ents.delete(p.id);
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
     this.broadcast({ t: "gone", id: p.id });
+    if (this.grid && !this.players.size) this.u?.dropHomeLater(this.key);
     await this.save(p);
   }
 
@@ -363,12 +385,15 @@ export class World {
           if (!p.sect) return send(p.ws, { t: "toast", m: "Đạo hữu chưa ở tông môn nào." });
           return this.u?.say(msg, p, (q) => q.sect?.id === p.sect.id, `s${p.sect.id}`);
         }
-        if (ch === "k") return this.u ? this.u.say({ ...msg, map: this.map.name }, p, (q) => q.world === this, `k${this.map.id}`) : this.broadcast(msg);
+        if (ch === "k") return this.u ? this.u.say({ ...msg, map: this.map.name }, p, (q) => q.world === this, `k${this.key}`) : this.broadcast(msg);
         return this.u ? this.u.say(msg, p, () => true, "w") : this.broadcast(msg);
       }
       case "hist":
         // a channel's last lines (the chat panel opening it), without anyone this player blocked
         return this.u?.history(p, m.ch);
+      case "build":
+        // Gia Viên: put a block down or take one up (its owner only)
+        return this.build(p, m);
       case "pm":
         // Truyền Âm: to a friend, by id (or đạo hiệu); checked and saved by server/dao-huu.js, then delivered
         return this.u?.whisper(p, m);
@@ -696,7 +721,9 @@ export class World {
     // fell out of the world somehow: back to the spawn
     if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint());
     // a way out: to the map it leads to, or (a road still being built) a word and a step back
-    const gate = this.map.portalAt(p.x, p.y);
+    const gate0 = this.map.portalAt(p.x, p.y);
+    // a Gia Viên's way out leads back to wherever its owner came from
+    const gate = gate0?.to === "@back" ? { ...gate0, to: this.u?.worlds.has(p.homeFrom?.key) ? p.homeFrom.key : START_MAP } : gate0;
     if (gate && t >= p.portalAt && gate.to && this.u?.worlds.has(gate.to) && !p.warping) {
       // the teleport: everyone here sees them break into light at the gate, their own screen closes in a star; a moment
       // later they are moved, and the map they arrive on sees a pillar of light bring them down
@@ -705,10 +732,10 @@ export class World {
       p.in = { dx: 0, dy: 0, jump: false, down: false };
       this.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
       send(p.ws, { t: "warp", to: gate.to });
-      const from = this.map.id;
+      const from = this.key, back = gate0.to === "@back" ? p.homeFrom?.at : null;
       this.at(t + WARP_DELAY, () => {
         if (p.gone || p.world !== this) return void (p.warping = false);
-        this.u.transfer(p, gate.to, from).finally(() => (p.warping = false));
+        this.u.transfer(p, gate.to, from, back).finally(() => (p.warping = false));
       });
       return;
     }
@@ -745,6 +772,53 @@ export class World {
     this.ents.set(m.id, m);
     return m;
   }
+  // ---------------------------------------------------------------- Gia Viên: building
+  /**
+   * The owner puts down (op "put": kind at layer l, cell x y) or takes up (op "del") a block. Checked here against the
+   * rules (shared/gia-vien.js HomeGrid: the house plot, what holds it, never on someone) and the reach; then the stock
+   * and the row are changed in the database (server/gia-vien.js); only then does the world change and everyone here see
+   * it. One at a time per home, in order, so two clicks never pass the same check.
+   */
+  build(p, m) {
+    if (!this.grid || p.userId !== this.owner) return;
+    const op = m.op, l = m.l, x = m.x, y = m.y, c = typeof m.c === "string" ? m.c.slice(0, 16) : "";
+    const fail = (why) => send(p.ws, { t: "blkerr", c, m: why });
+    if ((op !== "put" && op !== "del") || !["f", "b", "d"].includes(l) || !Number.isInteger(x) || !Number.isInteger(y) || Math.abs(x) > 1000 || Math.abs(y) > 1000) return;
+    const now = Date.now();
+    if (now < (p.buildAt ?? 0)) return fail("Chậm lại một chút.");
+    p.buildAt = now + 80;
+    const T = this.map.T, reach = HOME.reach * T;
+    if (Math.hypot((x + 0.5) * T - p.x, (y + 0.5) * T - (p.y - 30)) > reach + T) return fail("Xa quá, hãy lại gần hơn.");
+    this.buildQ = this.buildQ.then(async () => {
+      if (p.gone || p.world !== this) return;
+      const G = this.grid;
+      if (op === "put") {
+        const kind = typeof m.k === "string" ? m.k : "", b = HOME_BLOCKS[kind];
+        if (!b || b.layer !== l) return fail("Không có vật liệu này.");
+        const bodies = [...this.players.values()].map((q) => [q.x, q.y]);
+        const why = G.canPut(kind, x, y, bodies, fits);
+        if (why) return fail(why);
+        await gv.place(this.owner, l, x, y, kind);
+        G.set(l, x, y, kind);
+        this.broadcast({ t: "blk", l, x, y, k: kind, c });
+      } else {
+        // furniture is taken by any cell it covers
+        let ax = x, ay = y;
+        if (l === "d") {
+          const cov = G.dCover(x, y);
+          if (!cov) return fail("Ô này không có đồ đạc.");
+          [ax, ay] = cov;
+        }
+        const why = G.canTake(l, ax, ay);
+        if (why) return fail(why);
+        await gv.unplace(this.owner, l, ax, ay);
+        G.del(l, ax, ay);
+        this.broadcast({ t: "blk", l, x: ax, y: ay, k: null, c });
+      }
+      this.u?.homeState(this.owner);
+    }).catch((e) => fail(e?.status ? e.message : "Không xây được, hãy thử lại."));
+  }
+
   spawnMonsters() {
     for (const m of this.map.mobs) this.addMonster(m.type, m.x, m.y);
   }
@@ -917,7 +991,7 @@ const send = (ws, obj) => sendRaw(ws, JSON.stringify(obj));
  */
 export class Universe {
   constructor() {
-    this.worlds = new Map(Object.keys(MAPS).map((id) => [id, new World(id, this)]));
+    this.worlds = new Map(Object.keys(MAPS).filter((id) => !MAPS[id].instanced).map((id) => [id, new World(id, this)]));
     // one tick for every map, so all their clocks stay equal
     this.timer = setInterval(() => {
       for (const w of this.worlds.values()) w.step();
@@ -1037,16 +1111,16 @@ export class Universe {
    * Walk a player through a gate: off this map, onto the other, just inside its gate back to where they came from (or at
    * its spawn). Nothing they carry is lost: their unsaved gains and saves in flight go with them. The map is remembered.
    */
-  async transfer(p, toId, fromId) {
+  async transfer(p, toId, fromId, at0 = null) {
     const from = p.world, to = this.worlds.get(toId);
     if (!to || p.gone || from === to) return;
     // the bag first (the one wait), then off one map and onto the other in the same moment: never on no map at all
     const inv = await store.inventory(p.userId).catch(() => ({}));
     if (p.gone || p.world !== from) return;
     from.leave(p);
-    const back = to.map.portals.find((g) => g.to === fromId);
-    let at = null;
-    if (back) {
+    const back = at0 ? null : to.map.portals.find((g) => g.to === fromId);
+    let at = at0 && fits(at0.x, at0.y, to.map) ? { x: at0.x, y: at0.y } : null;
+    if (back && !at) {
       // beside the gate, inward first, the first spot that is open ground and not the gate itself
       const dir = back.x < to.map.w / 2 ? 1 : -1;
       for (const k of [3, -3, 2, -2, 4, -4]) {
@@ -1065,7 +1139,58 @@ export class Universe {
     p.flying = false;
     to.enter(p, inv, at);
     to.ev({ e: "warp", id: p.id, x: Math.round(at.x), y: Math.round(at.y), out: 0 });
-    store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
+    // a Gia Viên isn't remembered: logging in again starts where they came from
+    if (!to.grid) store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
+    if (to.grid) to.ev({ e: "spawn", id: p.id });
+  }
+
+  // ---- Gia Viên: each owner's copy of the homestead, made when they go in, dropped a while after they leave
+  /** Take a player into their own Gia Viên (unlocked), from wherever they are; remembered to come back to. */
+  async enterHome(uid) {
+    const p = this.players.get(uid);
+    if (!p) throw new Error("not online");
+    const key = `gv:${uid}`;
+    if (p.world.key === key) return;
+    if (p.warping || p.dead) throw Object.assign(new Error("Không thể vào Gia Viên lúc này."), { status: 409 });
+    let w = this.worlds.get(key);
+    if (!w) {
+      const blocks = await gv.blocks(uid);
+      w = this.worlds.get(key) ?? new World(HOME_MAP, this, { key, owner: uid, blocks });
+      this.worlds.set(key, w);
+    }
+    clearTimeout(this.homeDrops?.get(key));
+    p.homeFrom = { key: p.world.key, at: { x: p.x, y: p.y } };
+    send(p.ws, { t: "warp", to: key });
+    p.warping = true;
+    p.world.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
+    await new Promise((r) => setTimeout(r, WARP_DELAY * 1000));
+    try {
+      await this.transfer(p, key, p.world.key);
+    } finally {
+      p.warping = false;
+    }
+  }
+  /** Back out of a Gia Viên to where they came from. */
+  async leaveHome(uid) {
+    const p = this.players.get(uid);
+    if (!p || !p.world.grid) return;
+    const to = this.worlds.has(p.homeFrom?.key) && !this.worlds.get(p.homeFrom.key).grid ? p.homeFrom.key : START_MAP;
+    await this.transfer(p, to, p.world.key, p.homeFrom?.at ?? null);
+  }
+  dropHomeLater(key) {
+    this.homeDrops ??= new Map();
+    clearTimeout(this.homeDrops.get(key));
+    this.homeDrops.set(key, setTimeout(() => {
+      const w = this.worlds.get(key);
+      if (w && w.grid && !w.players.size) this.worlds.delete(key);
+    }, 60_000));
+  }
+  /** The farm and the stock changed (or someone came in): tell whoever is in that Gia Viên. */
+  async homeState(owner) {
+    const w = this.worlds.get(`gv:${owner}`);
+    if (!w || !w.players.size) return;
+    const st = await gv.state(owner).catch(() => null);
+    if (st) w.broadcast({ t: "homest", ...st });
   }
 
   // ---- chat: who hears a line, and the last lines of each channel (kept in memory, for the chat panel)
@@ -1080,7 +1205,7 @@ export class Universe {
     this.hist.set(key, list);
   }
   history(p, ch) {
-    const key = ch === "k" ? `k${p.world.map.id}` : ch === "s" ? (p.sect ? `s${p.sect.id}` : null) : "w";
+    const key = ch === "k" ? `k${p.world.key}` : ch === "s" ? (p.sect ? `s${p.sect.id}` : null) : "w";
     const list = (key && this.hist?.get(key)) || [];
     send(p.ws, { t: "hist", ch: ch === "k" || ch === "s" ? ch : "w", list: list.filter((x) => !p.blocked.has(x.u)).map((x) => x.msg) });
   }

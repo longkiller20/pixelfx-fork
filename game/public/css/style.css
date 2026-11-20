@@ -1155,3 +1155,94 @@ body.rotated .ncard { padding: 10px 12px; gap: 7px; }
 .chatp.short .clog { padding: 4px 6px; margin-bottom: 5px; }
 .chatp.short .cline { padding: 2px 0; }
 .chatp.short .cline .who { font-size: 12.5px; }
+
+/* ================================================================ Gia Viên (🏡): public/js/gia-vien.js
+   In one's own Gia Viên: a row of shortcuts under the character card; while building, a bar of materials at the bottom
+   (groups, the place / break tool, each material with what is in stock), the art buttons out of the way. The panels:
+   unlock and enter, the farm's animals, the garden's eight beds, buying materials. */
+#homebar { position: absolute; left: 10px; top: 112px; display: flex; gap: 6px; z-index: 3; }
+#homebar button { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 52px; padding: 5px 6px 4px; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(180deg, #2a2040ee, #160f26ee); border: 1px solid #f0c05055; color: var(--gold2); box-shadow: 0 4px 12px #0008; }
+#homebar button span { font-size: 18px; line-height: 1.1; }
+#homebar button small { font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+#homebar button:hover { border-color: var(--gold); }
+body.building #homebar button:first-child { background: linear-gradient(180deg, #5a3a10, #2a1a08); border-color: var(--gold); box-shadow: 0 0 12px #f0c05066; }
+/* phones: a row of small round buttons under the menu, out of the counters' way */
+body.touch #homebar { top: 50px; left: auto; right: 8px; gap: 5px; }
+body.touch #homebar button { min-width: 0; width: 40px; height: 40px; padding: 0; justify-content: center; border-radius: 50%; }
+body.touch #homebar button small { display: none; }
+body.touch #homebar button span { font-size: 17px; }
+#buildbar { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); width: min(760px, calc(100% - 16px)); z-index: 4; display: flex; flex-direction: column; gap: 5px;
+  padding: 7px 9px; border-radius: 14px; background: linear-gradient(180deg, #1c1530f2, #100c1cf2); border: 1px solid #f0c05055; box-shadow: 0 10px 30px #000b; }
+#buildbar .bbtop { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+#buildbar .bbtabs, #buildbar .bbtools { display: flex; gap: 4px; }
+#buildbar .bbtabs button, #buildbar .bbtools button { padding: 4px 10px; border-radius: 8px; border: 1px solid #ffffff1e; background: #ffffff08; color: #d8d0f0; font: 600 12.5px system-ui, sans-serif; cursor: pointer; }
+#buildbar .bbtabs button.on, #buildbar .bbtools button.on { background: linear-gradient(180deg, #3a2a12, #2a1d0c); color: var(--gold2); border-color: #f0c05077; }
+#buildbar .bbtools .done { background: #2f9a6a33; border-color: #5cf0a066; color: #b8ffd8; }
+#buildbar .bbitems { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+#buildbar .bbit { flex: none; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 2px 3px; border-radius: 10px; cursor: pointer;
+  border: 1px solid #ffffff14; background: #0b0814; color: #e8e0ff; position: relative; }
+#buildbar .bbit.on { border-color: var(--gold); background: radial-gradient(circle at 50% 30%, #f0c05022, #0b0814 70%); box-shadow: 0 0 10px #f0c05044; }
+#buildbar .bbit.empty .gvic { opacity: 0.45; }
+#buildbar .bbit .nm { font-size: 10px; line-height: 1.15; text-align: center; max-width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#buildbar .bbit .qty { font: 700 10px system-ui, sans-serif; color: var(--gold2); }
+#buildbar .bbit.empty .qty { color: #9af0c0; }
+#buildbar .bbhint { font-size: 11px; color: var(--dim); text-align: center; }
+.gvic { image-rendering: pixelated; display: block; }
+body.building .skills .art, body.building .skills .item, body.building .chat { display: none; }
+body.touch #buildbar .bbhint { display: none; }
+body.touch #buildbar { bottom: 4px; padding: 5px 7px; }
+body.touch #buildbar .bbit { width: 56px; }
+/* the panels */
+#panel .pbox:has(.gvp) { width: min(640px, 100%); }
+.gvp { display: flex; flex-direction: column; gap: 10px; font-size: 14px; min-width: 0; }
+.gvp button { cursor: pointer; }
+.gvp .ghost { padding: 6px 11px; border-radius: 8px; border: 1px solid #ffffff26; background: #ffffff0a; color: #e8e0ff; font-weight: 600; }
+.gvp .ghost.small { padding: 4px 8px; font-size: 12px; }
+.gvp .sure { background: #5a1420 !important; border-color: #ff6a6a !important; color: #fff !important; }
+.gvp .primary { padding: 4px 14px; }
+.gvp .primary.big { width: 100%; padding: 10px 14px; }
+.gvp button:disabled { opacity: 0.45; cursor: default; }
+.gvp .dim { color: var(--dim); font-size: 12.5px; margin: 0; }
+.gvp h4 { margin: 4px 0 0; color: var(--gold2); font-size: 14px; }
+.gvp input { width: 90px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: #0c0a14; color: var(--text); font: inherit; }
+.gvhero { padding: 12px 14px; border-radius: 14px; background: radial-gradient(circle at 15% 0%, #f0c05018, #0000 55%), linear-gradient(180deg, #1c1530, #100c1c); border: 1px solid #f0c05040; }
+.gvhero h4 { font-size: 17px; margin: 0 0 6px; }
+.gvhero p { margin: 0 0 6px; }
+.gvhero ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; color: #d8cfee; }
+.gvhero b { color: #ffe8c8; }
+.gvstats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.gvstat { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 12px; background: #ffffff06; border: 1px solid #ffffff12; }
+.gvstat .ic { font-size: 20px; }
+.gvstat b { color: var(--gold2); font-size: 16px; }
+.gvstat small { color: var(--dim); font-size: 11px; text-align: center; }
+.gvrow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.gvlist, .gvshop { display: flex; flex-direction: column; gap: 5px; }
+.gvitem, .gvbuy { display: flex; align-items: center; gap: 10px; padding: 6px 9px; border-radius: 12px; background: #ffffff05; border: 1px solid #ffffff10; }
+.gvitem.ready { border-color: #f0c05077; background: #f0c05010; }
+.gvitem.hungry { border-color: #ff9a6a33; }
+.gvmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gvmain b { color: #ffe8c8; }
+.gvmain small { color: var(--dim); font-size: 12px; }
+.gvitem.ready .gvmain small { color: var(--gold2); font-weight: 600; }
+.gvacts { display: flex; gap: 5px; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.gvbar { display: block; height: 5px; border-radius: 3px; background: #1a1428; overflow: hidden; box-shadow: inset 0 0 0 1px #00000080; }
+.gvbar u { display: block; height: 100%; background: linear-gradient(90deg, #3aa070, #a8ffb0); text-decoration: none; }
+.gvbeds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+.gvbed { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px; border-radius: 12px; background: #ffffff05; border: 1px solid #ffffff12; text-align: center; min-width: 0; }
+.gvbed .no { color: #8a80a8; font-size: 11px; }
+.gvbed b { color: #ffe8c8; }
+.gvbed small { color: var(--dim); font-size: 11.5px; }
+.gvbed .gvbar { width: 100%; }
+.gvbed.ripe { border-color: #7ff0a077; background: #3aa07012; }
+.gvbed.ripe small { color: #a8ffb0; font-weight: 600; }
+.gvbed.focus { box-shadow: 0 0 0 2px var(--gold); }
+.gvbed .seeds { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: 100%; }
+.gvbed .seeds button { display: flex; flex-direction: column; align-items: center; gap: 0; padding: 3px 2px; font-size: 11px; line-height: 1.2; }
+.gvbed .seeds .gvic { width: 30px; height: 30px; }
+.gvbed .seeds small { font-size: 9.5px; color: #b8aed6; font-weight: 500; }
+.gvbuyhead { display: flex; gap: 12px; align-items: center; }
+.gvbuyhead > div { display: flex; flex-direction: column; gap: 2px; }
+.gvbuyhead small { color: var(--dim); font-size: 12px; }
+@media (max-width: 640px) { body:not(.rotated) .gvbeds { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-height: 520px) { .gvp { gap: 6px; font-size: 13px; } .gvbed { padding: 5px 4px; } .gvhero { padding: 8px 10px; } .gvstat { padding: 5px 3px; } }

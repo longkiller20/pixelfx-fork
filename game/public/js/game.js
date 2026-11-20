@@ -10,6 +10,7 @@ import { drawDummy } from "./art.js";
 import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
 import { buildScene } from "./scenery.js";
 import { stepBody, PHYS, zoneLanding } from "/shared/physics.js";
+import { createHomeLayer } from "./gia-vien.js";
 
 // each buff's status icon (Xianxia Pixel Pack)
 const BUFF_ICON = { hp: "item_peach", atk: "status_burn", def: "status_golden_shield", spd: "status_swift", exp: "item_jade_slip", stones: "item_spirit_stone", med: "item_lingzhi" };
@@ -18,7 +19,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -50,6 +51,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     alive = false;
   };
   const send = (o) => ws.readyState === 1 && ws.send(JSON.stringify(o));
+  // Gia Viên: drawn over the map, building by hand (public/js/gia-vien.js); a block put or taken changes the map people move on
+  const home = createHomeLayer({
+    send, drawFx: (...a) => drawFx(...a), toast: (m) => toast(m),
+    bodies: () => [...drawn.values()].filter((e) => e.kind === "p").map((e) => [e.x, e.y]),
+    mapChanged: (m) => map?.id === "giavien" && (map = m),
+  });
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     switch (m.t) {
@@ -58,6 +65,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         if (!map || map.id !== m.map) {
           // a new map (logging in, or through a gate): forget everything of the last one
           map = mapInfo(m.map);
+          home.onWelcome(m.map);
           // each map has its own music
           setMapMusic(map.music);
           scene = null;
@@ -140,6 +148,22 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         break;
       case "hist":
         social?.onHist(m);
+        break;
+      // Gia Viên: what is built (the map people move on gains its blocks), the farm, a block put or taken
+      case "home":
+        home.onHome(m, mapInfo(m.map ?? "giavien")).then((mm) => {
+          if (map?.id === "giavien") map = mm;
+        });
+        break;
+      case "homest":
+        home.onState(m);
+        onHomeState?.();
+        break;
+      case "blk":
+        home.onBlk(m);
+        break;
+      case "blkerr":
+        home.onBlkErr(m);
         break;
       case "pm":
         // Truyền Âm: in the log too, marked; the Đạo Hữu panel shows it in its conversation
@@ -391,10 +415,39 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   view.addEventListener("mousemove", (e) => {
     const r = view.getBoundingClientRect();
     mouse = { x: ((e.clientX - r.left) / r.width) * VW, y: ((e.clientY - r.top) / r.height) * VH };
+    home.pointer(mouse.x + camX, mouse.y + camY, "move");
   });
   view.addEventListener("mousedown", (e) => {
+    // building in a Gia Viên: left puts, right takes (for as long as it is held), nothing is cast
+    if (home.build.on) {
+      if (e.button === 2) (home.build.wasErase = home.build.erase), (home.build.erase = true), (home.build.rmb = true);
+      home.pointer(mouse.x + camX, mouse.y + camY, "down");
+      return;
+    }
+    // a click on an animal or a herb bed opens the farm or the garden
+    const hit = mouse && home.hit(mouse.x + camX, mouse.y + camY);
+    if (hit && e.button === 0) return void onHomeTap?.(hit);
     if (e.button === 0) cast(0);
     if (e.button === 2) cast(1);
+  });
+  addEventListener("mouseup", () => {
+    if (!home.build.on) return;
+    home.pointer((mouse?.x ?? 0) + camX, (mouse?.y ?? 0) + camY, "up");
+    if (home.build.rmb) (home.build.erase = home.build.wasErase), (home.build.rmb = false), onHomeState?.();
+  });
+  // a finger on the world (not on a button): build where it touches, or open what it tapped on the farm. The game may be
+  // turned on its side (a phone held upright), so the touch is turned back into the view's own coordinates.
+  const viewPos = (e) => {
+    const r = view.getBoundingClientRect();
+    if (document.body.classList.contains("rotated")) return { x: ((e.clientY - r.top) / r.height) * VW, y: (1 - (e.clientX - r.left) / r.width) * VH };
+    return { x: ((e.clientX - r.left) / r.width) * VW, y: ((e.clientY - r.top) / r.height) * VH };
+  };
+  view.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse") return;
+    const v = viewPos(e);
+    if (home.build.on) return void (home.pointer(v.x + camX, v.y + camY, "down"), home.pointer(v.x + camX, v.y + camY, "up"));
+    const hit = home.hit(v.x + camX, v.y + camY);
+    if (hit) onHomeTap?.(hit);
   });
   view.addEventListener("contextmenu", (e) => e.preventDefault());
   // a zone art that can be aimed: press its button and drag the way you want it to land, as far as you drag (the full
@@ -972,6 +1025,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       }
     }
     scene.paint(bgBuf, VW, VH, camX, camY, now);
+    home.paintBg(bgBuf, VW, VH, camX, camY);
     clearFrame(frame);
     const p = painterFor(frame), on = (x, y, m = 140) => x > camX - m && x < camX + VW + m && y > camY - m && y < camY + VH + m * 1.5;
     const place = (fx, x, y) => {
@@ -999,6 +1053,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     }
     for (const f of fxs) if (on(f.x, f.y)) drawFx(f.fx, "back", f.x, f.y, f.k);
     drawScenery(p, now, dt, on);
+    home.drawFront(p, now, dt, camX, camY, on);
     // everyone, back to front
     const list = [...drawn.values()].filter((e) => on(e.x, e.y)).sort((a, b) => a.y - b.y);
     for (const e of list) drawEntity(p, e, now);
@@ -1183,6 +1238,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       c.fillStyle = "#ffe08a";
       c.fillText("Lối ra", x, y);
     }
+    home.labels(c, k, camX, camY, labels.width, labels.height, now);
     for (let i = texts.length - 1; i >= 0; i--) {
       const t = texts[i], age = now - t.at;
       if (age > 1.1) {
@@ -1204,6 +1260,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
 
   requestAnimationFrame(render);
   return {
+    // the Gia Viên layer (public/js/gia-vien.js): its build tool, its farm's state
+    home,
     close() {
       alive = false;
       ws.close();

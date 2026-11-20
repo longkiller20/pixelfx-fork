@@ -7,6 +7,7 @@ import { configJson } from "./gameconfig.js";
 import { GameError } from "./store.js";
 import * as sect from "./tong-mon.js";
 import * as dao from "./dao-huu.js";
+import * as gv from "./gia-vien.js";
 import { RANKS } from "../shared/tong-mon.js";
 import { USER_RE } from "../shared/balance.js";
 
@@ -111,6 +112,43 @@ export function api(world) {
     world.refresh(req.userId, character);
     res.json({ character });
   }));
+
+  // ---------------------------------------------------------------- Gia Viên (server/gia-vien.js decides money and things)
+  const homeRead = rateLimit({ windowMs: 10_000, max: 30, key: (req) => `hr${req.userId}` });
+  const homeWrite = rateLimit({ windowMs: 10_000, max: 20, key: (req) => `hw${req.userId}`, message: "Thao tác quá nhanh, hãy chậm lại." });
+  const homeView = async (uid) => ({ unlocked: await gv.unlocked(uid), ...(await gv.state(uid)), inside: world.players.get(uid)?.world?.key === `gv:${uid}` });
+  const homeRoute = (path, fn) => r.post(`/home${path}`, requireAuth, writeLimit, homeWrite, wrap(async (req, res) => {
+    // what the world earned but hasn't written yet is saved first, so the stones on screen are the stones spent
+    await world.flushUser(req.userId);
+    const out = (await fn(req)) ?? {};
+    world.refresh(req.userId, await store.loadCharacter(req.userId));
+    world.homeState(req.userId);
+    res.json({ ok: true, ...out, view: await homeView(req.userId) });
+  }));
+  r.get("/home", requireAuth, homeRead, wrap(async (req, res) => res.json(await homeView(req.userId))));
+  homeRoute("/unlock", async (req) => void (await gv.unlock(req.userId)));
+  homeRoute("/enter", async (req) => {
+    if (!(await gv.unlocked(req.userId))) throw new GameError("Đạo hữu chưa mở khoá Gia Viên.", 403);
+    if (!world.players.has(req.userId)) throw new GameError("Hãy vào game trước.", 409);
+    world.enterHome(req.userId).catch((e) => console.error("home", e.message));
+  });
+  homeRoute("/leave", async (req) => void world.leaveHome(req.userId).catch((e) => console.error("home", e.message)));
+  homeRoute("/buy", async (req) => gv.buyBlocks(req.userId, req.body?.kind, req.body?.qty, req.body?.requestId));
+  homeRoute("/animal/buy", async (req) => gv.buyAnimal(req.userId, req.body?.kind, req.body?.requestId));
+  homeRoute("/animal/feed", async (req) => gv.feed(req.userId, req.body?.ids));
+  homeRoute("/animal/collect", async (req) => {
+    const out = await gv.collect(req.userId, req.body?.ids);
+    await world.sendInv(req.userId);
+    return out;
+  });
+  homeRoute("/animal/release", async (req) => void (await gv.release(req.userId, req.body?.id)));
+  homeRoute("/plant", async (req) => void (await gv.plant(req.userId, req.body?.plot, req.body?.crop)));
+  homeRoute("/harvest", async (req) => {
+    const out = await gv.harvest(req.userId, req.body?.plot);
+    await world.sendInv(req.userId);
+    return out;
+  });
+  homeRoute("/clear", async (req) => void (await gv.clearPlot(req.userId, req.body?.plot)));
 
   // ---------------------------------------------------------------- Đạo Hữu and Truyền Âm (server/dao-huu.js decides)
   // where a friend is, from the world: online, which map, their sect (nothing for someone offline)

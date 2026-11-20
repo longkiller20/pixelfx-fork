@@ -5,6 +5,7 @@
 import { q, pool } from "./db.js";
 import { DEFAULTS, applyConfig } from "../shared/balance.js";
 import { CONG_PHAP, ART_ITEMS_SEED, DROPS_SEED, ELEMENTS } from "../shared/cong-phap.js";
+import { HOME_ITEMS } from "../shared/gia-vien.js";
 
 // the element each critter's drops follow
 const MONSTER_ELEMENT = { ghost: "am", bat: "am", bird: "phong", butterfly: "moc", eyeball: "huyen", fish_school: "thuy", flying_skull: "hoa", frog: "moc", jellyfish: "loi", slime: "thu", snake: "moc", wisp: "quang" };
@@ -104,6 +105,11 @@ export async function seedConfig() {
   await pool.batch(
     "INSERT IGNORE INTO items (item_key, name, description, price, heal, exp_base, exp_per_level, cooldown, on_sale, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     DEFAULTS.items.map((i) => [i.key, i.name, i.desc, i.price, i.heal, i.expBase, i.expPerLevel, i.cd, i.onSale ? 1 : 0, i.sort]),
+  );
+  // what the Gia Viên's animals and herbs give: materials, never sold; an admin may change them like any item
+  await pool.batch(
+    "INSERT IGNORE INTO items (item_key, name, kind, description, price, heal, exp_base, exp_per_level, cooldown, on_sale, sort) VALUES (?, ?, 'material', ?, 0, 0, 0, 0, 1, 0, ?)",
+    HOME_ITEMS.map((i, n) => [i.key, i.name, i.desc, 300 + n]),
   );
   // the monsters a database doesn't have yet get their own drop list too (after the items exist, in seedArts)
   const had = new Set((await q("SELECT type FROM monsters")).map((r) => r.type));

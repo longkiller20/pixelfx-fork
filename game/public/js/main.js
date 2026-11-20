@@ -7,6 +7,7 @@ import { loadAvatars, drawAvatar, partCanvas } from "./avatar.js";
 import { startGame } from "./game.js";
 import { initSect } from "./tong-mon.js";
 import { initSocial } from "./dao-huu.js";
+import { initHomeUI } from "./gia-vien.js";
 import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange } from "./music.js";
 
 const $ = (id) => document.getElementById(id);
@@ -221,6 +222,7 @@ function play() {
   $("dailyBtn").classList.toggle("ready", !state.dailyClaimed);
   startMusic();
   setTimeout(() => social.start(), 800);
+  setTimeout(() => game && (game.home.onChange = () => homeUI.hud()), 0);
   game = startGame({
     token, character: state.character, inventory: state.inventory, touch, refreshConfig,
     // an empty slot on the bar opens the arts, ready to fill that slot
@@ -228,6 +230,8 @@ function play() {
     onSect: () => sect.onSect(),
     onSectChat: (m) => sect.onChat(m),
     social,
+    onHomeState: () => homeUI.onState(),
+    onHomeTap: (hit) => homeUI.onTap(hit),
     onFatal: (msg, relog) => {
       game = null;
       $("fatalMsg").textContent = msg;
@@ -794,8 +798,10 @@ const KIND_NAME = { hair: "Tóc", robe: "Y phục", weapon: "Vũ khí", sword: "
 const ITEM_KIND_NAME = { pill: "Đan dược", book: "Bí kíp", material: "Nguyên liệu" };
 const itemIcon = (id) => {
   const it = ITEMS[id];
-  const pic = it?.kind === "book" ? "jade_slip" : it?.kind === "material" ? (id === "mat_linhtuy" ? "lingzhi" : "spirit_stone")
-    : { hoixuan: "pill_bottle", tukhi: "furnace" }[id] ?? (it?.heal ? "peach" : "gourd");
+  // the Gia Viên's goods: eggs, milk and fat in a gourd, herbs as a lingzhi
+  const gv = id.startsWith("gv_") ? (/trung|sua|mo_/.test(id) ? "gourd" : "lingzhi") : null;
+  const pic = gv ?? (it?.kind === "book" ? "jade_slip" : it?.kind === "material" ? (id === "mat_linhtuy" ? "lingzhi" : "spirit_stone")
+    : { hoixuan: "pill_bottle", tukhi: "furnace" }[id] ?? (it?.heal ? "peach" : "gourd"));
   return `/xianxia/ui/ui_xianxia_item_${pic}.png`;
 };
 $("charBtn").addEventListener("click", () => charPanel());
@@ -803,6 +809,10 @@ $("charBtn").addEventListener("click", () => charPanel());
 // ---------------------------------------------------------------- Tông Môn (🏯, T): public/js/tong-mon.js
 const sect = initSect({ call, uuid, panel, flash, game: () => game, itemIcon });
 $("sectBtn").addEventListener("click", () => sect.open());
+
+// ---------------------------------------------------------------- Gia Viên (🏡): public/js/gia-vien.js
+const homeUI = initHomeUI({ call, uuid, panel, flash, game: () => game });
+$("homeBtn").addEventListener("click", () => homeUI.open());
 
 // ---------------------------------------------------------------- Đàm Đạo (💬) and Đạo Hữu (🤝, H): public/js/dao-huu.js
 const social = initSocial({ call, panel, flash, game: () => game, openSect: () => sect.open() });
