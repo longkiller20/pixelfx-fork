@@ -341,41 +341,93 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
   }
   const canTrade = () => view?.atShop;
   const stat = (label, val) => h("span.ccst", {}, h("small", { text: label }), h("b", { text: val }));
+  const notHere = "Hãy tới quầy Ngư Cụ";
+
+  // ---- the little boxes over the panel: a thing's details, how many to buy or sell
+  function overBox(kids, onKey) {
+    return new Promise((done) => {
+      const host = $("panel")?.parentElement ?? document.body;
+      const end = (v) => (removeEventListener("keydown", key, true), shade.remove(), done(v));
+      const key = (e) => e.key === "Escape" ? (e.stopPropagation(), end(null)) : onKey?.(e, end);
+      const box = h("div.cbox.ccbox", { role: "dialog", "aria-modal": "true" }, ...kids(end));
+      const shade = h("div.cshade", { onclick: (e) => e.target === shade && end(null) }, box);
+      addEventListener("keydown", key, true);
+      host.append(shade);
+    });
+  }
+  /** A rod's, bait's or fish's details: picture, words, numbers. */
+  function details(k) {
+    const r = RODS[k], b = BAITS[k], f = FISH[k], R = f ? rarityOf(k) : null;
+    const stats = r ? [stat("Vùng kéo", `${Math.round(r.bar * 100)}%`), stat("Lực kéo", `×${r.power}`), stat("May mắn", `+${Math.round(r.luck * 100)}%`), stat("Thêm giờ giật", `${r.hook}s`), stat("Tầm quăng", `${r.reach} ô`), stat("Linh Tuyền", r.tier >= 3 ? "câu được" : "không")]
+      : b ? [stat("Cá cắn nhanh", `×${b.speed}`), stat("May mắn", `+${Math.round(b.luck * 100)}%`), stat("Cá Tiên", b.tier >= 3 ? "có thể" : "không")]
+      : [stat("Bậc", R.name), stat("Nặng", `${f.kg[0]}-${f.kg[1]} cân`), stat("Nơi sống", f.zones.map((z) => ZONES[z].name).join(", "))];
+    const p = price(k);
+    return overBox((end) => [
+      h("h4", { text: name(k), style: R ? `color:${R.color}` : "" }),
+      h("div.ccbpic", {}, h("img", { src: fishIconUrl(k), alt: "" })),
+      h("p", { text: ITEMS[k]?.desc || (r ?? b ?? f).desc }),
+      h("div.ccstats", {}, ...stats, stat(f ? "Ngư Cụ mua" : "Giá", p > 0 ? `${fmt(p)}` : f ? "không mua" : "không bán")),
+      h("div.cbtns", {}, h("button.ghost", { type: "button", text: "Đóng", onclick: () => end(null) }))]);
+  }
+  /** How many: a number between 1 and max, −/+, quick picks; the total under it. Resolves the number or null. */
+  function qtyBox({ title, k, each, max, verb, have = null }) {
+    let n = 1;
+    const input = h("input.ccqin", { type: "number", min: 1, max, value: 1, inputMode: "numeric" });
+    const total = h("p.cctot");
+    const set = (v) => {
+      n = Math.max(1, Math.min(max, Math.floor(Number(v) || 1)));
+      input.value = n;
+      total.replaceChildren(`${verb} ${fmt(n)} × ${fmt(each)} = `, h("b", { text: `${fmt(n * each)} linh thạch` }),
+        have !== null ? h("small", { text: ` (đang có ${fmt(have)}${verb === "Mua" ? `, còn ${fmt(have - n * each)}` : ""})` }) : null);
+      ok.disabled = verb === "Mua" && have !== null && n * each > have;
+    };
+    const ok = h("button.primary", { type: "button", text: verb });
+    return overBox((end) => {
+      ok.onclick = () => end(n);
+      input.addEventListener("input", () => set(input.value));
+      const quick = [1, 10, 50, max].filter((v, i, a) => v <= max && a.indexOf(v) === i);
+      set(1);
+      return [h("h4", { text: title }),
+        h("div.ccqrow", {}, h("img.ccqpic", { src: fishIconUrl(k), alt: "" }),
+          h("button.ghost.ccqb", { type: "button", text: "−", onclick: () => set(n - 1) }), input, h("button.ghost.ccqb", { type: "button", text: "+", onclick: () => set(n + 1) })),
+        h("div.ccquick", {}, ...quick.map((v) => h("button.ghost", { type: "button", text: v === max && v > 50 ? `Tối đa ${fmt(v)}` : `${fmt(v)}`, onclick: () => set(v) }))),
+        total,
+        h("div.cbtns", {}, h("button.ghost", { type: "button", text: "Huỷ", onclick: () => end(null) }), ok)];
+    }, (e, end) => e.key === "Enter" && !ok.disabled && (e.stopPropagation(), end(n)));
+  }
+
+  // ---- one line a thing: picture, name, a short line, small buttons
+  const line = (k, sub, on, ...btns) => h(`div.ccline${on ? ".on" : ""}`, {},
+    h("img.cclpic", { src: fishIconUrl(k), alt: "" }),
+    h("div.cclmain", {}, h("b", { text: name(k), style: FISH[k] ? `color:${rarityOf(k).color}` : "" }), h("small", { text: sub })),
+    h("div.cclbtn", {}, h("button.ghost", { type: "button", text: "Chi tiết", onclick: () => details(k) }), ...btns.filter(Boolean)));
+  const useBtn = (using, body, msg) => h(`button${using ? ".ghost.using" : ".ghost"}`, { type: "button", text: using ? "Đang dùng" : "Dùng", disabled: using, onclick: (e) => post("/choose", body, msg, e.currentTarget) });
   function rodTab(v) {
-    return h("div.ccgrid", {}, ...Object.entries(RODS).map(([k, r]) => {
-      const own = v.rods.includes(k), using = v.rod === k, p = price(k);
-      const btn = own
-        ? h(`button${using ? ".ghost" : ".primary"}`, { type: "button", text: using ? "Đang dùng" : "Dùng", disabled: using, onclick: (e) => post("/choose", { rod: k }, `Đã cầm ${name(k)}.`, e.currentTarget) })
-        : h("button.primary", { type: "button", text: p > 0 ? `Mua · ${fmt(p)}` : "Không bán", disabled: !(p > 0) || !canTrade(), title: canTrade() ? "" : "Hãy tới quầy Ngư Cụ",
-          onclick: async (e) => {
-            const b = e.currentTarget;
-            if (await confirmBox({ title: "Mua cần câu", text: `Mua ${name(k)} với giá ${fmt(p)} linh thạch? (đang có ${fmt(stones())})`, ok: `Mua · ${fmt(p)}`, pic: fishPic(k) }))
-              post("/buy", { item: k, qty: 1, requestId: uuid() }, `Đã mua ${name(k)}.`, b);
-          } });
-      return h(`div.cccard${using ? ".on" : ""}`, {}, h("div.ccpicw", {}, fishPic(k)),
-        h("div.ccmain", {}, h("b", { text: name(k) }), h("small", { text: ITEMS[k]?.desc || r.desc }),
-          h("div.ccstats", {}, stat("Vùng kéo", `${Math.round(r.bar * 100)}%`), stat("Lực kéo", `×${r.power}`), stat("May mắn", `+${Math.round(r.luck * 100)}%`), stat("Giật", `+${r.hook}s`),
-            r.tier >= 3 ? stat("Linh Tuyền", "✓") : null)),
-        btn);
+    return h("div.cclines", {}, ...Object.keys(RODS).map((k) => {
+      const own = v.rods.includes(k), p = price(k);
+      return line(k, own ? "Đã có" : p > 0 ? `${fmt(p)} linh thạch` : "Không bán", v.rod === k,
+        own ? useBtn(v.rod === k, { rod: k }, `Đã cầm ${name(k)}.`)
+          : h("button.primary", { type: "button", text: "Mua", disabled: !(p > 0) || !canTrade(), title: canTrade() ? "" : notHere,
+            onclick: async (e) => {
+              const b = e.currentTarget;
+              if (await confirmBox({ title: "Mua cần câu", text: `Mua ${name(k)} với giá ${fmt(p)} linh thạch? (đang có ${fmt(stones())})`, ok: `Mua · ${fmt(p)}`, pic: h("img.ccqpic", { src: fishIconUrl(k), alt: "" }) }))
+                post("/buy", { item: k, qty: 1, requestId: uuid() }, `Đã mua ${name(k)}.`, b);
+            } }));
     }));
   }
   function baitTab(v) {
-    const list = h("div.ccgrid", {}, ...Object.entries(BAITS).map(([k, b]) => {
-      const n = v.baits[k] ?? 0, using = v.bait === k, p = price(k);
-      const buy = (q) => h("button.primary", { type: "button", text: `×${q}`, disabled: !(p > 0) || !canTrade(), title: canTrade() ? `${fmt(p * q)} linh thạch` : "Hãy tới quầy Ngư Cụ",
-        onclick: async (e) => {
-          const btn = e.currentTarget;
-          if (q >= 10 && !(await confirmBox({ title: "Mua mồi câu", text: `Mua ${q} ${name(k)} với giá ${fmt(p * q)} linh thạch?`, ok: `Mua · ${fmt(p * q)}`, pic: fishPic(k) }))) return;
-          post("/buy", { item: k, qty: q, requestId: uuid() }, `Đã mua ${q} ${name(k)}.`, btn);
-        } });
-      return h(`div.cccard${using ? ".on" : ""}`, {}, h("div.ccpicw", {}, fishPic(k)),
-        h("div.ccmain", {}, h("b", { text: `${name(k)} · ${p > 0 ? `${fmt(p)}/viên` : "không bán"}` }), h("small", { text: ITEMS[k]?.desc || b.desc }),
-          h("div.ccstats", {}, stat("Đang có", fmt(n)), stat("Cá cắn nhanh", `×${b.speed}`), stat("May mắn", `+${Math.round(b.luck * 100)}%`), b.tier >= 3 ? stat("Cá Tiên", "có thể") : null)),
-        h("div.ccbuy", {}, h("span.lb", { text: "Mua" }), buy(1), buy(10), buy(50),
-          h("button.ghost", { type: "button", text: using ? "Đang dùng" : "Dùng", disabled: using, onclick: (e) => post("/choose", { bait: k }, `Đã móc ${name(k)}.`, e.currentTarget) })));
+    const list = h("div.cclines", {}, ...Object.keys(BAITS).map((k) => {
+      const n = v.baits[k] ?? 0, p = price(k);
+      return line(k, `${p > 0 ? `${fmt(p)}/viên` : "Không bán"} · có ${fmt(n)}`, v.bait === k,
+        h("button.primary", { type: "button", text: "Mua", disabled: !(p > 0) || !canTrade(), title: canTrade() ? "" : notHere,
+          onclick: async (e) => {
+            const b = e.currentTarget, q = await qtyBox({ title: `Mua ${name(k)}`, k, each: p, max: 99, verb: "Mua", have: stones() });
+            if (q) post("/buy", { item: k, qty: q, requestId: uuid() }, `Đã mua ${q} ${name(k)}.`, b);
+          } }),
+        useBtn(v.bait === k, { bait: k }, `Đã móc ${name(k)}.`));
     }));
     // what the rod and bait in hand bring up, spot by spot, by rarity
-    const tip = h("div.ccodds", {}, h("b", { text: "Tỉ lệ với cần và mồi đang dùng" }));
+    const tip = h("details.ccodds", {}, h("summary", { text: "Tỉ lệ với cần và mồi đang dùng" }));
     if (v.rod && v.bait)
       for (const [z, Z] of Object.entries(ZONES)) {
         const by = {};
@@ -394,19 +446,20 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
     if (!keys.length) return h("p.cchint", { text: "Trong túi chưa có cá nào. Ra bến thả câu đi!" });
     return h("div", {},
       h("div.ccsellall", {}, h("span", { text: `${fmt(keys.reduce((s, k) => s + v.fish[k], 0))} con · ${fmt(total)} linh thạch` }),
-        h("button.primary", { type: "button", text: "Bán tất cả", disabled: !canTrade(), title: canTrade() ? "" : "Hãy tới quầy Ngư Cụ",
+        h("button.primary", { type: "button", text: "Bán tất cả", disabled: !canTrade(), title: canTrade() ? "" : notHere,
           onclick: async (e) => {
             const b = e.currentTarget;
             if (await confirmBox({ title: "Bán tất cả cá", text: `Bán hết cá trong túi được ${fmt(total)} linh thạch?`, ok: `Bán · ${fmt(total)}` }))
               post("/sell", { item: "all", qty: "all", requestId: uuid() }, (o) => `Đã bán ${fmt(o.n)} con, được ${fmt(o.got)} linh thạch.`, b);
           } })),
-      h("div.cclist", {}, ...keys.map((k) => {
+      h("div.cclines", {}, ...keys.map((k) => {
         const R = rarityOf(k), n = v.fish[k];
-        return h("div.ccrow", {}, h("div.ccpicw.sm", {}, fishPic(k)),
-          h("div.ccmain", {}, h("b", { text: name(k), style: `color:${R.color}` }), h("small", { text: `[${R.name}] · ${fmt(price(k))}/con · có ${fmt(n)}` })),
-          h("div.ccbuy", {},
-            h("button.ghost", { type: "button", text: "Bán 1", disabled: !canTrade(), onclick: (e) => post("/sell", { item: k, qty: 1, requestId: uuid() }, (o) => `+${fmt(o.got)} linh thạch.`, e.currentTarget) }),
-            h("button.primary", { type: "button", text: `Bán ${fmt(n)}`, disabled: !canTrade(), onclick: (e) => post("/sell", { item: k, qty: "all", requestId: uuid() }, (o) => `Đã bán ${fmt(o.n)} ${name(k)}, +${fmt(o.got)} linh thạch.`, e.currentTarget) })));
+        return line(k, `[${R.name}] ${fmt(price(k))}/con · có ${fmt(n)}`, false,
+          h("button.primary", { type: "button", text: "Bán", disabled: !canTrade(), title: canTrade() ? "" : notHere,
+            onclick: async (e) => {
+              const b = e.currentTarget, q = await qtyBox({ title: `Bán ${name(k)}`, k, each: price(k), max: n, verb: "Bán" });
+              if (q) post("/sell", { item: k, qty: q, requestId: uuid() }, (o) => `Đã bán ${fmt(o.n)} ${name(k)}, +${fmt(o.got)} linh thạch.`, b);
+            } }));
       })));
   }
   function logTab(v) {

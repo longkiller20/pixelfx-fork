@@ -27,13 +27,16 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     cắn, đang kéo), quầy Ngư Cụ, cọc bến, lau sậy, lá sen, thuyền, phao neo, sương linh tuyền, cá nhảy khỏi mặt nước khi
     lên bờ. Icon cần, mồi, cá trong túi đồ cũng vẽ từ đó.
   - **Ngư Cụ (chỉ mua bán khi đứng ở quầy):**
+    - Mỗi cần, mồi, cá một dòng gọn: hình, tên, giá và số đang có, nút nhỏ **Chi tiết** (hộp thông tin, chỉ số), **Mua**,
+      **Dùng** (cá: **Bán**). Mua mồi hay bán cá hiện hộp nhập số lượng (−/+, chọn nhanh 1, 10, 50, tối đa), kèm tổng tiền rồi
+      mới xác nhận; mua cần hỏi xác nhận.
     - **Cần câu** mua một lần, giữ mãi: Trúc Can (300), Thanh Đồng Can (3.000), Bích Ngọc Can (15.000), Kim Long Can
       (60.000). Cần tốt hơn: vùng kéo rộng hơn, kéo nhanh hơn, dễ gặp cá quý, thêm thời gian giật. Linh Tuyền cần Bích Ngọc
       Can trở lên.
-    - **Mồi câu** mua ×1, ×10, ×50 (mua nhiều thì hỏi xác nhận): Giun Đất (3), Tôm Tép (10), Linh Mễ Hoàn (35), Tiên Đào Nhị
+    - **Mồi câu** mua 1-99 viên một lần: Giun Đất (3), Tôm Tép (10), Linh Mễ Hoàn (35), Tiên Đào Nhị
       (120). Mồi tốt hơn: cá cắn sớm hơn, dễ gặp cá quý; cá Tiên chỉ cắn mồi Linh Mễ Hoàn trở lên.
-    - Tab Mồi Câu có **bảng tỉ lệ** từng bậc cá ở từng khu với cần và mồi đang dùng.
-    - **Bán Cá:** bán 1, bán hết một loại, hoặc bán tất cả (hỏi xác nhận).
+    - Tab Mồi Câu có **bảng tỉ lệ** (bấm để mở) từng bậc cá ở từng khu với cần và mồi đang dùng.
+    - **Bán Cá:** chọn số lượng từng loại, hoặc bán tất cả (hỏi xác nhận).
     - **Ngư Lục:** 15 loại, loại chưa câu được chỉ hiện bóng đen. Mỗi loại ghi đã câu bao nhiêu, con nặng nhất, và kỷ lục
       của cả máy chủ (ai câu, nặng bao nhiêu). Kèm số lần cá cắn, số cá lên bờ, linh thạch đã bán được.
   - **Cách câu** (nút to giữa đáy màn hình, hoặc phím **E**):
