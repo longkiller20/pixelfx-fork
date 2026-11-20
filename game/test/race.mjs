@@ -1040,8 +1040,8 @@ const SHOP_TEST = "Hàng thử nghiệm";
   ok("chat and Đạo Hữu: Thế Giới everywhere with a cooldown, Khu Vực on the map, lines cleaned; requests racing make one friendship; Truyền Âm only to friends, saved, paged, private, rate-limited; a block stops everything silently; an admin's chat ban");
 }
 
-// Gia Viên: unlocked once and paid once; building only in one's own, only in the house plot, held up, never on someone,
-// a cell filled once from stock spent once; animals and herbs bought, fed, collected and picked once however fast it's asked
+// Gia Viên: unlocked once and paid once, with the ready-made default house, whose walls and floors carry people; no
+// building by hand any more; animals and herbs bought, fed, collected and picked once however fast it's asked
 {
   const { q } = await import("../server/db.js");
   const { createSession } = await import("../server/auth.js");
@@ -1070,63 +1070,33 @@ const SHOP_TEST = "Hàng thử nghiệm";
   assert.equal(five.filter((r) => r.status === 200).length, 1, "five unlocks at once: one");
   assert.equal(await stones(A), 20000, "paid once");
 
-  // ---- materials: a retried purchase counts once; never past what one has
-  const rid = crypto.randomUUID();
-  const same = await Promise.all(Array.from({ length: 5 }, () => post(A, "/buy", { kind: "go", qty: 30, requestId: rid })));
-  assert.ok(same.every((r) => r.status === 200), "the same purchase 5 times: all answered");
-  assert.equal(await stones(A), 20000 - 30 * 6, "but paid once");
-  for (const bad of [{ kind: "go", qty: 0 }, { kind: "go", qty: H.buyMax + 1 }, { kind: "kim_cuong", qty: 1 }, { kind: "go", qty: 1.5 }])
-    assert.equal((await post(A, "/buy", { ...bad, requestId: crypto.randomUUID() })).status, 400, `refused: ${JSON.stringify(bad)}`);
-  await post(A, "/buy", { kind: "giuong", qty: 1, requestId: crypto.randomUUID() });
-
-  // ---- building, through the game's own socket, in their own Gia Viên
+  // ---- the house: the default one comes with unlocking
+  const gvs = await import("../shared/gia-vien.js");
+  assert.equal((await q("SELECT house FROM homes WHERE user_id = ?", [A.uid]))[0].house, gvs.DEFAULT_HOUSE, "the default house");
+  assert.equal((await call("/home", { token: A.token })).data.house, gvs.DEFAULT_HOUSE, "shown in the view");
+  // building by hand is gone: its route and its socket message do nothing
+  assert.equal((await post(A, "/buy", { kind: "go", qty: 30, requestId: crypto.randomUUID() })).status, 404, "no buying materials");
   const c = await connect(A.token);
   await sleep(300);
   const msgs = (t) => c.msgs.filter((m) => m.t === t);
-  // not in a Gia Viên: a build message does nothing
-  send(c, { t: "build", op: "put", l: "f", x: 10, y: 15, k: "go", c: "out" });
-  await sleep(300);
-  assert.ok(!msgs("blk").length && !msgs("blkerr").length, "no building outside one's Gia Viên");
   assert.equal((await post(A, "/enter")).status, 200);
   await sleep(2500);
   assert.equal(msgs("welcome").pop().map, "giavien", "in the Gia Viên");
-  assert.ok(msgs("home").length && msgs("homest").length, "with what is built and the farm");
-  // walk to the house plot's right end (x ≈ 35)
-  await walkTo(c, 35.5 * 32, 16 * 32);
-  const me = c.snap.P.find((p) => p[0] === c.id), mx = Math.floor(me[1] / 32);
-  const blk = async (o, wait = 250) => (send(c, { t: "build", ...o }), await sleep(wait));
-  const stock = async (k) => Number((await q("SELECT qty FROM home_stock WHERE user_id = ? AND kind = ?", [A.uid, k]))[0]?.qty ?? 0);
-  // the same cell twice at once: one block, one spent
-  send(c, { t: "build", op: "put", l: "f", x: mx - 2, y: 15, k: "go", c: "p1" });
-  send(c, { t: "build", op: "put", l: "f", x: mx - 2, y: 15, k: "go", c: "p2" });
-  await sleep(700);
-  assert.equal(Number((await q("SELECT COUNT(*) AS n FROM home_blocks WHERE user_id = ? AND layer = 'f'", [A.uid]))[0].n), 1, "one block in the cell");
-  assert.equal(await stock("go"), 29, "one spent");
-  await blk({ op: "put", l: "f", x: mx + 8, y: 15, k: "go", c: "farm" });
-  assert.ok(msgs("blkerr").some((m) => m.c === "farm"), "not outside the house plot");
-  await blk({ op: "put", l: "f", x: mx - 3, y: 10, k: "go", c: "air" });
-  assert.ok(msgs("blkerr").some((m) => m.c === "air"), "not floating in the air");
-  await blk({ op: "put", l: "f", x: mx, y: 15, k: "go", c: "body" });
-  assert.ok(msgs("blkerr").some((m) => m.c === "body"), "not on top of someone");
-  await blk({ op: "put", l: "f", x: mx - 20, y: 15, k: "go", c: "reach" });
-  assert.ok(msgs("blkerr").some((m) => m.c === "reach"), "not out of reach");
-  await blk({ op: "put", l: "f", x: mx - 4, y: 15, k: "da_xanh", c: "none" });
-  assert.ok(msgs("blkerr").some((m) => m.c === "none"), "not without stock");
-  // a bed on the block (two cells wide needs floor under both), then the block can't go from under it
-  await blk({ op: "put", l: "f", x: mx - 3, y: 15, k: "go", c: "p3" });
-  await blk({ op: "put", l: "d", x: mx - 3, y: 14, k: "giuong", c: "bed" });
-  assert.ok(msgs("blk").some((m) => m.c === "bed"), "a bed on two blocks");
-  await blk({ op: "del", l: "f", x: mx - 2, y: 15, c: "under" });
-  assert.ok(msgs("blkerr").some((m) => m.c === "under"), "a block under furniture stays until the furniture goes");
-  await blk({ op: "del", l: "d", x: mx - 2, y: 14, c: "takebed" });
-  await blk({ op: "del", l: "f", x: mx - 2, y: 15, c: "takeblk" });
-  assert.ok(msgs("blk").some((m) => m.c === "takebed") && msgs("blk").some((m) => m.c === "takeblk"), "taken down in order");
-  assert.equal(await stock("giuong"), 1, "the bed back in stock");
-  assert.equal(await stock("go"), 29, "and the block");
-  // forged messages
-  for (const m of [{ op: "put", l: "x", x: mx - 4, y: 15, k: "go" }, { op: "put", l: "f", x: 1.5, y: 15, k: "go" }, { op: "put", l: "f", x: mx - 4, y: 15, k: "giuong" }, { op: "boom", l: "f", x: mx - 4, y: 15 }])
-    await blk({ ...m, c: "forged" }, 120);
-  assert.equal(Number((await q("SELECT COUNT(*) AS n FROM home_blocks WHERE user_id = ?", [A.uid]))[0].n), 1, "forged builds change nothing");
+  assert.equal(msgs("home").pop()?.house, gvs.DEFAULT_HOUSE, "told which house stands there");
+  assert.ok(msgs("homest").length, "and the farm");
+  send(c, { t: "build", op: "put", l: "f", x: 33, y: 15, k: "go", c: "x" });
+  await sleep(300);
+  assert.ok(!msgs("blk").length && !msgs("blkerr").length, "a build message does nothing");
+  // its walls stop people: in through the door on the right, as far as the left wall and no further
+  for (let i = 0; i < 70; i++) (send(c, { t: "in", dx: -1, dy: 0 }), await sleep(50));
+  send(c, { t: "in", dx: 0, dy: 0 });
+  await sleep(200);
+  const me = c.snap.P.find((p) => p[0] === c.id);
+  assert.ok(me[1] > 8 * 32 && me[1] < 28 * 32, `in the house, stopped by its left wall (x ${Math.round(me[1])})`);
+  // and its upper floor carries them, the outer walls are solid (the same map the server moves people on)
+  const { mapInfo } = await import("../shared/maps/index.js");
+  const hm = new gvs.HomeGrid(mapInfo(gvs.HOME_MAP)).load(gvs.houseCells(gvs.DEFAULT_HOUSE)).wrap();
+  assert.ok(hm.solid(7, 12) && hm.solid(28, 8) && hm.plank(15, 10) && hm.plank(25, 13) && !hm.solid(28, 14), "walls, floor, step, the doorway open");
 
   // ---- the farm: never past the cap, fed and collected once
   await q("UPDATE characters SET stones = 1000000 WHERE user_id = ?", [A.uid]);
@@ -1158,7 +1128,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
   await sleep(1200);
   assert.equal(msgs("welcome").pop().map, "tanthu", "back out");
   c.ws.close();
-  ok("Gia Viên: unlocked and paid once; materials bought once per request; a cell filled once, only in the house plot, held up, in reach, never on someone, never without stock; furniture before what holds it; the pen's cap, feeding, collecting and picking each once");
+  ok("Gia Viên: unlocked and paid once, with the default house; its walls stop people and its floors carry them; no building by hand; the pen's cap, feeding, collecting and picking each once");
 }
 
 {

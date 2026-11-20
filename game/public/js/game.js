@@ -51,12 +51,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     alive = false;
   };
   const send = (o) => ws.readyState === 1 && ws.send(JSON.stringify(o));
-  // Gia Viên: drawn over the map, building by hand (public/js/gia-vien.js); a block put or taken changes the map people move on
-  const home = createHomeLayer({
-    send, drawFx: (...a) => drawFx(...a), toast: (m) => toast(m),
-    bodies: () => [...drawn.values()].filter((e) => e.kind === "p").map((e) => [e.x, e.y]),
-    mapChanged: (m) => map?.id === "giavien" && (map = m),
-  });
+  // Gia Viên: its house, farm and garden drawn over the map (public/js/gia-vien.js); the house's walls and floors carry people
+  const home = createHomeLayer({ drawFx: (...a) => drawFx(...a) });
   ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     switch (m.t) {
@@ -149,7 +145,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "hist":
         social?.onHist(m);
         break;
-      // Gia Viên: what is built (the map people move on gains its blocks), the farm, a block put or taken
+      // Gia Viên: its house (the map people move on gains its walls and floors), the farm
       case "home":
         home.onHome(m, mapInfo(m.map ?? "giavien")).then((mm) => {
           if (map?.id === "giavien") map = mm;
@@ -158,12 +154,6 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "homest":
         home.onState(m);
         onHomeState?.();
-        break;
-      case "blk":
-        home.onBlk(m);
-        break;
-      case "blkerr":
-        home.onBlkErr(m);
         break;
       case "pm":
         // Truyền Âm: in the log too, marked; the Đạo Hữu panel shows it in its conversation
@@ -415,27 +405,15 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   view.addEventListener("mousemove", (e) => {
     const r = view.getBoundingClientRect();
     mouse = { x: ((e.clientX - r.left) / r.width) * VW, y: ((e.clientY - r.top) / r.height) * VH };
-    home.pointer(mouse.x + camX, mouse.y + camY, "move");
   });
   view.addEventListener("mousedown", (e) => {
-    // building in a Gia Viên: left puts, right takes (for as long as it is held), nothing is cast
-    if (home.build.on) {
-      if (e.button === 2) (home.build.wasErase = home.build.erase), (home.build.erase = true), (home.build.rmb = true);
-      home.pointer(mouse.x + camX, mouse.y + camY, "down");
-      return;
-    }
     // a click on an animal or a herb bed opens the farm or the garden
     const hit = mouse && home.hit(mouse.x + camX, mouse.y + camY);
     if (hit && e.button === 0) return void onHomeTap?.(hit);
     if (e.button === 0) cast(0);
     if (e.button === 2) cast(1);
   });
-  addEventListener("mouseup", () => {
-    if (!home.build.on) return;
-    home.pointer((mouse?.x ?? 0) + camX, (mouse?.y ?? 0) + camY, "up");
-    if (home.build.rmb) (home.build.erase = home.build.wasErase), (home.build.rmb = false), onHomeState?.();
-  });
-  // a finger on the world (not on a button): build where it touches, or open what it tapped on the farm. The game may be
+  // a finger on the world (not on a button): open what it tapped on the farm. The game may be
   // turned on its side (a phone held upright), so the touch is turned back into the view's own coordinates.
   const viewPos = (e) => {
     const r = view.getBoundingClientRect();
@@ -445,7 +423,6 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   view.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse") return;
     const v = viewPos(e);
-    if (home.build.on) return void (home.pointer(v.x + camX, v.y + camY, "down"), home.pointer(v.x + camX, v.y + camY, "up"));
     const hit = home.hit(v.x + camX, v.y + camY);
     if (hit) onHomeTap?.(hit);
   });
@@ -1260,7 +1237,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
 
   requestAnimationFrame(render);
   return {
-    // the Gia Viên layer (public/js/gia-vien.js): its build tool, its farm's state
+    // the Gia Viên layer (public/js/gia-vien.js): its house, its farm's state
     home,
     close() {
       alive = false;

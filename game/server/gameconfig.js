@@ -129,6 +129,8 @@ export async function seedConfig() {
   await pool.batch("INSERT IGNORE INTO skills (slot, name, type, cd, mult, params) VALUES (?, ?, ?, ?, ?, ?)", DEFAULTS.skills.map((s) => [s.slot, s.name, s.type, s.cd, s.mult, JSON.stringify(s.params)]));
   await seedArts(fresh);
   await pool.batch("INSERT IGNORE INTO settings (k, v, note) VALUES (?, ?, ?)", Object.entries(DEFAULTS.settings).map(([k, [v, note]]) => [k, v, note]));
+  // settings that went with building a house by hand (gone: houses are ready-made now)
+  await q("DELETE FROM settings WHERE k IN ('home.max_blocks', 'home.reach', 'home.buy_max')");
 }
 
 /**
