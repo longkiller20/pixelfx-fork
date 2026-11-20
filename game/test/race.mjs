@@ -239,6 +239,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
     await adm("/t/houses/gamer", { token, method: "PATCH", body: { name: hb.name, price: hb.price } });
     // Câu Cá: a rod renamed and repriced, a fish's rate changed: the game has them at once; a broken rate is refused
     const fa = (await adm("/fishing", { token })).data;
+    const cc0 = await import("../shared/cau-ca.js");
     const rod0 = fa.rods.find((r) => r.key === "cc_can_dong"), ro0 = fa.fish.find((f) => f.key === "cc_ca_ro");
     assert.equal((await adm("/t/items/cc_can_dong", { token, method: "PATCH", body: { name: "Cần Thử", price: 4321 } })).status, 200, "a rod renamed");
     assert.equal((await adm("/t/fish_rates/cc_ca_ro", { token, method: "PATCH", body: { rate: 0 } })).status, 200, "a fish's rate set");
@@ -268,6 +269,23 @@ const SHOP_TEST = "Hàng thử nghiệm";
     await adm("/t/items/cc_moi_tom", { token, method: "PATCH", body: { name: bait0.name, price: bait0.price } });
     await adm("/t/items/cc_ca_chep", { token, method: "PATCH", body: { name: carp0.name, price: carp0.price } });
     await adm("/t/items/cc_can_dong", { token, method: "PATCH", body: { name: rod0.name, price: rod0.price } });
+    // every rod, every bait and every catch (fish, junk, the chest) can be renamed by the admin, and the game has it
+    {
+      const all = [...fa.rods, ...fa.baits, ...fa.fish];
+      assert.equal(all.length, Object.keys(cc0.RODS).length + Object.keys(cc0.BAITS).length + Object.keys(cc0.FISH).length, "the tab lists them all");
+      for (const it of all) {
+        assert.ok(it.item, `${it.key} has a name to edit`);
+        assert.equal((await adm(`/t/items/${it.key}`, { token, method: "PATCH", body: { name: `Thử ${it.key}`.slice(0, 40) } })).status, 200, `${it.key} renamed`);
+      }
+      const names = Object.fromEntries((await call("/config")).data.items.map((i) => [i.key, i.name]));
+      for (const it of all) assert.equal(names[it.key], `Thử ${it.key}`.slice(0, 40), `the game has ${it.key}'s new name`);
+      for (const it of all) await adm(`/t/items/${it.key}`, { token, method: "PATCH", body: { name: it.name } });
+      // and every catch's rate
+      for (const f of fa.fish) assert.equal((await adm(`/t/fish_rates/${f.key}`, { token, method: "PATCH", body: { rate: f.rate + 1 } })).status, 200, `${f.key}'s rate set`);
+      const rates = Object.fromEntries((await call("/config")).data.fishRates.map((r) => [r.key, r.rate]));
+      for (const f of fa.fish) assert.equal(rates[f.key], f.rate + 1, `the game has ${f.key}'s rate`);
+      for (const f of fa.fish) await adm(`/t/fish_rates/${f.key}`, { token, method: "PATCH", body: { rate: f.rate } });
+    }
     await adm("/t/fish_rates/cc_ca_ro", { token, method: "PATCH", body: { rate: ro0.rate } });
     // a house given by the admin: the Gia Viên unlocked for nothing if need be, given once, taken back once
     const house = (give, h = "gamer") => adm(`/players/${u.id}/houses`, { token, method: "POST", body: { house: h, give } });
