@@ -1238,17 +1238,46 @@ const SHOP_TEST = "Hàng thử nghiệm";
   assert.equal(v.rod, rod, "the rod bought is in hand");
   assert.equal(v.bait, bait, "the bait bought is on the hook");
   assert.ok(v.atShop && v.here);
-  // ---- from the shore by the dock, facing the water
-  await walkTo(c, 21.4 * 32, me0()[2]);
-  send(c, { t: "in", dx: 0.2, dy: 0 });
-  await sleep(120);
-  send(c, { t: "in", dx: 0, dy: 0 });
+  // ---- not from the shore: only from a place on a pier
+  await walkTo(c, 20.5 * 32, me0()[2]);
   await sleep(400);
+  send(c, { t: "fish", a: "cast" });
+  assert.match((await fishMsg((m) => m.s === "end")).m, /cầu/, "the shore is no place to fish from");
+  // ---- Khu 1, place 3
+  const SPOT = 29.5 * 32;
+  await walkTo(c, SPOT, me0()[2]);
+  await sleep(1400);
   // struck too early: reeled in empty, nothing spent
   send(c, { t: "fish", a: "cast" });
   const cast1 = await fishMsg((m) => m.s === "cast" || m.s === "end");
   assert.equal(cast1.s, "cast", JSON.stringify(cast1));
-  assert.equal(cast1.zone, "ben", "the shallows by the dock");
+  assert.equal(cast1.zone, "ben", "the shallows");
+  assert.equal(cast1.khu, 1);
+  assert.equal(cast1.n, 3, "place number 3");
+  await sleep(200);
+  assert.equal(msgs("fzones").pop().occ[0], 1, "Khu 1: one fishing");
+  // someone else can't sit on that mat; they are told which are free; they cross to Khu 2
+  {
+    const id2 = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [`tf2_${tag}`])).insertId;
+    await q("INSERT INTO characters (user_id, name, class, gender, hair, robe, exp, stones) VALUES (?, ?, 'tu', 'm', 8, 16, 1000, 0)", [id2, `G${tag.slice(0, 6)}`]);
+    await q("INSERT INTO inventory (user_id, item, qty) VALUES (?, 'cc_can_truc', 1), (?, 'cc_moi_giun', 5)", [id2, id2]);
+    const B = { token: await createSession(id2) }, b = await connect(B.token);
+    await call("/fishing/enter", { token: B.token, method: "POST", body: {} });
+    await sleep(2500);
+    const bp = () => b.snap?.P.find((p) => p[0] === b.id);
+    await walkTo(b, SPOT, bp()[2]);
+    await sleep(600);
+    send(b, { t: "fish", a: "cast" });
+    await sleep(500);
+    const no = b.msgs.filter((m) => m.t === "fish" && m.s === "end").pop();
+    assert.match(no?.m ?? "", /Chỗ số 3 có người câu rồi.*1, 2, 4/, JSON.stringify(no));
+    send(b, { t: "fish", a: "goto", k: 2 });
+    await sleep(500);
+    const went = b.msgs.filter((m) => m.t === "fish" && m.s === "goto").pop();
+    assert.equal(went?.khu, 2, "across to Khu 2");
+    assert.ok(Math.abs(bp()[1] - 41.5 * 32) < 2, "on its first place");
+    b.ws.close();
+  }
   await sleep(200);
   assert.ok(c.snap.P.find((p) => p[0] === c.id).length > 6, "the float shows in the snapshot");
   send(c, { t: "fish", a: "hook" });
@@ -1261,10 +1290,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
   send(c, { t: "in", dx: -1, dy: 0 });
   assert.equal((await end()).why, "move", "walking off reels the line in");
   send(c, { t: "in", dx: 0, dy: 0 });
-  await walkTo(c, 21.4 * 32, me0()[2]);
-  send(c, { t: "in", dx: 0.2, dy: 0 });
-  await sleep(120);
-  send(c, { t: "in", dx: 0, dy: 0 });
+  await walkTo(c, SPOT, me0()[2]);
   await sleep(1400);
   // ---- a real cast: wait for the bite, strike, reel the fish in (holding while the zone is under the fish)
   let landed = null;
@@ -1308,7 +1334,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
     assert.equal(await qty(landed.fish), 0);
   }
   c.ws.close();
-  ok("Câu Cá: to the lake from the menu; a rod bought once and paid once, bait by the handful, only at the stall; a strike too early costs nothing, moving reels in, a bite takes one bait; the reeling run by the server lands a fish of that spot into the bag and the Ngư Lục; selling paid once");
+  ok("Câu Cá: to the lake from the menu; a rod bought once and paid once, bait by the handful, only at the stall; a strike too early costs nothing, moving reels in, a bite takes one bait; only from a free place on a pier (a taken one says which are free, another Khu is a step away), the reeling run by the server lands a fish of that spot into the bag and the Ngư Lục; selling paid once");
 }
 
 {

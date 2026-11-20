@@ -4,7 +4,7 @@ import { lit } from "../farm/_lib.js";
 
 export const meta = {
   name: "Lake props",
-  desc: "A fishing lake's pieces, standing on y = 0 (the floor or the waterline): dock stilt, reeds, lily pads with pink or jade lotus, a moored boat, a buoy, a spirit spring's mist.",
+  desc: "A fishing lake's pieces on y = 0: pier stilt, a numbered fishing seat (straw or jade), reeds, lily pads with lotus, a moored boat, a buoy, a spirit spring's mist.",
   tags: ["fishing", "lake", "dock", "lotus", "boat", "reeds", "prop", "loop"],
   size: [96, 96],
   origin: [48, 80],
@@ -12,7 +12,7 @@ export const meta = {
   loop: true,
   fps: 12,
   bg: "dark",
-  options: { piece: "lily", lotus: 0 },
+  options: { piece: "lily", lotus: 0, n: 1, jade: 0, len: 62 },
 };
 
 const H = (a) => a.map(hex);
@@ -29,12 +29,24 @@ const G = new Grid(-48, -80, 96, 96);
 const out = (g) => g.outline((x, y, nx, ny) => (ny < 0 || nx < 0 ? K : mix(K, hex("#3a2a4a"), 0.45)));
 
 const PIECES = {
-  // a dock post from the waterline (y = 0, a little under it) up to the planks 62 px above
-  stilt(g) {
-    g.shade(-2, -62, 2, 6, (x, y) => (x < -1 ? WOOD[3] : x > 1 ? WOOD[1] : Math.floor(y / 5) % 3 === 0 ? WOOD[1] : WOOD[2]));
+  // a pier post from the waterline (y = 0, a little under it) up to the planks len px above
+  stilt(g, t, D, o) {
+    const L = o.len ?? 62;
+    g.shade(-2, -L, 2, 6, (x, y) => (x < -1 ? WOOD[3] : x > 1 ? WOOD[1] : Math.floor(y / 5) % 3 === 0 ? WOOD[1] : WOOD[2]));
     // a cross brace and the green line where the water wets it
-    g.line(-2, -40, -9, -56, WOOD[2]);
+    if (L > 30) g.line(-2, -L * 0.5, -8, -L + 4, WOOD[2]);
     g.shade(-2, -3, 2, 0, () => LEAF[1]);
+  },
+  // a fishing place on a pier: a round straw cushion (a jade lotus one at the spring) and a little post with its number
+  seat(g, t, D, o) {
+    const C = o.jade ? JADE : STRAW;
+    g.shade(-10, -5, 9, -0.5, (x, y) => {
+      const nx = x / 10, ny = (y + 2.5) / 2.6;
+      if (nx * nx + ny * ny > 1) return 0;
+      return o.jade ? (Math.floor(Math.atan2(ny, nx) * 4) % 2 ? C[2] : C[3]) : Math.floor(Math.hypot(x, (y + 2.5) * 3.5)) % 3 === 0 ? C[1] : y < -3.5 ? C[4] : C[3];
+    });
+    g.shade(-13, -22, -11, -1, (x) => (x < -12 ? WOOD[3] : WOOD[1]));
+    g.shade(-17, -30, -7, -21, (x, y) => (y < -29 ? WOOD[4] : y > -22 ? WOOD[1] : WOOD[3]));
   },
   // reeds and cattails on the shore, swaying
   reeds(g, t, D) {
@@ -93,6 +105,8 @@ export function draw(p, t, o) {
   const D = meta.duration, g = G.clear(), piece = PIECES[o.piece] ? o.piece : "lily";
   PIECES[piece](g, t, D, o);
   if (piece !== "spirit") out(g), g.draw(p, 1, 0, 0);
+  // the place's number on its little board
+  if (piece === "seat") p.text(String(o.n ?? 1), -12, -29, hex("#2a1408"), { align: "center" });
   if (piece === "lily" && o.lotus === 2) p.glow(4, -6, 14, hex("#7af0d8"), 0.2 + 0.08 * Math.sin((t / D) * TAU));
   if (piece === "spirit") {
     // wisps of mist and motes of qi rising off the water and fading

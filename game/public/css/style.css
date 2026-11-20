@@ -1458,3 +1458,17 @@ body.rotated .ccp .ccbuy { max-width: 210px; flex-wrap: nowrap; } body.rotated .
 }
 body.rotated .ccp .ccline { min-height: 38px; padding: 3px 6px; gap: 6px; }
 body.rotated .ccp .cclbtn button { font-size: 11.5px; padding: 2px 6px; min-height: 24px; }
+/* the box of Khu: a line each, a dot a place */
+.ckbox { width: min(380px, 100%); text-align: left; }
+.ckbox h4, .ckbox > p { text-align: center; }
+.ckbox .cknote { color: #ffb0a0; font-weight: 700; }
+.ckline { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 10px; border: 1px solid #ffffff12; background: #0b0814; }
+.ckline.on { border-color: #7af0d888; background: #0e1a1c; }
+.ckline .ckmain { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.ckline .ckmain b { color: var(--gold2); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ckline .ckmain small { color: var(--dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ckline .ckdots { display: flex; gap: 3px; }
+.ckline .ckdots i { width: 9px; height: 9px; border-radius: 50%; background: #2a4a3a; border: 1px solid #6ae07a88; }
+.ckline .ckdots i.on { background: #f0a040; border-color: #ffd080; }
+.ckline .primary { font-size: 12px; padding: 0 8px; border-width: 6px; border-image-width: 6px; min-width: 52px; }
+@media (max-height: 520px) { .ckbox { gap: 5px; } .ckline { padding: 3px 6px; } .ckbox > p { font-size: 11.5px; } }

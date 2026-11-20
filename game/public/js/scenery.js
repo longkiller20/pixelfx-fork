@@ -581,6 +581,7 @@ const DEFAULT_THEME = {
   rim: "#160e09",
   liquid: "water", // or "lava"
   platform: "bluestone", // the set the "k" ledges are drawn from
+  dockWater: true, // water painted behind a bridge's planks (a bridge on the water); false: a pier above it
   motes: "petals", // what drifts in the air: petals, leaves, spores, embers, souls
 };
 const LAVA = ["#3a0604", "#7a1206", "#c02a0c", "#f05a14", "#ffa63a", "#fff0a0"].map(C);
@@ -679,7 +680,8 @@ export async function buildScene(M) {
       else if (ch === "k") cloudPlatform(S, M, cx, cy, T, th.platform, "k");
       else if (ch === "b") {
         bridgeCell(S, x, y, at(cx - 1, cy) !== "b", at(cx + 1, cy) !== "b");
-        if (at(cx, cy + 1) === "w") water.push([cx, cy, true]);
+        // (a pier standing over the water, th.dockWater false: nothing behind its planks but the air)
+        if (at(cx, cy + 1) === "w" && th.dockWater !== false) water.push([cx, cy, true]);
       } else if (ch === "w" || ch === "l") water.push([cx, cy, at(cx, cy - 1) !== ch && at(cx, cy - 1) !== "b"]);
       else if (ch === "|") falls.push([cx, cy]);
     }

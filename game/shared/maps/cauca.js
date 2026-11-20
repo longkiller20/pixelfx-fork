@@ -1,49 +1,62 @@
 // Vọng Nguyệt Hồ: the fishing lake (shared/cau-ca.js), reached from the menu (▦ Thêm → Câu Cá), left by the way it came.
-// Dusk under a rising moon. West to east: the shore where one arrives, with the Ngư Cụ stall (rods, bait, selling fish);
-// a long wooden dock on stilts over the shallows (Bến Thuyền); Thạch Đài, a rock in the middle of the deep water (Hồ
-// Sâu) with the dock going on past it to the far shore; then the cliff, three steps up, and on top the spirit spring
-// (Linh Tuyền) between jade-lotus stepping clouds. No monsters: a quiet place.
-// The dock stands a row over the water, so anyone along it casts down onto open water. `fishing`: which water
-// columns belong to which spot (a cast lands on the first water below the player, ahead of them by the rod's reach).
+// Dusk under a rising moon. The water lies a row below the banks, as a lake does. One fishes only from the piers, and
+// each pier is a Khu with a few numbered places (a straw mat each): Khu 1 and 2 over the shallows, 3 and 4 over the deep
+// water either side of Thạch Đảo, 5 over the spirit spring on the clifftop. West to east: the shore with the Ngư Cụ
+// stall, Khu 1, the reed bar, Khu 2, Thạch Đài, Khu 3, Thạch Đảo, Khu 4, the far shore, the cliff, Linh Tuyền and Khu 5.
+// No monsters: a quiet place. Fallen in? The lake floor has steps back up to the piers.
 import { canvas, box, ground, rows } from "./build.js";
 
-const W = 150, F = 15;
+const W = 160, F = 15;
 const g = canvas(W, 20);
 ground(g, 0, W - 1, F);
 // a stone cliff closing the west end
 box(g, 0, 1, 2, F - 1, "s");
-// the lake: shallow by the west shore, deep past the rock
-box(g, 23, 45, 15, 16, "w");
-box(g, 46, 76, 15, 18, "w");
-// Thạch Đài: a rock standing out of the deep water
-box(g, 50, 55, 14, 18, "s");
-// the dock, a row over the water on stilts (low enough to climb back onto from the shallows' floor), from the shore to the rock and on to the far shore
-box(g, 23, 49, 14, 14, "b");
-box(g, 56, 76, 14, 14, "b");
-// a step up out of the deep water at the far shore; the far shore, and the cliff in three steps
-ground(g, 74, 76, 17);
-ground(g, 77, 96, 14);
-ground(g, 97, 149, 13);
-ground(g, 103, 149, 11);
-ground(g, 108, 149, 9);
-// Linh Tuyền: the spring's pool on the clifftop, jade-lotus clouds to stand on over it
-box(g, 116, 137, 9, 11, "w");
-box(g, 119, 121, 7, 7, "=");
-box(g, 125, 127, 7, 7, "=");
-box(g, 131, 133, 7, 7, "=");
+// the shallows (two rows of water under the banks) and the deep water (three)
+box(g, 22, 33, F + 1, F + 2, "w");
+box(g, 39, 50, F + 1, F + 2, "w");
+box(g, 57, 68, F + 1, F + 3, "w");
+box(g, 75, 86, F + 1, F + 3, "w");
+// the piers, level with the banks: each one a Khu
+box(g, 22, 33, F, F, "b");
+box(g, 39, 50, F, F, "b");
+box(g, 57, 68, F, F, "b");
+box(g, 75, 86, F, F, "b");
+// Thạch Đài: a low rock on the bar between the shallows and the deep; Thạch Đảo, a stone isle between Khu 3 and Khu 4
+box(g, 52, 55, F - 1, F - 1, "s");
+box(g, 69, 74, F, F + 4, "s");
+// steps up from the deep water's floor at each end of its piers
+for (const x of [57, 68, 75, 86]) ground(g, x, x, F + 3);
+// the far shore and the cliff in three steps
+ground(g, 100, W - 1, 13);
+ground(g, 105, W - 1, 11);
+ground(g, 110, W - 1, 9);
+// Linh Tuyền: the spring's pool on the clifftop, a row below its banks, with the jade pier of Khu 5 over it
+box(g, 120, 143, 10, 11, "w");
+box(g, 120, 131, 9, 9, "b");
 // a stone cliff closing the east end
 box(g, W - 2, W - 1, 2, 8, "s");
 
+/** The fishing places, Khu by Khu: which water (zone) it is over, the row its pier stands on, its places (x, cells). */
+export const KHU = [
+  { id: 1, name: "Khu 1", zone: "ben", row: F, x0: 22, x1: 33, spots: [24.5, 27, 29.5, 32] },
+  { id: 2, name: "Khu 2", zone: "ben", row: F, x0: 39, x1: 50, spots: [41.5, 44, 46.5, 49] },
+  { id: 3, name: "Khu 3", zone: "ho", row: F, x0: 57, x1: 68, spots: [59.5, 62, 64.5, 67] },
+  { id: 4, name: "Khu 4", zone: "ho", row: F, x0: 75, x1: 86, spots: [77.5, 80, 82.5, 85] },
+  { id: 5, name: "Khu 5", zone: "tuyen", row: 9, x0: 120, x1: 131, spots: [122.5, 125.5, 128.5] },
+];
+
 const XX = (n, x, row, s, o = {}) => ["xx", x, row, { n, s, ...o }];
 const fx = (x, id, o = {}, k = 1, row = F, h = 0) => ["fx", x, row, { id, o, k, h }];
-// the dock's stilts: a post every few cells, from under the planks down into the water
-const stilts = [];
-for (let x = 24; x <= 76; x += 3) if (x < 50 || x > 55) stilts.push(fx(x + 0.5, "fishing/props", { piece: "stilt" }, 1, F, -8));
-
+// each pier: stilts down into the water, a straw mat at each place with its number, a lantern at its far end
+const piers = [];
+for (const k of KHU) {
+  for (let x = k.x0 + 1; x <= k.x1; x += 3) piers.push(fx(x + 0.5, "fishing/props", { piece: "stilt", len: 40 }, 1, k.row + 1, -10));
+  k.spots.forEach((x, i) => piers.push(fx(x, "fishing/props", { piece: "seat", n: i + 1, jade: k.zone === "tuyen" ? 1 : 0 }, 1, k.row)));
+}
 export const CAUCA = {
   id: "cauca",
   name: "Vọng Nguyệt Hồ",
-  sub: "Hồ câu dưới trăng: không có yêu thú. Mua cần, mồi ở quầy Ngư Cụ, ra bến gỗ thả câu. Cá quý ở Hồ Sâu và Linh Tuyền.",
+  sub: "Hồ câu dưới trăng: không có yêu thú. Mua cần, mồi ở quầy Ngư Cụ, ra cầu câu (Khu 1-5) ngồi vào chỗ trống rồi thả câu. Cá quý ở Hồ Sâu và Linh Tuyền.",
   // its own background music, always this one (public/nhac-nen/2-asianstringsuite/)
   music: "2-asianstringsuite",
   // entered from the menu, not by a road: the way out goes back to wherever one came from
@@ -57,45 +70,48 @@ export const CAUCA = {
     grass: ["#1a2e2c", "#24443c", "#30584a", "#4a7458", "#78986a"],
     motes: "spores",
     tiles: { tint: "#2a2a5a", k: 0.25, d: 0.1 },
+    // the piers stand over the water, not on it: no water painted behind their planks
+    dockWater: false,
   },
   mobs: [],
   spawn: { x: 7, row: F },
   portals: [{ x: 2.6, row: F, r: 0.8, to: "@back", msg: "Rời Vọng Nguyệt Hồ" }],
   // the stall where rods and bait are sold and fish bought: stand within r cells of x
   shop: { x: 12.5, row: F, r: 3.2 },
-  // which water is which fishing spot (columns x0..x1)
-  fishing: [
-    { x0: 23, x1: 45, zone: "ben" },
-    { x0: 46, x1: 76, zone: "ho" },
-    { x0: 116, x1: 137, zone: "tuyen" },
-  ],
-  // words over the spots (drawn by the game)
-  signs: [[12.5, F, "Ngư Cụ"], [27, 14, "Bến Thuyền"], [52.5, 14, "Thạch Đài · Hồ Sâu"], [112, 9, "Linh Tuyền"]],
+  // the fishing places (KHU above): one may cast only from a free place on a pier
+  fishing: KHU,
+  // words over places: [x, row, text, khu (its occupancy is shown beside it)]
+  signs: [[12.5, F, "Ngư Cụ"], [20.6, F, "Khu 1 · Nước nông", 1], [37, F, "Khu 2 · Nước nông", 2], [54, F - 1, "Thạch Đài"], [56, F, "Khu 3 · Hồ Sâu", 3],
+    [72, F, "Khu 4 · Hồ Sâu", 4], [118.6, 9, "Khu 5 · Linh Tuyền", 5]],
   props: [
-    // the shore: the Ngư Cụ stall with the old fisherman, a lantern, willows, the boat pulled up
+    // the shore: the Ngư Cụ stall with the old fisherman, lanterns, a willow, reeds at the water
     fx(12.5, "fishing/stall", {}, 1.25),
     ["lantern", 18, F], ["lantern", 5, F],
     XX("bg_mid_02_05", 8.5, F, 2),
-    fx(21, "fishing/props", { piece: "reeds" }, 1, F),
-    // the dock: lanterns on posts, a moored boat, lily pads and lotus on the shallows
-    ...stilts,
-    ["lantern", 33, 14], ["lantern", 47, 14], ["lantern", 62, 14], ["lantern", 73, 14],
-    fx(40, "fishing/props", { piece: "boat" }, 1, 15, -6),
-    fx(28, "fishing/props", { piece: "lily" }, 1, 15, -1), fx(36.5, "fishing/props", { piece: "lily", lotus: 1 }, 1, 15, -1),
-    fx(44, "fishing/props", { piece: "lily" }, 1, 15, -1), fx(66, "fishing/props", { piece: "lily", lotus: 1 }, 1, 15, -1),
-    ["fx", 30, 15, { id: "water/ripples", h: -4, k: 1.2 }], ["fx", 59, 15, { id: "water/ripples", h: -4, k: 1.2 }], ["fx", 71, 15, { id: "water/ripples", h: -4, k: 1.2 }],
-    // Thạch Đài: a pine on the rock, a stone lantern, the old stele
-    XX("bg_mid_01_04", 52.5, 14, 2, { f: 1 }), XX("bg_xianxia_deco_01_02", 54.5, 14, 4),
-    fx(49, "fishing/props", { piece: "buoy" }, 1, 15, -2), fx(58, "fishing/props", { piece: "buoy" }, 1, 15, -2),
-    // the far shore and the cliff: reeds, willows, a waterfall from the spring down the cliff
-    fx(79, "fishing/props", { piece: "reeds" }, 1, 14), XX("bg_mid_02_05", 86, 14, 2, { f: 1 }), ["lantern", 92, 14],
-    XX("bg_mid_01_04", 100, 13, 2), ["lantern", 106, 11],
+    fx(20.6, "farm/props", { piece: "sign" }), fx(37, "farm/props", { piece: "sign" }), fx(56, "farm/props", { piece: "sign" }),
+    fx(72, "farm/props", { piece: "sign" }), fx(118.6, "farm/props", { piece: "sign" }, 1, 9),
+    // the piers
+    ...piers,
+    ["lantern", 33.6, F], ["lantern", 50.6, F], ["lantern", 68.6, F], ["lantern", 86.6, F], ["lantern", 131.6, 9],
+    // the reed bar between Khu 1 and 2: reeds, a boat pulled up
+    fx(35.5, "fishing/props", { piece: "reeds" }, 1, F), fx(98, "fishing/props", { piece: "reeds" }, 1, F),
+    fx(91, "fishing/props", { piece: "boat" }, 1, F, -2),
+    // lily pads and lotus on the water, buoys, ripples
+    fx(28, "fishing/props", { piece: "lily" }, 1, F + 1, -1), fx(45, "fishing/props", { piece: "lily", lotus: 1 }, 1, F + 1, -1),
+    fx(63, "fishing/props", { piece: "lily", lotus: 1 }, 1, F + 1, -1), fx(81, "fishing/props", { piece: "lily" }, 1, F + 1, -1),
+    fx(66, "fishing/props", { piece: "buoy" }, 1, F + 1, -2), fx(78, "fishing/props", { piece: "buoy" }, 1, F + 1, -2),
+    ["fx", 31, F + 1, { id: "water/ripples", h: -4, k: 1.2 }], ["fx", 47, F + 1, { id: "water/ripples", h: -4, k: 1.2 }],
+    ["fx", 60, F + 1, { id: "water/ripples", h: -4, k: 1.2 }], ["fx", 84, F + 1, { id: "water/ripples", h: -4, k: 1.2 }],
+    // Thạch Đài and Thạch Đảo: pines on the rocks, a stone lantern, the old stele
+    XX("bg_xianxia_deco_01_02", 53.5, F - 1, 4), XX("bg_mid_01_04", 71.5, F, 2, { f: 1 }), ["lantern", 73.5, F],
+    // the far shore and the cliff
+    XX("bg_mid_02_05", 94, F, 2, { f: 1 }), ["lantern", 96, F], XX("bg_mid_01_04", 102, 13, 2), ["lantern", 107, 11],
     // Linh Tuyền: spirit light over the pool, lotus, the spring's mist
-    ["glow", 126.5, 9, { r: 120, c: "#7af0d8", a: 0.16, h: 20 }],
-    fx(123, "fishing/props", { piece: "lily", lotus: 2 }, 1, 9, -1), fx(130, "fishing/props", { piece: "lily", lotus: 2 }, 1, 9, -1),
-    ["fx", 118, 9, { id: "water/ripples", h: -4, k: 1.2 }], ["fx", 135, 9, { id: "water/ripples", h: -4, k: 1.2 }],
-    fx(126.5, "fishing/props", { piece: "spirit" }, 1, 9, -2),
-    ["lantern", 113, 9], ["lantern", 141, 9], XX("bg_xianxia_deco_01_01", 143.5, 9, 5),
+    ["glow", 131.5, 10, { r: 120, c: "#7af0d8", a: 0.16, h: 20 }],
+    fx(135, "fishing/props", { piece: "lily", lotus: 2 }, 1, 10, -1), fx(140, "fishing/props", { piece: "lily", lotus: 2 }, 1, 10, -1),
+    ["fx", 137.5, 10, { id: "water/ripples", h: -4, k: 1.2 }],
+    fx(134, "fishing/props", { piece: "spirit" }, 1, 10, -2),
+    ["lantern", 114, 9], ["lantern", 146, 9], XX("bg_xianxia_deco_01_01", 148.5, 9, 5),
   ],
   grid: rows(g),
 };
