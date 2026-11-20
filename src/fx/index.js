@@ -258,6 +258,7 @@ import * as farm_pig from "./farm/pig.js";
 import * as farm_props from "./farm/props.js";
 import * as home_furnace from "./home/furnace.js";
 import * as home_furniture from "./home/furniture.js";
+import * as home_gamer_house from "./home/gamer-house.js";
 import * as home_lantern from "./home/lantern.js";
 
 export { categories } from "./categories.js";
@@ -521,5 +522,6 @@ export const effects = {
   "farm/props": farm_props,
   "home/furnace": home_furnace,
   "home/furniture": home_furniture,
+  "home/gamer-house": home_gamer_house,
   "home/lantern": home_lantern,
 };

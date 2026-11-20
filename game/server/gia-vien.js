@@ -6,7 +6,8 @@
 //  4. Buying carries a request id: sent twice, it counts once.
 //  5. Time is the database's: an animal is ready, a herb ripe, when NOW() says so, not when the browser says so. What a
 //     herb gives is rolled here.
-// The house is ready-made (shared/gia-vien.js HOUSES): a home only keeps which one it has.
+// Houses are ready-made (shared/gia-vien.js HOUSES): a home keeps the one it lives in (homes.house) and those it bought
+// (home_houses: a row each, so one is never bought twice); the default comes with unlocking.
 import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
 import { GameError } from "./store.js";
@@ -49,8 +50,9 @@ export async function unlocked(uid) {
 }
 /** The house, the animals and herb beds with what the database's clock says about them. */
 export async function state(uid) {
-  const [[home], animals, plots, [now]] = await Promise.all([
+  const [[home], owned, animals, plots, [now]] = await Promise.all([
     q("SELECT house FROM homes WHERE user_id = ?", [uid]),
+    q("SELECT house FROM home_houses WHERE user_id = ?", [uid]),
     q("SELECT id, kind, ready_at, (ready_at IS NOT NULL AND ready_at <= NOW()) AS ready FROM home_animals WHERE user_id = ? ORDER BY id", [uid]),
     q("SELECT plot, crop, planted_at, ready_at, (ready_at <= NOW()) AS ripe FROM home_plots WHERE user_id = ? ORDER BY plot", [uid]),
     q("SELECT NOW() AS now"),
@@ -59,6 +61,7 @@ export async function state(uid) {
   return {
     now: new Date(now.now).getTime(),
     house: HOUSES[home?.house] ? home.house : DEFAULT_HOUSE,
+    houses: [DEFAULT_HOUSE, ...owned.map((h) => h.house).filter((h) => HOUSES[h] && h !== DEFAULT_HOUSE)],
     animals: animals.map((a) => ({ id: a.id, kind: a.kind, readyAt: a.ready_at ? new Date(a.ready_at).getTime() : null, ready: !!a.ready })),
     plots: plots.map((p) => ({ plot: p.plot, crop: p.crop, plantedAt: new Date(p.planted_at).getTime(), readyAt: new Date(p.ready_at).getTime(), ripe: !!p.ripe })),
   };
@@ -81,6 +84,39 @@ export function unlock(uid) {
       if (isDup(e)) throw no("Gia Viên đã mở khoá rồi.", 409);
       throw e;
     }
+  });
+}
+
+// ---------------------------------------------------------------- houses: buy one (and move in), move into one owned
+const houseOf_ = (id) => {
+  if (typeof id !== "string" || !Object.hasOwn(HOUSES, id)) throw no("Không có kiểu nhà này.");
+  return id;
+};
+/** Buy a ready-made house, once, and move into it. A retried request counts once. */
+export function buyHouse(uid, rawHouse, rawReq) {
+  const id = houseOf_(rawHouse), H = HOUSES[id], rid = reqId(rawReq);
+  return run(uid, async (c) => {
+    await lockHome(c, uid);
+    if (!(await once(c, uid, rid))) return { repeat: true };
+    if (id === DEFAULT_HOUSE || (await c.query("SELECT 1 FROM home_houses WHERE user_id = ? AND house = ?", [uid, id])).length) throw no(`Đạo hữu đã có ${H.name} rồi.`, 409);
+    await pay(c, uid, H.price, `để mua ${H.name}`);
+    try {
+      await c.query("INSERT INTO home_houses (user_id, house, paid) VALUES (?, ?, ?)", [uid, id, H.price]);
+    } catch (e) {
+      if (isDup(e)) throw no(`Đạo hữu đã có ${H.name} rồi.`, 409);
+      throw e;
+    }
+    await c.query("UPDATE homes SET house = ? WHERE user_id = ?", [id, uid]);
+    return { repeat: false };
+  });
+}
+/** Move into a house one has (the default, or one bought). */
+export function useHouse(uid, rawHouse) {
+  const id = houseOf_(rawHouse);
+  return run(uid, async (c) => {
+    await lockHome(c, uid);
+    if (id !== DEFAULT_HOUSE && !(await c.query("SELECT 1 FROM home_houses WHERE user_id = ? AND house = ?", [uid, id])).length) throw no(`Đạo hữu chưa có ${HOUSES[id].name}.`, 403);
+    await c.query("UPDATE homes SET house = ? WHERE user_id = ?", [id, uid]);
   });
 }
 

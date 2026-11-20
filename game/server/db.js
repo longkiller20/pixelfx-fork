@@ -287,14 +287,22 @@ const SCHEMA = [
     CONSTRAINT fk_pm_from FOREIGN KEY (from_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_pm_to FOREIGN KEY (to_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  // ---- Gia Viên (server/gia-vien.js): unlocked once per person, with the ready-made house it has; the animals, the
-  // herb beds
+  // ---- Gia Viên (server/gia-vien.js): unlocked once per person, with the ready-made house it lives in; the houses it
+  // bought (a row each: bought once), the animals, the herb beds
   `CREATE TABLE IF NOT EXISTS homes (
     user_id INT UNSIGNED NOT NULL PRIMARY KEY,
     paid INT UNSIGNED NOT NULL DEFAULT 0,
     house VARCHAR(16) NOT NULL DEFAULT 'co_trach',
     unlocked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_home_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS home_houses (
+    user_id INT UNSIGNED NOT NULL,
+    house VARCHAR(16) NOT NULL,
+    paid INT UNSIGNED NOT NULL DEFAULT 0,
+    bought_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, house),
+    CONSTRAINT fk_hh_user FOREIGN KEY (user_id) REFERENCES homes(user_id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
   `CREATE TABLE IF NOT EXISTS home_animals (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

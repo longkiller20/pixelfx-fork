@@ -1132,6 +1132,24 @@ export class Universe {
       if (w && w.grid && !w.players.size) this.worlds.delete(key);
     }, 60_000));
   }
+  /**
+   * The owner moved into another house: if their Gia Viên is up, it stands there now; whoever is inside is put back at
+   * the gate (the new walls might be where they stood) and shown it.
+   */
+  async homeHouse(owner) {
+    const w = this.worlds.get(`gv:${owner}`);
+    if (!w) return;
+    const house = await gv.houseOf(owner);
+    if (house === w.house) return;
+    w.house = house;
+    w.grid = new HomeGrid(w.grid.base).load(houseCells(house));
+    w.map = w.grid.wrap();
+    const sp = w.map.spawn;
+    for (const p of w.players.values()) {
+      Object.assign(p, { x: sp.x, y: sp.y, vx: 0, vy: 0, ground: false });
+      send(p.ws, { t: "home", owner: w.owner, mine: p.userId === w.owner, house, moved: [p.x, p.y] });
+    }
+  }
   /** The farm changed (or someone came in): tell whoever is in that Gia Viên. */
   async homeState(owner) {
     const w = this.worlds.get(`gv:${owner}`);

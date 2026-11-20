@@ -459,8 +459,29 @@ Viên lưu nhà đang có ở cột `homes.house`.
     thủy mặc, cửa sổ song, hai đèn lồng.
   - **Tầng trên:** giường, bình hoa, kệ sách, bàn và ghế, rương, cửa sổ, tranh, đèn lồng. Nhảy lên bậc gỗ cạnh cửa rồi
     nhảy tiếp lên sàn gỗ tầng trên; sàn này nhảy xuyên từ dưới lên được, ↓ + nhảy để xuống.
+- **Nhà Game Thủ** (150.000 linh thạch): căn nhà ba tầng rực đèn neon, vẽ từ ảnh có sẵn (`tools/gia-vien-nguon/nha-gamer.png`).
+  - **Tầng trệt:** phòng stream phông xanh, quầy bar, tủ lạnh, máy arcade, cửa chính.
+  - **Tầng giữa:** phòng khách TV lớn, tủ figure, cúp, cầu thang.
+  - **Tầng trên:** phòng ngủ có mèo, góc gaming ba màn hình, ban công dù tím.
+  - **Sàn:** sàn ba tầng là sàn ẩn đặt đúng chỗ vẽ, nhảy xuyên từ dưới lên được, ↓ + nhảy để xuống. Mỗi tầng cách nhau
+    3 ô, vừa một cú nhảy.
+  - **Ảnh nhà:** `tools/gia-vien-nha.py` thu nhỏ ảnh gốc (ngang ×0.45). Chiều dọc thu theo từng tầng để sàn rơi đúng
+    hàng 16, 13, 10. Ảnh ra ở `public/gia-vien/nha/gamer.png`, vẽ có độ trong suốt nên quầng sáng neon vẫn giữ.
+  - **Chuyển động** bằng pixelfx (`../src/fx/home/gamer-house.js`, hai nửa `part` 0 và 1 vì ảnh rộng hơn giới hạn
+    480 px của một hiệu ứng):
+    - Khoảng 50 ống neon (script tự dò trong ảnh) sáng lên tắt xuống, vài ống thỉnh thoảng chập chờn.
+    - Biển GAMER sáng lên tắt xuống, có chấm sáng chạy quanh tay cầm và từng chữ sáng lần lượt.
+    - Đèn đĩa vệ tinh nháy, ống khói nhả khói, đèn lục giác đổi màu, ring light, PC đổi màu cầu vồng.
+    - Màn hình có vạch quét và sao lấp lánh; TV có sao, mặt trời sáng lên tắt xuống, vệt sáng lướt qua.
+    - Dải LED chạy màu, mèo chớp mắt, cúp loé sáng.
+    - Máy arcade đang chơi (đàn quái di chuyển, phi thuyền bắn), biển ly nước chập chờn, đèn REC của máy quay nháy,
+      đèn studio sáng lên tắt xuống.
 - **Va chạm thật:** tường và sàn của nhà chặn và đỡ người chơi, máy chủ và trình duyệt tính giống nhau.
-- **Bảng 🏠 Nhà Ở:** ảnh căn nhà, tên, mô tả, và nhãn "Đang ở". Các kiểu nhà mới để mua sẽ hiện thêm ở bảng này.
+- **Bảng 🏠 Nhà Ở** (mở được cả khi ở ngoài Gia Viên): ảnh từng căn, tên, giá, mô tả.
+  - Nhà chưa có: nút **Mua**, bấm hai lần để chắc. Mua xong dọn vào ở ngay.
+  - Nhà đã có: nút **Dọn vào ở**, đổi qua lại bất cứ lúc nào.
+  - Khi đổi nhà mà đang ở trong Gia Viên, người trong đó được đưa về cổng (tường nhà mới có thể ở đúng chỗ đang đứng).
+- **Lưu:** nhà đã mua ở bảng `home_houses` (mỗi nhà một dòng, nên không mua trùng được), nhà đang ở là `homes.house`.
 - **Thiết kế một căn nhà:** liệt kê các mảnh `[lớp, cột, hàng, loại]` trên khu Nhà Ở (cột 3-36, hàng 2-15):
   - `f`: khối đặc hoặc sàn.
   - `b`: vách phía sau.
@@ -531,7 +552,8 @@ Viên lưu nhà đang có ở cột `homes.house`.
 - **Không làm hai lần:**
   - Mở khoá chỉ một lần (khoá chính theo người).
   - Mỗi luống chỉ một cây.
-  - Mua vật nuôi có mã giao dịch, gửi lại nhiều lần cũng chỉ tính một lần.
+  - Mua nhà và mua vật nuôi có mã giao dịch, gửi lại nhiều lần cũng chỉ tính một lần.
+  - Mỗi nhà chỉ mua được một lần (khoá chính theo người và nhà).
 - **Nhà do máy chủ quyết:** trình duyệt chỉ biết tên nhà để vẽ; không có lệnh nào để sửa nhà.
 - **Thời gian là của database** (`NOW()`): khi nào con vật có sản phẩm, khi nào cây chín, máy chủ tự xét; trình duyệt không
   báo thay được.
@@ -543,6 +565,12 @@ Bài test `test/race.mjs` có phần "Gia Viên":
   tiền 1 lần.
 - **Nhà mặc định:** mở khoá là có, máy chủ báo đúng tên nhà; tường chặn người chơi (đi qua cửa vào trong, dừng ở tường
   bên trái); sàn tầng trên, bậc và tường đúng chỗ; đường mua vật liệu và lệnh xây cũ không còn tác dụng.
+- **Mua nhà:**
+  - Không đủ tiền thì không mua được; chưa mua thì không dọn vào được.
+  - Cùng một lần mua gửi 5 lần chỉ trừ tiền 1 lần; mua lại bằng yêu cầu mới bị từ chối.
+  - Mua xong dọn vào ngay, người đang ở trong được đưa về cổng.
+  - Tên nhà lạ bị từ chối; đổi qua lại giữa các nhà đã có.
+  - Sàn Nhà Game Thủ đúng hàng 13 và 10.
 - **Nông Trại:** mua 15 con cùng lúc thì chuồng chỉ nhận đúng 12; cho ăn 2 lần cùng lúc chỉ tính 1 lần và chỉ trừ tiền 1 lần;
   chưa đến giờ thì không thu được; thu 2 lần cùng lúc chỉ được 1 lần, mỗi con 1 quả trứng.
 - **Vườn Dược:** gieo một luống 5 lần cùng lúc chỉ gieo 1; chưa chín thì không thu được; thu 2 lần cùng lúc chỉ được 1 lần.
@@ -772,6 +800,7 @@ game/
   shared/maps/giavien.js bản đồ Gia Viên (mỗi người một bản sao trên máy chủ)
   public/js/gia-vien.js  vẽ Gia Viên (nhà, vật nuôi, cây), bảng Nhà Ở, Nông Trại, Vườn Dược
   tools/gia-vien-khoi.py cắt các mảnh nhà từ tileset (tools/gia-vien-nguon/) vào public/gia-vien/khoi.png
+  tools/gia-vien-nha.py  đưa ảnh Nhà Game Thủ về đúng cỡ, dò các ống neon cho hiệu ứng home/gamer-house
   server/dao-huu.js      Đạo Hữu (kết giao, lời mời, chặn) và Truyền Âm, an toàn khi tranh chấp
   public/js/dao-huu.js   bảng Đàm Đạo (các kênh chat) và bảng Đạo Hữu (danh sách, lời mời, Truyền Âm)
   server/store.js        mọi thay đổi dữ liệu nhân vật (cả mua và mặc đồ ở Y Các), an toàn khi tranh chấp

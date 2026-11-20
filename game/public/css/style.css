@@ -1177,6 +1177,9 @@ body.touch #homebar button span { font-size: 17px; }
 .gvhouse .gvmain { display: flex; flex-direction: column; gap: 3px; }
 .gvhouse b { color: var(--gold2); font-size: 15px; }
 .gvhouse small { color: var(--dim); line-height: 1.4; }
+.gvhouse .gvhrow { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.gvhouse .price { color: var(--gold2); font: 700 12.5px system-ui, sans-serif; white-space: nowrap; }
+.gvhouse button { align-self: flex-start; margin-top: 4px; }
 .gvhouse .tag { align-self: flex-start; padding: 2px 9px; border-radius: 999px; font: 700 11.5px system-ui, sans-serif; background: #2f9a6a33; border: 1px solid #5cf0a066; color: #b8ffd8; }
 /* the panels */
 #panel .pbox:has(.gvp) { width: min(640px, 100%); }

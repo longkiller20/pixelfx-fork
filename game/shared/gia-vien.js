@@ -45,6 +45,7 @@ export const BLOCKS = {
   hien_lam: { name: "Hiên Ngói Lam", layer: "f", plank: true, atlas: "eave_blue" },
   hien_do: { name: "Hiên Ngói Đỏ", layer: "f", plank: true, atlas: "eave_red" },
   hien_ngoc: { name: "Hiên Ngói Ngọc", layer: "f", plank: true, atlas: "eave_jade" },
+  san_an: { name: "Sàn", layer: "f", plank: true, hidden: true },
   san_go: { name: "Sàn Gỗ", layer: "f", plank: true, fx: "home/furniture", o: { piece: "platform" } },
   van_dai: { name: "Vân Đài", layer: "f", plank: true, atlas: "cloud_plat" },
   // ---- walls behind
@@ -124,10 +125,33 @@ export const BLOCKS = {
  */
 export const HOUSES = {
   co_trach: { name: "Thanh Vân Cổ Trạch", price: 0, desc: "Ngôi nhà gỗ hai tầng mái ngói đỏ cong vút, đi kèm khi mở khoá Gia Viên. Tầng dưới có lò luyện đan, bàn trà, kệ sách; tầng trên là phòng ngủ.", cells: coTrach() },
+  gamer: {
+    name: "Nhà Game Thủ",
+    price: 150000,
+    desc: "Căn nhà ba tầng rực đèn neon của game thủ đa vũ trụ: phòng stream phông xanh, quầy bar, máy arcade; phòng khách TV lớn, tủ figure; phòng ngủ và góc gaming ba màn hình, ban công dù tím.",
+    ...picHouse(),
+  },
 };
 export const DEFAULT_HOUSE = "co_trach";
 /** The pieces of a house (none for an unknown one). */
 export const houseCells = (id) => HOUSES[id]?.cells ?? [];
+
+/**
+ * A house drawn as one picture (pic: its file, where its top left stands in world px, its size) instead of pieces: here
+ * the Gamer house, from the user's picture (game/tools/gia-vien-nha.py brings it to size, so its three floors fall on
+ * cell lines: the ground at row 16, then rows 13 and 10). Its floors are planks hidden under the picture (one can jump up
+ * through them, ↓ + jump to drop); live: the pixelfx effect that makes its lights move, in two halves (part 0, 1) drawn
+ * at the picture's top left plus PARTS[part] (src/fx/home/gamer-house.js).
+ */
+function picHouse() {
+  const T = 32, S = 0.45, x = 231, y = 16 * T - 370, out = [];
+  // each floor: its row, and how far it runs in the source picture's pixels
+  for (const [row, a, b] of [[13, 55, 1715], [10, 160, 1655]]) {
+    const x0 = x + a * S, x1 = x + b * S;
+    for (let cx = Math.floor(x0 / T); cx * T < x1; cx++) if (Math.min(x1, cx * T + T) - Math.max(x0, cx * T) >= 16) out.push(["f", cx, row, "san_an"]);
+  }
+  return { pic: { src: "/gia-vien/nha/gamer.png", x, y, w: 798, h: 400 }, live: [{ fx: "home/gamer-house", parts: [0, 318] }], cells: out };
+}
 
 /**
  * Thanh Vân Cổ Trạch, the default house: two floors and a curved red roof, its door on the right (the side people come
