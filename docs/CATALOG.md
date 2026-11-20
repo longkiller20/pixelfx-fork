@@ -1,6 +1,6 @@
 # Catalog
 
-259 effects in 23 categories. Every one is a file in
+260 effects in 23 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -419,6 +419,7 @@ doors, windows, tables, beds, lanterns, an alchemy furnace.
 
 | effect | id | | size | what it does |
 |---|---|---|---|---|
-| Alchemy furnace | `home/furnace` | loop 3s | 56×72 | A bronze three-legged cauldron furnace for refining pills: coals glow in its belly, flames lick round the lid and a thread of smoke curls from the top. |
-| Furniture | `home/furniture` | loop 2s | 96×80 | Things for a house built a cell (32 px) at a time, one per piece: door, window, table, chair, bed, shelf, vase, scroll, paper wall, wood wall, bamboo, platform. |
+| Alchemy furnace | `home/furnace` | loop 3s | 56×76 | A bronze three-legged cauldron furnace for refining pills: coals glow in its belly, flames lick round the lid and a thread of smoke curls from the top. |
+| Furniture | `home/furniture` | loop 2s | 96×80 | Things for a house built a cell (32 px) at a time, one per piece: door, window, table, chair, bed, shelf, vase, scroll, paper wall, wood wall, bamboo, platform, glass, metal door. |
+| Gamer house (live) | `home/gamer-house` | loop 6s | 798×400 | What moves in the Gamer house picture, drawn over it: its neon tubes breathe and a few flicker, the GAMER sign pulses with a light running round its controller and along its letters, the dish's beacon blinks, the chimney smokes, the hexagon lights ripple through their colours, the monitors and TV shimmer (stars, a sweep of light, a pulsing sun), the PC glows through the rainbow, the arcade plays, the camera records, the LED strip runs, the cat blinks. |
 | Paper lantern | `home/lantern` | loop 3s | 48×56 | A red paper lantern hung from a bracket, swaying a little, its candle flickering: warm light pools round it and a gold tassel swings under it. |

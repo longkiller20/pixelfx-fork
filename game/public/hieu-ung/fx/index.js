@@ -37,6 +37,7 @@ import * as fire_spirit_flame from "./fire/spirit-flame.js";
 import * as holy_heal from "./holy/heal.js";
 import * as home_furnace from "./home/furnace.js";
 import * as home_furniture from "./home/furniture.js";
+import * as home_gamer_house from "./home/gamer-house.js";
 import * as home_lantern from "./home/lantern.js";
 import * as impacts_ground_slam from "./impacts/ground-slam.js";
 import * as impacts_hit_spark from "./impacts/hit-spark.js";
@@ -99,6 +100,7 @@ export const effects = {
   "holy/heal": holy_heal,
   "home/furnace": home_furnace,
   "home/furniture": home_furniture,
+  "home/gamer-house": home_gamer_house,
   "home/lantern": home_lantern,
   "impacts/ground-slam": impacts_ground_slam,
   "impacts/hit-spark": impacts_hit_spark,

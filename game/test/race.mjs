@@ -1123,12 +1123,36 @@ const SHOP_TEST = "Hàng thử nghiệm";
   const ns = Number((await q("SELECT qty FROM inventory WHERE user_id = ? AND item = 'gv_nhan_sam'", [A.uid]))[0].qty);
   assert.ok(ns >= 1 && ns <= 2, `a ginseng's yield (${ns})`);
 
+  // ---- a house bought: never without the money, once however many times it's asked, moved into at once; houses one
+  // has can be moved between, others can't
+  const G2 = gvs.HOUSES.gamer;
+  await q("UPDATE characters SET stones = ? WHERE user_id = ?", [G2.price - 1, A.uid]);
+  assert.equal((await post(A, "/house/buy", { house: "gamer", requestId: crypto.randomUUID() })).status, 409, "not enough stones: no house");
+  assert.equal((await post(A, "/house/use", { house: "gamer" })).status, 403, "can't move into a house not bought");
+  await q("UPDATE characters SET stones = ? WHERE user_id = ?", [G2.price * 3, A.uid]);
+  const hrid = crypto.randomUUID();
+  const hb = await Promise.all(Array.from({ length: 5 }, () => post(A, "/house/buy", { house: "gamer", requestId: hrid })));
+  assert.ok(hb.every((r) => r.status === 200), "the same purchase 5 times: all answered");
+  const hb2 = await Promise.all(Array.from({ length: 3 }, () => post(A, "/house/buy", { house: "gamer", requestId: crypto.randomUUID() })));
+  assert.ok(hb2.every((r) => r.status === 409), "bought again with new requests: refused");
+  assert.equal(await stones(A), G2.price * 2, "paid once");
+  assert.equal((await q("SELECT house FROM homes WHERE user_id = ?", [A.uid]))[0].house, "gamer", "moved in");
+  await sleep(400);
+  const hm2 = msgs("home").pop();
+  assert.ok(hm2.house === "gamer" && hm2.moved, "the Gia Viên changed under them, they're put back at the gate");
+  for (const bad of ["kim_lau", "", "__proto__", 5]) assert.equal((await post(A, "/house/use", { house: bad })).status, 400, `no such house: ${bad}`);
+  assert.equal((await post(A, "/house/use", { house: gvs.DEFAULT_HOUSE })).status, 200, "back to the default one");
+  assert.equal((await post(A, "/house/use", { house: "gamer" })).status, 200, "and to the bought one");
+  assert.deepEqual((await call("/home", { token: A.token })).data.houses.sort(), [gvs.DEFAULT_HOUSE, "gamer"].sort(), "both listed as had");
+  const gm = new gvs.HomeGrid(mapInfo(gvs.HOME_MAP)).load(gvs.houseCells("gamer")).wrap();
+  assert.ok(gm.plank(20, 13) && gm.plank(20, 10) && !gm.solid(20, 15), "the Gamer house's floors are planks on rows 13 and 10");
+
   // ---- leaving: back where they were; the Gia Viên isn't where they log in next time
   assert.equal((await post(A, "/leave")).status, 200);
   await sleep(1200);
   assert.equal(msgs("welcome").pop().map, "tanthu", "back out");
   c.ws.close();
-  ok("Gia Viên: unlocked and paid once, with the default house; its walls stop people and its floors carry them; no building by hand; the pen's cap, feeding, collecting and picking each once");
+  ok("Gia Viên: unlocked and paid once, with the default house; its walls stop people and its floors carry them; no building by hand; the pen's cap, feeding, collecting and picking each once; a house bought once, paid once, moved into, switched only between houses one has");
 }
 
 {

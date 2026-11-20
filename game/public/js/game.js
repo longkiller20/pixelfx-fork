@@ -147,6 +147,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         break;
       // Gia Viên: its house (the map people move on gains its walls and floors), the farm
       case "home":
+        // (moved: the owner moved into another house while here: everyone is back at the gate, as the server says)
+        if (m.moved) body = null;
         home.onHome(m, mapInfo(m.map ?? "giavien")).then((mm) => {
           if (map?.id === "giavien") map = mm;
         });

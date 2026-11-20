@@ -33,6 +33,37 @@ async function loadAtlas() {
   atlas = { w: img.width, h: img.height, px: new Uint32Array(d.data.buffer) };
   return atlas;
 }
+/** A house's picture (pixels with their alpha, ABGR), loaded once. */
+const pics = new Map();
+function loadPic(src) {
+  if (!pics.has(src))
+    pics.set(src, (async () => {
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      const cv = document.createElement("canvas");
+      cv.width = img.width;
+      cv.height = img.height;
+      const c = cv.getContext("2d");
+      c.drawImage(img, 0, 0);
+      return { w: img.width, h: img.height, px: new Uint32Array(c.getImageData(0, 0, img.width, img.height).data.buffer) };
+    })());
+  return pics.get(src);
+}
+/** A picture into a Uint32 view, its top left at (x0, y0), blended by its alpha (its soft neon halo included). */
+function blitPic(out, VW, VH, pic, x0, y0) {
+  x0 = Math.round(x0);
+  y0 = Math.round(y0);
+  const ya = Math.max(0, -y0), yb = Math.min(pic.h, VH - y0), xa = Math.max(0, -x0), xb = Math.min(pic.w, VW - x0);
+  for (let y = ya; y < yb; y++) {
+    const row = y * pic.w, o = (y0 + y) * VW + x0;
+    for (let x = xa; x < xb; x++) {
+      const c = pic.px[row + x], a = c >>> 24;
+      if (!a) continue;
+      out[o + x] = a > 247 ? c | 0xff000000 : mixPx(out[o + x], c, a / 255);
+    }
+  }
+}
 /** A still pixelfx piece drawn once (t = 0) into pixels, anchored where the effect's own origin is. */
 function fxSprite(id, o) {
   const mod = effects[id];
@@ -90,8 +121,25 @@ const mixPx = (a, b, k) => {
 };
 /** A picture of a whole house (its pieces over a strip of ground), `width` px wide, for the panels. */
 export function houseCanvas(id, width = 320) {
-  const cells = houseCells(id), cv = document.createElement("canvas");
+  const cells = houseCells(id), cv = document.createElement("canvas"), H = HOUSES[id];
   cv.className = "gvhousepic";
+  if (H?.pic) {
+    // a house that is one picture: it, over a strip of ground
+    cv.width = H.pic.w + 32;
+    cv.height = H.pic.h + 8;
+    cv.style.width = `${width}px`;
+    cv.style.maxWidth = "100%";
+    loadPic(H.pic.src).then((pic) => {
+      const W = cv.width, Hh = cv.height, img = new ImageData(W, Hh), out = new Uint32Array(img.data.buffer), ground = Hh - (H.pic.h - (LAYOUT.floor * T - H.pic.y)) - 8;
+      for (let y = 0; y < Hh; y++) {
+        const u = y / Hh, sky = ((0xff << 24) | (Math.round(60 + 80 * u) << 16) | (Math.round(30 + 40 * u) << 8) | Math.round(26 + 30 * u)) >>> 0;
+        for (let x = 0; x < W; x++) out[y * W + x] = y >= ground ? (y < ground + 4 ? 0xff3a9a4a : 0xff1e2e44) : sky;
+      }
+      blitPic(out, W, Hh, pic, 16, 0);
+      cv.getContext("2d").putImageData(img, 0, 0);
+    }, () => {});
+    return cv;
+  }
   if (!cells.length) return cv;
   // its extent in cells, a cell of ground under it and a little air round it
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = LAYOUT.floor;
@@ -136,6 +184,7 @@ export function createHomeLayer(G) {
   const herds = new Map(); // animal id -> { kind, fx, x, dir, walk, until }
   const crops = new Map(); // plot -> { crop, fx }
   const live = new Map(); // "cx,cy" of a live furniture (lantern, furnace) -> fx
+  let house = null, pic = null, houseFx = []; // the house drawn as a picture: its picture, its moving lights
   const fixtures = { soil: null, wet: null };
   const L = {
     get active() {
@@ -151,7 +200,7 @@ export function createHomeLayer(G) {
   };
   const serverNow = () => Date.now() + skew;
   L.onWelcome = (mapId) => {
-    if (mapId !== "giavien") (grid = null), (st = null), herds.clear(), crops.clear(), live.clear(), L.onChange();
+    if (mapId !== "giavien") (grid = null), (st = null), (house = pic = null), (houseFx = []), herds.clear(), crops.clear(), live.clear(), L.onChange();
   };
   /** The house standing here: the grid, and the map people move on (its walls and floors carry them). Returns the map to use. */
   L.onHome = async (m, map) => {
@@ -159,6 +208,11 @@ export function createHomeLayer(G) {
     owner = m.owner;
     mine = !!m.mine;
     grid = new HomeGrid(map).load(houseCells(m.house));
+    // a house that is one picture: the picture, and the effects that light it up (each a half: drawn at x + its offset)
+    house = HOUSES[m.house] ?? null;
+    live.clear();
+    pic = house?.pic ? await loadPic(house.pic.src).catch(() => null) : null;
+    houseFx = (house?.live ?? []).flatMap((l) => (effects[l.fx] ? l.parts.map((off, part) => ({ fx: createFx(effects[l.fx], { part, seed: owner }), x: house.pic.x + off, y: house.pic.y })) : []));
     await loadAtlas().catch(() => {});
     fixtures.soil = fxSprite("farm/props", { piece: "soil" });
     fixtures.wet = fxSprite("farm/props", { piece: "soil", wet: 1 });
@@ -190,13 +244,14 @@ export function createHomeLayer(G) {
   /** Into the background (behind everyone): walls, blocks, still furniture, the soil beds. */
   L.paintBg = (out, VW, VH, camX, camY) => {
     if (!grid) return;
+    if (pic) blitPic(out, VW, VH, pic, house.pic.x - camX, house.pic.y - camY);
     const c0 = Math.floor(camX / T) - 2, c1 = Math.ceil((camX + VW) / T) + 2, r0 = Math.floor(camY / T) - 3, r1 = Math.ceil((camY + VH) / T) + 2;
     for (const layer of ["b", "f", "d"])
       for (const [K, kind] of grid[layer]) {
         const [cx, cy] = K.split(",").map(Number);
         if (cx < c0 || cx > c1 || cy < r0 || cy > r1) continue;
         const b = BLOCKS[kind];
-        if (b?.live) continue;
+        if (b?.live || b?.hidden) continue;
         const s = spriteOf(kind);
         if (s) blit(out, VW, VH, s, cx * T + 16 - camX, (cy + 1) * T - camY);
       }
@@ -208,6 +263,11 @@ export function createHomeLayer(G) {
   /** In the frame, with the people: live furniture, the herbs, the animals. */
   L.drawFront = (p, now, dt, camX, camY, on) => {
     if (!grid) return;
+    // the house's lights, behind everyone
+    for (const h of houseFx) {
+      h.fx.update(dt);
+      if (on(h.x + 240, h.y + 200, 420)) G.drawFx(h.fx, "back", h.x, h.y, 1);
+    }
     for (const [K, kind] of grid.d) {
       const b = BLOCKS[kind];
       if (!b.live) continue;
@@ -347,7 +407,9 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
             h("button.ghost", { type: "button", text: "🐔 Nông Trại", onclick: () => farmPanel() }),
             h("button.ghost", { type: "button", text: "🌿 Vườn Dược", onclick: () => gardenPanel() }),
             h("button.primary", { type: "button", text: "Rời Gia Viên", onclick: (e) => act("/leave", {}, null, e.target).then(closePanel) }))
-          : h("button.primary.big", { type: "button", text: "Vào Gia Viên", onclick: (e) => act("/enter", {}, null, e.target).then(closePanel) }));
+          : h("div.gvrow", {},
+            h("button.ghost", { type: "button", text: "🏠 Nhà Ở", onclick: () => housePanel() }),
+            h("button.primary.big", { type: "button", text: "Vào Gia Viên", onclick: (e) => act("/enter", {}, null, e.target).then(closePanel) })));
     }
     show("Gia Viên", wrap, first);
   }
@@ -456,18 +518,24 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
 
   // ---- 🏠 the house: the one this home has, and the ready-made houses (more to be bought later)
   function housePanel() {
-    const cur = st()?.house ?? view?.house;
+    const v = st() ?? view ?? {}, cur = v.house, owned = new Set(v.houses ?? []);
+    const inside = !!layer()?.active;
     const wrap = h("div.gvp.house");
     for (const [id, H] of Object.entries(HOUSES)) {
-      const has = id === cur;
+      const has = id === cur, own = owned.has(id) || !H.price;
+      const act_ = has
+        ? h("span.tag", { text: "Đang ở" })
+        : own
+          ? h("button.primary", { type: "button", text: "Dọn vào ở", onclick: (e) => act("/house/use", { house: id }, `Đã dọn vào ${H.name}.`, e.target) })
+          : sure(`Mua · ${fmt(H.price)} linh thạch`, "Bấm lần nữa để mua", (b) => act("/house/buy", { house: id, requestId: uuid() }, `Đã mua ${H.name}!`, b), "primary");
       wrap.append(h("div.gvhouse", { className: has ? "on" : "" },
-        houseCanvas(id, 320),
+        houseCanvas(id, 360),
         h("div.gvmain", {},
-          h("b", { text: H.name }),
+          h("div.gvhrow", {}, h("b", { text: H.name }), h("span.price", { text: H.price ? `${fmt(H.price)} linh thạch` : "Tặng kèm" })),
           h("small", { text: H.desc }),
-          h("span.tag", { text: has ? "Đang ở" : H.price ? `${fmt(H.price)} linh thạch` : "Tặng kèm" }))));
+          act_)));
     }
-    wrap.append(h("p.dim", { text: "Nhà làm sẵn, mua là ở ngay. Thêm nhiều kiểu nhà mới sẽ có trong bảng này." }));
+    wrap.append(h("p.dim", { text: inside ? "Nhà làm sẵn, mua là dọn vào ở ngay. Nhà đã mua có thể đổi qua lại bất cứ lúc nào." : "Nhà làm sẵn, mua là dọn vào ở ngay. Vào Gia Viên để xem tận nơi." }));
     show("Nhà Ở", wrap);
   }
 

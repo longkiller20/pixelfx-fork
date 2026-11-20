@@ -133,6 +133,15 @@ export function api(world) {
     world.enterHome(req.userId).catch((e) => console.error("home", e.message));
   });
   homeRoute("/leave", async (req) => void world.leaveHome(req.userId).catch((e) => console.error("home", e.message)));
+  homeRoute("/house/buy", async (req) => {
+    const out = await gv.buyHouse(req.userId, req.body?.house, req.body?.requestId);
+    await world.homeHouse(req.userId);
+    return out;
+  });
+  homeRoute("/house/use", async (req) => {
+    await gv.useHouse(req.userId, req.body?.house);
+    await world.homeHouse(req.userId);
+  });
   homeRoute("/animal/buy", async (req) => gv.buyAnimal(req.userId, req.body?.kind, req.body?.requestId));
   homeRoute("/animal/feed", async (req) => gv.feed(req.userId, req.body?.ids));
   homeRoute("/animal/collect", async (req) => {
