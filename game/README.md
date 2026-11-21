@@ -767,6 +767,39 @@ Bài test `test/race.mjs` có phần "Gia Viên":
 Tab Cài đặt có nhóm Gia Viên (`home.*`): giá mở khoá, số vật nuôi tối đa. Tab **Nhà Ở**: tên, giá (0 là không bán) và thứ
 tự hiện của từng kiểu nhà. Trang người chơi có mục Gia Viên để tặng hoặc thu hồi nhà. Các sản phẩm của Gia Viên nằm trong tab Vật phẩm, sửa tên và mô tả như mọi món khác.
 
+## Đồ Sát (nút ⚔ cạnh phi kiếm, phím P)
+
+Người chơi tự bật chế độ **Đồ Sát** (`server/world.js`, settings `pk.*`):
+
+**Ai đánh được ai**
+- Người **đang bật** đánh được mọi người chơi khác.
+- Người **không bật** vẫn đánh được người đang bật (tự vệ hoặc truy sát), nhưng không đánh được người cũng không bật.
+- Hai người cùng không bật thì không gây sát thương cho nhau, như trước đây.
+- Không bao giờ đánh được: Đạo Lữ của mình, người cùng Tông Môn, người vừa hồi sinh (đang được bảo vệ).
+
+**Nơi an toàn**
+- **Tân Thủ Thôn** là vùng an toàn: bật Đồ Sát vẫn được, nhưng không ai đánh được ai ở đó.
+- Gia Viên (nhà riêng) và Vọng Nguyệt Hồ cũng không đánh nhau.
+- Chiến trường Chính Tà có luật riêng.
+
+**Bật và tắt**
+- Cần đạt cấp `pk.level` (6) mới bật được.
+- Tắt chỉ được sau `pk.off_delay` giây (60) không giao chiến với người chơi, tính cả từ lúc bật. Thanh trạng thái hiện số giây còn lại.
+- Đăng nhập lại thì Đồ Sát về tắt.
+
+**Sát khí và tiền thưởng**
+- Hạ một người **không** bật Đồ Sát: người hạ +1 Sát khí (tối đa `pk.max`). Sát khí tự giảm 1 mỗi `pk.decay_minutes` phút (30).
+- Người đang Đồ Sát bị hạ: mất `pk.bounty` (50) linh thạch × Sát khí, số này vào tay người hạ.
+- Cả server được thông báo mỗi lượt hạ.
+
+**Hiển thị**
+- Tên người đang Đồ Sát màu đỏ, có ⚔ phía trước và ☠ kèm Sát khí phía sau.
+- Biểu tượng nút là pixelfx `ui/menu-icon` (`pk`).
+
+**Chống gian lận:** mọi kiểm tra chạy trên máy chủ, trong vòng lặp của thế giới (một luồng, không race). Linh thạch thưởng chuyển qua phần "chưa ghi" của cả hai người và ghi vào cơ sở dữ liệu như mọi thu nhập khác.
+
+**Kiểm tra:** `node test/do-sat.mjs`.
+
 ## Chính Tà Phân Tranh (nút ▦ Thêm → Chính Tà)
 
 Chính Phái đối đầu Tà Phái, mỗi phe tối đa 30 người, trên bản đồ riêng **Chính Tà Chiến Trường**

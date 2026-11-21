@@ -4,7 +4,7 @@ import { lit } from "../farm/_lib.js";
 
 export const meta = {
   name: "Menu icon",
-  desc: "Small 20 px menu icons, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more, fishing, love, war.",
+  desc: "Small 20 px menu icons, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more, fish, love, war, pk.",
   tags: ["ui", "icon", "menu", "button"],
   size: [24, 24],
   origin: [12, 12],
@@ -16,7 +16,7 @@ export const meta = {
 };
 
 /** The icons, by name: what each draws (on a 20 x 20 grid, -10..9 each way). */
-export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more", "fish", "love", "chinhta"];
+export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more", "fish", "love", "chinhta", "pk"];
 
 const H = (a) => a.map(hex);
 const SKIN = H(["#8a4a3a", "#d8996e", "#f6cfa8", "#ffe6cc", "#fff4e8"]);
@@ -214,6 +214,22 @@ const DRAW = {
     };
     sword(1, STEEL);
     sword(-1, RED);
+  },
+  // Đồ Sát: a blood-red blade slanting down, a dark guard, blood dripping from its point, a skull's glint behind
+  pk(g) {
+    g.ellipse(-3, -3, 5.2, 4.8, ell(PAPER, 2));
+    g.set(-5, -3, INK), g.set(-1.5, -3, INK), g.set(-4.5, -2.5, INK), g.set(-1, -2.5, INK);
+    g.shade(-5, 0, -1, 2, (x, y) => (((x + 5) | 0) % 2 ? PAPER[1] : PAPER[2]));
+    for (let s2 = -8; s2 <= 6; s2 += 0.5) {
+      const x = s2 * 0.8 + 1, y = s2 * 0.8 + 1;
+      g.set(x, y, RED[s2 < -5 ? 4 : 3]);
+      g.set(x + 0.7, y - 0.7, RED[1]);
+    }
+    g.line(-7.5, -2.5, -2.5, -7.5, INK);
+    g.line(-8, -2, -3, -7, STEEL[2]);
+    g.line(-9.5, -9.5, -7.5, -7.5, WOOD[1]);
+    g.ellipse(7.5, 8.5, 1.4, 1.8, ell(RED, 2));
+    g.set(7.5, 6.5, RED[3]);
   },
   // four gold tiles: more of the menu
   more(g) {

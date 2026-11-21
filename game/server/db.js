@@ -549,6 +549,9 @@ const UPGRADES = [
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS faction CHAR(1) NULL AFTER sword",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS faction_at DATETIME NULL AFTER faction",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS ct_points INT UNSIGNED NOT NULL DEFAULT 0 AFTER faction_at",
+  // Đồ Sát: the sát khí from bringing down players who weren't fighting, and when it was last set (it wears off with time)
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS sat_khi SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER ct_points",
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS sat_khi_at DATETIME NULL AFTER sat_khi",
 ];
 
 /**
