@@ -363,6 +363,8 @@ export class World {
       case "fish":
         return this.fishInput(p, m);
       case "cast": {
+        // a peaceful map (the fishing lake): no attack, no art
+        if (this.map.def.peaceful) return;
         // 0 is the basic attack, 1-5 the arts on the bar
         // (a whole number, nothing else: "1; x", 1.5 or null are not slots)
         const i = m.s;
@@ -477,7 +479,7 @@ export class World {
   }
 
   cast(p, i, ax, ay, to = null) {
-    if (p.dead || p.busyUntil > this.t || p.warping) return;
+    if (this.map.def.peaceful || p.dead || p.busyUntil > this.t || p.warping) return;
     const t = this.t;
     let sk;
     if (i === 0) {
@@ -813,6 +815,7 @@ export class World {
     if (on === p.flying) return;
     if (on) {
       if (p.dead || p.warping) return;
+      if (this.map.def.peaceful) return send(p.ws, { t: "toast", m: "Ở Vọng Nguyệt Hồ không ngự kiếm được." });
       if (!canFly(p.level)) return send(p.ws, { t: "toast", m: `Tới cảnh giới ${flyRealmName()} mới ngự kiếm phi hành được.` });
       if (this.map.pvp && !FLY.arena) return send(p.ws, { t: "toast", m: "Nơi tỷ thí không được ngự kiếm." });
       p.flying = true;
@@ -844,7 +847,7 @@ export class World {
     // planted by an art (Tam Tuyệt Kiếm, Diệt Thế Thần Bạo): no moving or jumping until it ends
     const inp = p.rootUntil > t ? { dx: 0, dy: 0, jump: false, down: false } : p.in;
     // the realm needed went up (an admin's edit), or the exp went down: off the sword
-    if (p.flying && (!canFly(p.level) || (this.map.pvp && !FLY.arena))) this.setFlying(p, false);
+    if (p.flying && (!canFly(p.level) || (this.map.pvp && !FLY.arena) || this.map.def.peaceful)) this.setFlying(p, false);
     p.moving = Math.abs(inp.dx) > 0.05 || (p.flying && Math.abs(inp.dy) > 0.05);
     const wasGround = p.ground;
     stepBody(p, { ...inp, jump: inp.jump || (p.jumpUntil > t && !(p.rootUntil > t)) }, st.spd * PHYS.RUN * (p.flying ? FLY.speed : 1), DT, this.map, t);

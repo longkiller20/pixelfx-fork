@@ -207,10 +207,12 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
   const onLake = () => game()?.mapId?.() === FISH_MAP;
 
   // ---- the fishing bar: the big button (what it does depends on the cast), reel in, the stall
-  const act = h("button.fact", { type: "button" }, h("span.fi"), h("b"), h("small"));
-  const stopB = h("button.fsmall", { type: "button", title: "Thu cần", "aria-label": "Thu cần", onclick: () => layer()?.stop() }, "✕");
-  const khuB = h("button.fsmall.khu", { type: "button", title: "Chọn khu: 30 khu, mỗi khu tối đa 20 người", onclick: () => khuBox() }, h("span"), h("small", { text: "Khu câu" }));
-  const shopB = h("button.fsmall.shop", { type: "button", title: "Ngư Cụ: cần, mồi, bán cá, Ngư Lục", onclick: () => open() }, h("span", { text: "🎣" }), h("small", { text: "Ngư Cụ" }));
+  // At the lake these stand where the fight buttons are elsewhere (those are hidden there: css body.peace): the big round
+  // one in the corner under the right thumb, where the attack is, and the three small ones around it, where the arts are.
+  const act = h("button.fact", { type: "button", title: "Thả câu / giật / giữ để kéo (E hoặc J)" }, h("span.fi"), h("b"), h("small"), h("kbd", { text: "E" }));
+  const stopB = h("button.fsmall.stop", { type: "button", title: "Thu cần (R)", "aria-label": "Thu cần", onclick: () => layer()?.stop() }, h("span", { text: "⤺" }), h("small", { text: "Thu cần" }), h("kbd", { text: "R" }));
+  const khuB = h("button.fsmall.khu", { type: "button", title: "Chọn khu (K): 30 khu, mỗi khu tối đa 20 người", onclick: () => khuBox() }, h("span"), h("small", { text: "Khu câu" }), h("kbd", { text: "K" }));
+  const shopB = h("button.fsmall.shop", { type: "button", title: "Ngư Cụ (Q): cần, mồi, bán cá, Ngư Lục", onclick: () => open() }, h("span", { text: "🎣" }), h("small", { text: "Ngư Cụ" }), h("kbd", { text: "Q" }));
   bar.append(khuB, shopB, stopB, act);
   act.querySelector(".fi").append(fishPic("cc_can_truc"));
   const press = (down) => (e) => {
@@ -223,12 +225,18 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
   act.addEventListener("pointercancel", press(false));
   act.addEventListener("pointerleave", (e) => layer()?.holding() && press(false)(e));
   act.addEventListener("contextmenu", (e) => e.preventDefault());
+  // the keys: E or J (the attack key elsewhere) work the line, R reels in, Q opens Ngư Cụ, K (an art key elsewhere) the box of Khu
+  const typing = () => /input|textarea|select/i.test(document.activeElement?.tagName ?? "");
+  const LINE = new Set(["e", "j"]);
   addEventListener("keydown", (e) => {
-    if (e.key.toLowerCase() !== "e" || e.repeat || !onLake() || /input|textarea|select/i.test(document.activeElement?.tagName ?? "")) return;
-    layer()?.action(true);
-    paint();
+    const k = e.key.toLowerCase();
+    if (e.repeat || !onLake() || typing() || !$("panel").hidden) return;
+    if (LINE.has(k)) return void (layer()?.action(true), paint());
+    if (k === "r") return void layer()?.stop();
+    if (k === "q") return void open();
+    if (k === "k") return void khuBox();
   });
-  addEventListener("keyup", (e) => e.key.toLowerCase() === "e" && onLake() && (layer()?.action(false), paint()));
+  addEventListener("keyup", (e) => LINE.has(e.key.toLowerCase()) && onLake() && (layer()?.action(false), paint()));
 
   /** The box of Khu: all 30, a cell each with a dot (green roomy, yellow filling, red full) and how many are in it. */
   let khuOpen = null;
@@ -288,7 +296,7 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
     bar.hidden = !here;
     if (!here) return void (reel.hidden = true);
     const s = L?.st?.s;
-    const [b, sm] = !s ? ["Thả câu", "E"] : s === "wait" ? ["Chờ cá...", "cá cắn thì giật (E)"] : s === "bite" ? ["GIẬT!", "nhanh lên (E)"] : s === "reel" ? ["Giữ để kéo", "giữ nút hoặc E"] : ["...", ""];
+    const [b, sm] = !s ? ["Thả câu", "ngồi vào chỗ trống"] : s === "wait" ? ["Chờ cá", "cá cắn thì giật"] : s === "bite" ? ["GIẬT!", "nhanh lên"] : s === "reel" ? ["Giữ kéo", "giữ nút"] : ["...", ""];
     act.querySelector("b").textContent = b;
     act.querySelector("small").textContent = sm;
     act.className = `fact ${s ?? "idle"}${L?.holding() ? " hold" : ""}`;
