@@ -44,6 +44,25 @@ export function fishPic(key, dark = false) {
   }
   return cv;
 }
+/** A pixelfx picture that moves: paint(opts) redraws it at the clock's time (the buttons at the lake: fishing/button). */
+function fxLive(id, w, h0, cls) {
+  const cv = document.createElement("canvas");
+  cv.width = w;
+  cv.height = h0;
+  cv.className = cls;
+  const fr = createFrame(w, h0), img = new ImageData(w, h0), c2 = cv.getContext("2d");
+  cv.paint = (opts) => {
+    const mod = effects[id];
+    if (!mod) return;
+    clearFrame(fr);
+    const fx = createFx(mod, { x: w >> 1, y: h0 >> 1, ...opts });
+    fx.update((performance.now() / 1000) % (mod.meta.duration ?? 1));
+    fx.draw(fr);
+    new Uint32Array(img.data.buffer).set(fr.color);
+    c2.putImageData(img, 0, 0);
+  };
+  return cv;
+}
 const urls = new Map();
 /** The same, as an image URL (for the bag's cells): trimmed to what is drawn, so it fills its cell. */
 export function fishIconUrl(key) {
@@ -209,12 +228,23 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
   // ---- the fishing bar: the big button (what it does depends on the cast), reel in, the stall
   // At the lake these stand where the fight buttons are elsewhere (those are hidden there: css body.peace): the big round
   // one in the corner under the right thumb, where the attack is, and the three small ones around it, where the arts are.
-  const act = h("button.fact", { type: "button", title: "Thả câu / giật / giữ để kéo (E hoặc J)" }, h("span.fi"), h("b"), h("small"), h("kbd", { text: "E" }));
-  const stopB = h("button.fsmall.stop", { type: "button", title: "Thu cần (R)", "aria-label": "Thu cần", onclick: () => layer()?.stop() }, h("span", { text: "⤺" }), h("small", { text: "Thu cần" }), h("kbd", { text: "R" }));
-  const khuB = h("button.fsmall.khu", { type: "button", title: "Chọn khu (K): 30 khu, mỗi khu tối đa 20 người", onclick: () => khuBox() }, h("span"), h("small", { text: "Khu câu" }), h("kbd", { text: "K" }));
-  const shopB = h("button.fsmall.shop", { type: "button", title: "Ngư Cụ (Q): cần, mồi, bán cá, Ngư Lục", onclick: () => open() }, h("span", { text: "🎣" }), h("small", { text: "Ngư Cụ" }), h("kbd", { text: "Q" }));
+  // their faces are pixelfx (fishing/button): a gold and jade ring round rippling water for the big one, its water and icon
+  // following the moment (cast, a bite, reeling); small bronze, jade and coral rings with their icons for the others
+  const face = { act: fxLive("fishing/button", 48, 48, "fface"), shop: fxLive("fishing/button", 28, 28, "fface"), khu: fxLive("fishing/button", 28, 28, "fface"), stop: fxLive("fishing/button", 28, 28, "fface") };
+  const act = h("button.fact", { type: "button", title: "Thả câu / giật / giữ để kéo (E hoặc J)" }, face.act, h("b"), h("small"), h("kbd", { text: "E" }));
+  const stopB = h("button.fsmall.stop", { type: "button", title: "Thu cần (R)", "aria-label": "Thu cần", onclick: () => layer()?.stop() }, face.stop, h("small", { text: "Thu cần" }), h("kbd", { text: "R" }));
+  const khuB = h("button.fsmall.khu", { type: "button", title: "Chọn khu (K): 30 khu, mỗi khu tối đa 20 người", onclick: () => khuBox() }, face.khu, h("small", { text: "Khu câu" }), h("kbd", { text: "K" }));
+  const shopB = h("button.fsmall.shop", { type: "button", title: "Ngư Cụ (Q): cần, mồi, bán cá, Ngư Lục", onclick: () => open() }, face.shop, h("small", { text: "Ngư Cụ" }), h("kbd", { text: "Q" }));
   bar.append(khuB, shopB, stopB, act);
-  act.querySelector(".fi").append(fishPic("cc_can_truc"));
+  /** The faces, at the clock's time: the big one's water and icon by the moment, the Khu's pearl by how full it is. */
+  function faces() {
+    const L = layer(), s = L?.st?.s, kn = L?.khu, kc = kn ? L.kocc[kn - 1] ?? 0 : 0;
+    face.act.paint({ piece: "big", icon: s === "bite" ? "strike" : s === "reel" ? "reel" : "cast", mood: s === "wait" || s === "bite" || s === "reel" ? s : "idle" });
+    face.shop.paint({ piece: "small", icon: "shop", tone: "gold" });
+    face.khu.paint({ piece: "small", icon: "khu", tone: "jade", dot: kn ? KHU_COLORS[khuLevel(kc)] : "#888888" });
+    face.stop.paint({ piece: "small", icon: "stop", tone: "coral" });
+  }
+  let faceT = 0;
   const press = (down) => (e) => {
     e.preventDefault();
     layer()?.action(down);
@@ -292,7 +322,6 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
     // the Khu button: which Khu, how many in it, its dot
     const kn = L?.khu, kc = kn ? L.kocc[kn - 1] ?? 0 : 0;
     khuB.querySelector("small").textContent = kn ? `Khu ${kn} · ${kc}/${KHU_CAP}` : "Khu câu";
-    khuB.querySelector("span").replaceChildren(h("i.ckdot", { style: kn ? `background:${KHU_COLORS[khuLevel(kc)]}` : "background:#888" }));
     bar.hidden = !here;
     if (!here) return void (reel.hidden = true);
     const s = L?.st?.s;
@@ -300,6 +329,7 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
     act.querySelector("b").textContent = b;
     act.querySelector("small").textContent = sm;
     act.className = `fact ${s ?? "idle"}${L?.holding() ? " hold" : ""}`;
+    faces();
     stopB.hidden = !s || s === "reel";
     reel.hidden = s !== "reel";
   }
@@ -315,6 +345,8 @@ export function initFishUI({ call, uuid, panel, flash, game }) {
     // a new map: the bar shows (the lake) or hides
     if (game()?.mapId() !== lastMap) (lastMap = game()?.mapId()), paint();
     L.update(dt);
+    // the buttons' faces move at ten frames a second, only while they're shown
+    if (!bar.hidden && (faceT += dt) > 0.1) (faceT = 0), faces();
     if (L.nib && performance.now() - L.nib < 300) act.classList.add("nib");
     else act.classList.remove("nib");
     const r = L.st?.s === "reel" ? L.st : null;

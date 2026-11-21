@@ -1550,3 +1550,22 @@ body.rotated #fishbar { transform: scale(0.82); }
 @media (max-height: 340px) { #fishbar { transform: scale(0.7); } }
 /* the reeling bar: left of the arc, by the player */
 #reel { left: auto; right: 290px; }
+
+/* the faces of the lake's buttons are pixelfx (src/fx/fishing/button.js), drawn at 48 px (the big one) and 28 px (the
+   small ones) and shown at twice that, hard pixels: the button itself is only the place to press */
+#fishbar > button { border: none !important; background: none !important; box-shadow: none !important; overflow: visible; }
+#fishbar .fface { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; pointer-events: none;
+  filter: drop-shadow(0 4px 6px #000a); }
+#fishbar .fact { --s: 96px; }
+#fishbar .fsmall { --s: 56px; }
+#fishbar .fact b { position: absolute; left: 50%; bottom: -4px; transform: translateX(-50%); z-index: 1; padding: 0 7px; border-radius: 7px;
+  font-size: 12px; line-height: 17px; background: #0b0814e0; border: 1px solid #c99a3a; color: #fff3d0; white-space: nowrap; }
+#fishbar .fact small { display: none; }
+#fishbar .fact.bite b { background: #6a1010f0; border-color: #ffd060; color: #ffe8a0; }
+#fishbar .fact.reel b { background: #0e3a1af0; border-color: #a8ffb0; }
+#fishbar .fact.wait b { background: #141c3af0; border-color: #8ab0ff; }
+#fishbar .fact.bite { animation: fbite2 .35s ease-in-out infinite alternate; }
+@keyframes fbite2 { from { transform: scale(1); } to { transform: scale(1.07); } }
+#fishbar .fact.hold .fface { filter: drop-shadow(0 2px 3px #000a) brightness(1.2); }
+#fishbar .fact kbd { top: 2px; bottom: auto; }
+#fishbar .fsmall small { top: calc(100% - 3px); border: 1px solid #c99a3a66; }

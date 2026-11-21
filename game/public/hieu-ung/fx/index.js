@@ -35,6 +35,7 @@ import * as fire_flame_pillar from "./fire/flame-pillar.js";
 import * as fire_meteor from "./fire/meteor.js";
 import * as fire_spirit_flame from "./fire/spirit-flame.js";
 import * as fishing_bobber from "./fishing/bobber.js";
+import * as fishing_button from "./fishing/button.js";
 import * as fishing_catch from "./fishing/catch.js";
 import * as fishing_fish from "./fishing/fish.js";
 import * as fishing_gear from "./fishing/gear.js";
@@ -107,6 +108,7 @@ export const effects = {
   "fire/meteor": fire_meteor,
   "fire/spirit-flame": fire_spirit_flame,
   "fishing/bobber": fishing_bobber,
+  "fishing/button": fishing_button,
   "fishing/catch": fishing_catch,
   "fishing/fish": fishing_fish,
   "fishing/gear": fishing_gear,
