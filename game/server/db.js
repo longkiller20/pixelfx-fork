@@ -708,7 +708,19 @@ async function wholeCharacters(c) {
   await c.query(`DELETE k FROM cosmetics k WHERE ${gone}`);
   for (const k of CHIBI) await c.query(`ALTER TABLE characters DROP COLUMN IF EXISTS ${k}`);
 }
-const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials], ["arts_in_code_2026_11", artsInCode], ["cong_phap_reqs_2026_11", artReqs], ["chibi_wardrobe_2026_11", chibiWardrobe], ["whole_characters_2026_11", wholeCharacters]];
+/** Hỏa Ngưu Ma Vương was replaced by Cửu U Xà Vương: old rows (one still standing, the history) name the new boss. */
+async function serpentKing(c) {
+  await c.query("UPDATE world_bosses SET boss_key = 'xavuong' WHERE boss_key = 'nguuma'");
+  // the settings' notes spoke of a hammer
+  for (const [k, note] of [
+    ["boss.atk", "Công của boss (cú mổ của bảy đầu rắn tính theo đây)"],
+    ["boss.slam_cd", "Giây giữa hai cú mổ"],
+    ["boss.slam_mult", "Hệ số sát thương của cú mổ"],
+    ["boss.slam_reach", "Tầm cú mổ phía trước boss (điểm ảnh)"],
+  ])
+    await c.query("UPDATE settings SET note = ? WHERE k = ?", [note, k]);
+}
+const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials], ["arts_in_code_2026_11", artsInCode], ["cong_phap_reqs_2026_11", artReqs], ["chibi_wardrobe_2026_11", chibiWardrobe], ["whole_characters_2026_11", wholeCharacters], ["serpent_king_2026_11", serpentKing]];
 
 export async function migrate() {
   for (const s of SCHEMA) await q(s);

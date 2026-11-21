@@ -508,7 +508,7 @@ const VIEWS = {
     const d = await api("/boss"), out = el("div"), at = (v) => (v ? new Date(v).toLocaleString("vi-VN") : "");
     const STATE = { alive: "đang ở ngoài", dying: "đang chia thưởng", dead: "đã bị hạ", gone: "đã rời / thu hồi" };
     out.append(el("h2", {}, "Boss Thế Giới"),
-      el("p", { class: "dim" }, "Gọi boss ra một map có yêu thú. Boss có mặt ở mọi khu (30 khu) của map đó, chung một thanh máu: ai đánh ở khu nào cũng trừ vào cùng một thanh. Boss đập búa vào người trước mặt, cứ boss.roar_every giây lại gầm phản kích đánh mọi người chơi trên map ở mọi khu (boss.roar_pct % máu), và mỗi đòn đánh vào nó dội lại boss.thorns_pct % sát thương lên người đánh. Khi boss tử trận, tổng linh thạch và tu vi chia theo sát thương của từng người; người kết liễu được thêm % thưởng. Hết thời gian mà chưa bị hạ thì boss rời đi, không ai được thưởng. Chỉ một boss một lúc."));
+      el("p", { class: "dim" }, "Gọi boss ra một map có yêu thú. Boss có mặt ở mọi khu (30 khu) của map đó, chung một thanh máu: ai đánh ở khu nào cũng trừ vào cùng một thanh. Boss cho bảy đầu rắn mổ người trước mặt, cứ boss.roar_every giây lại gầm phản kích đánh mọi người chơi trên map ở mọi khu (boss.roar_pct % máu), và mỗi đòn đánh vào nó dội lại boss.thorns_pct % sát thương lên người đánh. Khi boss tử trận, tổng linh thạch và tu vi chia theo sát thương của từng người; người kết liễu được thêm % thưởng. Hết thời gian mà chưa bị hạ thì boss rời đi, không ai được thưởng. Chỉ một boss một lúc."));
     // the boss up now
     out.append(el("h3", {}, "Boss đang ở ngoài"));
     if (d.now) {

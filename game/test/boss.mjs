@@ -1,5 +1,5 @@
 // Boss Thế Giới against a running server (game and admin site): node test/boss.mjs [http://localhost:5886]
-// An admin calls Hỏa Ngưu Ma Vương onto a map (not onto the safe starter town, not twice at once); it stands in every
+// An admin calls Cửu U Xà Vương onto a map (not onto the safe starter town, not twice at once); it stands in every
 // Khu of that map with one shared life: a blow in Khu 2 shows on the bar in Khu 1 and Khu 3; it throws part of every blow
 // back (phản đòn); its roar strikes every player of the map in every Khu at once; brought down, the pools are shared by
 // damage and the one who finished it gets the bonus on top, written once (a row per player), each told what they got;
@@ -61,7 +61,7 @@ const until = async (fn, ms = 6000) => {
 };
 const tx = (c, m) => c.ws.send(JSON.stringify(m));
 const me = (c) => c.pos[c.id];
-const bossOf = (c) => Object.entries(c.mons).filter(([, m]) => m.type === "boss:nguuma").sort((a, b) => a[1].dead - b[1].dead)[0];
+const bossOf = (c) => Object.entries(c.mons).filter(([, m]) => m.type === "boss:xavuong").sort((a, b) => a[1].dead - b[1].dead)[0];
 /** Walk c up to the boss and keep striking it for ms. */
 async function fight(c, ms) {
   const end = Date.now() + ms;
@@ -97,12 +97,12 @@ try {
   // ---- calling it: not onto the starter town, not a boss that isn't, once at a time
   const view = (await adm("/boss", null, "GET")).data;
   assert.ok(view.maps.some((m) => m.id === MAP) && !view.maps.some((m) => m.id === "tanthu"), "the hunting maps, not the starter town");
-  assert.equal((await adm("/boss/spawn", { key: "nguuma", map: "tanthu" })).status, 400, "not in Tân Thủ Thôn");
+  assert.equal((await adm("/boss/spawn", { key: "xavuong", map: "tanthu" })).status, 400, "not in Tân Thủ Thôn");
   assert.equal((await adm("/boss/spawn", { key: "nope", map: MAP })).status, 400, "not a boss that isn't");
   const X = 7 * M.T + 260;
-  const sp = await adm("/boss/spawn", { key: "nguuma", map: MAP, x: X, hp: 20000, stones: 9000, exp: 30000, killBonus: 20, minutes: 10 });
+  const sp = await adm("/boss/spawn", { key: "xavuong", map: MAP, x: X, hp: 20000, stones: 9000, exp: 30000, killBonus: 20, minutes: 10 });
   assert.equal(sp.status, 200, JSON.stringify(sp.data));
-  assert.equal((await adm("/boss/spawn", { key: "nguuma", map: MAP, x: X })).status, 409, "not a second at once");
+  assert.equal((await adm("/boss/spawn", { key: "xavuong", map: MAP, x: X })).status, 409, "not a second at once");
   ok("called by an admin onto a hunting map; not onto Tân Thủ Thôn, not twice at once");
 
   // ---- in every Khu, one life
@@ -154,7 +154,7 @@ try {
   ok("brought down: linh thạch and tu vi shared by damage, the killer's bonus on top, a row each (given once), each told");
 
   // ---- taken back by the admin: gone from every Khu, nothing given
-  await until(async () => (await adm("/boss/spawn", { key: "nguuma", map: MAP, x: X, hp: 50000 })).status === 200, 12000);
+  await until(async () => (await adm("/boss/spawn", { key: "xavuong", map: MAP, x: X, hp: 50000 })).status === 200, 12000);
   assert.ok(await until(() => bossOf(A) && !bossOf(A)[1].dead && bossOf(B) && !bossOf(B)[1].dead, 4000), "a new one in both Khu");
   const id2 = (await adm("/boss", null, "GET")).data.now.id;
   await fight(A, 1500);

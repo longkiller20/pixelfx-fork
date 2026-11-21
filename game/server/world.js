@@ -1182,7 +1182,7 @@ export class World {
   }
   /**
    * The boss in this Khu: it keeps its life in step with the shared one, turns to the nearest player within aggro,
-   * walks at them (not far from where it stood), and slams its mace on those in front of it.
+   * walks at them (not far from where it stood), and strikes at those in front of it.
    */
   stepBoss(m) {
     const t = this.t;
@@ -1216,7 +1216,7 @@ export class World {
         this.at(t + SLAM_HIT, () => {
           if (m.dead || !this.ents.has(m.id)) return;
           const fx = m.x + face * 96;
-          this.ev({ e: "fx", k: "bossslam", x: Math.round(fx), y: Math.round(m.y) });
+          this.ev({ e: "fx", k: "bossslam", b: m.type, x: Math.round(fx), y: Math.round(m.y) });
           for (const q of this.players.values()) {
             if (q.dead || q.gone || q.protectUntil > this.t) continue;
             const qx = (q.x - m.x) * face;
@@ -1242,7 +1242,7 @@ export class World {
     this.ev({ e: "boss", id: m.id, a: "roar" });
     this.at(t + ROAR_HIT, () => {
       if (m.dead || !this.ents.has(m.id)) return;
-      this.ev({ e: "fx", k: "bossroar", x: Math.round(m.x), y: Math.round(m.y) });
+      this.ev({ e: "fx", k: "bossroar", b: m.type, x: Math.round(m.x), y: Math.round(m.y) });
       for (const p of this.players.values()) {
         if (p.dead || p.gone || p.protectUntil > this.t) continue;
         const st = this.stats(p), dmg = Math.max(1, Math.round((st.maxHp * BOSS.roarPct) / 100));

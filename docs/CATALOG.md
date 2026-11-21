@@ -481,5 +481,5 @@ world bosses, rigged, and what they throw: the bull demon king and his roar.
 
 | effect | id | | size | what it does |
 |---|---|---|---|---|
-| Hỏa Ngưu Ma Vương | `boss/nguu-ma-vuong` | loop 2.4s | 300×200 | A rigged world boss: a bull demon king with a lava-cracked spiked mace. options.anim: idle, walk, slam, roar, dead. |
+| Cửu U Xà Vương | `boss/cuu-u-xa-vuong` | loop 2.4s | 300×200 | A rigged world boss: a serpent demon king with seven serpent heads and a coiled tail. options.anim: idle, walk, slam, roar, dead. |
 | Roar wave | `boss/roar-wave` | one-shot 2s | 420×220 | A boss's roar: a dark-red aura swells, three rings of fire tear out along the floor, heat rises, embers and ash fly wide, a scorch fades. |

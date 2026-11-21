@@ -260,7 +260,7 @@ export function adminApp(world) {
     const b = req.body ?? {};
     let out;
     try {
-      out = await world.boss.spawn({ key: String(b.key ?? "nguuma"), map: String(b.map ?? ""), x: b.x, hp: b.hp, stones: b.stones, exp: b.exp, killBonus: b.killBonus, minutes: b.minutes, by: req.admin.name });
+      out = await world.boss.spawn({ key: String(b.key ?? "xavuong"), map: String(b.map ?? ""), x: b.x, hp: b.hp, stones: b.stones, exp: b.exp, killBonus: b.killBonus, minutes: b.minutes, by: req.admin.name });
     } catch (e) {
       if (e.status) throw bad(e.message, e.status);
       throw e;

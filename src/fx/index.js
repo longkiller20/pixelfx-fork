@@ -283,7 +283,7 @@ import * as chinhta_flag from "./chinhta/flag.js";
 import * as chinhta_stele from "./chinhta/stele.js";
 import * as nhanvat_kiem_khach from "./nhanvat/kiem-khach.js";
 import * as nhanvat_tien_tu from "./nhanvat/tien-tu.js";
-import * as boss_nguu_ma_vuong from "./boss/nguu-ma-vuong.js";
+import * as boss_cuu_u_xa_vuong from "./boss/cuu-u-xa-vuong.js";
 import * as boss_roar_wave from "./boss/roar-wave.js";
 
 export { categories } from "./categories.js";
@@ -572,6 +572,6 @@ export const effects = {
   "chinhta/stele": chinhta_stele,
   "nhanvat/kiem-khach": nhanvat_kiem_khach,
   "nhanvat/tien-tu": nhanvat_tien_tu,
-  "boss/nguu-ma-vuong": boss_nguu_ma_vuong,
+  "boss/cuu-u-xa-vuong": boss_cuu_u_xa_vuong,
   "boss/roar-wave": boss_roar_wave,
 };
