@@ -1,7 +1,10 @@
 // MariaDB: the pool, transactions, and the schema (created on start, safe to run every time).
 import mariadb from "mariadb";
 import { config } from "./config.js";
-import { COSMETICS_SEED, WEAPONS_SEED, DEFAULT_WEAPON, SWORDS_SEED, BASIC_SWORD } from "./cosmetics-seed.js";
+import { fashionSeed, SWORDS_SEED, BASIC_SWORD } from "./cosmetics-seed.js";
+import { KIND_KEYS } from "../shared/thoi-trang.js";
+// the long sword everyone held before weapons went (the column stays, unused)
+const DEFAULT_WEAPON = 60;
 import { seedConfig } from "./gameconfig.js";
 import { CONG_PHAP, DROPS_SEED } from "../shared/cong-phap.js";
 
@@ -140,11 +143,11 @@ const SCHEMA = [
     PRIMARY KEY (user_id, day),
     CONSTRAINT fk_daily_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
-  // the wardrobe: every hair style and robe the game knows, by its number: its picture is public/toc-nam/<idx>-<name>/ and so on (server/assets.js). An admin adds,
+  // the wardrobe: every hair style and robe the game knows, by its number: its picture is public/thoi-trang/<kind>/<idx>.png (a flying sword public/phi-kiem/<idx>-<name>/) (server/assets.js). An admin adds,
   // prices, renames or takes items off sale here (or with tools/cosmetics.mjs); the game reads it live.
   `CREATE TABLE IF NOT EXISTS cosmetics (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    kind VARCHAR(8) NOT NULL,
+    kind VARCHAR(12) NOT NULL,
     gender CHAR(1) NOT NULL,
     idx SMALLINT UNSIGNED NOT NULL,
     name VARCHAR(40) NOT NULL,
@@ -549,6 +552,10 @@ const UPGRADES = [
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS faction CHAR(1) NULL AFTER sword",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS faction_at DATETIME NULL AFTER faction",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS ct_points INT UNSIGNED NOT NULL DEFAULT 0 AFTER faction_at",
+  // Thời trang (shared/thoi-trang.js): what is worn in each of the 12 layers, 0 for the figure's own / nothing
+  ...KIND_KEYS.map((k) => `ALTER TABLE characters ADD COLUMN IF NOT EXISTS ${k} SMALLINT UNSIGNED NOT NULL DEFAULT 0`),
+  // the kinds are longer now (khuonmat, docamtay, haoquang)
+  "ALTER TABLE cosmetics MODIFY kind VARCHAR(12) NOT NULL",
   // Đồ Sát: the sát khí from bringing down players who weren't fighting, and when it was last set (it wears off with time)
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS sat_khi SMALLINT UNSIGNED NOT NULL DEFAULT 0 AFTER ct_points",
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS sat_khi_at DATETIME NULL AFTER sat_khi",
@@ -562,7 +569,8 @@ const UPGRADES = [
  */
 async function retireShop(c) {
   // the items going, as a condition on a cosmetics row named k
-  const gone = `k.special = 0 AND (k.starter = 0 OR (k.kind = 'weapon' AND k.idx <> ${DEFAULT_WEAPON}) OR (k.kind = 'sword' AND k.idx <> ${BASIC_SWORD}))`;
+  // (only the kinds there were then: on a fresh database it runs after the fashion items are seeded, and leaves them)
+  const gone = `k.kind IN ('hair', 'robe', 'weapon', 'sword') AND k.special = 0 AND (k.starter = 0 OR (k.kind = 'weapon' AND k.idx <> ${DEFAULT_WEAPON}) OR (k.kind = 'sword' AND k.idx <> ${BASIC_SWORD}))`;
   await c.query(
     `UPDATE characters ch JOIN (SELECT o.user_id, SUM(o.price) AS paid FROM owned_cosmetics o JOIN cosmetics k ON k.id = o.cosmetic_id
        WHERE ${gone} GROUP BY o.user_id) r ON r.user_id = ch.user_id
@@ -626,7 +634,20 @@ async function artReqs(c) {
   const rows = CONG_PHAP.flatMap((a) => (a.reqs ?? []).map((r) => [a.key, r.item, r.qty]));
   if (rows.length) await c.batch("INSERT IGNORE INTO cong_phap_reqs (art_key, item_key, qty) VALUES (?, ?, ?)", rows);
 }
-const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials], ["arts_in_code_2026_11", artsInCode], ["cong_phap_reqs_2026_11", artReqs]];
+/**
+ * The characters change to the old game's chibi figure (shared/thoi-trang.js): the hair styles, robes and weapons go from
+ * the Y Các. Whoever paid for one gets every stone of it back; they all go (with who owned them), and everyone wears the
+ * figure's own clothes until they pick new ones. The flying swords stay.
+ */
+async function chibiWardrobe(c) {
+  const gone = "k.kind IN ('hair', 'robe', 'weapon')";
+  await c.query(
+    `UPDATE characters ch JOIN (SELECT o.user_id, SUM(o.price) AS paid FROM owned_cosmetics o JOIN cosmetics k ON k.id = o.cosmetic_id
+       WHERE ${gone} GROUP BY o.user_id) r ON r.user_id = ch.user_id SET ch.stones = ch.stones + r.paid`,
+  );
+  await c.query(`DELETE k FROM cosmetics k WHERE ${gone}`);
+}
+const ONCE = [["retire_shop_2026_11", retireShop], ["retire_specials_2026_11", retireSpecials], ["arts_in_code_2026_11", artsInCode], ["cong_phap_reqs_2026_11", artReqs], ["chibi_wardrobe_2026_11", chibiWardrobe]];
 
 export async function migrate() {
   for (const s of SCHEMA) await q(s);
@@ -635,7 +656,7 @@ export async function migrate() {
   // the first wardrobe; rows already there (and an admin's changes to them) are kept
   await pool.batch(
     "INSERT IGNORE INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [...COSMETICS_SEED, ...WEAPONS_SEED, ...SWORDS_SEED].map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.onSale === false ? 0 : 1, c.special ? 1 : 0, c.idx]),
+    [...fashionSeed(), ...SWORDS_SEED].map((c) => [c.kind, c.g, c.idx, c.name, c.price, c.starter ? 1 : 0, c.onSale === false ? 0 : 1, c.special ? 1 : 0, c.idx]),
   );
   // the first goods of the sect treasure house; rows an admin changed are kept
   await pool.batch("INSERT IGNORE INTO sect_shop (item_key, cost, min_level, daily_limit, on_sale, sort) VALUES (?, ?, ?, ?, 1, ?)", SECT_SHOP_SEED.map((r, i) => [r.item, r.cost, r.level, r.limit, (i + 1) * 10]));
@@ -649,10 +670,10 @@ export async function migrate() {
     console.log("migration:", name);
   }
   // whatever a character already wears is theirs to keep, even if it is now sold in the shop
-  for (const kind of ["hair", "robe", "weapon", "sword"])
+  for (const kind of [...KIND_KEYS, "sword"])
     await q(
       `INSERT IGNORE INTO owned_cosmetics (user_id, cosmetic_id, price)
-       SELECT ch.user_id, c.id, 0 FROM characters ch JOIN cosmetics c ON c.kind = ? AND c.gender = ${kind === "weapon" || kind === "sword" ? "'a'" : "ch.gender"} AND c.idx = ch.${kind}
+       SELECT ch.user_id, c.id, 0 FROM characters ch JOIN cosmetics c ON c.kind = ? AND c.gender = 'a' AND c.idx = ch.${kind}
        WHERE c.starter = 0`,
       [kind],
     );

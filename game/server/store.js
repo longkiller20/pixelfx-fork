@@ -8,8 +8,8 @@
 //     that happened in between is never overwritten.
 import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
-import { DEFAULT_WEAPON } from "./cosmetics-seed.js";
-import { CLASS, validLook, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, START, NAME_RE, levelFromExp, ARTS, ART_SLOTS, STARTER_ARTS, canFly, flyRealmName } from "../shared/balance.js";
+import { KIND_KEYS, KIND, WEAR_KINDS, isBase, BASIC_SWORD } from "../shared/thoi-trang.js";
+import { CLASS, GENDERS, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, START, NAME_RE, levelFromExp, ARTS, ART_SLOTS, STARTER_ARTS, canFly, flyRealmName } from "../shared/balance.js";
 
 export class GameError extends Error {
   constructor(message, status = 400) {
@@ -18,7 +18,7 @@ export class GameError extends Error {
   }
 }
 
-const COLS = "user_id, name, gender, hair, robe, weapon, sword, faction, ct_points, sat_khi, sat_khi_at, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots, map_id";
+const COLS = `user_id, name, gender, ${KIND_KEYS.join(", ")}, sword, faction, ct_points, sat_khi, sat_khi_at, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots, map_id`;
 /** The bar as saved, or the starters for a character that never changed it; always ART_SLOTS long. */
 export function parseSlots(raw) {
   let a = null;
@@ -29,7 +29,7 @@ export function parseSlots(raw) {
   return Array.from({ length: ART_SLOTS }, (_, i) => (typeof a[i] === "string" ? a[i] : null));
 }
 const shape = (r) => r && {
-  userId: r.user_id, name: r.name, cls: CLASS, look: { g: r.gender === "f" ? "f" : "m", hair: Number(r.hair), robe: Number(r.robe), weapon: Number(r.weapon), sword: Number(r.sword ?? 0) }, exp: Number(r.exp), stones: Number(r.stones), rank: Number(r.rank_points),
+  userId: r.user_id, name: r.name, cls: CLASS, look: lookOf(r), exp: Number(r.exp), stones: Number(r.stones), rank: Number(r.rank_points),
   kills: Number(r.kills), deaths: Number(r.deaths), level: levelFromExp(Number(r.exp)),
   medLeft: Math.max(0, MEDITATE.dailyCap - (r.med_today ? Number(r.med_exp) : 0)),
   slots: parseSlots(r.art_slots),
@@ -44,6 +44,9 @@ const shape = (r) => r && {
 export async function setSatKhi(uid, v) {
   await q("UPDATE characters SET sat_khi = ?, sat_khi_at = NOW() WHERE user_id = ?", [v, uid]);
 }
+
+/** A character's look from its row: the gender, what is worn in each fashion layer (0: the figure's own), the flying sword. */
+export const lookOf = (r) => ({ g: r.gender === "f" ? "f" : "m", ...Object.fromEntries(KIND_KEYS.map((k) => [k, Number(r[k] ?? 0)])), sword: Number(r.sword ?? BASIC_SWORD) });
 
 /** The map a character is on, so they come back there. */
 export async function setMap(uid, mapId) {
@@ -73,17 +76,25 @@ export function createCharacter(uid, name, look, faction) {
   if (!NAME_RE.test(name)) throw new GameError("Đạo hiệu dài 3-16 ký tự, chỉ gồm chữ, số, khoảng trắng hoặc _.");
   // Chính Tà: every new character picks a side (Chính Phái or Tà Phái)
   if (faction !== "c" && faction !== "t") throw new GameError("Hãy chọn Chính Phái hoặc Tà Phái.");
-  const g = look?.g, hair = look?.hair, robe = look?.robe;
-  if (!validLook(g, hair, robe)) throw new GameError("Ngoại hình không hợp lệ.");
+  // the gender, and for each base layer (hair, shirt, trousers, eyes, face) the figure's own (0) or one of the free ones
+  const g = look?.g;
+  if (!GENDERS.includes(g)) throw new GameError("Ngoại hình không hợp lệ.");
+  const pick = {};
+  for (const k of KIND_KEYS) {
+    const v = look?.[k] ?? 0;
+    if (!Number.isInteger(v) || v < 0 || v > 65535 || (v && !isBase(k))) throw new GameError("Ngoại hình không hợp lệ.");
+    if (v) pick[k] = v;
+  }
   return userLock.run(uid, () => tx(async (c) => {
-    // at creation only the free starter styles of that gender can be picked; the rest are bought in game
-    const free = await c.query(
-      "SELECT kind FROM cosmetics WHERE gender = ? AND starter = 1 AND ((kind = 'hair' AND idx = ?) OR (kind = 'robe' AND idx = ?))",
-      [g, hair, robe],
-    );
-    if (free.length !== 2) throw new GameError("Ngoại hình này chưa mở, hãy chọn kiểu khởi đầu.");
+    // at creation only the free starter styles can be picked; the rest are bought in game
+    for (const [k, v] of Object.entries(pick)) {
+      const [free] = await c.query("SELECT 1 AS x FROM cosmetics WHERE kind = ? AND idx = ? AND starter = 1 AND special = 0", [k, v]);
+      if (!free) throw new GameError("Ngoại hình này chưa mở, hãy chọn kiểu khởi đầu.");
+    }
+    const cols = Object.keys(pick);
     try {
-      await c.query("INSERT INTO characters (user_id, name, class, gender, hair, robe, stones, faction) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [uid, name, CLASS, g, hair, robe, START.stones, faction]);
+      await c.query(`INSERT INTO characters (user_id, name, class, gender, stones, faction${cols.map((k) => `, ${k}`).join("")}) VALUES (?, ?, ?, ?, ?, ?${cols.map(() => ", ?").join("")})`,
+        [uid, name, CLASS, g, START.stones, faction, ...cols.map((k) => pick[k])]);
     } catch (e) {
       if (isDup(e)) throw new GameError(/uq_name/.test(e.message) ? "Đạo hiệu này đã có người dùng." : "Tài khoản đã có nhân vật.", 409);
       throw e;
@@ -263,7 +274,8 @@ export function adminArt(uid, key, learn) {
 }
 
 // ---------------------------------------------------------------- the wardrobe (Y Các)
-const SLOT = { hair: "hair", robe: "robe", weapon: "weapon", sword: "sword" };
+// the column each kind is worn in: its own name (shared/thoi-trang.js)
+const SLOT = Object.fromEntries(WEAR_KINDS.map((k) => [k, k]));
 const ITEM_COLS = "id, kind, gender, idx, name, price, starter, on_sale, special";
 // a special item (bảo vật) is never on sale and never free, whatever its other flags say
 const shapeItem = (r) => ({ id: r.id, kind: r.kind, g: r.gender, idx: r.idx, name: r.name, price: r.price, starter: !!r.starter && !r.special, onSale: !!r.on_sale && !r.special, special: !!r.special });
@@ -277,7 +289,7 @@ export async function wardrobe(uid) {
      ORDER BY kind, gender, starter DESC, sort, idx`,
     [uid],
   );
-  return { items: rows.map(shapeItem), owned, defaultWeapon: DEFAULT_WEAPON };
+  return { items: rows.map(shapeItem), owned };
 }
 
 const itemId = (id) => {
@@ -315,7 +327,18 @@ export function buyCosmetic(uid, id, wear) {
   }));
 }
 
-/** Wear a hair style or robe the player owns (or a free one). */
+/** Take off what is worn in one layer: a base layer (hair, shirt...) goes back to the figure's own, the rest to nothing. */
+export function unwearCosmetic(uid, kind) {
+  if (!KIND[kind]) throw new GameError("Không có ô trang phục này.");
+  return userLock.run(uid, () => tx(async (c) => {
+    const [ch] = await c.query("SELECT 1 AS x FROM characters WHERE user_id = ?", [uid]);
+    if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
+    await c.query(`UPDATE characters SET ${kind} = 0 WHERE user_id = ?`, [uid]);
+    return loadCharacter(uid, c);
+  }));
+}
+
+/** Wear something the player owns (or a free one). */
 export function wearCosmetic(uid, id) {
   id = itemId(id);
   return userLock.run(uid, () => tx(async (c) => {
@@ -376,7 +399,7 @@ export function adminAdjust(uid, field, op, value, onLoaded) {
 /** Give back today's meditation allowance. */
 export const adminResetMeditation = (uid, onLoaded) => adminRun(uid, (c) => c.query("UPDATE characters SET med_exp = 0, med_day = CURDATE() WHERE user_id = ?", [uid]), onLoaded);
 
-/** Name, gender, hair, robe (any of them). */
+/** Name, gender, what is worn in any layer (any of them). */
 export function adminLook(uid, ch, onLoaded) {
   const set = Object.entries(ch);
   if (!set.length) throw new GameError("Không có gì để lưu.");
@@ -406,9 +429,10 @@ export function adminItem(uid, item, op, value) {
 export const logPvp = (killer, victim, rewarded) => q("INSERT INTO pvp_log (killer_id, victim_id, rewarded) VALUES (?, ?, ?)", [killer, victim, rewarded ? 1 : 0]);
 
 export async function leaderboard() {
-  const rank = await q("SELECT name, gender, hair, robe, rank_points AS v, exp FROM characters ORDER BY rank_points DESC, exp DESC LIMIT 20");
-  const exp = await q("SELECT name, gender, hair, robe, exp AS v, exp FROM characters ORDER BY exp DESC LIMIT 20");
-  const fmt = (rows) => rows.map((r) => ({ name: r.name, look: { g: r.gender, hair: Number(r.hair), robe: Number(r.robe) }, v: Number(r.v), level: levelFromExp(Number(r.exp)) }));
+  const L = `name, gender, ${KIND_KEYS.join(", ")}, sword`;
+  const rank = await q(`SELECT ${L}, rank_points AS v, exp FROM characters ORDER BY rank_points DESC, exp DESC LIMIT 20`);
+  const exp = await q(`SELECT ${L}, exp AS v, exp FROM characters ORDER BY exp DESC LIMIT 20`);
+  const fmt = (rows) => rows.map((r) => ({ name: r.name, look: lookOf(r), v: Number(r.v), level: levelFromExp(Number(r.exp)) }));
   return { rank: fmt(rank), exp: fmt(exp) };
 }
 

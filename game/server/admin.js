@@ -21,6 +21,7 @@ import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
 import * as dl from "./dao-lu.js";
 import * as ct from "./chinh-ta.js";
+import { KIND_KEYS, KIND_NAME } from "../shared/thoi-trang.js";
 import { RINGS, RING_BUFF, ROSE, NEED } from "../shared/dao-lu.js";
 import { RODS, BAITS, FISH, RARITY, RATES, CHEST, odds } from "../shared/cau-ca.js";
 import { ITEMS } from "../shared/balance.js";
@@ -106,7 +107,7 @@ const T = {
   sect_shop: { pk: "item_key", pkType: "key", order: "sort, item_key", add: true, del: true, cols: { cost: "uint", min_level: "uint", daily_limit: "uint", on_sale: "bool", sort: "int" } },
   cosmetics: {
     pk: "id", order: "kind, gender, starter DESC, sort, idx", add: true, del: true,
-    cols: { kind: "enum:hair|robe|weapon|sword", gender: "enum:m|f|a", idx: "uint", name: "str:40", price: "uint", starter: "bool", on_sale: "bool", special: "bool", sort: "int" },
+    cols: { kind: `enum:${[...KIND_KEYS, "sword"].join("|")}`, gender: "enum:m|f|a", idx: "uint", name: "str:40", price: "uint", starter: "bool", on_sale: "bool", special: "bool", sort: "int" },
   },
 };
 
@@ -135,8 +136,9 @@ function value(type, v, col) {
 }
 
 // the parts there are pictures of: one folder each in public/ (server/assets.js)
-const partName = { hair: "Tóc", robe: "Y phục", weapon: "Vũ khí", sword: "Phi kiếm" };
-const folderOf = (kind, g) => Object.entries(PART_DIRS).find(([, v]) => v[0] === kind && v[1] === g)?.[0] ?? kind;
+const partName = KIND_NAME;
+// where a part's picture must be: a fashion item public/thoi-trang/<kind>/<idx>.png, a flying sword public/phi-kiem/<idx>-<name>/
+const whereOf = (kind, g, idx) => (KIND_KEYS.includes(kind) ? `public/thoi-trang/${kind}/${idx}.png` : `thư mục public/${Object.entries(PART_DIRS).find(([, v]) => v[0] === kind && v[1] === g)?.[0] ?? kind}/${idx}-tenmon/ có hinh.png`);
 
 // ---------------------------------------------------------------- the app
 export function adminApp(world) {
@@ -356,7 +358,7 @@ export function adminApp(world) {
   const pkValue = (t, v) => (t.pkType === "key" || t.pk === "k" || t.pk === "type" ? String(v) : Number(v));
   const checkCosmetic = (row) => {
     if (!hasPart(row.kind, row.gender, row.idx))
-      throw bad(`Không có hình số ${row.idx}: cần thư mục public/${folderOf(row.kind, row.gender)}/${row.idx}-tenmon/ có hinh.png (và thong-tin.json).`);
+      throw bad(`Không có hình số ${row.idx}: cần ${whereOf(row.kind, row.gender, row.idx)}.`);
   };
 
   // an effect must be one the game has (public/hieu-ung/); empty is fine (an art throws the weapon, a monster is a dummy)
@@ -457,7 +459,7 @@ export function adminApp(world) {
   // Every edit of a player goes through store.admin*(), under the player's own lock with atomic SQL, and hands the
   // re-read character to world.refresh() while still holding that lock: an online player's running numbers, their
   // unsaved gains and the save in flight all stay right (see World.applyBase).
-  const PLAYER_COLS = `u.id, u.username, u.banned, u.ban_reason, u.created_at, IF(u.chat_muted_until > NOW(), u.chat_muted_until, NULL) AS chat_muted_until, c.name, c.gender, c.hair, c.robe, c.weapon, c.sword, c.exp, c.stones, c.rank_points,
+  const PLAYER_COLS = `u.id, u.username, u.banned, u.ban_reason, u.created_at, IF(u.chat_muted_until > NOW(), u.chat_muted_until, NULL) AS chat_muted_until, c.name, c.gender, ${KIND_KEYS.map((k) => `c.${k}`).join(", ")}, c.sword, c.exp, c.stones, c.rank_points,
     c.kills, c.deaths, c.created_at AS char_created, (c.med_day = CURDATE()) AS med_today, c.med_exp`;
   const shapePlayer = (p) => ({
     ...p, exp: p.exp === null ? null : Number(p.exp), stones: p.stones === null ? null : Number(p.stones), banned: !!p.banned,
@@ -600,23 +602,18 @@ export function adminApp(world) {
       if (!NAME_RE.test(name)) throw bad("Đạo hiệu 3-16 ký tự: chữ, số, khoảng trắng hoặc _.");
       set.name = name;
     }
-    const [cur] = await q("SELECT gender, hair, robe, weapon, sword FROM characters WHERE user_id = ?", [id]);
+    const [cur] = await q("SELECT gender FROM characters WHERE user_id = ?", [id]);
     if (!cur) throw bad("Người chơi này chưa có nhân vật.");
     if (b.gender !== undefined) {
       if (!GENDERS.includes(b.gender)) throw bad("Giới tính m hoặc f.");
       set.gender = b.gender;
     }
-    const g = set.gender ?? cur.gender;
-    for (const k of ["hair", "robe"]) {
-      const v = b[k] === undefined ? (set.gender ? cur[k] : undefined) : value("uint", b[k], k);
-      if (v === undefined) continue;
-      if (!hasPart(k, g, v)) throw bad(`${partName[k]} số ${v} không có cho giới tính này (không có thư mục public/${folderOf(k, g)}/${v}-...).`);
+    // each fashion layer: 0 (the figure's own / nothing) or an item there is a picture of
+    for (const k of KIND_KEYS) {
+      if (b[k] === undefined) continue;
+      const v = value("uint", b[k], KIND_NAME[k]);
+      if (v && !hasPart(k, "a", v)) throw bad(`${KIND_NAME[k]} số ${v} không có (không có ${whereOf(k, "a", v)}).`);
       set[k] = v;
-    }
-    if (b.weapon !== undefined) {
-      const v = value("uint", b.weapon, "vũ khí");
-      if (!hasPart("weapon", "a", v)) throw bad(`Vũ khí số ${v} không có (không có thư mục public/vu-khi/${v}-...).`);
-      set.weapon = v;
     }
     if (b.sword !== undefined) {
       const v = value("uint", b.sword, "phi kiếm");
@@ -759,7 +756,7 @@ export function adminApp(world) {
   // the page, plus the parts' pictures (one folder each) for the thumbnails
   // the pictures of parts and arts (one folder each), and their list, for the thumbnails
   app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type("application/json").send(assetsJson()));
-  for (const d of [...Object.keys(PART_DIRS), ART_DIR, "nhan-vat"]) app.use(`/${d}`, express.static(join(ROOT, "public", d), { maxAge: 0 }));
+  for (const d of [...Object.keys(PART_DIRS), ART_DIR, "thoi-trang"]) app.use(`/${d}`, express.static(join(ROOT, "public", d), { maxAge: 0 }));
   app.use("/xianxia", express.static(join(ROOT, "public", "xianxia"), { maxAge: "1h" }));
   // the Gia Viên's house pictures, shown in the Nhà Ở tab
   app.use("/gia-vien", express.static(join(ROOT, "public", "gia-vien"), { maxAge: "1h" }));

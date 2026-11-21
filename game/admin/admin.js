@@ -172,27 +172,42 @@ function record({ title, sub, fields, row = {}, onSave, onDelete, extra, isNew =
   return card;
 }
 
-// ---------------------------------------------------------------- thumbnails of the parts, from their own folders
-// every part is its own picture, public/<kind>/<idx>-<name>/hinh.png; the server lists them at /assets.json
+// ---------------------------------------------------------------- thumbnails of the parts
+// the fashion items (shared/thoi-trang.js): public/thoi-trang/<kind>/<idx>.png; the flying swords: public/phi-kiem/<idx>-<name>/hinh.png.
+// The server lists them at /assets.json.
 let atlas = null;
-const PART_FOLDER = { hair_m: "toc-nam", hair_f: "toc-nu", robe_m: "y-phuc-nam", robe_f: "y-phuc-nu", weapon_a: "vu-khi", sword_a: "phi-kiem" };
+const FASHION = [["toc", "Tóc"], ["ao", "Áo"], ["quan", "Quần"], ["non", "Nón"], ["kinh", "Kính"], ["matna", "Mặt nạ"], ["mat", "Mắt"], ["khuonmat", "Khuôn mặt"],
+  ["canh", "Cánh"], ["haoquang", "Hào quang"], ["docamtay", "Đồ cầm tay"], ["thucung", "Thú cưng"]];
+const KIND_LABEL = { ...Object.fromEntries(FASHION), sword: "Phi kiếm" };
+const isFashion = (k) => k in Object.fromEntries(FASHION);
 async function loadAtlas() {
-  atlas = { parts: (await fetch("/assets.json", { cache: "no-store" }).then((r) => r.json())).parts };
+  const a = await fetch("/assets.json", { cache: "no-store" }).then((r) => r.json());
+  atlas = { parts: a.parts, fashion: a.fashion ?? {} };
   return atlas;
 }
-/** The idx numbers there are pictures of for a kind, in order. */
-const partIdx = (key) => Object.keys(atlas?.parts[key] ?? {}).map(Number).sort((a, b) => a - b);
+/** The idx numbers there are pictures of for a kind ("toc", or "sword_a"), in order. */
+const partIdx = (key) => Object.keys((isFashion(key) ? atlas?.fashion[key] : atlas?.parts[key]) ?? {}).map(Number).sort((a, b) => a - b);
 function thumb(kind, g, idx, cls = "thumb") {
   const c = el("canvas", { class: cls, width: 64, height: 64 });
-  const e = atlas?.parts[`${kind}_${g}`]?.[idx];
-  if (!e) return c;
+  const src = isFashion(kind) ? (atlas?.fashion[kind]?.[idx] ? `/thoi-trang/${kind}/${idx}.png` : null) : atlas?.parts[`${kind}_${g}`]?.[idx] ? `/${atlas.parts[`${kind}_${g}`][idx].dir}/hinh.png` : null;
+  if (!src) return c;
   const img = new Image();
   img.onload = () => {
-    const w = img.width, h = img.height, s = Math.min(64 / w, 64 / h), g2 = c.getContext("2d");
+    // cut to what the picture covers (the fashion items are small in a 45 x 48 frame), then scale it up pixel for pixel
+    const t = document.createElement("canvas");
+    t.width = img.width;
+    t.height = img.height;
+    const tg = t.getContext("2d");
+    tg.drawImage(img, 0, 0);
+    const d = tg.getImageData(0, 0, img.width, img.height).data;
+    let x0 = img.width, y0 = img.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) if (d[(y * img.width + x) * 4 + 3] > 100) (x0 = Math.min(x0, x)), (y0 = Math.min(y0, y)), (x1 = Math.max(x1, x)), (y1 = Math.max(y1, y));
+    if (x1 < 0) return;
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, s = Math.min(60 / w, 60 / h), g2 = c.getContext("2d");
     g2.imageSmoothingEnabled = false;
-    g2.drawImage(img, (64 - w * s) / 2, (64 - h * s) / 2, w * s, h * s);
+    g2.drawImage(img, x0, y0, w, h, (64 - w * s) / 2, (64 - h * s) / 2, w * s, h * s);
   };
-  img.src = `/${e.dir}/hinh.png`;
+  img.src = src;
   return c;
 }
 
@@ -970,29 +985,30 @@ const VIEWS = {
   async cosmetics() {
     await loadAtlas();
     const rows = await api("/t/cosmetics");
-    const kind = el("select", {}, [["hair", "Tóc"], ["robe", "Y phục"], ["weapon", "Vũ khí"], ["sword", "Phi kiếm (bay)"]].map(([v, l]) => el("option", { value: v }, l)));
-    const g = el("select", {}, [["m", "Nam"], ["f", "Nữ"]].map(([v, l]) => el("option", { value: v }, l)));
+    const kind = el("select", {}, [...FASHION, ["sword", "Phi kiếm (bay)"]].map(([v, l]) => el("option", { value: v }, l)));
+    const g = el("select", {}, [["a", "Mọi giới tính"], ["m", "Nam"], ["f", "Nữ"]].map(([v, l]) => el("option", { value: v }, l)));
     const state = el("select", {}, [["all", "Tất cả"], ["starter", "Miễn phí (khởi đầu)"], ["sale", "Đang bán"], ["off", "Ngừng bán"], ["special", "Bảo vật (đặc biệt)"]].map(([v, l]) => el("option", { value: v }, l)));
     const q = el("input", { placeholder: "Tìm theo tên...", type: "search" });
     const grid = el("div");
     const F = [
       { k: "name", label: "Tên", wide: true }, { k: "price", label: "Giá (linh thạch)", type: "number", step: 1 }, { k: "sort", label: "Thứ tự", type: "number", step: 1 },
-      { k: "starter", label: "Miễn phí (tóc/áo: khi tạo nhân vật; phi kiếm: tặng khi mở khoá bay)", type: "bool" }, { k: "on_sale", label: "Đang bán", type: "bool" },
+      { k: "starter", label: "Miễn phí (tóc, áo, quần, mắt, khuôn mặt: chọn được khi tạo nhân vật; phi kiếm: tặng khi mở khoá bay)", type: "bool" }, { k: "on_sale", label: "Đang bán", type: "bool" },
       { k: "special", label: "Bảo vật: không bán, chỉ tặng (sự kiện, đấu giá)", type: "bool" },
     ];
     const draw = () => {
-      const gv = kind.value === "weapon" || kind.value === "sword" ? "a" : g.value;
-      g.disabled = gv === "a";
+      // the fashion items are for everyone ("a"), as are the flying swords; an item for one gender only can still be added
+      const gv = g.value;
       const list = rows.filter((r) => r.kind === kind.value && r.gender === gv &&
         (state.value === "all" || (state.value === "special" && r.special) || (!r.special && ((state.value === "starter" && r.starter) || (state.value === "sale" && r.on_sale && !r.starter) || (state.value === "off" && !r.on_sale)))) &&
         r.name.toLowerCase().includes(q.value.trim().toLowerCase()));
       const used = new Set(rows.filter((r) => r.kind === kind.value && r.gender === gv).map((r) => r.idx));
-      const key = `${kind.value}_${gv}`, have = partIdx(key);
+      const key = isFashion(kind.value) ? kind.value : `${kind.value}_${gv}`, have = partIdx(key);
+      const where = isFashion(kind.value) ? `public/thoi-trang/${kind.value}/<số>.png` : "public/phi-kiem/<số>-<tên>/hinh.png";
       const free = have.filter((i) => !used.has(i));
       const add = record({
-        title: "Thêm món", sub: free.length ? `có hình chưa dùng: số ${free.join(", ")}` : `hình nào cũng đã dùng; thêm thư mục public/${PART_FOLDER[key]}/<số>-<tên>/ có hinh.png`,
+        title: "Thêm món", sub: free.length ? `có hình chưa dùng: số ${free.join(", ")}` : `hình nào cũng đã dùng; thêm hình ${where}`,
         isNew: true, row: { idx: free[0] ?? "", price: 150, starter: 0, on_sale: 1, sort: 0 },
-        fields: [{ k: "idx", label: `Số của hình (thư mục public/${PART_FOLDER[key]}/<số>-…)`, type: "number", step: 1 }, ...F],
+        fields: [{ k: "idx", label: `Số của hình (${where})`, type: "number", step: 1 }, ...F],
         onSave: async (c) => (await guard(() => api("/t/cosmetics", { method: "POST", body: { ...c, kind: kind.value, gender: gv } }), "Đã thêm.")) && (await refresh()),
       });
       grid.replaceChildren(el("div", { class: "grid" }, add), ...paged(list, (r) => {
@@ -1013,7 +1029,7 @@ const VIEWS = {
     for (const s of [kind, g, state]) s.addEventListener("change", draw);
     q.addEventListener("input", draw);
     draw();
-    return [el("h2", {}, "Tóc, Y phục, Vũ khí & Phi kiếm"), el("p", { class: "dim" }, "Tóc và áo \"Miễn phí\" được chọn lúc tạo nhân vật; vũ khí miễn phí ai cũng dùng được trong Y Các. Còn lại bán ở Y Các trong game. Vũ khí và phi kiếm dùng chung cho nam và nữ. \"Bảo vật\" không bán và không miễn phí: chỉ có khi được tặng, ở trang người chơi (sau này từ hoạt động, sự kiện, đấu giá). Phi kiếm dùng để Ngự Kiếm Phi Hành: phi kiếm \"Miễn phí\" là cái cơ bản ai mở khoá bay cũng có; cảnh giới mở khoá đặt ở Thiết lập, dòng fly.realm."), el("div", { class: "bar" }, kind, g, state, q), grid];
+    return [el("h2", {}, "Thời trang & Phi kiếm"), el("p", { class: "dim" }, "Nhân vật chibi của game cũ ghép từ 12 lớp: tóc, áo, quần, nón, kính, mặt nạ, mắt, khuôn mặt, cánh, hào quang, đồ cầm tay, thú cưng (hình ở public/thoi-trang/<loại>/<số>.png). Món \"Miễn phí\" (tóc, áo, quần, mắt, khuôn mặt) được chọn lúc tạo nhân vật; còn lại bán ở Y Các. Đồ thời trang dùng chung cho nam và nữ (\"Mọi giới tính\"). \"Bảo vật\" không bán và không miễn phí: chỉ có khi được tặng, ở trang người chơi. Phi kiếm dùng để Ngự Kiếm Phi Hành: phi kiếm \"Miễn phí\" là cái cơ bản ai mở khoá bay cũng có; cảnh giới mở khoá đặt ở Thiết lập, dòng fly.realm."), el("div", { class: "bar" }, kind, g, state, q), grid];
   },
 
   async admins() {
@@ -1208,23 +1224,19 @@ async function playerView(id) {
       // ---- name and look
       const nm = el("input", { value: p.name });
       const gsel = el("select", {}, [["m", "Nam"], ["f", "Nữ"]].map(([v, l]) => el("option", { value: v, selected: v === p.gender }, l)));
-      const pickBox = el("div");
-      const choice = { hair: p.hair, robe: p.robe, weapon: p.weapon, sword: p.sword };
+      // every layer: a number (0: the figure's own / nothing), its picture beside it
+      const pickBox = el("div", { class: "lookgrid" });
+      const choice = Object.fromEntries([...FASHION.map(([k]) => k), "sword"].map((k) => [k, p[k] ?? 0]));
       const drawPicks = () => {
-        const g = gsel.value;
-        pickBox.replaceChildren(...["hair", "robe", "weapon", "sword"].map((kind) => {
-          const gk = kind === "weapon" || kind === "sword" ? "a" : g, have = partIdx(`${kind}_${gk}`);
-          if (!have.includes(choice[kind])) choice[kind] = have[0] ?? 0;
-          const grid = el("div", { class: "pickgrid" });
-          for (const i of have) {
-            const c = cos.find((x) => x.kind === kind && x.gender === gk && x.idx === i);
-            grid.append(el("button", { type: "button", class: `pick ${choice[kind] === i ? "on" : ""}`, title: c ? `${c.name}${c.starter ? " (miễn phí)" : ` (${c.price})`}` : `số ${i}`,
-              onclick: (e) => {
-                choice[kind] = i;
-                for (const b of grid.children) b.classList.toggle("on", b === e.currentTarget);
-              } }, thumb(kind, gk, i, "")));
-          }
-          return el("div", {}, el("h4", {}, { hair: "Tóc", robe: "Y phục", weapon: "Vũ khí", sword: "Phi kiếm" }[kind]), grid);
+        pickBox.replaceChildren(...[...FASHION, ["sword", "Phi kiếm"]].map(([kind, label]) => {
+          const have = partIdx(kind === "sword" ? "sword_a" : kind), pic = el("span", { class: "lpic" });
+          const show = () => pic.replaceChildren(choice[kind] || kind === "sword" ? thumb(kind, "a", choice[kind], "") : el("small", { class: "dim" }, "mặc định"));
+          const sel = el("select", {}, ...(kind === "sword" ? [] : [el("option", { value: 0 }, "0 · mặc định / không")]),
+            ...have.map((i) => el("option", { value: i, selected: choice[kind] === i }, `${i}${cos.find((x) => x.kind === kind && x.idx === i)?.starter ? " (miễn phí)" : ""}`)));
+          sel.value = String(choice[kind]);
+          sel.addEventListener("change", () => ((choice[kind] = Number(sel.value)), show()));
+          show();
+          return el("label", { class: "lookpick" }, el("b", {}, label), pic, sel);
         }));
       };
       gsel.addEventListener("change", drawPicks);
@@ -1237,22 +1249,19 @@ async function playerView(id) {
           const body = {};
           if (nm.value.trim() !== p.name) body.name = nm.value;
           if (gsel.value !== p.gender) body.gender = gsel.value;
-          if (choice.hair !== p.hair || body.gender) body.hair = choice.hair;
-          if (choice.robe !== p.robe || body.gender) body.robe = choice.robe;
-          if (choice.weapon !== p.weapon) body.weapon = choice.weapon;
-          if (choice.sword !== p.sword) body.sword = choice.sword;
+          for (const k of Object.keys(choice)) if (choice[k] !== (p[k] ?? 0)) body[k] = choice[k];
           if (!Object.keys(body).length) return toast("Chưa có thay đổi.");
           act(() => api(`/players/${p.id}/look`, { method: "PATCH", body }), "Đã đổi tên/ngoại hình.");
         } }, "Lưu tên & ngoại hình"))));
 
-      // ---- hair, robes and weapons owned; bảo vật listed first in the gift picker
+      // ---- fashion and flying swords owned; bảo vật listed first in the gift picker
       const mine = new Set(p.owned.map((o) => o.id));
       const giftable = cos.filter((c) => (c.gender === p.gender || c.gender === "a") && (!c.starter || c.special) && !mine.has(c.id));
-      const label = (c) => `${{ hair: "Tóc", robe: "Áo", weapon: "Vũ khí", sword: "Phi kiếm" }[c.kind]} · ${c.name}${c.special ? "" : ` (${c.price})`}`;
+      const label = (c) => `${KIND_LABEL[c.kind] ?? c.kind} · ${c.name}${c.special ? "" : ` (${c.price})`}`;
       const pick = el("select", {},
         el("optgroup", { label: "★ Bảo vật (chỉ tặng)" }, giftable.filter((c) => c.special).map((c) => el("option", { value: c.id }, label(c)))),
         el("optgroup", { label: "Đồ bán ở Y Các" }, giftable.filter((c) => !c.special).map((c) => el("option", { value: c.id }, label(c)))));
-      parts.push(section(`Tóc, y phục, vũ khí & phi kiếm đang có (${p.owned.length})`, p.owned.length ? p.owned.map((o) => o.name).slice(0, 4).join(", ") + (p.owned.length > 4 ? "…" : "") : "chỉ đồ miễn phí",
+      parts.push(section(`Thời trang & phi kiếm đang có (${p.owned.length})`, p.owned.length ? p.owned.map((o) => o.name).slice(0, 4).join(", ") + (p.owned.length > 4 ? "…" : "") : "chỉ đồ miễn phí",
         el("div", { class: "chips" }, p.owned.length ? p.owned.map((o) => el("span", { class: "chip" }, thumb(o.kind, o.gender, o.idx, ""), el("span", {}, o.special ? "★ " : "", o.name, el("small", { class: "dim" }, o.special ? " · bảo vật" : ` · trả ${fmt(o.paid)}`)),
           el("button", { class: "small danger", title: "Lấy lại", onclick: () => confirm(`Lấy lại ${o.name} của người này?`) && act(() => api(`/players/${p.id}/cosmetics`, { method: "POST", body: { id: o.id, own: false } }), "Đã lấy lại.") }, "✕")))
           : el("span", { class: "dim" }, "Chưa mua món nào (các món miễn phí ai cũng có).")),

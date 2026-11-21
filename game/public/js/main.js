@@ -12,6 +12,7 @@ import { initFishUI, fishIconUrl } from "./cau-ca.js";
 import { initDaoLu, roseIconUrl } from "./dao-lu.js";
 import { initChinhTa, emblemPic } from "./chinh-ta.js";
 import { FACTIONS } from "/shared/chinh-ta.js";
+import { KINDS, KIND_NAME, isBase } from "/shared/thoi-trang.js";
 import { initMenu } from "./menu.js";
 import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange } from "./music.js";
 
@@ -126,7 +127,7 @@ function preview(cv, look, alive, onSword = () => false) {
     const t = performance.now() / 1000, sword = onSword();
     clearFrame(f);
     const p = painterFor(f);
-    p.place(W / 2, H - 12 - (sword ? 6 : 0), false);
+    p.place(W / 2 + 8, H - 12 - (sword ? 6 : 0), false);
     drawAvatar(p, look(), { t, fly: sword });
     composite(f, img.data, null);
     ctx.putImageData(img, 0, 0);
@@ -160,26 +161,26 @@ function partGrid(box, items, isOn, pick, badge = () => "", dim = () => false) {
   }
 }
 
-// ---------------------------------------------------------------- making a character: gender, name, hair, robe
-// Only the free starter styles are offered here; the rest are bought in game at the Y Các.
-const look = { g: "m", hair: 0, robe: 0 };
+// ---------------------------------------------------------------- making a character: gender, side, name, the look
+// Only the free starter items are offered here (hair, shirt, trousers, eyes, face); the rest are bought in game at the Y Các.
+const look = { g: "m" };
 // the side (Chính Tà Phân Tranh): picked here, required
 let side = null;
 let catalog = [];
-const starters = (kind) => catalog.filter((c) => c.starter && c.kind === kind && c.g === look.g);
+const CREATE_KINDS = ["toc", "ao", "quan", "mat", "khuonmat"];
+let partKind = "toc";
+const starters = (kind) => catalog.filter((c) => c.starter && c.kind === kind);
 const pickRandom = (kind) => {
   const s = starters(kind);
   if (s.length) look[kind] = s[Math.floor(Math.random() * s.length)].idx;
 };
+const randomLook = () => ["toc", "ao", "quan", "mat"].forEach(pickRandom);
 async function showCreate() {
   show("create");
   await loadAvatars();
   const w = await call("/cosmetics");
   catalog = w.items;
-  // everyone starts with the same weapon in hand (changed later at the Y Các)
-  look.weapon = w.defaultWeapon;
-  pickRandom("hair");
-  pickRandom("robe");
+  randomLook();
   fillPicks();
   fitMaker();
   preview($("pv"), () => look, () => !$("create").classList.contains("hidden"));
@@ -204,28 +205,35 @@ function fillSides() {
 function fillPicks() {
   fillSides();
   for (const b of document.querySelectorAll("[data-g]")) b.classList.toggle("on", b.dataset.g === look.g);
-  for (const [kind, box] of [["hair", $("hairs")], ["robe", $("robes")]])
-    partGrid(box, starters(kind), (it) => it.idx === look[kind], (it) => {
-      look[kind] = it.idx;
-      names();
-    });
+  const tabs = $("partTabs");
+  tabs.replaceChildren(...CREATE_KINDS.map((k) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = KIND_NAME[k];
+    b.className = k === partKind ? "on" : "";
+    b.addEventListener("click", () => ((partKind = k), fillPicks()));
+    return b;
+  }));
+  // the figure's own (nothing bought) first, then the free ones
+  const own = { id: 0, kind: partKind, g: look.g, idx: 0, name: "Mặc định" };
+  partGrid($("parts"), [own, ...starters(partKind)], (it) => (look[partKind] ?? 0) === it.idx, (it) => {
+    look[partKind] = it.idx;
+    names();
+  });
   names();
 }
 function names() {
-  $("hairNo").textContent = starters("hair").find((c) => c.idx === look.hair)?.name ?? "";
-  $("robeNo").textContent = starters("robe").find((c) => c.idx === look.robe)?.name ?? "";
+  const it = starters(partKind).find((c) => c.idx === look[partKind]);
+  $("partNo").textContent = `${KIND_NAME[partKind]}: ${it?.name ?? "mặc định"}`;
 }
 for (const b of document.querySelectorAll("[data-g]"))
   b.addEventListener("click", () => {
     if (look.g === b.dataset.g) return;
     look.g = b.dataset.g;
-    pickRandom("hair");
-    pickRandom("robe");
     fillPicks();
   });
 $("randLook").addEventListener("click", () => {
-  pickRandom("hair");
-  pickRandom("robe");
+  randomLook();
   fillPicks();
 });
 $("createForm").addEventListener("submit", async (e) => {
@@ -565,20 +573,19 @@ $("wardBtn").addEventListener("click", async () => {
   if (!me.character) return;
   state.character = me.character;
   const g = me.character.look.g, owned = new Set(w.owned), trying = { ...me.character.look };
-  let kind = "hair", sel = null;
-  const page = {}; // the page shown for each tab, 10 to a page
+  let kind = "toc", sel = null;
+  const page = {}; // the page shown for each tab, PER to a page
   const has = (it) => it.starter || owned.has(it.id);
   const wearing = (it) => me.character.look[it.kind] === it.idx;
 
   const wrap = document.createElement("div");
   wrap.className = "ward";
-  wrap.innerHTML = `<div class="preview"><canvas width="96" height="96"></canvas>
+  wrap.innerHTML = `<div class="preview"><canvas width="128" height="112"></canvas>
     <div class="sel"><b class="nm"></b><span class="st dim"></span><button type="button" class="primary act"></button></div></div>
-    <div class="choices"><div class="row"><div class="seg"><button type="button" data-k="hair" class="on">Tóc</button>
-    <button type="button" data-k="robe">Y phục</button><button type="button" data-k="weapon">Vũ khí</button><button type="button" data-k="sword">Phi kiếm</button></div><span class="bal"></span></div><div class="picks big"></div><div class="wpager"></div></div>`;
+    <div class="choices"><div class="row"><div class="seg wkinds">${[...KINDS.map((k) => k.key), "sword"].map((k) => `<button type="button" data-k="${k}"${k === "toc" ? ' class="on"' : ""}>${KIND_NAME[k]}</button>`).join("")}</div><span class="bal"></span></div><div class="picks big"></div><div class="wpager"></div></div>`;
   const $$ = (s) => wrap.querySelector(s);
   const bal = () => ($$(".bal").textContent = `💎 ${me.character.stones} linh thạch`);
-  const PER = 10;
+  const PER = 15;
   const grid = () => {
     // a shop: what can be bought first (cheapest first), then what is already yours; 10 to a page
     const items = w.items.filter((it) => it.kind === kind && (it.g === g || it.g === "a") && (it.onSale || has(it)));
@@ -598,15 +605,18 @@ $("wardBtn").addEventListener("click", async () => {
         b.addEventListener("click", () => ((page[kind] = to), grid()));
         return b;
       };
+      // a window of pages round this one, and the ends
       pg.append(btn("‹", at - 1));
-      for (let i = 0; i < pages; i++) pg.append(btn(String(i + 1), i, i === at ? "on" : ""));
+      for (let i = 0; i < pages; i++)
+        if (i === 0 || i === pages - 1 || Math.abs(i - at) <= 2) pg.append(btn(String(i + 1), i, i === at ? "on" : ""));
+        else if (Math.abs(i - at) === 3) pg.append(Object.assign(document.createElement("span"), { className: "gap", textContent: "…" }));
       pg.append(btn("›", at + 1));
     }
     partGrid($$(".picks"), items.slice(at * PER, at * PER + PER), (it) => sel?.id === it.id, (it) => {
       sel = it;
       trying[it.kind] = it.idx;
       side();
-    }, (it) => (has(it) ? "✓" : ""), (it) => !has(it));
+    }, (it) => (has(it) ? "✓" : `${it.price}`), (it) => !has(it));
   };
   const side = () => {
     const b = $$(".act"), st = $$(".st");
@@ -832,7 +842,6 @@ if (token) {
 // Left: the character standing in what they wear, its four equipment slots round it, and their numbers. Right: their
 // things, in tabs (all, equipment, items), as a grid of slots a page at a time; picking one shows it below with what can
 // be done with it: wear it (anything you own), use it (a pill). Buying happens at the Y Các; wearing happens here.
-const KIND_NAME = { hair: "Tóc", robe: "Y phục", weapon: "Vũ khí", sword: "Phi kiếm" };
 const ITEM_KIND_NAME = { pill: "Đan dược", book: "Bí kíp", material: "Nguyên liệu", rod: "Cần câu", bait: "Mồi câu", fish: "Cá", gift: "Quà tặng", ring: "Nhẫn cưới" };
 const itemIcon = (id) => {
   // Câu Cá's rods, baits and fish: their own pixelfx pictures
@@ -903,6 +912,7 @@ async function charPanel(startTab = "all") {
   const owned = new Set(w.owned);
   const mine = () => w.items.filter((it) => (it.g === g || it.g === "a") && (it.starter || owned.has(it.id)));
   const wearing = (it) => ch().look[it.kind] === it.idx;
+  const ORDER = ["toc", "ao", "quan", "non", "kinh", "matna", "mat", "khuonmat", "canh", "haoquang", "docamtay", "thucung", "sword"];
   const bag = () => Object.entries(game.inventory()).filter(([k, n]) => n > 0 && ITEMS[k]).sort((a, b) => (ITEMS[a[0]].sort ?? 0) - (ITEMS[b[0]].sort ?? 0));
 
   const wrap = document.createElement("div");
@@ -911,7 +921,7 @@ async function charPanel(startTab = "all") {
     <section class="cleft">
       <div class="stage">
         <div class="slots l"></div>
-        <div class="fig"><canvas width="96" height="104"></canvas><div class="plinth"></div></div>
+        <div class="fig"><canvas width="128" height="116"></canvas><div class="plinth"></div></div>
         <div class="slots r"></div>
       </div>
       <div class="ident"><b class="nm"></b><span class="realm"></span></div>
@@ -931,7 +941,7 @@ async function charPanel(startTab = "all") {
     const m = game.me() ?? {};
     $$(".nm").textContent = ch().name;
     $$(".realm").textContent = realmName(m.lv ?? ch().level ?? levelFromExp(ch().exp));
-    for (const [side, kinds] of [["l", ["hair", "robe"]], ["r", ["weapon", "sword"]]]) {
+    for (const [side, kinds] of [["l", ["toc", "ao", "quan", "mat", "khuonmat", "kinh", "matna"]], ["r", ["non", "canh", "haoquang", "docamtay", "thucung", "sword"]]]) {
       const box = $$(`.slots.${side}`);
       box.replaceChildren();
       for (const k of kinds) {
@@ -972,7 +982,7 @@ async function charPanel(startTab = "all") {
   // ---- right: tabs, filters, the grid of slots, the pager, the picked thing
   const entries = () => {
     const eq = mine().filter((it) => !kind || it.kind === kind).map((it) => ({ t: "eq", it }))
-      .sort((a, b) => wearing(b.it) - wearing(a.it) || "hair robe weapon sword".indexOf(a.it.kind) - "hair robe weapon sword".indexOf(b.it.kind) || a.it.idx - b.it.idx);
+      .sort((a, b) => wearing(b.it) - wearing(a.it) || ORDER.indexOf(a.it.kind) - ORDER.indexOf(b.it.kind) || a.it.idx - b.it.idx);
     const its = bag().map(([k, n]) => ({ t: "item", k, n }));
     return tab === "equip" ? eq : tab === "items" ? its : [...eq, ...its];
   };
@@ -990,7 +1000,7 @@ async function charPanel(startTab = "all") {
     f.replaceChildren();
     f.hidden = tab !== "equip";
     if (tab === "equip")
-      for (const [v, l] of [["", "Tất cả"], ["hair", "Tóc"], ["robe", "Y phục"], ["weapon", "Vũ khí"], ["sword", "Phi kiếm"]]) {
+      for (const [v, l] of [["", "Tất cả"], ...ORDER.map((k) => [k, KIND_NAME[k]])]) {
         const b = document.createElement("button");
         b.type = "button";
         b.textContent = l;
@@ -1046,7 +1056,7 @@ async function charPanel(startTab = "all") {
     const d = $$(".cdetail");
     d.replaceChildren();
     if (!sel) {
-      d.innerHTML = `<p class="hint">Chọn một món để xem. Mua thêm tóc, y phục, vũ khí, phi kiếm ở Y Các; đan dược ở Đan Các (cả hai trong nút Thêm trên menu).</p>`;
+      d.innerHTML = `<p class="hint">Chọn một món để xem. Mua thêm thời trang (tóc, áo, quần, nón, kính, mặt nạ, cánh, hào quang, đồ cầm tay, thú cưng) và phi kiếm ở Y Các; đan dược ở Đan Các (cả hai trong nút Thêm trên menu).</p>`;
       return;
     }
     const pic = document.createElement("div");
@@ -1083,6 +1093,26 @@ async function charPanel(startTab = "all") {
         }
       });
       act.append(b);
+      // worn: it can be taken off (hair, shirt... go back to the figure's own; the rest to nothing). Not the flying sword.
+      if (wearing(it) && it.kind !== "sword") {
+        const off = document.createElement("button");
+        off.textContent = "Tháo";
+        off.title = isBase(it.kind) ? "Tháo ra: dùng lại kiểu mặc định" : "Tháo ra";
+        off.addEventListener("click", async () => {
+          off.disabled = true;
+          try {
+            state.character = (await call("/cosmetics/unwear", { method: "POST", body: { kind: it.kind } })).character;
+            Object.assign(look2, state.character.look);
+            flash(`Đã tháo ${it.name}.`);
+            drawLeft();
+            drawRight();
+          } catch (err) {
+            alertIn(wrap, err.message);
+            off.disabled = false;
+          }
+        });
+        act.append(off);
+      }
     } else {
       const it = ITEMS[sel.k];
       pic.append(Object.assign(new Image(), { src: itemIcon(sel.k), alt: "" }));

@@ -1856,3 +1856,12 @@ body.war .pkbtn { display: none; }
 
 #statLine .pkon { color: #ff7a6a; font-weight: 700; }
 #statLine .sk { color: #ff9a8a; }
+/* Thời trang (public/js/avatar.js partCanvas): the item's small picture, blown up pixel for pixel to fill its cell */
+canvas.fpart { width: 86%; height: 86%; max-width: none; max-height: none; object-fit: contain; image-rendering: pixelated; }
+.eslot canvas.fpart { width: 78%; height: 70%; }
+/* Y Các: twelve kinds and the flying sword, the tabs wrap onto two rows; the balance under them */
+.ward .row { flex-wrap: wrap; }
+.ward .seg.wkinds { flex: 1 1 100%; flex-wrap: wrap; }
+.ward .seg.wkinds button { padding: 4px 9px; font-size: 12.5px; }
+.ward .wpager .gap { align-self: center; color: var(--dim); padding: 0 2px; }
+.picks button .tag { font-size: 10px; }
