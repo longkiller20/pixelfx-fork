@@ -570,21 +570,27 @@ const SHOP_TEST = "Hàng thử nghiệm";
   p = at();
   assert.equal(p[2], 13 * M.T, `up on the terrace (y ${p[2]})`);
   ok("jumping: up onto the temple terrace, two tiles high");
-  // east, hopping over the hill, down the stairs to the gold arrow
+  // east, hopping over the hill, down the stairs to the Truyền Tống Trận: walking onto it takes nobody
+  const { teleAt } = await import("../shared/truyen-tong.js");
   send(c, { t: "in", dx: 1, jump: true, down: false });
+  for (let i = 0; i < 400 && !teleAt(M, at()[1], at()[2]); i++) await sleep(100);
+  send(c, { t: "in", dx: 0, jump: false, down: false });
+  assert.ok(teleAt(M, at()[1], at()[2]), "by the array at the foot of the east stairs");
+  await sleep(2500);
+  assert.equal(c.msgs.filter((m) => m.t === "welcome").length, 1, "standing on the array moves nobody");
+  // its button: to Bích Lạc Lâm, landing on the array there; monsters there
+  send(c, { t: "tele", to: "bichlac" });
   let msg = null;
-  for (let i = 0; i < 400 && !msg; i++) {
+  for (let i = 0; i < 80 && !msg; i++) {
     await sleep(100);
     msg = c.msgs.filter((m) => m.t === "welcome")[1];
   }
-  send(c, { t: "in", dx: 0, jump: false, down: false });
-  // through the gate: a new welcome, on the forest map, just inside its gate back to the town; monsters there
   const w2 = c.msgs.filter((m) => m.t === "welcome")[1];
-  assert.ok(w2 && w2.map === "bichlac", "the gate leads to Bích Lạc Lâm");
+  assert.ok(w2 && w2.map === "bichlac", "the array sends to Bích Lạc Lâm");
   await sleep(400);
   const F = (await import("../shared/maps/index.js")).mapInfo("bichlac");
   p = c.snap.P.find((q) => q[0] === w2.id);
-  assert.ok(p && p[1] > F.portals[0].x && !F.portalAt(p[1], p[2]), `arrived beside the gate home, not on it (x ${p?.[1]})`);
+  assert.ok(p && teleAt(F, p[1], p[2]), `arrived on the array there (x ${p?.[1]})`);
   assert.ok(new Set(c.snap.M.map((m) => m[1])).size >= 4, "the forest's frogs, snakes, birds and butterflies are there");
   c.ws.close();
   await sleep(500);
@@ -592,7 +598,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
   const c2 = await connect(P.token);
   assert.equal(c2.msgs.find((m) => m.t === "welcome").map, "bichlac", "the map is remembered");
   c2.ws.close();
-  ok("the gold arrow at the foot of the east stairs leads to Bích Lạc Lâm, its monsters there, the map remembered");
+  ok("the Truyền Tống Trận at the foot of the east stairs: walking onto it moves nobody, its button sends to Bích Lạc Lâm, its monsters there, the map remembered");
 }
 
 // ngự kiếm phi hành: locked below the realm; then on the sword, up, down to a hover over the ground, off and falling;

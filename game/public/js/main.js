@@ -13,6 +13,7 @@ import { initDaoLu, roseIconUrl } from "./dao-lu.js";
 import { initChinhTa, emblemPic } from "./chinh-ta.js";
 import { FACTIONS } from "/shared/chinh-ta.js";
 import { KIND_NAME } from "/shared/nhan-vat.js";
+import { TELE_MAPS, teleInfo } from "/shared/truyen-tong.js";
 import { initMenu } from "./menu.js";
 import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange } from "./music.js";
 
@@ -253,6 +254,8 @@ function play() {
     onDaolu: (m) => daoLu.onMsg(m),
     // Chính Tà Phân Tranh: the battlefield's bar, board and result; a new map (off the field, the bar goes)
     onCt: (m) => (m.t === "map" ? chinhTa.onMap(m.map) : chinhTa.onMsg(m)),
+    // Truyền Tống Trận: standing by one, its button opens the list of maps
+    onTele: (here) => telePanel(here),
     onFatal: (msg, relog) => {
       game = null;
       $("fatalMsg").textContent = msg;
@@ -273,6 +276,29 @@ function panel(title, body) {
   $("panel").hidden = false;
 }
 $("panelClose").addEventListener("click", () => (closeAsk(), ($("panel").hidden = true)));
+
+// ---------------------------------------------------------------- Truyền Tống Trận: pick a map, be sent there
+// (shared/truyen-tong.js: the maps with monsters, and the starter town; the server checks the array is near)
+function telePanel(here) {
+  if (!game) return;
+  const wrap = document.createElement("div");
+  wrap.className = "telep";
+  wrap.append(Object.assign(document.createElement("p"), { className: "hint", textContent: "Chọn nơi muốn đến. Truyền Tống Trận đưa đạo hữu tới mọi vùng có yêu thú, hoặc về Tân Thủ Thôn." }));
+  for (const id of TELE_MAPS) {
+    const m = teleInfo(id), b = document.createElement("button");
+    b.type = "button";
+    b.className = `tmap${id === here ? " here" : ""}${m.safe ? " safe" : ""}`;
+    b.dataset.map = id;
+    b.disabled = id === here;
+    b.append(Object.assign(document.createElement("b"), { textContent: m.name }), Object.assign(document.createElement("span"), { className: "tag", textContent: id === here ? "Đang ở đây" : m.safe ? "An toàn" : "Có yêu thú" }), Object.assign(document.createElement("small"), { textContent: m.sub }));
+    b.addEventListener("click", () => {
+      game.tele(id);
+      $("panel").hidden = true;
+    });
+    wrap.append(b);
+  }
+  panel("Truyền Tống Trận", wrap);
+}
 
 $("shopBtn").addEventListener("click", async () => {
   const wrap = document.createElement("div");

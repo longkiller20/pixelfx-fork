@@ -6,6 +6,7 @@ import * as arcane_blink_out from "./arcane/blink-out.js";
 import * as arcane_mana_burst from "./arcane/mana-burst.js";
 import * as arcane_portal from "./arcane/portal.js";
 import * as arcane_rune_circle from "./arcane/rune-circle.js";
+import * as arcane_teleport_array from "./arcane/teleport-array.js";
 import * as chinhta_barrier from "./chinhta/barrier.js";
 import * as chinhta_emblem from "./chinhta/emblem.js";
 import * as chinhta_flag from "./chinhta/flag.js";
@@ -96,6 +97,7 @@ export const effects = {
   "arcane/mana-burst": arcane_mana_burst,
   "arcane/portal": arcane_portal,
   "arcane/rune-circle": arcane_rune_circle,
+  "arcane/teleport-array": arcane_teleport_array,
   "chinhta/barrier": chinhta_barrier,
   "chinhta/emblem": chinhta_emblem,
   "chinhta/flag": chinhta_flag,

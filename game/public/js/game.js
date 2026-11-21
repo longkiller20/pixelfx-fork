@@ -16,6 +16,9 @@ import { lovePic } from "./dao-lu.js";
 import { menuIcon } from "./menu.js";
 import { emblemStill } from "./chinh-ta.js";
 import { WAR_MAP } from "/shared/chinh-ta.js";
+import { isTele, teleAt } from "/shared/truyen-tong.js";
+// the Truyền Tống Trận on the floor where a map's arrays are
+const TELE_FX = "arcane/teleport-array";
 
 // each buff's status icon (Xianxia Pixel Pack)
 const BUFF_ICON = { hp: "item_peach", atk: "status_burn", def: "status_golden_shield", spd: "status_swift", exp: "item_jade_slip", stones: "item_spirit_stone", med: "item_lingzhi" };
@@ -24,7 +27,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap, onFish, onFrame, onDaolu, onCt }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap, onFish, onFrame, onDaolu, onCt, onTele }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -101,6 +104,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
             // the map's own living scenery: pixelfx effects that loop where the map puts them (fireflies, spirit fire...)
             for (const [kind, x, row, o = {}] of map.def.props)
               if (kind === "fx" && effects[o.id]) ambient.push({ id: o.id, fx: createFx(effects[o.id], { seed: (x * 97) | 0, flip: !!o.f, actor: BLANK_ACTOR, ...(o.o ?? {}) }), x: x * map.T, y: row * map.T - (o.h ?? 0), k: o.k ?? 1.4, every: o.every ?? 0, next: 0 });
+            // a Truyền Tống Trận where each way to another map of the road is
+            for (const g of map.portals)
+              if (isTele(g) && effects[TELE_FX]) ambient.push({ id: TELE_FX, fx: createFx(effects[TELE_FX], { seed: (g.x * 7) | 0 }), x: g.x, y: g.y, k: 1.3, every: 0, next: 0 });
             $("loading").hidden = true;
             zoneBanner(map.name, map.sub);
             // arrived through a gate: the star opens again on the new map
@@ -467,6 +473,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     if (sk !== undefined && !e.repeat) cast(sk);
     if (k === "f" && !e.repeat) toggleFly();
     if (k === "p" && !e.repeat) togglePk();
+    if (k === "t" && !e.repeat) openTele();
     if (k === "z" && !e.repeat && !map?.def.peaceful) use("hoixuan");
     if (k === "x" && !e.repeat && !map?.def.peaceful) use("tukhi");
   });
@@ -545,6 +552,21 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     flyBtn.title = on ? "Hạ kiếm (F)" : "Ngự kiếm phi hành (F)";
   }
   flyBtn.addEventListener("pointerdown", (e) => (e.preventDefault(), toggleFly()));
+  // Truyền Tống Trận: standing by an array (and alive), its button shows; it (or T) opens the list of maps
+  const teleBtn = $("teleBtn");
+  const teleNear = () => {
+    const e = drawn.get(myId);
+    return !!(e && map && me && !(me.respawn > 0) && teleAt(map, e.x, e.y));
+  };
+  // hidden while a panel is open (it would sit over it)
+  const teleShown = () => teleNear() && !!$("panel")?.hidden;
+  function renderTele() {
+    const near = teleShown();
+    if (teleBtn.hidden === !near) return;
+    teleBtn.hidden = !near;
+  }
+  const openTele = () => teleNear() && onTele?.(map.id);
+  teleBtn.addEventListener("click", (e) => (e.preventDefault(), openTele()));
   // Đồ Sát (P): on, this player may hit others, and anyone may hit them; off (after a while without fighting), only those on
   // it can. Shown from pk.level; on a safe map (Tân Thủ Thôn) it stays as it is but nobody fights there
   const pkBtn = $("pkBtn");
@@ -1109,7 +1131,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       }
     }
     for (const g of map.portals) {
-      if (!on(g.x, g.y)) continue;
+      if (!on(g.x, g.y) || isTele(g)) continue;
       const ax = Math.round(g.x - camX);
       // a ring of light turning on the step under it
       for (let i = 0; i < 56; i++) {
@@ -1149,7 +1171,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     p.fade = 1;
     p.lightK = 1;
     for (const g of map.portals) {
-      if (!on(g.x, g.y)) continue;
+      // (a Truyền Tống Trận has no arrow: it is used with its button, not walked into)
+      if (!on(g.x, g.y) || isTele(g)) continue;
       const bob = Math.round(Math.sin(now * 3.2) * 6), ax = Math.round(g.x - camX), ay = Math.round(g.y - camY - 100 + bob), Z = 5;
       // the arrow, pointing down: a gold rim, its core flickering white-hot, light pooling under it
       ARROW.forEach((row, y) => [...row].forEach((ch, x) => {
@@ -1267,6 +1290,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     for (const e of list) drawEntity(p, e, now);
     fish.draw(p, list, now, dt, camX, camY);
     onFrame?.(dt);
+    renderTele();
     const live = new Set();
     for (const b of snaps[snaps.length - 1]?.B ?? []) {
       // a monster's shot ("@type") rides its own effect too
@@ -1477,9 +1501,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       c.font = `800 ${fs}px system-ui, sans-serif`;
       c.lineWidth = Math.max(2, fs / 4);
       c.strokeStyle = "rgba(0,0,0,.85)";
-      c.strokeText("Lối ra", x, y);
-      c.fillStyle = "#ffe08a";
-      c.fillText("Lối ra", x, y);
+      const word = isTele(g) ? "Truyền Tống Trận" : "Lối ra";
+      c.strokeText(word, x, y);
+      c.fillStyle = isTele(g) ? "#a8e8ff" : "#ffe08a";
+      c.fillText(word, x, y);
     }
     home.labels(c, k, camX, camY, labels.width, labels.height, now);
     // the names of a map's places, over them (the Gia Viên writes its own on its signboards); a fishing Khu's sign also
@@ -1564,5 +1589,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       renderSlots();
     },
     refreshSlots: renderSlots,
+    // Truyền Tống Trận: go to map `to` (the server checks the array is near and the map is one it sends to)
+    tele: (to) => send({ t: "tele", to }),
   };
 }

@@ -243,16 +243,25 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Cổng chào, suối có cầu.
   - Vườn đào tiên: điểm xuất hiện, có bia Truyền Tống, cây đào tiên, hòn non bộ, khóm lan và linh chi.
   - Đồi có bảo tháp.
-  - Bậc thang đá đi xuống lối ra.
+  - Bậc thang đá đi xuống Truyền Tống Trận.
 - **Thôn an toàn, không có yêu thú.** Dưới gốc đào tiên (gần điểm xuất hiện) có 2 bù nhìn rơm để thử sát thương: không đánh trả, tự hồi
   máu khi để yên, bị hạ thì 5 giây sau dựng lại; chỉ thưởng 2 tu vi, không có linh thạch, để không ai cày được.
   - Nước và thác có hoạt ảnh, đèn đá lập lòe, hoa anh đào bay.
   - Phía sau là núi, đảo bay và mây, mỗi lớp trượt chậm hơn tiền cảnh (parallax).
   - Ngồi thiền trên Thái Cực Đài để tu luyện; đĩa âm dương phía trên quay nhanh hơn khi có người tu luyện.
-  - Mũi tên vàng dưới chân bậc thang đá cuối thôn là lối ra, sang Bích Lạc Lâm.
-- **Bốn bản đồ luyện cấp nối tiếp về phía đông.** Mỗi map có cổng ở hai đầu; qua cổng là sang map kế, đứng ngay cạnh cổng
-  quay về. Thoát game rồi vào lại thì xuất hiện ở map đang đứng.
-  - Hiệu ứng dịch chuyển (pixelfx): người chơi tan thành ánh sáng vàng tại cổng (`arcane/blink-out`), màn hình của họ khép
+  - Truyền Tống Trận dưới chân bậc thang đá cuối thôn đưa đi các vùng luyện cấp.
+- **Bốn bản đồ luyện cấp nối tiếp về phía đông.** Thoát game rồi vào lại thì xuất hiện ở map đang đứng.
+- **Truyền Tống Trận** (`shared/truyen-tong.js`): mỗi map luyện cấp có trận ở hai đầu, Tân Thủ Thôn có một trận cuối thôn.
+  - Bước lên trận **không tự dịch chuyển**, nên không ai bị đưa đi nhầm.
+  - Đứng cạnh trận (trong 3 ô) thì hiện nút **☯ Truyền tống** (máy tính bấm thêm được phím **T**). Nút mở bảng chọn nơi
+    đến: mọi map có yêu thú (Bích Lạc Lâm, Linh Thủy Đàm, U Minh Cổ Mộ, Huyết Diễm Ma Uyên) và Tân Thủ Thôn để về
+    nghỉ. Map đang đứng hiện "Đang ở đây", không chọn được. Bảng chia hai cột trên điện thoại nằm ngang, không phải cuộn.
+  - Máy chủ kiểm tra lại: phải đứng cạnh trận, còn sống, không đang câu cá, nơi đến phải nằm trong danh sách và khác map
+    đang đứng. Bấm nhiều lần một lúc chỉ đi một lần. Đến nơi thì đứng ngay trên trận ở map đó (trận gần điểm xuất hiện).
+  - Hình trận vẽ bằng pixelfx (`arcane/teleport-array`): đài đá bát giác viền vàng, vòng phù văn xoay, tám điểm sáng,
+    cột sáng và đốm sáng bay lên.
+  - Lối ra của Gia Viên, của Vọng Nguyệt Hồ và cổng phong ấn cuối Ma Uyên vẫn như cũ (bước vào là đi).
+  - Hiệu ứng dịch chuyển (pixelfx): người chơi tan thành ánh sáng vàng tại trận (`arcane/blink-out`), màn hình của họ khép
     lại bằng ngôi sao vàng xoay (`transitions/star-iris`) và giữ kín trong lúc tải map mới, rồi mở ra. Ở map bên kia, một
     cột sáng giáng xuống đưa họ tới (`spawn/respawn-beam`). Người xung quanh ở cả hai map đều thấy. Trong 0,9 giây dịch
     chuyển không đi được, không ra chiêu được.
@@ -274,7 +283,8 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
 - **Nhiều bản đồ cùng chạy:** mỗi map một thế giới riêng (người chơi, yêu thú, đạn), cùng một nhịp 20 lần/giây, nên hồi
   chiêu, buff và thời gian bảo vệ vẫn đúng khi đổi map. Trò chuyện thì mọi map đều thấy.
   - Thêm map: viết file trong `shared/maps/` (dựng lưới bằng `shared/maps/build.js`), khai báo trong
-    `shared/maps/index.js`, nối cổng `to` hai chiều.
+    `shared/maps/index.js`, đặt trận (`portals`, `to` là một map khác) ở đầu map. Map có yêu thú tự vào danh sách của
+    Truyền Tống Trận.
 - **Sắp có:** đấu trường PvP. Mã đã có sẵn, chỉ cần khai báo bản đồ.
 - **Tiến trình:** 9 cảnh giới × 5 tầng (Luyện Khí → Độ Kiếp), linh thạch, Đan Các (cửa hàng), quà mỗi ngày, Bảng Phong Thần.
 

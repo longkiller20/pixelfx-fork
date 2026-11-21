@@ -141,6 +141,7 @@ import * as arcane_portal from "./arcane/portal.js";
 import * as arcane_rune_circle from "./arcane/rune-circle.js";
 import * as arcane_spell_charge from "./arcane/spell-charge.js";
 import * as arcane_star_fall from "./arcane/star-fall.js";
+import * as arcane_teleport_array from "./arcane/teleport-array.js";
 import * as arcane_time_stop from "./arcane/time-stop.js";
 import * as holy_blessing from "./holy/blessing.js";
 import * as holy_divine_shield from "./holy/divine-shield.js";
@@ -427,6 +428,7 @@ export const effects = {
   "arcane/rune-circle": arcane_rune_circle,
   "arcane/spell-charge": arcane_spell_charge,
   "arcane/star-fall": arcane_star_fall,
+  "arcane/teleport-array": arcane_teleport_array,
   "arcane/time-stop": arcane_time_stop,
   "holy/blessing": holy_blessing,
   "holy/divine-shield": holy_divine_shield,
