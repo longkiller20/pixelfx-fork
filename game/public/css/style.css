@@ -1961,10 +1961,22 @@ body.rotated .telep .tmap small { -webkit-line-clamp: 1; }
 .becard .beme { display: grid; gap: 3px; padding: 8px; border-radius: 10px; border: 1px solid #ffd06a55; background: #2a1a0a; }
 .becard .beme b { color: #ffe08a; font-size: 15px; }
 .becard .beme em { color: #ffb0ff; font-style: normal; font-size: 12px; }
-@media (max-height: 520px) {
-  /* to the right, under the menu: clear of the character panel, Đồ Sát and the Khu button */
-  .bossbar { top: 46px; left: auto; right: 10px; transform: none; width: min(420px, 44vw); padding: 4px 8px 5px; font-size: 11px; }
-  .bbtop { max-height: 30vh; overflow: auto; }
+.bbmeta i { font-style: normal; display: none; }
+.bbmeta em { font-style: normal; }
+@media (max-height: 520px), (max-width: 640px) {
+  /* a phone: small and to the right, under the menu, clear of the character panel, Đồ Sát and the Khu button; the
+     name and the life on one line, the counter, time and one's place in short below */
+  .bossbar { top: 46px; left: auto; right: 8px; transform: none; width: min(250px, 36vw); padding: 3px 6px 4px; border-width: 1px;
+    border-radius: 8px; font-size: 10px; box-shadow: 0 0 0 1px #0a0204, 0 0 10px #ff3a1a44; }
+  .bbhead { gap: 4px; }
+  .bbname { font-size: 11px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 0 5px #ff3a1a; }
   .bossbar .bbtitle { display: none; }
-  .bosspill { top: 46px; left: auto; right: 10px; transform: none; }
+  .bbrank { padding: 0 4px; font-size: 10px; line-height: 14px; border-radius: 5px; }
+  .bbhp { height: 9px; margin-top: 2px; border-radius: 5px; }
+  .bbhp span { font-size: 7.5px; line-height: 9px; font-weight: 700; }
+  .bbmeta { gap: 6px; margin-top: 2px; font-size: 9.5px; flex-wrap: nowrap; white-space: nowrap; }
+  .bbmeta em { display: none; }
+  .bbmeta i { display: inline; }
+  .bbtop { max-height: 30vh; overflow: auto; margin-top: 4px; padding: 4px 6px 4px 20px; font-size: 10px; }
+  .bosspill { top: 46px; left: auto; right: 8px; transform: none; font-size: 10.5px; padding: 3px 8px; }
 }

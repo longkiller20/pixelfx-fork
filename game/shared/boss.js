@@ -12,7 +12,7 @@ export const BOSSES = {
     key: "nguuma", name: "Hỏa Ngưu Ma Vương", title: "Ma Vương lửa từ U Minh Huyết Vực",
     fx: "boss/nguu-ma-vuong", roarFx: "boss/roar-wave", slamFx: "impacts/ground-slam", hitFx: "impacts/crit-hit",
     // its body, from its feet (world px): half its width, its height; where its mace lands in front of it
-    half: 62, tall: 150, slamAt: 96,
+    half: 62, tall: 156, slamAt: 96,
   },
 };
 export const BOSS_KEYS = Object.keys(BOSSES);
