@@ -800,7 +800,11 @@ Người chơi tự bật chế độ **Đồ Sát** (`server/world.js`, setting
 - Không bao giờ đánh được: Đạo Lữ của mình, người cùng Tông Môn, người vừa hồi sinh (đang được bảo vệ).
 
 **Nơi an toàn**
-- **Tân Thủ Thôn** là vùng an toàn: bật Đồ Sát vẫn được, nhưng không ai đánh được ai ở đó.
+- **Tân Thủ Thôn** là vùng an toàn: không ai đánh được ai, chỉ thử chiêu được trên bù nhìn rơm.
+  - Ở đây nút Đồ Sát ẩn đi; phím P hay lệnh bật đều bị từ chối ("vùng an toàn: không bật được Đồ Sát").
+  - Đang Đồ Sát mà vào thôn (Truyền Tống Trận, đăng nhập lại, về từ chiến trường…) thì Đồ Sát tự tắt và có báo. Sát khí
+    vẫn giữ.
+  - Gia Viên và Vọng Nguyệt Hồ cũng vậy.
 - Gia Viên (nhà riêng) và Vọng Nguyệt Hồ cũng không đánh nhau.
 - Chiến trường Chính Tà có luật riêng.
 

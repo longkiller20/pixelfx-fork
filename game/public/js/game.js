@@ -608,7 +608,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   const openTele = () => teleNear() && onTele?.(map.id);
   teleBtn.addEventListener("click", (e) => (e.preventDefault(), openTele()));
   // Đồ Sát (P): on, this player may hit others, and anyone may hit them; off (after a while without fighting), only those on
-  // it can. Shown from pk.level; on a safe map (Tân Thủ Thôn) it stays as it is but nobody fights there
+  // it can. Shown from pk.level; not at all on a safe map (Tân Thủ Thôn, a Gia Viên, the lake: it is off there)
   const pkBtn = $("pkBtn");
   pkBtn.querySelector(".ic").append(menuIcon("pk"));
   let pkAsking = false;
@@ -616,6 +616,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     if (!me?.pk || map?.id === WAR_MAP || map?.def.peaceful || pkAsking) return;
     const P = me.pk;
     if (P.on) return send({ t: "pk", on: false });
+    if (!P.here) return toast(`${map?.name ?? "Đây"} là vùng an toàn: không bật được Đồ Sát.`);
     if (me.lv < P.level) return toast(`Tới cấp ${P.level} (${realmName(P.level)}) mới bật được Đồ Sát.`);
     // switching it on: what it means, said plainly, and a yes
     pkAsking = true;
@@ -641,7 +642,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   }
   function renderPk() {
     const P = me?.pk;
-    pkBtn.hidden = !P || (me.lv < P.level && !P.on);
+    pkBtn.hidden = !P || (me.lv < P.level && !P.on) || (!P.here && !P.on);
     if (!P) return;
     pkBtn.classList.toggle("on", P.on);
     pkBtn.classList.toggle("safe", !P.here);
