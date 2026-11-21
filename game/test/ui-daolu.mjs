@@ -103,6 +103,30 @@ for (const [label, ctx] of [["computer", { viewport: { width: 1280, height: 720 
   await page.click(".cbox .cbtns .primary");
   await page.waitForFunction(() => !document.querySelector(".dlcouple") && /Chưa có Đạo Lữ/.test(document.querySelector(".dlp")?.textContent ?? ""));
   assert.equal((await q("SELECT 1 FROM dl_spouses WHERE user_id = ?", [M.id])).length, 0, "divorced");
+  // three couples marry at the same moment: each gets its own banner, in turn (the banner says how many are waiting)
+  if (label === "computer") {
+    const three = [];
+    for (let i = 0; i < 3; i++) {
+      const m = await person("m", 50000), f = await person("f", 0);
+      await q("INSERT INTO friends (user_id, friend_id) VALUES (?, ?), (?, ?)", [m.id, f.id, f.id, m.id]);
+      await q("INSERT INTO dl_affinity (lo, hi, points) VALUES (?, ?, 100)", [Math.min(m.id, f.id), Math.max(m.id, f.id)]);
+      await api(m, "/daolu/propose", { uid: f.id, ring: "dl_nhan_dong_tam" });
+      three.push([m, f]);
+    }
+    await page.click("#panelClose").catch(() => {});
+    await Promise.all(three.map(([m, f]) => api(f, "/daolu/answer", { uid: m.id, accept: true, requestId: crypto.randomUUID() })));
+    const seen = new Set();
+    let waiting = false;
+    for (let i = 0; i < 160 && seen.size < 3; i++) {
+      const t = await page.evaluate(() => { const w = document.getElementById("wedding"); return w.classList.contains("on") ? [w.querySelector("b")?.textContent, w.querySelector("i")?.textContent ?? ""] : null; });
+      if (t) seen.add(t[0]), (waiting ||= /còn \d+ cặp/.test(t[1]));
+      await sleep(100);
+    }
+    assert.equal(seen.size, 3, `every couple's banner shown in turn: ${[...seen].join(" / ")}`);
+    for (const [m, f] of three) assert.ok([...seen].some((x) => x.includes(m.name) && x.includes(f.name)), `${m.name} & ${f.name} announced`);
+    assert.ok(waiting, "the banner says how many are still waiting");
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/daolu-queue-${label}.png` });
+  }
   // nothing on the page went off it
   const wide = await page.evaluate(() => [...document.querySelectorAll("#panel .dlp *")].some((e) => e.getBoundingClientRect().right > (document.body.classList.contains("rotated") ? innerHeight : innerWidth) + 2));
   assert.ok(!wide, `${label}: nothing past the screen's edge`);

@@ -37,6 +37,26 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
       `explosions/firework-rocket`.
 
     Hiệu ứng vẽ theo màn hình nên đi lại không bị bỏ lại phía sau, mỗi lúc tối đa 90 hiệu ứng.
+  - **Nhiều cặp cưới cùng lúc:**
+    - *Không chặn nhau, không lỗi:* mỗi giao dịch chỉ khoá đúng hai người của cặp đó (dòng `users` của họ, theo thứ tự id).
+      Giao dịch Đạo Lữ chạy ở mức READ COMMITTED (`txRetry` trong `server/db.js`), nên InnoDB không khoá các khoảng trống
+      giữa các dòng chỉ mục. Lời cầu hôn cũ được xoá từng dòng theo khoá chính, không xoá theo khoảng. Vì vậy cặp này không
+      đụng dòng của cặp khác.
+    - *Nếu MariaDB vẫn báo deadlock* (hay chờ khoá quá lâu): cả giao dịch bị huỷ, kể cả mã giao dịch, rồi tự chạy lại từ đầu
+      sau một khoảng chờ ngẫu nhiên, tối đa 5 lần. Mã giao dịch bảo đảm chạy lại không trả tiền hai lần.
+    - *Không ai cưới hai người:* đã có khoá chính và khoá duy nhất của `dl_spouses` lo.
+    - *Cặp nào cũng được thông báo:* thông báo được gửi ngay sau khi giao dịch xong, trước mọi việc khác (nếu việc cập nhật
+      cho hai người sau đó lỗi thì thông báo vẫn đã đi). Mỗi đám cưới có số thứ tự `n` do máy chủ đánh. Trình duyệt xếp hàng
+      theo số đó và bỏ trùng, nên cặp nào cũng có băng rôn riêng, đúng một lần, lần lượt. Hàng càng dài thì mỗi băng rôn
+      càng ngắn (5 giây khi chỉ có một cặp, ngắn nhất 1,5 giây), có dòng "còn N cặp nữa đang chờ chúc mừng". Tim rơi và pháo
+      hoa chạy suốt lúc còn băng rôn. Khung chat có đủ dòng của mọi cặp.
+    - *Kiểm thử:* `test/dao-lu.mjs` cho 20 cặp cùng đồng ý một lúc, mỗi lời đồng ý gửi hai lần
+      (`DL_COUPLES=50` để thử 50 cặp). Kết quả cần đạt:
+      - không lỗi;
+      - mỗi người cầu hôn trả một lần;
+      - một người ở nơi khác nhận đủ thông báo, mỗi cặp một lần, đúng thứ tự.
+
+      `test/ui-daolu.mjs` cho 3 cặp cưới cùng lúc và kiểm tra trình duyệt hiện đủ 3 băng rôn lần lượt.
   - **Ba nhẫn** (giá và buff mặc định, admin đổi được):
 
     | Nhẫn | Giá một đôi | Sinh lực | Công | Thủ | Tốc độ |

@@ -311,12 +311,18 @@ export function api(world) {
       await world.syncDaolu([req.userId, out.uid], { [out.uid]: `${out.me} đã từ chối lời cầu hôn.` });
       return { accepted: false };
     }
-    await touch([out.uid, req.userId]);
+    // married (committed): the whole server hears of it first, whatever happens after: the feed, and a banner with
+    // hearts falling and fireworks on every map. Each wedding is announced once, numbered in the order they were made.
     const note = `💍 ${out.me} và ${out.name} đã kết thành Đạo Lữ với ${out.ringName}!`;
-    await world.syncDaolu([req.userId, out.uid], { [out.uid]: `💍 ${out.me} đã nhận lời! Hai người đã kết thành Đạo Lữ.`, [req.userId]: note }, { [req.userId]: "wedding", [out.uid]: "wedding" });
     world.feed(note);
-    // the whole server celebrates: a banner, hearts falling and fireworks on every map
     world.celebrate(out.me, out.name, out.ringName);
+    // then the two of them: their stones and bags, the ring's buff, the name by theirs, the wedding over them
+    try {
+      await touch([out.uid, req.userId]);
+      await world.syncDaolu([req.userId, out.uid], { [out.uid]: `💍 ${out.me} đã nhận lời! Hai người đã kết thành Đạo Lữ.`, [req.userId]: note }, { [req.userId]: "wedding", [out.uid]: "wedding" });
+    } catch (e) {
+      console.error("daolu sync", e.message);
+    }
     return { accepted: true, name: out.name, ring: out.ring };
   });
   dlRoute("/divorce", async (req) => {

@@ -254,6 +254,41 @@ await sleep(600);
   ok("Nhận lời: the one who proposed must still afford the ring (else it waits); two proposals accepted at once make one marriage; declined or withdrawn, a proposal is gone");
 }
 
+// ---------------------------------------------------------------- many couples at once: every wedding goes through, every one announced
+{
+  // 20 couples, each proposal accepted at the same moment (and each yes sent twice): 20 marriages, no error, each paid once,
+  // and someone online elsewhere hears all 20 celebrations, each couple once
+  const N = Number(process.env.DL_COUPLES ?? 20), pairs = [];
+  for (let i = 0; i < N; i++) {
+    const m = await person("m", 10000), f = await person("f");
+    await befriend(m, f);
+    await setPoints(m, f, dl.NEED);
+    pairs.push([m, f]);
+  }
+  for (const [m, f] of pairs) assert.equal((await post(m, "/propose", { uid: f.id, ring: "dl_nhan_dong_tam" })).status, 200);
+  const W = await person("f"), cW = await connect(W.token);
+  await sleep(300);
+  const price = (await call("/daolu", { token: W.token })).data.rings.find((x) => x.key === "dl_nhan_dong_tam").price;
+  const res = await Promise.all(pairs.flatMap(([m, f]) => {
+    const id = rid();
+    return [post(f, "/answer", { uid: m.id, accept: true, requestId: id }), post(f, "/answer", { uid: m.id, accept: true, requestId: id })];
+  }));
+  assert.ok(res.every((r) => r.status === 200), `every yes answered without error: ${JSON.stringify(res.filter((r) => r.status !== 200).map((r) => [r.status, r.data.error]))}`);
+  for (const [m, f] of pairs) {
+    assert.equal((await spouse(m))?.partner_id, f.id, "married");
+    assert.equal(await stones(m), 10000 - price, "paid once (the yes sent twice counts once)");
+  }
+  assert.ok(await until(() => cW.msgs.filter((m) => m.t === "celebrate").length >= N, 8000), "every wedding is announced");
+  await sleep(500);
+  const cel = cW.msgs.filter((m) => m.t === "celebrate");
+  assert.equal(cel.length, N, "each once");
+  assert.equal(new Set(cel.map((m) => `${m.a}|${m.b}`)).size, N, "each couple its own announcement");
+  assert.ok(cel.every((m) => Number.isInteger(m.n) && m.n > 0), "numbered in order");
+  assert.deepEqual(cel.map((m) => m.n), [...cel.map((m) => m.n)].sort((x, y) => x - y), "in the order they were married");
+  cW.ws.close();
+  ok(`Nhiều cặp cùng lúc: ${N} cặp đồng ý cùng một lúc (mỗi lời gửi hai lần) đều thành, không lỗi, mỗi người trả một lần; người ở nơi khác nhận đủ ${N} thông báo, mỗi cặp một lần, theo thứ tự`);
+}
+
 // ---------------------------------------------------------------- the admin: names, prices, buffs, parting a couple, setting affinity
 {
   const name = "t_adl_" + tag, pw = "tamthoi123";

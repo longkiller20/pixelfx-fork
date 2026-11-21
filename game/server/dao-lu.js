@@ -9,10 +9,13 @@
 //  4. Only Đạo Hữu (friends, which a block also ends) of different gender: roses, proposals and accepting all check it.
 //  5. Hảo cảm is one number per pair, at most NEED; roses past it are not taken. At most daolu.rose_daily roses a day from
 //     one person to another.
-//  6. The ring is paid when the proposal is accepted, by the one who proposed, at the price it has then (the admin's);
+//  6. Many couples at once (txRetry): each transaction locks only its own two people's rows and, in READ COMMITTED,
+//     no gaps between index entries, so different couples never wait for each other; a deadlock the database still finds
+//     rolls one back whole and it is run again (request ids make that safe).
+//  7. The ring is paid when the proposal is accepted, by the one who proposed, at the price it has then (the admin's);
 //     not enough stones then: nothing happens, the proposal waits. Divorce takes both rings (and their buff), puts the
 //     affinity back to 0 and makes both wait daolu.remarry_hours before marrying again.
-import { tx, isDup, q } from "./db.js";
+import { txRetry as tx, isDup, q } from "./db.js";
 import { userLock } from "./lock.js";
 import { GameError } from "./store.js";
 import { ITEMS, DAOLU, levelFromExp } from "../shared/balance.js";
@@ -78,7 +81,11 @@ async function canMarry(c, me, t) {
 // ---------------------------------------------------------------- reading
 /** The Đạo Lữ panel: me, my roses, my dao lu (and ring), the friends I could give roses to, the proposals, the rings. */
 export async function view(uid) {
-  await q(`DELETE FROM dl_proposals WHERE (from_id = ? OR to_id = ?) AND NOT (${fresh()})`, [uid, uid]);
+  // expired proposals of mine go, each by its key (a tidy-up: if it meets a lock it waits for the next look)
+  try {
+    const old = await q(`SELECT from_id FROM dl_proposals WHERE (from_id = ? OR to_id = ?) AND NOT (${fresh()})`, [uid, uid]);
+    for (const r of old) await q(`DELETE FROM dl_proposals WHERE from_id = ? AND NOT (${fresh()})`, [r.from_id]);
+  } catch {}
   const me = await one({ query: q }, "SELECT name, gender, stones FROM characters WHERE user_id = ?", [uid]);
   if (!me) throw no("Hãy tạo nhân vật trước.", 409);
   const roses = Number((await q("SELECT qty FROM inventory WHERE user_id = ? AND item = ?", [uid, ROSE]))[0]?.qty ?? 0);
@@ -243,7 +250,10 @@ export function answer(uid, rawFrom, accept, rawReq) {
       if (isDup(e)) throw no("Một trong hai người đã có Đạo Lữ.", 409);
       throw e;
     }
-    await c.query("DELETE FROM dl_proposals WHERE from_id IN (?, ?) OR to_id IN (?, ?)", [uid, from, uid, from]);
+    // every other proposal from or to either of them goes, each by its own key (no range locked: other couples marrying
+    // at this moment touch other rows). New ones to them can't come in meanwhile: proposing locks the same user rows.
+    const left = await c.query("SELECT from_id FROM dl_proposals WHERE from_id IN (?, ?) UNION SELECT from_id FROM dl_proposals WHERE to_id IN (?, ?)", [uid, from, uid, from]);
+    for (const r of left) await c.query("DELETE FROM dl_proposals WHERE from_id = ?", [r.from_id]);
     return { repeat: false, uid: from, name: t.name, me: me.name, accepted: true, ring, ringName: ringN(ring), price };
   });
 }

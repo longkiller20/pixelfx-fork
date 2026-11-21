@@ -808,32 +808,55 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     { palette: ["#4a2c08", "#86520c", "#c48412", "#f0b424", "#ffe066", "#fff6c4", "#ffffff"] },
     { palette: ["#1a0a3a", "#3a1a7a", "#6a3ac0", "#a07aff", "#d0b8ff", "#f0e8ff", "#ffffff"] },
   ];
-  let celebUntil = 0;
+  // Many couples may marry at the same moment: every one gets its own banner, in turn, in the order the server numbered
+  // them (m.n), each shown once however its message arrives. The longer the line, the shorter each banner (5 s alone,
+  // down to 1.5 s), and the banner says how many are still waiting; hearts and fireworks keep going while any are shown.
+  const weddingQueue = [], weddingSeen = new Set();
+  let weddingShowing = false;
   function celebrate(m) {
-    const now = performance.now() / 1000;
-    const b = $("wedding");
+    const key = m.n ?? `${m.a}|${m.b}|${m.ring}`;
+    if (weddingSeen.has(key)) return;
+    weddingSeen.add(key);
+    if (weddingSeen.size > 500) weddingSeen.delete(weddingSeen.values().next().value);
+    weddingQueue.push(m);
+    weddingQueue.sort((x, y) => (x.n ?? 0) - (y.n ?? 0));
+    if (!weddingShowing) nextWedding();
+  }
+  function nextWedding() {
+    const b = $("wedding"), m = weddingQueue.shift();
+    if (!m) {
+      weddingShowing = false;
+      b?.classList.remove("on");
+      return;
+    }
+    weddingShowing = true;
+    const dur = weddingQueue.length > 8 ? 1.5 : weddingQueue.length > 3 ? 2.5 : weddingQueue.length ? 3.5 : 5;
     if (b) {
-      b.replaceChildren();
       const t = document.createElement("b"), s = document.createElement("small");
       t.textContent = `💍 ${m.a} ♥ ${m.b}`;
       s.textContent = `đã kết thành Đạo Lữ${m.ring ? ` với ${m.ring}` : ""}. Chúc mừng!`;
-      b.append(t, s);
+      b.replaceChildren(t, s);
+      if (weddingQueue.length) {
+        const w = document.createElement("i");
+        w.textContent = `còn ${weddingQueue.length} cặp nữa đang chờ chúc mừng`;
+        b.append(w);
+      }
       b.classList.remove("on");
       void b.offsetWidth;
       b.classList.add("on");
-      clearTimeout(celebrate.timer);
-      celebrate.timer = setTimeout(() => b.classList.remove("on"), 7000);
     }
-    // a new wedding while one is still going adds to it, but never more than nine seconds from now
-    const start = Math.max(now, Math.min(celebUntil, now + 2));
-    celebUntil = start + 9;
-    for (let i = 0; i < 70; i++)
-      celebPlan.push({ at: start + Math.random() * 8, id: "love/heart-fall", x: Math.random(), y: -0.02, opts: { color: (Math.random() * 3) | 0, big: Math.random() < 0.35 ? 1 : 0 }, fall: true });
-    for (let i = 0; i < 12; i++) {
+    // hearts and fireworks for as long as this banner shows (and a little after the last one)
+    const now = performance.now() / 1000, span = dur + (weddingQueue.length ? 0 : 3);
+    const hearts = Math.round(9 * span), shells = Math.max(2, Math.round(span / 0.75));
+    for (let i = 0; i < hearts; i++)
+      celebPlan.push({ at: now + Math.random() * span, id: "love/heart-fall", x: Math.random(), y: -0.02, opts: { color: (Math.random() * 3) | 0, big: Math.random() < 0.35 ? 1 : 0 }, fall: true });
+    for (let i = 0; i < shells; i++) {
       const rocket = i % 3 === 2;
-      celebPlan.push({ at: start + 0.3 + i * 0.65 + Math.random() * 0.4, id: rocket ? "explosions/firework-rocket" : "explosions/firework-burst",
+      celebPlan.push({ at: now + 0.2 + (i / shells) * span + Math.random() * 0.3, id: rocket ? "explosions/firework-rocket" : "explosions/firework-burst",
         x: 0.12 + Math.random() * 0.76, y: rocket ? 1 : 0.22 + Math.random() * 0.25, opts: rocket ? {} : SHELLS[(Math.random() * SHELLS.length) | 0], fall: false });
     }
+    clearTimeout(celebrate.timer);
+    celebrate.timer = setTimeout(nextWedding, dur * 1000);
   }
   /** Each frame: start what is due, move and draw what is live, over the world. */
   function drawCelebration(dt) {
