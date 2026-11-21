@@ -10,7 +10,7 @@ import { drawDummy } from "./art.js";
 import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
 import { buildScene } from "./scenery.js";
 import { stepBody, PHYS, zoneLanding } from "/shared/physics.js";
-import { createHomeLayer } from "./gia-vien.js";
+import { createHomeLayer, confirmBox } from "./gia-vien.js";
 import { createFishLayer } from "./cau-ca.js";
 import { lovePic } from "./dao-lu.js";
 import { menuIcon } from "./menu.js";
@@ -549,10 +549,33 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   // it can. Shown from pk.level; on a safe map (Tân Thủ Thôn) it stays as it is but nobody fights there
   const pkBtn = $("pkBtn");
   pkBtn.querySelector(".ic").append(menuIcon("pk"));
-  function togglePk() {
-    if (!me?.pk || map?.id === WAR_MAP || map?.def.peaceful) return;
-    if (!me.pk.on && me.lv < me.pk.level) return toast(`Tới cấp ${me.pk.level} (${realmName(me.pk.level)}) mới bật được Đồ Sát.`);
-    send({ t: "pk", on: !me.pk.on });
+  let pkAsking = false;
+  async function togglePk() {
+    if (!me?.pk || map?.id === WAR_MAP || map?.def.peaceful || pkAsking) return;
+    const P = me.pk;
+    if (P.on) return send({ t: "pk", on: false });
+    if (me.lv < P.level) return toast(`Tới cấp ${P.level} (${realmName(P.level)}) mới bật được Đồ Sát.`);
+    // switching it on: what it means, said plainly, and a yes
+    pkAsking = true;
+    const pic = document.createElement("div");
+    pic.className = "pkpic";
+    const ul = document.createElement("ul");
+    for (const t of [
+      "Đạo hữu đánh được mọi người chơi khác.",
+      "BẤT KỲ AI cũng đánh được đạo hữu, kể cả người không bật.",
+      `Hạ người không bật: +1 Sát khí (giảm 1 mỗi ${P.decay} phút).`,
+      `Bị hạ khi đang bật: mất ${P.bounty} linh thạch × Sát khí cho người hạ.`,
+      `Chỉ tắt được sau ${P.offDelay} giây không giao chiến.`,
+      "Tân Thủ Thôn an toàn; không đánh được Đạo Lữ, người cùng Tông Môn.",
+      "Chữ ĐỒ SÁT sẽ nhấp nháy trên đầu đạo hữu.",
+    ]) ul.append(Object.assign(document.createElement("li"), { textContent: t }));
+    pic.append(menuIcon("pk"), ul);
+    const yes = await confirmBox({
+      title: "⚔ Bật Đồ Sát?",
+      text: "Đạo hữu chắc chắn muốn bật?",
+      ok: "⚔ Bật Đồ Sát", cancel: "Thôi", pic,
+    }).finally(() => (pkAsking = false));
+    if (yes) send({ t: "pk", on: true });
   }
   function renderPk() {
     const P = me?.pk;
@@ -560,9 +583,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     if (!P) return;
     pkBtn.classList.toggle("on", P.on);
     pkBtn.classList.toggle("safe", !P.here);
+    pkBtn.querySelector(".lbl").textContent = P.on ? (P.offIn > 0 ? `Đồ Sát ${P.offIn}s` : "Đang Đồ Sát") : "Đồ Sát";
     pkBtn.title = P.on ? (P.offIn > 0 ? `Đang Đồ Sát: ${P.offIn} giây nữa mới tắt được (P)` : "Đang Đồ Sát: nhấn để tắt (P)") : P.here ? "Bật Đồ Sát: đánh được người khác, người khác cũng đánh được mình (P)" : "Vùng an toàn: không ai giao chiến ở đây (P)";
   }
-  pkBtn.addEventListener("pointerdown", (e) => (e.preventDefault(), togglePk()));
+  pkBtn.addEventListener("click", (e) => (e.preventDefault(), togglePk()));
 
   // the joystick: a round analog stick wherever the thumb lands in the left part of the screen. Left and right walk; pushing it
   // up jumps (held up, it keeps jumping on landing), pulling it down drops through a plank or cloud
@@ -1377,13 +1401,14 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     for (const e of list) {
       if (e.dead) continue;
       const x = (e.x - camX) * k;
-      let top, name, color, hp = e.hp, sect = null, dl = null, fac = null;
+      let top, name, color, hp = e.hp, sect = null, dl = null, fac = null, pk = false;
       if (e.kind === "p") {
         const info = infos.get(e.id);
         if (!info) continue;
         top = (e.y - camY - avatarTop(info.look) - 4) * k;
         // Đồ Sát: a blade before the name, the sát khí after it, the name in blood red
-        name = `${info.pk ? "⚔ " : ""}${info.name}${info.sk > 0 ? ` ☠${info.sk}` : ""} · ${realmName(info.lv)}`;
+        name = `${info.name}${info.sk > 0 ? ` ☠${info.sk}` : ""} · ${realmName(info.lv)}`;
+        pk = !!info.pk;
         color = e.id === myId ? "#fff6c8" : info.look?.g === "f" ? "#ffb8d8" : "#a8e0ff";
         // Chính Tà: their side's emblem by the name; on the battlefield the name in their side's colour
         fac = info.f;
@@ -1427,6 +1452,19 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         c.strokeText(dt, x, dy);
         c.fillStyle = "#ff9ac0";
         c.fillText(dt, x, dy);
+      }
+      // Đồ Sát: "ĐỒ SÁT" over everything above the name, blinking blood red, so everyone sees it coming
+      if (pk) {
+        const pf = Math.max(10, Math.round(fs * 0.95)), py = top - fs * (1.55 + (sect ? 0.95 : 0) + (dl ? 0.95 : 0)), a = 0.35 + 0.65 * Math.abs(Math.sin(now * 4));
+        c.font = `900 ${pf}px system-ui, sans-serif`;
+        c.lineWidth = Math.max(2, pf / 3.5);
+        c.globalAlpha = a;
+        c.strokeStyle = "rgba(40,0,0,.95)";
+        c.strokeText("⚔ ĐỒ SÁT ⚔", x, py);
+        c.fillStyle = Math.sin(now * 8) > 0 ? "#ff3a2a" : "#ffb020";
+        c.fillText("⚔ ĐỒ SÁT ⚔", x, py);
+        c.globalAlpha = 1;
+        c.strokeStyle = "rgba(0,0,0,.85)";
       }
       const w = 22 * k, h = Math.max(3, 1.6 * k);
       c.fillStyle = "rgba(0,0,0,.7)";
