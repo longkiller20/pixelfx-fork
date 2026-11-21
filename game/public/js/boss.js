@@ -91,9 +91,11 @@ export function createBossHud({ toast }) {
       $(".bbtitle").textContent = m.mapName;
       $(".bbhp i").style.width = `${Math.max(0, Math.min(100, pct))}%`;
       $(".bbhp span").textContent = `${fmt(m.hp)} / ${fmt(m.max)} · ${pct >= 10 ? Math.ceil(pct) : pct.toFixed(1)}%`;
-      $(".bbroar").textContent = `🔥 Phản kích sau ${m.roarIn}s`;
+      // (the words in <em> are left out on a phone, where the bar is kept small)
+      $(".bbroar").replaceChildren("🔥 ", el("em", "", "Phản kích sau "), `${m.roarIn}s`);
       $(".bbleft").textContent = `⏳ ${clock(m.left)}`;
-      $(".bbme").textContent = m.me?.dmg ? `Hạng ${m.me.rank} · ${fmt(m.me.dmg)} (${m.me.pct}%)` : "Chưa gây sát thương";
+      if (m.me?.dmg) $(".bbme").replaceChildren(el("em", "", "Hạng "), el("i", "", "#"), `${m.me.rank} · `, el("em", "", `${fmt(m.me.dmg)} `), `${m.me.pct}%`);
+      else $(".bbme").replaceChildren(el("em", "", "Chưa gây sát thương"), el("i", "", "—"));
       const ol = $(".bbtop");
       ol.replaceChildren(...m.top.slice(0, 5).map((r) => {
         const li = el("li", r.name === m.myName ? "mine" : "");

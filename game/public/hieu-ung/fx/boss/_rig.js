@@ -29,9 +29,29 @@ export function makeBoss(d) {
     m.set(`${x},${y}`, c);
     r = Math.max(r, Math.hypot(x - px, y - py));
   }
+  // the weapon's pixels that touch the rest of the body: laid under it where it rests, so a weapon rocking on the
+  // shoulder never opens a crack between itself and what it lies against
+  const solid = new Set();
+  for (const k of ["H", "h", "c", "L", "R", "u"]) for (const [x, y] of parts[k]) solid.add(`${x},${y}`);
+  const seam = parts.m.filter(([x, y]) => {
+    for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) if (solid.has(`${x + i},${y + j}`)) return true;
+    return false;
+  });
+  // each leg pixel: does something else (not this leg) lie just behind it, to the left (1) or to the right (2)? A leg
+  // stepping away from there is stretched back over that edge
+  for (const k of ["L", "R"]) {
+    const own = new Set(parts[k].map(([x, y]) => `${x},${y}`));
+    const other = (x, y) => solid.has(`${x},${y}`) && !own.has(`${x},${y}`);
+    for (const q of parts[k]) {
+      const [x, y] = q;
+      q.push((other(x - 1, y) || other(x - 2, y) || other(x - 3, y) ? 1 : 0) | (other(x + 1, y) || other(x + 2, y) || other(x + 3, y) ? 2 : 0));
+    }
+  }
   const xs = parts.u.map((q) => q[0]);
   const neck = Math.max(...parts.H.map((q) => q[1]));
-  return { ...parts, neck, weapon: m, pivot: [px, py], reach: Math.ceil(r) + 1, legs: d.legs - d.h, top: -d.h, width: d.w, x0: Math.min(...xs), x1: Math.max(...xs) };
+  // where the hair and the cape join the body (their right edge, which stays put) and their free ends (the left)
+  const reachOf = (q) => { const a = q.map((v) => v[0]); return [Math.min(...a), Math.max(...a)]; };
+  return { ...parts, neck, seam, hairX: reachOf(parts.h), capeX: reachOf(parts.c), weapon: m, pivot: [px, py], reach: Math.ceil(r) + 1, legs: d.legs - d.h, top: -d.h, width: d.w, x0: Math.min(...xs), x1: Math.max(...xs) };
 }
 
 /** The slam's timeline (s): the weapon raised back, brought down at HIT, held, lifted back. */
@@ -119,18 +139,41 @@ export function drawBoss(p, F, P, tint = (c) => c) {
   const put = (x, y, c) => p.px(x + P.shakeX, y, tint(c));
   const leanAt = (y) => Math.round(P.lean * clamp01((F.legs - y) / (F.legs - F.top)));
   const up = P.bob + P.crouch + P.sink;
-  // the hair and cape behind: swaying, streaming back, more toward their free ends
-  for (const [x, y, c] of F.h) {
-    const k = clamp01((F.x0 + 60 - x) / 60);
-    put(x + leanAt(y) + Math.round(k * (P.sway * 1.6 + P.trail)), y + up + Math.round(k * Math.sin(P.t * 3 + x * 0.2)), c);
+  // the hair and cape behind: swaying, streaming back, more toward their free ends. Each pixel moves by its own amount,
+  // so neighbours can part by a pixel: first every pixel is laid at both whole places around where it goes (that
+  // closes the seams), then at its own place on top (that keeps the detail)
+  const hairAt = (x, y) => {
+    const k = clamp01((F.hairX[1] - x) / 60);
+    return [x + leanAt(y) + k * (P.sway * 1.6 + P.trail), y + up + k * Math.sin(P.t * 3 + x * 0.2)];
+  };
+  const capeAt = (x, y) => {
+    const k = clamp01((y - (F.legs - 60)) / 90) * clamp01((F.capeX[1] - x) / 75);
+    return [x + leanAt(y) + k * (P.sway * 2.2 + P.trail * 1.5), y + up * (1 - k)];
+  };
+  for (const [part, at] of [[F.h, hairAt], [F.c, capeAt]]) {
+    for (const [x, y, c] of part) {
+      const [mx, my] = at(x, y), fx = Math.floor(mx), fy = Math.floor(my);
+      put(fx, fy, c), put(fx + 1, fy, c), put(fx, fy + 1, c);
+    }
+    for (const [x, y, c] of part) {
+      const [mx, my] = at(x, y);
+      put(Math.round(mx), Math.round(my), c);
+    }
   }
-  for (const [x, y, c] of F.c) {
-    const k = clamp01((y - (F.legs - 60)) / 90) * clamp01((F.x0 + 75 - x) / 75);
-    put(x + leanAt(y) + Math.round(k * (P.sway * 2.2 + P.trail * 1.5)), y + Math.round(up * (1 - k)), c);
+  // the legs: braced, stepping; the far one first. Where a stepping leg leaves something it lay against (the body at
+  // the hip, the cape, the other leg), it is stretched back over the gap
+  const legY = Math.round(P.sink * 0.5);
+  for (const [part, dx, dy] of [[F.R, P.RX, P.RY], [F.L, P.LX, P.LY]]) {
+    const back = dx > 0 ? 1 : dx < 0 ? 2 : 0;
+    if (back)
+      for (const [x, y, c, edge] of part)
+        if (y <= F.legs + 14 || edge & back) for (let s = Math.min(0, dx); s <= Math.max(0, dx); s++) put(x + s, y + Math.min(0, dy) + legY, c);
+    for (const [x, y, c] of part) put(x + dx, y + dy + legY, c);
   }
-  // the legs: braced, stepping; the far one first
-  for (const [x, y, c] of F.R) put(x + P.RX, y + P.RY + Math.round(P.sink * 0.5), c);
-  for (const [x, y, c] of F.L) put(x + P.LX, y + P.LY + Math.round(P.sink * 0.5), c);
+  // under the body: where the weapon rests (see makeBoss)
+  // (near the shoulder always; out along the weapon only while it barely moves, or a ghost of it would show)
+  const still = Math.abs(P.turn) < 0.12;
+  for (const [x, y, c] of F.seam) if (still || Math.hypot(x - F.pivot[0], y - F.pivot[1]) < 30) put(x + leanAt(y), y + up, c);
   // the body, then the head
   for (const [x, y, c] of F.u) put(x + leanAt(y), y + up, c);
   // (the neck: the head's lowest rows also stay where they were, so a head thrown back leaves no gap)
