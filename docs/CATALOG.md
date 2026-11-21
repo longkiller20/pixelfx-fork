@@ -1,6 +1,6 @@
 # Catalog
 
-282 effects in 27 categories. Every one is a file in
+283 effects in 27 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -227,6 +227,7 @@ portals, runes, missiles, beams.
 | Rune circle | `arcane/rune-circle` | loop 4s | 136×100 | A rune circle turns on the floor in perspective: a carousel of runes lit by chasing light, a turning square, ticks, motes rising off it. |
 | Spell charge | `arcane/spell-charge` | loop 1.6s | 120×86 | Energy gathers in the caster's hand: streaks and motes spiral in, rings collapse into a swelling orb that crackles with arcs, ready to fire. |
 | Star fall | `arcane/star-fall` | one-shot 2.5s | 232×172 | Stars streak down on long trails across an area, each landing with a white flash, a ring across the floor and a kick of sparks. |
+| Teleport array | `arcane/teleport-array` | loop 4s | 136×124 | A teleport array in the floor: an octagonal stone dais with gold trim, a turning ring of runes, eight lit studs, a column of light and motes rising. |
 | Time stop | `arcane/time-stop` | one-shot 3.6s | 196×136 | A clock face springs open, ticks slower and slower, freezes drained of colour, cracks, then shatters into falling shards. |
 
 ## holy

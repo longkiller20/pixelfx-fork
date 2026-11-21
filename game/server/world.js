@@ -7,6 +7,7 @@ import {
   FLY, canFly, flyRealmName, PK, satKhiNow, realmName,
 } from "../shared/balance.js";
 import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
+import { isTele, teleAt, TELE_MAPS } from "../shared/truyen-tong.js";
 import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
 import { CAST, stepReturning } from "./cong-phap.js";
 import * as store from "./store.js";
@@ -370,6 +371,31 @@ export class World {
     });
   }
 
+  /**
+   * Truyền Tống Trận: send a player standing by an array to map `to` (one of TELE_MAPS, not this one). They break into
+   * light as at a gate, and arrive by an array there. Anything else is refused with a word, and nothing moves.
+   */
+  teleport(p, to) {
+    const no = (m) => send(p.ws, { t: "toast", m });
+    if (p.warping || p.gone) return;
+    if (p.dead) return no("Đạo hữu đang tử trận.");
+    if (p.fish) return no("Hãy thu cần trước khi truyền tống.");
+    if (!teleAt(this.map, p.x, p.y)) return no("Hãy đứng cạnh Truyền Tống Trận.");
+    if (!TELE_MAPS.includes(to) || !this.u?.worlds.has(to)) return no("Truyền Tống Trận không đến được nơi này.");
+    if (to === this.key) return no("Đạo hữu đang ở đây rồi.");
+    const t = this.t, from = this.key;
+    p.portalAt = t + 2.5;
+    p.warping = true;
+    p.flying = false;
+    p.in = { dx: 0, dy: 0, jump: false, down: false };
+    this.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
+    send(p.ws, { t: "warp", to });
+    this.at(t + WARP_DELAY, () => {
+      if (p.gone || p.world !== this) return void (p.warping = false);
+      this.u.transfer(p, to, from, null, true).finally(() => (p.warping = false));
+    });
+  }
+
   // ---------------------------------------------------------------- input
   onMessage(p, m) {
     switch (m.t) {
@@ -383,6 +409,9 @@ export class World {
       }
       case "fly":
         return this.setFlying(p, m.on === true);
+      // Truyền Tống Trận: standing by an array, sent to a map it lists
+      case "tele":
+        return this.teleport(p, String(m.to ?? ""));
       // Đồ Sát: switch it on (then they may hit anyone, and anyone may hit them) or off (after a while without fighting)
       case "pk":
         return this.setPk(p, m.on === true);
@@ -1034,8 +1063,9 @@ export class World {
     if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint(p));
     // the battlefield's camps: the other side's kết giới can't be crossed; while getting ready nobody leaves their own
     if (this.war && p.faction) this.campWall(p);
-    // a way out: to the map it leads to, or (a road still being built) a word and a step back
-    const gate0 = this.map.portalAt(p.x, p.y);
+    // a way out: to the map it leads to, or (a road still being built) a word and a step back. A Truyền Tống Trận
+    // (shared/truyen-tong.js) takes nobody by walking onto it: it waits for its button (the "tele" message)
+    const g0 = this.map.portalAt(p.x, p.y), gate0 = isTele(g0) ? null : g0;
     // a Gia Viên's way out leads back to wherever its owner came from
     const gate = gate0?.to === "@back" ? { ...gate0, to: this.u?.worlds.has(p.homeFrom?.key) && p.homeFrom.key !== this.key ? p.homeFrom.key : START_MAP } : gate0;
     if (gate && t >= p.portalAt && gate.to && this.u?.worlds.has(gate.to) && !p.warping) {
@@ -1403,15 +1433,19 @@ export class Universe {
    * Walk a player through a gate: off this map, onto the other, just inside its gate back to where they came from (or at
    * its spawn). Nothing they carry is lost: their unsaved gains and saves in flight go with them. The map is remembered.
    */
-  async transfer(p, toId, fromId, at0 = null) {
+  async transfer(p, toId, fromId, at0 = null, byArray = false) {
     const from = p.world, to = this.worlds.get(toId);
     if (!to || p.gone || from === to) return;
     // the bag first (the one wait), then off one map and onto the other in the same moment: never on no map at all
     const inv = await store.inventory(p.userId).catch(() => ({}));
     if (p.gone || p.world !== from) return;
     from.leave(p);
-    const back = at0 ? null : to.map.portals.find((g) => g.to === fromId);
+    // through a Truyền Tống Trận: by the array there nearest where one appears; else by the gate back to where they came from
+    const arrays = to.map.portals.filter(isTele).sort((a, b) => Math.abs(a.x - to.map.spawn.x) - Math.abs(b.x - to.map.spawn.x));
+    const back = at0 ? null : byArray ? (arrays[0] ?? null) : to.map.portals.find((g) => g.to === fromId);
     let at = at0 && fits(at0.x, at0.y, to.map) ? { x: at0.x, y: at0.y } : null;
+    // an array brings them down onto itself
+    if (byArray && back && !at && fits(back.x, back.y, to.map)) at = { x: back.x, y: back.y };
     if (back && !at) {
       // beside the gate, inward first, the first spot that is open ground and not the gate itself
       const dir = back.x < to.map.w / 2 ? 1 : -1;
