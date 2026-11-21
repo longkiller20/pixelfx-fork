@@ -18,6 +18,8 @@ import * as critters_jellyfish from "./critters/jellyfish.js";
 import * as critters_slime from "./critters/slime.js";
 import * as critters_snake from "./critters/snake.js";
 import * as critters_wisp from "./critters/wisp.js";
+import * as explosions_firework_burst from "./explosions/firework-burst.js";
+import * as explosions_firework_rocket from "./explosions/firework-rocket.js";
 import * as explosions_nuke from "./explosions/nuke.js";
 import * as farm_chicken from "./farm/chicken.js";
 import * as farm_cow from "./farm/cow.js";
@@ -51,6 +53,7 @@ import * as impacts_ground_slam from "./impacts/ground-slam.js";
 import * as impacts_hit_spark from "./impacts/hit-spark.js";
 import * as lightning_charge_up from "./lightning/charge-up.js";
 import * as lightning_lightning_strike from "./lightning/lightning-strike.js";
+import * as love_heart_fall from "./love/heart-fall.js";
 import * as love_hearts from "./love/hearts.js";
 import * as love_ring from "./love/ring.js";
 import * as love_rose from "./love/rose.js";
@@ -95,6 +98,8 @@ export const effects = {
   "critters/slime": critters_slime,
   "critters/snake": critters_snake,
   "critters/wisp": critters_wisp,
+  "explosions/firework-burst": explosions_firework_burst,
+  "explosions/firework-rocket": explosions_firework_rocket,
   "explosions/nuke": explosions_nuke,
   "farm/chicken": farm_chicken,
   "farm/cow": farm_cow,
@@ -128,6 +133,7 @@ export const effects = {
   "impacts/hit-spark": impacts_hit_spark,
   "lightning/charge-up": lightning_charge_up,
   "lightning/lightning-strike": lightning_lightning_strike,
+  "love/heart-fall": love_heart_fall,
   "love/hearts": love_hearts,
   "love/ring": love_ring,
   "love/rose": love_rose,

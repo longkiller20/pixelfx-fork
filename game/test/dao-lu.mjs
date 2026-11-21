@@ -139,6 +139,8 @@ const A = await person("m", 100000), B = await person("f", 0), C = await person(
 
 // ---------------------------------------------------------------- proposals: only at 100, one at a time, the ring paid only on yes, once
 const cA = await connect(A.token), cB = await connect(B.token);
+// someone else, anywhere: hears of the wedding too (the banner, hearts and fireworks on every map)
+const Z = await person("m"), cZ = await connect(Z.token);
 await sleep(600);
 {
   const hp0 = cA.me.maxHp, atk0 = cA.me.atk;
@@ -176,6 +178,7 @@ await sleep(600);
   assert.ok(await until(() => cB.msgs.some((m) => m.t === "pi" && m.id === cA.id && m.dl === B.name)), "A's name tag carries B");
   assert.ok(await until(() => cA.msgs.some((m) => m.t === "s" && (m.E ?? []).some((e) => e.e === "love" && e.k === "wedding"))), "the wedding effect");
   assert.ok(await until(() => cA.msgs.some((m) => m.t === "feed" && /Đạo Lữ/.test(m.m))), "the feed tells everyone");
+  assert.ok(await until(() => cZ.msgs.some((m) => m.t === "celebrate" && m.a === B.name && m.b === A.name && m.ring)), "everyone online celebrates: the whole server");
   // married: no roses to anyone else, no proposal to or from anyone else; roses to one's own dao lu are fine
   await befriend(A, D);
   await setPoints(A, D, dl.NEED);
@@ -186,7 +189,7 @@ await sleep(600);
   const ra = await roses(A);
   assert.equal((await post(A, "/gift", { uid: B.id, qty: 2, requestId: rid() })).status, 200, "roses to one's dao lu");
   assert.equal(await roses(A), ra - 2);
-  ok("Cầu hôn: only at 100 and only with a ring one can pay for, one at a time; five yeses at once make one marriage, the ring paid once by who proposed; both get the ring's buff, the name by theirs, the wedding and the feed; married, no roses or proposals with anyone else");
+  ok("Cầu hôn: only at 100 and only with a ring one can pay for, one at a time; five yeses at once make one marriage, the ring paid once by who proposed; both get the ring's buff, the name by theirs, the wedding and the feed, and the whole server celebrates; married, no roses or proposals with anyone else");
 }
 
 // ---------------------------------------------------------------- divorce: the ring and buff go, affinity back to 0, a wait
@@ -299,7 +302,7 @@ await sleep(600);
   ok("Admin: rings renamed, repriced, their buff changed (a couple's buff follows at once; broken numbers refused), the rose's price; a couple parted, a pair's affinity set; the player page");
 }
 
-cA.ws.close(), cB.ws.close();
+cA.ws.close(), cB.ws.close(), cZ.ws.close();
 await pool.end();
 console.log(`${passed} checks passed`);
 process.exit(0);

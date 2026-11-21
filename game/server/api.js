@@ -315,6 +315,8 @@ export function api(world) {
     const note = `💍 ${out.me} và ${out.name} đã kết thành Đạo Lữ với ${out.ringName}!`;
     await world.syncDaolu([req.userId, out.uid], { [out.uid]: `💍 ${out.me} đã nhận lời! Hai người đã kết thành Đạo Lữ.`, [req.userId]: note }, { [req.userId]: "wedding", [out.uid]: "wedding" });
     world.feed(note);
+    // the whole server celebrates: a banner, hearts falling and fireworks on every map
+    world.celebrate(out.me, out.name, out.ringName);
     return { accepted: true, name: out.name, ring: out.ring };
   });
   dlRoute("/divorce", async (req) => {
