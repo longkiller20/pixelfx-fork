@@ -18,7 +18,7 @@ export class GameError extends Error {
   }
 }
 
-const COLS = "user_id, name, gender, hair, robe, weapon, sword, faction, ct_points, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots, map_id";
+const COLS = "user_id, name, gender, hair, robe, weapon, sword, faction, ct_points, sat_khi, sat_khi_at, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots, map_id";
 /** The bar as saved, or the starters for a character that never changed it; always ART_SLOTS long. */
 export function parseSlots(raw) {
   let a = null;
@@ -36,7 +36,14 @@ const shape = (r) => r && {
   mapId: r.map_id ?? null,
   // Chính Tà: the side (c, t, or null: not picked yet) and the điểm Chính Tà
   faction: r.faction === "c" || r.faction === "t" ? r.faction : null, ctPoints: Number(r.ct_points ?? 0),
+  // Đồ Sát: sát khí as stored, and when (it wears off: balance.js satKhiNow)
+  satKhi: Number(r.sat_khi ?? 0), satKhiAt: r.sat_khi_at ? +new Date(r.sat_khi_at) : null,
 };
+
+/** Đồ Sát: a character's sát khí now (counted from now as it wears off). */
+export async function setSatKhi(uid, v) {
+  await q("UPDATE characters SET sat_khi = ?, sat_khi_at = NOW() WHERE user_id = ?", [v, uid]);
+}
 
 /** The map a character is on, so they come back there. */
 export async function setMap(uid, mapId) {

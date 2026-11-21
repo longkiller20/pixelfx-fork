@@ -39,6 +39,8 @@ export const GIAVIEN = {
   instanced: true,
   cell: 32,
   pvp: false,
+  // a safe place: nobody hits another here, Đồ Sát or not
+  nopk: true,
   mobs: [],
   spawn: { x: 38.5, row: F },
   // the way out: back to wherever they came from (the server decides; "@back")

@@ -156,6 +156,12 @@ export const DEFAULTS = {
     "daolu.rose_buy_max": [99, "Mỗi lần mua tối đa bấy nhiêu bông Hoa Hồng"],
     "daolu.propose_hours": [72, "Lời cầu hôn hết hạn sau bấy nhiêu giờ"],
     "daolu.remarry_hours": [24, "Ly hôn xong phải chờ bấy nhiêu giờ mới kết Đạo Lữ lại được"],
+    // Đồ Sát (server/world.js): bật lên mới đánh được người khác; ai cũng đánh được người đang bật; Tân Thủ Thôn an toàn
+    "pk.level": [6, "Cấp tối thiểu để bật Đồ Sát (6 = Trúc Cơ tầng 1 với cảnh giới mặc định)"],
+    "pk.off_delay": [60, "Giây không giao chiến với người chơi mới tắt được Đồ Sát (cũng là thời gian tối thiểu sau khi bật)"],
+    "pk.decay_minutes": [30, "Cứ bấy nhiêu phút thì Sát khí giảm 1"],
+    "pk.bounty": [50, "Người đang Đồ Sát bị hạ mất bấy nhiêu linh thạch cho mỗi điểm Sát khí, vào tay người hạ"],
+    "pk.max": [99, "Sát khí tối đa"],
     // Chính Tà Phân Tranh (shared/chinh-ta.js, server/chinh-ta.js)
     "chinhta.slot1": [2000, "Giờ trận Chính Tà thứ nhất mỗi ngày, dạng GIỜPHÚT (2000 = 20:00); -1: tắt"],
     "chinhta.slot2": [-1, "Giờ trận thứ hai mỗi ngày (GIỜPHÚT, vd 1230 = 12:30); -1: tắt"],
@@ -206,6 +212,10 @@ export const HOME = {};
 export const SOCIAL = {};
 // Đạo Lữ's numbers (settings daolu.*)
 export const DAOLU = {};
+// Đồ Sát's numbers (settings pk.*)
+export const PK = { level: 6, offDelay: 60, decayMinutes: 30, bounty: 50, max: 99 };
+/** Sát khí now: what was stored at `at` (ms), less one every decayMinutes since. */
+export const satKhiNow = (v, at, now = Date.now()) => Math.max(0, (v | 0) - Math.floor(Math.max(0, now - (at ?? now)) / (PK.decayMinutes * 60_000)));
 // ngự kiếm phi hành: unlocked at level FLY.level (the first stage of realm FLY.realm), flying at FLY.speed × walking
 export const FLY = { realm: 2, level: 6, speed: 1.35, arena: false };
 export let RESPAWN_WORLD = 4, DAILY_STONES = 30, BUY_MAX = 10;
@@ -420,6 +430,10 @@ export function applyConfig(c) {
       times: slots.map(hhmm),
     });
   }
+  Object.assign(PK, {
+    level: Math.max(1, S["pk.level"] | 0), offDelay: Math.max(0, S["pk.off_delay"]), decayMinutes: Math.max(1, S["pk.decay_minutes"]),
+    bounty: Math.max(0, S["pk.bounty"] | 0), max: Math.max(1, S["pk.max"] | 0),
+  });
   DAILY_STONES = S["daily.stones"] | 0;
   BUY_MAX = Math.max(1, S["shop.buy_max"] | 0);
   return k;

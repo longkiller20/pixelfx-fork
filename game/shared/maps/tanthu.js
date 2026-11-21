@@ -23,6 +23,8 @@ export const TANTHU = {
   pines: "/maps/tiles/pines.png",
   cell: 32,
   pvp: false,
+  // a safe place: nobody hits another here, Đồ Sát or not
+  nopk: true,
   // two straw dummies by the market, beside where newcomers appear: something to try the arts on
   mobs: [{ type: "dummy", x: 83, row: 15 }, { type: "dummy", x: 85.5, row: 15 }],
   spawn: { x: 89, row: 15 },

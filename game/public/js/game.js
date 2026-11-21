@@ -13,6 +13,7 @@ import { stepBody, PHYS, zoneLanding } from "/shared/physics.js";
 import { createHomeLayer } from "./gia-vien.js";
 import { createFishLayer } from "./cau-ca.js";
 import { lovePic } from "./dao-lu.js";
+import { menuIcon } from "./menu.js";
 import { emblemStill } from "./chinh-ta.js";
 import { WAR_MAP } from "/shared/chinh-ta.js";
 
@@ -385,6 +386,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "fx":
         if (e.k === "thunder") addFx("lightning/lightning-strike", e.x, e.y, {});
         break;
+      case "pk": {
+        // Đồ Sát switched on: a red rage over them
+        const t = posOf(e.id, s);
+        if (t && e.on) addFx("status/rage", t.x, t.y, {}, e.id, 1.4, 1.2);
+        break;
+      }
       case "ctfx": {
         // Chính Tà: first blood (a burst of blood-red light), a kill streak (rage over the killer), the fight begins / ends
         const t = e.id ? posOf(e.id, s) : null;
@@ -459,6 +466,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     const sk = { j: 0, k: 1, l: 2, u: 3, i: 4, o: 5, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 }[k];
     if (sk !== undefined && !e.repeat) cast(sk);
     if (k === "f" && !e.repeat) toggleFly();
+    if (k === "p" && !e.repeat) togglePk();
     if (k === "z" && !e.repeat && !map?.def.peaceful) use("hoixuan");
     if (k === "x" && !e.repeat && !map?.def.peaceful) use("tukhi");
   });
@@ -537,6 +545,24 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     flyBtn.title = on ? "Hạ kiếm (F)" : "Ngự kiếm phi hành (F)";
   }
   flyBtn.addEventListener("pointerdown", (e) => (e.preventDefault(), toggleFly()));
+  // Đồ Sát (P): on, this player may hit others, and anyone may hit them; off (after a while without fighting), only those on
+  // it can. Shown from pk.level; on a safe map (Tân Thủ Thôn) it stays as it is but nobody fights there
+  const pkBtn = $("pkBtn");
+  pkBtn.querySelector(".ic").append(menuIcon("pk"));
+  function togglePk() {
+    if (!me?.pk || map?.id === WAR_MAP || map?.def.peaceful) return;
+    if (!me.pk.on && me.lv < me.pk.level) return toast(`Tới cấp ${me.pk.level} (${realmName(me.pk.level)}) mới bật được Đồ Sát.`);
+    send({ t: "pk", on: !me.pk.on });
+  }
+  function renderPk() {
+    const P = me?.pk;
+    pkBtn.hidden = !P || (me.lv < P.level && !P.on);
+    if (!P) return;
+    pkBtn.classList.toggle("on", P.on);
+    pkBtn.classList.toggle("safe", !P.here);
+    pkBtn.title = P.on ? (P.offIn > 0 ? `Đang Đồ Sát: ${P.offIn} giây nữa mới tắt được (P)` : "Đang Đồ Sát: nhấn để tắt (P)") : P.here ? "Bật Đồ Sát: đánh được người khác, người khác cũng đánh được mình (P)" : "Vùng an toàn: không ai giao chiến ở đây (P)";
+  }
+  pkBtn.addEventListener("pointerdown", (e) => (e.preventDefault(), togglePk()));
 
   // the joystick: a round analog stick wherever the thumb lands in the left part of the screen. Left and right walk; pushing it
   // up jumps (held up, it keeps jumping on landing), pulling it down drops through a plank or cloud
@@ -739,6 +765,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     const info = myInfo();
     if (!me || !info) return;
     renderFly();
+    renderPk();
     const cls = CLASSES[CLASS];
     $("hpFill").style.width = `${(100 * me.hp) / me.maxHp}%`;
     $("hpText").textContent = `${me.hp} / ${me.maxHp}`;
@@ -769,6 +796,21 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       s.className = "buff ring";
       s.title = `Nhẫn cưới · Đạo Lữ ${me.daolu.name}: +${B.hp}% sinh lực, +${B.atk}% công, +${B.def}% thủ, +${B.spd}% tốc độ`;
       s.textContent = `♥ +${B.hp}%`;
+      line.append(s);
+    }
+    // Đồ Sát: on (and how long before it can be switched off), and the sát khí
+    if (me.pk?.on) {
+      const s = document.createElement("span");
+      s.className = "buff pkon";
+      s.title = me.pk.here ? "Đang Đồ Sát: đánh được người khác, ai cũng đánh được mình" : "Đang Đồ Sát (vùng an toàn: không giao chiến ở đây)";
+      s.textContent = me.pk.offIn > 0 ? `⚔ Đồ Sát ${me.pk.offIn}s` : "⚔ Đồ Sát";
+      line.append(s);
+    }
+    if (me.pk?.sk > 0) {
+      const s = document.createElement("span");
+      s.className = "buff sk";
+      s.title = `Sát khí ${me.pk.sk}: hạ người không Đồ Sát thì tăng, tự giảm dần theo thời gian. Bị hạ khi đang Đồ Sát thì mất linh thạch theo Sát khí.`;
+      s.textContent = `☠ ${me.pk.sk}`;
       line.append(s);
     }
     showCooldowns();
@@ -1340,11 +1382,13 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         const info = infos.get(e.id);
         if (!info) continue;
         top = (e.y - camY - avatarTop(info.look) - 4) * k;
-        name = `${info.name} · ${realmName(info.lv)}`;
+        // Đồ Sát: a blade before the name, the sát khí after it, the name in blood red
+        name = `${info.pk ? "⚔ " : ""}${info.name}${info.sk > 0 ? ` ☠${info.sk}` : ""} · ${realmName(info.lv)}`;
         color = e.id === myId ? "#fff6c8" : info.look?.g === "f" ? "#ffb8d8" : "#a8e0ff";
         // Chính Tà: their side's emblem by the name; on the battlefield the name in their side's colour
         fac = info.f;
         if (fac && map.id === WAR_MAP && e.id !== myId) color = fac === "c" ? "#ffe08a" : "#ff8a9a";
+        else if (info.pk) color = "#ff4a3a";
         sect = info.sect;
         dl = info.dl;
       } else {

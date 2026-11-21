@@ -4,7 +4,7 @@
 import { WebSocket } from "ws";
 import {
   TICK_HZ, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE, levelFromExp, worldMult, arenaMult, mitigate, ARTS, ART_SLOTS, DROPS,
-  FLY, canFly, flyRealmName,
+  FLY, canFly, flyRealmName, PK, satKhiNow, realmName,
 } from "../shared/balance.js";
 import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
 import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
@@ -91,6 +91,8 @@ export class World {
       daolu: spouse,
       // Chính Tà: their side (c, t, or null), shown by their name; on the battlefield it says who is friend and who is foe
       faction: ch.faction ?? null,
+      // Đồ Sát: off at every login; the sát khí (from bringing down people who weren't fighting) is kept in the database
+      pk: false, pkSince: -99, pkFight: -99, satKhi: ch.satKhi ?? 0, satKhiAt: ch.satKhiAt ?? null,
     };
     Object.assign(p, this.spawnPoint(p));
     this.applyBase(p, ch, true);
@@ -360,6 +362,8 @@ export class World {
       cd: this.cooldowns(p),
       sect: p.sect ? { id: p.sect.id, name: p.sect.name, rank: p.sect.rank, level: p.sect.level, bonus: this.map.pvp ? 0 : sectBonus(p.sect.level, SECT), array: Math.max(0, Math.round((p.sect.arrayUntil - Date.now()) / 1000)) } : null,
       respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
+      // Đồ Sát: on or off, whether it works here, how long before it may be switched off, the sát khí now
+      pk: { on: p.pk, here: !(this.map.def.nopk || this.map.def.peaceful || this.map.pvp), offIn: p.pk ? this.pkOffIn(p) : 0, sk: satKhiNow(p.satKhi, p.satKhiAt), level: PK.level },
       daolu: p.daolu ? { uid: p.daolu.uid, name: p.daolu.name, ring: p.daolu.ring, buff: this.map.pvp ? null : { ...RING_BUFF[p.daolu.ring] } } : null,
       buffs: (p.buffs ?? []).filter((x) => x.until === null || x.until > Date.now()).map((x) => ({ stat: x.stat, pct: x.pct, left: x.until === null ? null : Math.round((x.until - Date.now()) / 1000) })),
     });
@@ -378,6 +382,9 @@ export class World {
       }
       case "fly":
         return this.setFlying(p, m.on === true);
+      // Đồ Sát: switch it on (then they may hit anyone, and anyone may hit them) or off (after a while without fighting)
+      case "pk":
+        return this.setPk(p, m.on === true);
       // Câu Cá: cast, strike, hold the line (on/off) while reeling, or reel in
       case "fish":
         return this.fishInput(p, m);
@@ -466,7 +473,8 @@ export class World {
     if (e.kind !== "p" || e === att || att.kind !== "p") return false;
     // the Chính Tà battlefield: only the other side, only while the fight is on, nobody in their own camp (the kết giới)
     if (this.war) return !!(e.faction && att.faction && e.faction !== att.faction && e.protectUntil <= this.t && this.war.m?.phase === "fight" && !this.inCamp(e) && !this.inCamp(att));
-    return this.map.pvp && e.protectUntil <= this.t;
+    if (this.map.pvp) return e.protectUntil <= this.t;
+    return this.pkHostile(att, e);
   }
   targetsOf(att) {
     const out = [];
@@ -492,6 +500,8 @@ export class World {
     if (att.kind === "p") e.lastHitBy = att;
     // on the battlefield: who hit whom lately, for the hỗ trợ (assists)
     if (this.war && att.kind === "p" && e.kind === "p") (e.hitBy ??= new Map()).set(att.userId, this.t);
+    // Đồ Sát: both are fighting a player now (neither may switch it off for a while)
+    if (!this.war && att.kind === "p" && e.kind === "p") att.pkFight = e.pkFight = this.t;
     this.ev({ e: "hit", id: e.id, d: dmg, by: att.id });
     if (e.hpFrac <= 0) this.kill(e, att);
     return dmg;
@@ -601,6 +611,13 @@ export class World {
     }
     // a player: falls off the sword
     e.flying = false;
+    // the open world: a player brought down by a player (Đồ Sát), its own reckoning
+    if (!this.war && !this.map.pvp && owner && owner !== e) {
+      e.respawnAt = this.t + RESPAWN_WORLD;
+      e.busyUntil = 0;
+      e.rootUntil = 0;
+      return this.pkKill(owner, e);
+    }
     if (this.war) {
       // the Chính Tà battlefield: a hạ gục for the other side (server/chinh-ta.js), back at their camp after CT.respawn;
       // no tu vi, linh thạch or điểm đấu trường here: the battle has its own rewards
@@ -632,6 +649,70 @@ export class World {
       this.feed(`${owner.name} đã hạ ${e.name}${rewarded ? "" : " (không tính thưởng: vừa hạ người này)"}.`);
     } else this.feed(`${e.name} đã bị ${att.def?.name ?? "quái"} đánh bại.`);
     this.sendMe(e);
+  }
+
+  // ---------------------------------------------------------------- Đồ Sát (settings pk.*)
+  // Someone with Đồ Sát on may hit any player; anyone may hit someone with it on (to defend themselves, or hunt them);
+  // two players without it never hurt each other. Never on a safe map (Tân Thủ Thôn, a Gia Viên: map.def.nopk) or a
+  // peaceful one (the lake); never one's own Đạo Lữ or a member of one's own Tông Môn; never someone just risen (protected).
+  // Bringing down someone who wasn't on Đồ Sát gives the killer a point of sát khí (it wears off: pk.decay_minutes each);
+  // whoever is brought down while on Đồ Sát loses pk.bounty linh thạch for each point of their sát khí, to their killer.
+  // It is switched off only after pk.off_delay seconds without fighting a player (and not sooner after switching it on).
+  pkHostile(att, e) {
+    if (this.map.def.nopk || this.map.def.peaceful) return false;
+    if (!att.pk && !e.pk) return false;
+    if (e.protectUntil > this.t) return false;
+    if (att.daolu?.uid === e.userId || e.daolu?.uid === att.userId) return false;
+    if (att.sect && e.sect && att.sect.id === e.sect.id) return false;
+    return true;
+  }
+  /** Seconds before p may switch Đồ Sát off (0: now). */
+  pkOffIn(p) {
+    return Math.max(0, Math.ceil(Math.max(p.pkSince, p.pkFight) + PK.offDelay - this.t));
+  }
+  setPk(p, on) {
+    if (on === p.pk) return;
+    if (on) {
+      if (p.level < PK.level) return send(p.ws, { t: "toast", m: `Tới cấp ${PK.level} (${realmName(PK.level)}) mới bật được Đồ Sát.` });
+      p.pk = true;
+      p.pkSince = this.t;
+      send(p.ws, { t: "toast", m: this.map.def.nopk ? "Đã bật Đồ Sát (ở đây là vùng an toàn: rời khỏi đây mới giao chiến được)." : "⚔ Đã bật Đồ Sát: đạo hữu đánh được người khác, và ai cũng đánh được đạo hữu!", big: 1 });
+      this.ev({ e: "pk", id: p.id, on: 1 });
+    } else {
+      const wait = this.pkOffIn(p);
+      if (wait > 0) return send(p.ws, { t: "toast", m: `Sát ý chưa tan: ${wait} giây nữa (không giao chiến) mới tắt được Đồ Sát.` });
+      p.pk = false;
+      send(p.ws, { t: "toast", m: "Đã tắt Đồ Sát." });
+      this.ev({ e: "pk", id: p.id, on: 0 });
+    }
+    this.broadcast({ t: "pi", ...info(p) });
+    this.sendMe(p);
+  }
+  /** v fell to k in the open world. */
+  pkKill(k, v) {
+    const now = Date.now();
+    if (v.pk) {
+      // a slaughterer brought down: the bounty on their sát khí goes to whoever did it
+      const sk = satKhiNow(v.satKhi, v.satKhiAt, now), have = Math.max(0, v.base.stones + v.pend.stones);
+      const loss = Math.min(have, sk * PK.bounty);
+      if (loss > 0) {
+        v.pend.stones -= loss;
+        k.pend.stones += loss;
+      }
+      (this.u ?? this).feed(`⚔ ${k.name} đã hạ kẻ Đồ Sát ${v.name}${loss ? ` và nhận ${loss.toLocaleString("vi-VN")} linh thạch tiền thưởng` : ""}.`);
+      if (loss) send(v.ws, { t: "toast", m: `Bị hạ khi đang Đồ Sát: mất ${loss.toLocaleString("vi-VN")} linh thạch (Sát khí ${sk}).` });
+    } else {
+      // an innocent brought down: sát khí for the killer
+      const sk = Math.min(PK.max, satKhiNow(k.satKhi, k.satKhiAt, now) + 1);
+      k.satKhi = sk;
+      k.satKhiAt = now;
+      store.setSatKhi(k.userId, sk).catch((e) => console.error("sat khi", e.message));
+      (this.u ?? this).feed(`☠ ${k.name} (Đồ Sát) đã hạ ${v.name} ở ${this.map.name}. Sát khí của ${k.name}: ${sk}.`);
+      this.broadcast({ t: "pi", ...info(k) });
+    }
+    this.ev({ e: "pk", id: k.id, kill: 1 });
+    this.sendMe(k);
+    this.sendMe(v);
   }
 
   // ---------------------------------------------------------------- Câu Cá (shared/cau-ca.js; money and things: server/cau-ca.js)
@@ -1172,7 +1253,7 @@ export class World {
 const zero = () => ({ exp: 0, stones: 0, rank: 0, kills: 0, deaths: 0, med: 0 });
 const FSTATE = { wait: 1, biting: 1, bite: 2, reel: 3, landing: 3 };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level, sect: p.sect ? { n: p.sect.name, e: p.sect.emblem, r: p.sect.rank } : null, dl: p.daolu?.name ?? null, f: p.faction ?? null });
+const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level, sect: p.sect ? { n: p.sect.name, e: p.sect.emblem, r: p.sect.rank } : null, dl: p.daolu?.name ?? null, f: p.faction ?? null, pk: p.pk ? 1 : 0, sk: satKhiNow(p.satKhi, p.satKhiAt) });
 // a client that can't keep up (more than 1 MB queued) skips snapshots instead of growing the server's memory
 function sendRaw(ws, msg) {
   if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 1 << 20) ws.send(msg);
