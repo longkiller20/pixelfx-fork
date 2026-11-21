@@ -458,6 +458,64 @@ const SCHEMA = [
     PRIMARY KEY (user_id, request_id),
     CONSTRAINT fk_dlreq_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
+  // ---- Chính Tà Phân Tranh (server/chinh-ta.js). One row per person signed up for a battle (named by its start, ms):
+  // signing twice is the same row
+  `CREATE TABLE IF NOT EXISTS ct_signups (
+    slot BIGINT NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    faction CHAR(1) NOT NULL,
+    created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (slot, user_id),
+    KEY k_user (user_id),
+    CONSTRAINT fk_cts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  // one row per battle: slot is unique, so a battle can never be started twice (two timers, a restart, the admin's button)
+  `CREATE TABLE IF NOT EXISTS ct_matches (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    slot BIGINT NOT NULL,
+    state ENUM('running','done','cancelled') NOT NULL DEFAULT 'running',
+    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at DATETIME NULL,
+    size_c TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    size_t TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    kills_c SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    kills_t SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    winner CHAR(1) NULL,
+    note VARCHAR(200) NOT NULL DEFAULT '',
+    UNIQUE KEY uq_slot (slot)
+  ) ENGINE=InnoDB`,
+  // who fought in a battle and what they got: (match, user) is the key, so a reward is written once whatever happens
+  `CREATE TABLE IF NOT EXISTS ct_players (
+    match_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    faction CHAR(1) NOT NULL,
+    kills SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    deaths SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    assists SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    seconds SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    result CHAR(1) NOT NULL,
+    mvp TINYINT(1) NOT NULL DEFAULT 0,
+    points INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (match_id, user_id),
+    KEY k_user (user_id, match_id),
+    CONSTRAINT fk_ctp_match FOREIGN KEY (match_id) REFERENCES ct_matches(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ctp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  // the Tiệm Chính Tà: items sold for điểm Chính Tà (the admin fills it; empty until then)
+  `CREATE TABLE IF NOT EXISTS ct_shop (
+    item VARCHAR(32) NOT NULL PRIMARY KEY,
+    price INT UNSIGNED NOT NULL,
+    on_sale TINYINT(1) NOT NULL DEFAULT 1,
+    sort INT NOT NULL DEFAULT 0
+  ) ENGINE=InnoDB`,
+  // a purchase or a change of side, by request id: sent twice, it counts once
+  `CREATE TABLE IF NOT EXISTS ct_requests (
+    user_id INT UNSIGNED NOT NULL,
+    request_id CHAR(36) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, request_id),
+    CONSTRAINT fk_ctreq_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,
@@ -486,6 +544,11 @@ const UPGRADES = [
   "ALTER TABLE characters ADD COLUMN IF NOT EXISTS map_id VARCHAR(16) NULL",
   // the flying sword ridden when flying (ngự kiếm phi hành); everyone has the basic one, rideable from fly.realm
   `ALTER TABLE characters ADD COLUMN IF NOT EXISTS sword SMALLINT UNSIGNED NOT NULL DEFAULT ${BASIC_SWORD} AFTER weapon`,
+  // Chính Tà: the side (c Chính Phái, t Tà Phái; NULL for a character made before there were sides, who picks one in the
+  // panel), when it was last changed, and the điểm Chính Tà
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS faction CHAR(1) NULL AFTER sword",
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS faction_at DATETIME NULL AFTER faction",
+  "ALTER TABLE characters ADD COLUMN IF NOT EXISTS ct_points INT UNSIGNED NOT NULL DEFAULT 0 AFTER faction_at",
 ];
 
 /**

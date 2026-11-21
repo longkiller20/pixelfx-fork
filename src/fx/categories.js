@@ -26,4 +26,5 @@ export const categories = [
   { id: "home", name: "home", blurb: "doors, windows, tables, beds, lanterns, an alchemy furnace" },
   { id: "fishing", name: "fishing", blurb: "fish, rods, bait, a float, a fishmonger's stall, a dock" },
   { id: "love", name: "love", blurb: "a rose, wedding rings, hearts rising, a wedding of light and petals" },
+  { id: "chinhta", name: "chinhta", blurb: "two sides at war: their emblems, war banners, a camp's wall of light, the stele between them" },
 ];

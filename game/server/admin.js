@@ -20,6 +20,7 @@ import * as sects from "./tong-mon.js";
 import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
 import * as dl from "./dao-lu.js";
+import * as ct from "./chinh-ta.js";
 import { RINGS, RING_BUFF, ROSE, NEED } from "../shared/dao-lu.js";
 import { RODS, BAITS, FISH, RARITY, RATES, CHEST, odds } from "../shared/cau-ca.js";
 import { ITEMS } from "../shared/balance.js";
@@ -242,6 +243,51 @@ export function adminApp(world) {
     res.json({ ok: true });
   }));
 
+  // ---- Chính Tà Phân Tranh: the next battle and who signed, the battle now (its board), the record, the Tiệm, and the
+  // buttons: start the next battle now, end it now (rewards as if time were up), cancel it (no rewards); a player's points
+  // and side. The rules are settings chinhta.*.
+  r.get("/chinhta", wrap(async (req, res) => res.json(await ct.adminView(world.war))));
+  r.get("/chinhta/match/:id", wrap(async (req, res) => res.json(await ct.matchPlayers(Number(req.params.id)))));
+  r.post("/chinhta/start", wrap(async (req, res) => {
+    const slot = ct.upcoming() ?? Date.now();
+    const out = await world.war.start(slot, `admin ${req.admin.name}`);
+    await log(req.admin, "chinhta.start", String(slot), out);
+    if (out.error && !out.cancelled) throw bad(out.error);
+    res.json({ ok: true, ...out });
+  }));
+  r.post("/chinhta/end", wrap(async (req, res) => {
+    if (!world.war.m || world.war.m.phase === "over") throw bad("Không có trận nào đang đánh.");
+    await world.war.finish(`kết thúc sớm bởi admin ${req.admin.name}`);
+    await log(req.admin, "chinhta.end", String(world.war.m?.id ?? ""), null);
+    res.json({ ok: true });
+  }));
+  r.post("/chinhta/cancel", wrap(async (req, res) => {
+    await world.war.cancel(`Admin ${req.admin.name} hủy trận`);
+    await log(req.admin, "chinhta.cancel", "", null);
+    res.json({ ok: true });
+  }));
+  r.post("/chinhta/points", wrap(async (req, res) => {
+    const uid = Number(req.body?.uid);
+    const v = await ct.adminPoints(uid, req.body?.delta);
+    await log(req.admin, "chinhta.points", String(uid), { delta: req.body?.delta, now: v });
+    res.json({ ok: true, points: v });
+  }));
+  r.post("/chinhta/faction", wrap(async (req, res) => {
+    const uid = Number(req.body?.uid);
+    if (world.war.fighting(uid)) throw bad("Người này đang trong trận Chính Tà.");
+    await ct.adminFaction(uid, req.body?.faction);
+    await log(req.admin, "chinhta.faction", String(uid), { faction: req.body?.faction });
+    const ch = await loadCharacter(uid);
+    if (ch) world.refresh(uid, ch);
+    res.json({ ok: true });
+  }));
+  r.post("/chinhta/shop", wrap(async (req, res) => {
+    const b = req.body ?? {};
+    await ct.adminShop(b.item, b.price, b.onSale !== false, b.sort, b.remove === true);
+    await log(req.admin, "chinhta.shop", String(b.item), b);
+    res.json({ ok: true, shop: await ct.shopList(true) });
+  }));
+
   // ---- admin accounts
   r.get("/admins", wrap(async (req, res) => res.json(await q("SELECT id, username, must_change, created_at, last_login FROM admins ORDER BY id"))));
   r.post("/admins", wrap(async (req, res) => {
@@ -453,6 +499,8 @@ export function adminApp(world) {
       // Câu Cá: the rod and bait in hand, the tallies, the Ngư Lục (rods and baits themselves are items: the bag above)
       fishing: await cc.adminView(id),
       daolu: await dl.adminView(id),
+      // Chính Tà: the side, the điểm Chính Tà, the last battles
+      chinhta: await ct.adminPlayer(id),
       home: { ...(await gv.adminView(id)), catalog: Object.keys(HOUSES).filter((k) => k !== DEFAULT_HOUSE).map((k) => ({ id: k, name: houseName(k, HOME.houses), price: housePrice(k, HOME.houses) })), defaultHouse: houseName(DEFAULT_HOUSE, HOME.houses) },
     };
   }

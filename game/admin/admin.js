@@ -472,6 +472,80 @@ const VIEWS = {
     return out;
   },
 
+  // Chính Tà Phân Tranh: the battle on now (its board, the buttons to end or cancel it), the next battle and who signed up,
+  // a button to start it now, the rules (settings chinhta.*), the record of battles (each one's fighters), the Tiệm Chính
+  // Tà (items sold for điểm Chính Tà), and a player's points or side set by hand
+  async chinhta() {
+    const d = await api("/chinhta"), out = el("div"), R = d.rules;
+    const F = { c: "Chính Phái", t: "Tà Phái", d: "Hòa" }, RES = { w: "Thắng", l: "Thua", d: "Hòa", x: "Rời trận" };
+    const at = (ms) => new Date(ms).toLocaleString("vi-VN");
+    out.append(el("h2", {}, "Chính Tà Phân Tranh"),
+      el("p", { class: "dim" }, `Mỗi ngày lúc ${R.times.join(", ") || "(chưa có giờ: đặt chinhta.slot1..3)"} (UTC+${R.tz}). Người chơi đăng ký trước; đến giờ hệ thống chọn mỗi phe tối đa ${R.team} người mạnh nhất đang trực tuyến (phe đông hơn được hơn tối đa ${R.maxGap}), đưa vào chiến trường. ${R.minutes} phút, phe nhiều lượt hạ gục hơn thắng. Thưởng điểm Chính Tà: thắng ${R.win}, thua ${R.lose}, hòa ${R.draw}, +${R.killPts}/hạ gục (tối đa ${R.killCap}), MVP +${R.mvp}.`),
+      el("p", {}, `Nhân vật theo phe: Chính Phái ${fmt(d.sides.c ?? 0)} · Tà Phái ${fmt(d.sides.t ?? 0)} · chưa chọn ${fmt(d.sides["-"] ?? 0)}`));
+    // the battle now
+    out.append(el("h3", {}, "Trận đang diễn ra"));
+    if (d.now) {
+      const n = d.now;
+      out.append(el("p", {}, `Trận #${n.id} (${n.text}) · ${n.phase === "prep" ? "đang chuẩn bị" : n.phase === "fight" ? "đang giao chiến" : "đã kết thúc"} · Chính ${n.kills.c} - ${n.kills.t} Tà · Chính ${n.size.c} người, Tà ${n.size.t} người · kết thúc lúc ${at(n.ends)}`),
+        el("div", { class: "bar" },
+          el("button", { class: "small", onclick: async () => confirm("Kết thúc trận ngay? Thưởng điểm như hết giờ.") && (await guard(() => api("/chinhta/end", { method: "POST" }), "Đã kết thúc.")) && reload() }, "Kết thúc ngay (có thưởng)"),
+          el("button", { class: "small danger", onclick: async () => confirm("Hủy trận? Không ai được thưởng, mọi người về ngay.") && (await guard(() => api("/chinhta/cancel", { method: "POST" }), "Đã hủy.")) && reload() }, "Hủy trận (không thưởng)")),
+        el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["Tên", "Phe", "Hạ", "Bại", "Trợ", "Trạng thái"].map((t) => el("th", {}, t))),
+          ...n.board.map((r) => el("tr", {}, el("td", {}, r.n), el("td", {}, F[r.f]), el("td", {}, String(r.k)), el("td", {}, String(r.d)), el("td", {}, String(r.a)), el("td", {}, r.left ? "đã rời" : r.on ? "trong trận" : "vắng"))))),
+        el("p", { class: "dim" }, `Dự bị: Chính ${n.bench.c.join(", ") || "không"} · Tà ${n.bench.t.join(", ") || "không"}`));
+    } else out.append(el("p", { class: "dim" }, "Không có trận nào."));
+    // the next battle
+    out.append(el("h3", {}, d.next ? `Trận kế tiếp: ${d.next.text} (đóng đăng ký ${at(d.next.closes)})` : "Chưa có lịch"));
+    if (d.next) {
+      out.append(el("p", {}, `Đã đăng ký: Chính ${d.signups.filter((r) => r.faction === "c").length} · Tà ${d.signups.filter((r) => r.faction === "t").length}`),
+        el("div", { class: "bar" }, el("button", { class: "small", disabled: !!d.now, onclick: async () => {
+          if (!confirm("Bắt đầu trận kế tiếp ngay bây giờ với những người đã đăng ký (đang trực tuyến)?")) return;
+          const r = await guard(() => api("/chinhta/start", { method: "POST" }), "Đã bắt đầu.");
+          if (r?.cancelled) alert(`Trận bị hủy: ${r.error}`);
+          reload();
+        } }, "Bắt đầu ngay")));
+      if (d.signups.length)
+        out.append(el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["ID", "Tên", "Phe", "Cấp", "Điểm đấu trường", "Lúc đăng ký"].map((t) => el("th", {}, t))),
+          ...d.signups.map((r) => el("tr", {}, el("td", {}, String(r.uid)), el("td", {}, r.name), el("td", {}, `${F[r.faction]}${r.cur !== r.faction ? " (đã đổi phe)" : ""}`), el("td", {}, String(r.level)), el("td", {}, fmt(r.rank)), el("td", {}, when(r.at)))))));
+    }
+    // the rules
+    out.append(el("h3", {}, "Luật"), el("p", { class: "dim" }, "Các số này cũng có ở tab Cài đặt (chinhta.*). Giờ trận dạng GIỜPHÚT: 2000 = 20:00, 1230 = 12:30, -1 = tắt."));
+    const rule = (k, label, v) => record({ title: label, sub: `${k} = ${v}`, row: { v }, fields: [{ k: "v", label: "Giá trị", type: "number", step: "any" }],
+      onSave: async (c) => (await guard(() => api(`/t/settings/${k}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload() });
+    const S = Object.fromEntries((await api("/t/settings")).filter((r) => r.k.startsWith("chinhta.")).map((r) => [r.k, [r.v, r.note]]));
+    for (const [k, [v, note]] of Object.entries(S)) out.append(rule(k, note || k, v));
+    // the record
+    out.append(el("h3", {}, "Các trận gần đây"));
+    const box = el("div");
+    out.append(el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["#", "Giờ trận", "Trạng thái", "Người", "Tỉ số", "Kết quả", "Ghi chú", ""].map((t) => el("th", {}, t))),
+      ...d.matches.map((m) => el("tr", {}, el("td", {}, String(m.id)), el("td", {}, m.text), el("td", {}, { running: "đang chạy", done: "xong", cancelled: "hủy" }[m.state]),
+        el("td", {}, `${m.size_c} - ${m.size_t}`), el("td", {}, `${m.kills_c} - ${m.kills_t}`), el("td", {}, m.winner ? F[m.winner] : ""), el("td", {}, m.note),
+        el("td", {}, m.state === "done" ? el("button", { class: "small", onclick: async () => {
+          const rows = await api(`/chinhta/match/${m.id}`);
+          box.replaceChildren(el("h4", {}, `Trận #${m.id}`), el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["ID", "Tên", "Phe", "Hạ", "Bại", "Trợ", "Giây", "Kết quả", "MVP", "Điểm"].map((t) => el("th", {}, t))),
+            ...rows.map((r) => el("tr", {}, ...[r.uid, r.name, F[r.faction], r.kills, r.deaths, r.assists, r.seconds, RES[r.result], r.mvp ? "★" : "", r.points].map((v) => el("td", {}, String(v ?? "")))))))); 
+        } }, "Xem") : ""))))), box);
+    // the shop
+    out.append(el("h3", {}, "Tiệm Chính Tà"), el("p", { class: "dim" }, "Vật phẩm bán bằng điểm Chính Tà (khóa của vật phẩm trong tab Đan dược / vật phẩm). Trống thì người chơi thấy ghi chú tiệm sẽ phát triển sau."));
+    for (const it of d.shop)
+      out.append(record({ title: `${it.name}${it.onSale ? "" : " (ẩn)"}`, sub: `${it.item} · ${fmt(it.price)} điểm`, row: { price: it.price, onSale: it.onSale ? 1 : 0, sort: it.sort },
+        fields: [{ k: "price", label: "Giá (điểm)", type: "number", step: 1 }, { k: "onSale", label: "Đang bán (1/0)", type: "number", step: 1 }, { k: "sort", label: "Thứ tự", type: "number", step: 1 }],
+        onSave: async (c) => (await guard(() => api("/chinhta/shop", { method: "POST", body: { item: it.item, price: c.price ?? it.price, onSale: (c.onSale ?? (it.onSale ? 1 : 0)) == 1, sort: c.sort ?? it.sort } }), "Đã lưu.")) && reload() }),
+        el("button", { class: "small danger", onclick: async () => confirm(`Bỏ ${it.name} khỏi tiệm?`) && (await guard(() => api("/chinhta/shop", { method: "POST", body: { item: it.item, remove: true } }), "Đã bỏ.")) && reload() }, "Bỏ khỏi tiệm"));
+    const item = el("input", { placeholder: "Khóa vật phẩm (vd hoixuan)" }), price = el("input", { placeholder: "Giá (điểm)", type: "number" });
+    out.append(el("div", { class: "bar" }, item, price, el("button", { class: "small", onclick: async () => (await guard(() => api("/chinhta/shop", { method: "POST", body: { item: item.value.trim(), price: Number(price.value) } }), "Đã thêm.")) && reload() }, "Thêm vào tiệm")));
+    // a player's points and side
+    out.append(el("h3", {}, "Điểm và phe của người chơi"));
+    const uid = el("input", { placeholder: "ID người chơi", type: "number" }), delta = el("input", { placeholder: "Cộng/trừ điểm (vd 50, -20)", type: "number" });
+    const side = el("select", {}, el("option", { value: "c" }, "Chính Phái"), el("option", { value: "t" }, "Tà Phái"));
+    out.append(el("div", { class: "bar" }, uid, delta, el("button", { class: "small", onclick: async () => {
+      const r = await guard(() => api("/chinhta/points", { method: "POST", body: { uid: Number(uid.value), delta: Number(delta.value) } }), "Đã cập nhật điểm.");
+      if (r) alert(`Điểm Chính Tà hiện có: ${fmt(r.points)}`);
+    } }, "Cộng/trừ điểm")),
+      el("div", { class: "bar" }, side, el("button", { class: "small", onclick: async () => confirm("Đặt phe cho người chơi này (không mất phí, không chờ)?") && guard(() => api("/chinhta/faction", { method: "POST", body: { uid: Number(uid.value), faction: side.value } }), "Đã đặt phe.") }, "Đặt phe")));
+    return out;
+  },
+
   async realms() {
     const rows = await api("/t/realms");
     // each realm's levels, counted through the whole list
@@ -1219,6 +1293,13 @@ async function playerView(id) {
         D.proposals.length ? el("p", { class: "dim" }, `Cầu hôn đang chờ: ${D.proposals.map((x) => `${x.from} → ${x.to} (${x.ring})`).join("; ")}`) : null,
         el("p", { class: "dim" }, "Lịch sử:"),
         el("div", { class: "chips" }, D.history.length ? D.history.map((m) => el("span", { class: "chip" }, el("span", {}, `${m.partner} · ${m.ringName}`, el("small", { class: "dim" }, ` · ${when(m.created_at)}${m.ended_at ? ` → ${when(m.ended_at)}` : " → nay"}`)))) : el("span", { class: "dim" }, "Chưa kết Đạo Lữ lần nào."))));
+    }
+
+    if (p.chinhta) {
+      const C = p.chinhta, F = { c: "Chính Phái", t: "Tà Phái" }, RES = { w: "Thắng", l: "Thua", d: "Hòa", x: "Rời trận" };
+      parts.push(section("Chính Tà", `${F[C.faction] ?? "chưa chọn phe"} · ${fmt(C.points)} điểm`,
+        el("p", {}, `Phe: ${F[C.faction] ?? "chưa chọn"}${C.changedAt ? ` (đổi lần cuối ${when(C.changedAt)})` : ""} · Điểm Chính Tà: ${fmt(C.points)} (cộng/trừ và đặt phe ở tab Chính Tà)`),
+        el("div", { class: "chips" }, C.last.length ? C.last.map((r) => el("span", { class: "chip" }, el("span", {}, `#${r.id} ${r.text} · ${RES[r.result]}${r.mvp ? " ★" : ""}`, el("small", { class: "dim" }, ` · ${r.kills}/${r.deaths}/${r.assists} · +${r.points}`)))) : el("span", { class: "dim" }, "Chưa đánh trận nào."))));
     }
 
     // ---- chat: barred for a while (every channel and Truyền Âm)

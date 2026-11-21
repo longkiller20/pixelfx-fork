@@ -6,6 +6,10 @@ import * as arcane_blink_out from "./arcane/blink-out.js";
 import * as arcane_mana_burst from "./arcane/mana-burst.js";
 import * as arcane_portal from "./arcane/portal.js";
 import * as arcane_rune_circle from "./arcane/rune-circle.js";
+import * as chinhta_barrier from "./chinhta/barrier.js";
+import * as chinhta_emblem from "./chinhta/emblem.js";
+import * as chinhta_flag from "./chinhta/flag.js";
+import * as chinhta_stele from "./chinhta/stele.js";
 import * as critters_bat from "./critters/bat.js";
 import * as critters_bird from "./critters/bird.js";
 import * as critters_butterfly from "./critters/butterfly.js";
@@ -66,12 +70,14 @@ import * as melee_sword_slash from "./melee/sword-slash.js";
 import * as nature_earth_spike from "./nature/earth-spike.js";
 import * as pickups_loot_beam from "./pickups/loot-beam.js";
 import * as projectiles_laser_bolt from "./projectiles/laser-bolt.js";
+import * as shadow_dark_explosion from "./shadow/dark-explosion.js";
 import * as shadow_necro_skulls from "./shadow/necro-skulls.js";
 import * as shadow_shadow_flames from "./shadow/shadow-flames.js";
 import * as shadow_void_orb from "./shadow/void-orb.js";
 import * as spawn_poof from "./spawn/poof.js";
 import * as spawn_respawn_beam from "./spawn/respawn-beam.js";
 import * as status_burning from "./status/burning.js";
+import * as status_rage from "./status/rage.js";
 import * as transitions_star_iris from "./transitions/star-iris.js";
 import * as ui_level_up from "./ui/level-up.js";
 import * as ui_menu_icon from "./ui/menu-icon.js";
@@ -88,6 +94,10 @@ export const effects = {
   "arcane/mana-burst": arcane_mana_burst,
   "arcane/portal": arcane_portal,
   "arcane/rune-circle": arcane_rune_circle,
+  "chinhta/barrier": chinhta_barrier,
+  "chinhta/emblem": chinhta_emblem,
+  "chinhta/flag": chinhta_flag,
+  "chinhta/stele": chinhta_stele,
   "critters/bat": critters_bat,
   "critters/bird": critters_bird,
   "critters/butterfly": critters_butterfly,
@@ -148,12 +158,14 @@ export const effects = {
   "nature/earth-spike": nature_earth_spike,
   "pickups/loot-beam": pickups_loot_beam,
   "projectiles/laser-bolt": projectiles_laser_bolt,
+  "shadow/dark-explosion": shadow_dark_explosion,
   "shadow/necro-skulls": shadow_necro_skulls,
   "shadow/shadow-flames": shadow_shadow_flames,
   "shadow/void-orb": shadow_void_orb,
   "spawn/poof": spawn_poof,
   "spawn/respawn-beam": spawn_respawn_beam,
   "status/burning": status_burning,
+  "status/rage": status_rage,
   "transitions/star-iris": transitions_star_iris,
   "ui/level-up": ui_level_up,
   "ui/menu-icon": ui_menu_icon,

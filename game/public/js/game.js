@@ -13,6 +13,8 @@ import { stepBody, PHYS, zoneLanding } from "/shared/physics.js";
 import { createHomeLayer } from "./gia-vien.js";
 import { createFishLayer } from "./cau-ca.js";
 import { lovePic } from "./dao-lu.js";
+import { emblemStill } from "./chinh-ta.js";
+import { WAR_MAP } from "/shared/chinh-ta.js";
 
 // each buff's status icon (Xianxia Pixel Pack)
 const BUFF_ICON = { hp: "item_peach", atk: "status_burn", def: "status_golden_shield", spd: "status_swift", exp: "item_jade_slip", stones: "item_spirit_stone", med: "item_lingzhi" };
@@ -21,7 +23,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap, onFish, onFrame, onDaolu }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap, onFish, onFrame, onDaolu, onCt }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -70,6 +72,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
           map = mapInfo(m.map);
           // a peaceful map (the fishing lake): the fight buttons go, its own take their place (css: body.peace)
           document.body.classList.toggle("peace", !!map.def.peaceful);
+          // the Chính Tà battlefield: its own bar (public/js/chinh-ta.js); elsewhere it goes
+          document.body.classList.toggle("war", m.map === WAR_MAP);
+          onCt?.({ t: "map", map: m.map });
           home.onWelcome(m.map);
           fish.st = null;
           // each map has its own music
@@ -210,6 +215,13 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "toast":
         toast(m.m);
         if (m.ch === "s") logLine(null, m.m, "sect");
+        break;
+      case "ctstate":
+      case "ctscore":
+      case "ctboard":
+      case "ctend":
+        // Chính Tà Phân Tranh on the battlefield: the state, the score, the board, the result (public/js/chinh-ta.js)
+        onCt?.(m);
         break;
       case "celebrate":
         // a couple became Đạo Lữ somewhere: everyone, on every map, gets the banner, hearts falling and fireworks
@@ -373,6 +385,17 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "fx":
         if (e.k === "thunder") addFx("lightning/lightning-strike", e.x, e.y, {});
         break;
+      case "ctfx": {
+        // Chính Tà: first blood (a burst of blood-red light), a kill streak (rage over the killer), the fight begins / ends
+        const t = e.id ? posOf(e.id, s) : null;
+        if (e.k === "first" && t) addFx("shadow/dark-explosion", t.x, t.y - 20, {}, e.id, 0, 1);
+        else if (e.k === "streak" && t) addFx("status/rage", t.x, t.y, {}, e.id, 2.4, 1.3);
+        else if (e.k === "start" || e.k === "end") {
+          const me = posOf(myId, s);
+          if (me) for (let i = 0; i < 5; i++) setTimeout(() => addFx("explosions/firework-burst", me.x + (Math.random() - 0.5) * 500, me.y - 140 - Math.random() * 120, {}, null, 0, 1.2), i * 280);
+        }
+        break;
+      }
       case "burn": {
         const t = posOf(e.id, s);
         if (t) addFx("status/burning", t.x, t.y, {}, e.id, 0.6, 1.4);
@@ -1312,13 +1335,16 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     for (const e of list) {
       if (e.dead) continue;
       const x = (e.x - camX) * k;
-      let top, name, color, hp = e.hp, sect = null, dl = null;
+      let top, name, color, hp = e.hp, sect = null, dl = null, fac = null;
       if (e.kind === "p") {
         const info = infos.get(e.id);
         if (!info) continue;
         top = (e.y - camY - avatarTop(info.look) - 4) * k;
         name = `${info.name} · ${realmName(info.lv)}`;
         color = e.id === myId ? "#fff6c8" : info.look?.g === "f" ? "#ffb8d8" : "#a8e0ff";
+        // Chính Tà: their side's emblem by the name; on the battlefield the name in their side's colour
+        fac = info.f;
+        if (fac && map.id === WAR_MAP && e.id !== myId) color = fac === "c" ? "#ffe08a" : "#ff8a9a";
         sect = info.sect;
         dl = info.dl;
       } else {
@@ -1335,6 +1361,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       c.strokeText(name, x, top - fs * 0.5);
       c.fillStyle = color;
       c.fillText(name, x, top - fs * 0.5);
+      if (fac) {
+        const es = Math.round(fs * 1.25), nw = c.measureText(name).width;
+        c.imageSmoothingEnabled = false;
+        c.drawImage(emblemStill(fac), Math.round(x - nw / 2 - es - 2), Math.round(top - fs * 0.5 - fs - (es - fs) / 2), es, es);
+      }
       // the sect over the name, in gold; its leader with a star
       if (sect) {
         const sf = Math.max(9, Math.round(fs * 0.85)), st = `${sect.r === 1 ? "★ " : ""}〔${sect.n}〕`;
@@ -1419,6 +1450,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     // the Câu Cá layer (public/js/cau-ca.js): this player's cast
     fish,
     mapId: () => map?.id ?? "",
+    myName: () => infos.get(myId)?.name ?? "",
     // where this player stands now (as drawn), for what is near them
     myPos: () => {
       const e = drawn.get(myId);

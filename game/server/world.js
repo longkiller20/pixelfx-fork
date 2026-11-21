@@ -22,6 +22,8 @@ import { SOCIAL } from "../shared/balance.js";
 import { SECT } from "../shared/balance.js";
 import { sectBonus } from "../shared/tong-mon.js";
 import { userFromToken } from "./auth.js";
+import { War } from "./chinh-ta.js";
+import { CT, WAR_MAP, WAR_KEY, FACTIONS } from "../shared/chinh-ta.js";
 import { KeyedLock } from "./lock.js";
 
 const DT = 1 / TICK_HZ;
@@ -54,7 +56,10 @@ export class World {
     this.map = mapInfo(mapId);
     // which world this is in the Universe: the map's id, or for a Gia Viên "gv:<owner>" (one copy per owner)
     this.key = mapId;
-    if (home?.khu) {
+    if (home?.war) {
+      // the Chính Tà battlefield (server/chinh-ta.js): one while a battle is on; its War is set by whoever made it
+      this.key = WAR_KEY;
+    } else if (home?.khu) {
       // a Khu of the fishing lake: one of KHU_COUNT copies of it, numbered
       this.key = home.key;
       this.khu = home.khu;
@@ -74,7 +79,7 @@ export class World {
   admit(ws, ch, inv, buffs, sect = null, social = null, spouse = null) {
     const p = {
       id: nextId(), kind: "p", userId: ch.userId, ws, name: ch.name, cls: ch.cls, look: ch.look,
-      ...this.spawnPoint(), face: 1, in: { dx: 0, dy: 0, jump: false, down: false }, flying: false, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
+      face: 1, in: { dx: 0, dy: 0, jump: false, down: false }, flying: false, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
       hpFrac: 1, dead: false, respawnAt: 0, protectUntil: this.t + PVP.spawnProtect,
       cd: [0], artCd: {}, slots: ch.slots, learned: new Set(ch.learned), tbuffs: {}, busyUntil: 0, rootUntil: 0, slowUntil: 0, lastHurt: -99, lastCast: -99, itemCd: 0, chatAt: 0,
       medAcc: 0, meditating: false, base: null, pend: zero(), fly: zero(), level: 1, medLeft: 0, saving: null, gone: false, buffs,
@@ -84,7 +89,10 @@ export class World {
       friends: social?.friends ?? new Set(), blocked: social?.blocked ?? new Set(), worldAt: 0, pmAt: 0, lastLine: null,
       // their Đạo Lữ (server/dao-lu.js spouseOf): { uid, name, ring }; the ring's buff counts in stats(), the name shows by theirs
       daolu: spouse,
+      // Chính Tà: their side (c, t, or null), shown by their name; on the battlefield it says who is friend and who is foe
+      faction: ch.faction ?? null,
     };
+    Object.assign(p, this.spawnPoint(p));
     this.applyBase(p, ch, true);
     ws.player = p;
     this.enter(p, inv);
@@ -109,6 +117,7 @@ export class World {
     if (this.khu) send(p.ws, { t: "fkhu", n: this.khu, occ: this.u?.khuCounts() ?? [] });
     this.sendArts(p);
     this.sendMe(p);
+    this.war?.onEnter(p);
   }
   /** Take a player off this map without saving or ending anything: they are walking to another map. */
   leave(p) {
@@ -130,6 +139,7 @@ export class World {
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
     this.broadcast({ t: "gone", id: p.id });
     if ((this.grid || this.khu) && !this.players.size) this.u?.dropHomeLater(this.key);
+    this.war?.onGone(p);
     await this.save(p);
   }
 
@@ -176,9 +186,10 @@ export class World {
       this.sendArts(p);
     }
     this.sendMe(p);
-    if ((ch.look && JSON.stringify(ch.look) !== JSON.stringify(p.look)) || (ch.name && ch.name !== p.name)) {
+    if ((ch.look && JSON.stringify(ch.look) !== JSON.stringify(p.look)) || (ch.name && ch.name !== p.name) || (ch.faction !== undefined && ch.faction !== p.faction)) {
       p.look = ch.look ?? p.look;
       p.name = ch.name ?? p.name;
+      if (ch.faction !== undefined) p.faction = ch.faction;
       this.broadcast({ t: "pi", ...info(p) });
     }
   }
@@ -224,7 +235,7 @@ export class World {
         if (p.dead) p.respawnAt = t;
         break;
       case "spawn":
-        Object.assign(p, this.spawnPoint());
+        Object.assign(p, this.spawnPoint(p));
         this.ev({ e: "spawn", id: p.id });
         break;
       case "cooldowns":
@@ -453,6 +464,8 @@ export class World {
     if (att.kind === "m") return e.kind === "p" && !e.gone && e.protectUntil <= this.t && (!att.forUid || e.userId === att.forUid);
     if (e.kind === "m") return true;
     if (e.kind !== "p" || e === att || att.kind !== "p") return false;
+    // the Chính Tà battlefield: only the other side, only while the fight is on, nobody in their own camp (the kết giới)
+    if (this.war) return !!(e.faction && att.faction && e.faction !== att.faction && e.protectUntil <= this.t && this.war.m?.phase === "fight" && !this.inCamp(e) && !this.inCamp(att));
     return this.map.pvp && e.protectUntil <= this.t;
   }
   targetsOf(att) {
@@ -477,6 +490,8 @@ export class World {
     e.hpFrac -= dmg / st.maxHp;
     e.lastHurt = this.t;
     if (att.kind === "p") e.lastHitBy = att;
+    // on the battlefield: who hit whom lately, for the hỗ trợ (assists)
+    if (this.war && att.kind === "p" && e.kind === "p") (e.hitBy ??= new Map()).set(att.userId, this.t);
     this.ev({ e: "hit", id: e.id, d: dmg, by: att.id });
     if (e.hpFrac <= 0) this.kill(e, att);
     return dmg;
@@ -586,6 +601,16 @@ export class World {
     }
     // a player: falls off the sword
     e.flying = false;
+    if (this.war) {
+      // the Chính Tà battlefield: a hạ gục for the other side (server/chinh-ta.js), back at their camp after CT.respawn;
+      // no tu vi, linh thạch or điểm đấu trường here: the battle has its own rewards
+      e.respawnAt = this.t + CT.respawn;
+      e.busyUntil = 0;
+      e.rootUntil = 0;
+      this.war.onKill(e, owner && owner !== e && owner.kind === "p" ? owner : null);
+      this.sendMe(e);
+      return;
+    }
     e.respawnAt = this.t + (this.map.pvp ? PVP.respawn : RESPAWN_WORLD);
     e.busyUntil = 0;
     e.rootUntil = 0;
@@ -788,8 +813,43 @@ export class World {
     if (this.tick % 5 === 0) for (const p of this.players.values()) this.sendMe(p);
   }
 
-  /** Where someone appears: the map's spawn, nudged a little, always on open ground. */
-  spawnPoint() {
+  /** The battlefield's camp of side f, in px: { x0, x1, y } (null on other maps). */
+  camp(f) {
+    const c = this.map.def.camps?.[f], T = this.map.T;
+    return c ? { x0: c.x0 * T, x1: c.x1 * T, y: c.row * T } : null;
+  }
+  /** Whether e stands in their own side's camp (the battlefield's kết giới: nobody hits or is hit there). */
+  inCamp(e) {
+    const c = this.camp(e.faction);
+    return !!c && e.x >= c.x0 && e.x <= c.x1;
+  }
+  /** Keep p out of the enemy's camp (and, before the fight, inside their own): a wall of light at its edge. */
+  campWall(p) {
+    const mine = this.camp(p.faction), foe = this.camp(p.faction === "c" ? "t" : "c");
+    if (!mine || !foe) return;
+    const westFoe = foe.x0 < mine.x0, prep = this.war.m?.phase === "prep";
+    let x = p.x;
+    if (westFoe ? x < foe.x1 : x > foe.x0) x = westFoe ? foe.x1 : foe.x0;
+    if (prep) x = Math.min(Math.max(x, mine.x0), mine.x1);
+    if (x !== p.x) {
+      p.x = x;
+      p.vx = 0;
+      if (this.t >= (p.wallSaid ?? 0)) {
+        p.wallSaid = this.t + 3;
+        send(p.ws, { t: "toast", m: prep ? "Kết giới doanh trại còn đóng: chờ khai chiến!" : `Kết giới doanh trại ${FACTIONS[p.faction === "c" ? "t" : "c"].name}: không vào được.` });
+      }
+    }
+  }
+  /** Where someone appears: the map's spawn (on the battlefield: their side's camp), nudged a little, always on open ground. */
+  spawnPoint(p = null) {
+    const cp = this.war && p?.faction ? this.camp(p.faction) : null;
+    if (cp) {
+      for (let i = 0; i < 12; i++) {
+        const x = rnd(cp.x0 + 40, cp.x1 - 40);
+        if (fits(x, cp.y, this.map)) return { x, y: cp.y, vx: 0, vy: 0, ground: false };
+      }
+      return { x: (cp.x0 + cp.x1) / 2, y: cp.y, vx: 0, vy: 0, ground: false };
+    }
     const s = this.map.spawn;
     for (let i = 0; i < 12; i++) {
       const x = s.x + rnd(-40, 40);
@@ -841,11 +901,11 @@ export class World {
     if (p.dead) {
       if (p.fish && p.fish.s !== "landing") this.fishEnd(p, "move");
       if (t >= p.respawnAt) {
-        Object.assign(p, this.spawnPoint());
+        Object.assign(p, this.spawnPoint(p));
         p.dead = false;
         p.hpFrac = 1;
         p.slowUntil = 0;
-        p.protectUntil = t + PVP.spawnProtect;
+        p.protectUntil = t + (this.war ? CT.protect : PVP.spawnProtect);
         this.ev({ e: "spawn", id: p.id });
         this.sendMe(p);
       }
@@ -889,7 +949,9 @@ export class World {
       if (!near) p.safe = { x: p.x, y: p.y };
     }
     // fell out of the world somehow: back to the spawn
-    if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint());
+    if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint(p));
+    // the battlefield's camps: the other side's kết giới can't be crossed; while getting ready nobody leaves their own
+    if (this.war && p.faction) this.campWall(p);
     // a way out: to the map it leads to, or (a road still being built) a word and a step back
     const gate0 = this.map.portalAt(p.x, p.y);
     // a Gia Viên's way out leads back to wherever its owner came from
@@ -1097,6 +1159,11 @@ export class World {
     for (const p of this.players.values()) if (p !== except) sendRaw(p.ws, msg);
   }
 
+  /** One message to one player. */
+  sendTo(p, obj) {
+    send(p.ws, obj);
+  }
+
   get online() {
     return this.players.size;
   }
@@ -1105,7 +1172,7 @@ export class World {
 const zero = () => ({ exp: 0, stones: 0, rank: 0, kills: 0, deaths: 0, med: 0 });
 const FSTATE = { wait: 1, biting: 1, bite: 2, reel: 3, landing: 3 };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level, sect: p.sect ? { n: p.sect.name, e: p.sect.emblem, r: p.sect.rank } : null, dl: p.daolu?.name ?? null });
+const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level, sect: p.sect ? { n: p.sect.name, e: p.sect.emblem, r: p.sect.rank } : null, dl: p.daolu?.name ?? null, f: p.faction ?? null });
 // a client that can't keep up (more than 1 MB queued) skips snapshots instead of growing the server's memory
 function sendRaw(ws, msg) {
   if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 1 << 20) ws.send(msg);
@@ -1131,6 +1198,8 @@ export class Universe {
     this.saver = setInterval(() => {
       for (const w of this.worlds.values()) w.saveAll();
     }, 5000);
+    // Chính Tà Phân Tranh: the schedule and the battle now (server/chinh-ta.js); its field is a world made per battle
+    this.war = new War(this, () => new World(WAR_MAP, this, { war: true }));
   }
   /** userId -> player, every map (a fresh Map each time: for lookups, not for keeping). */
   get players() {
@@ -1235,8 +1304,10 @@ export class Universe {
       const unread = await dao.unreadCount(uid);
       const mute = (await store.chatMute(uid)) ?? 0;
       if (ws.readyState !== WebSocket.OPEN) return;
-      // back on the map they were last on (at its arrival point), or the starter town
-      (this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect, social, spouse);
+      // back on the map they were last on (at its arrival point), or the starter town; one with a place in the Chính Tà
+      // battle on now goes back onto the field, at their camp
+      const warW = this.war.fighting(uid) ? this.war.world : null;
+      (warW ?? this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect, social, spouse);
       const me = ws.player;
       if (me) {
         me.chatMuted = mute;
@@ -1270,7 +1341,7 @@ export class Universe {
         }
       }
     }
-    at ??= to.spawnPoint();
+    at ??= to.spawnPoint(p);
     p.portalAt = to.t + 2.5;
     p.protectUntil = to.t + PVP.spawnProtect;
     p.in = { dx: 0, dy: 0, jump: false, down: false };
@@ -1279,7 +1350,7 @@ export class Universe {
     to.enter(p, inv, at);
     to.ev({ e: "warp", id: p.id, x: Math.round(at.x), y: Math.round(at.y), out: 0 });
     // a Gia Viên isn't remembered: logging in again starts where they came from
-    if (!to.grid && !to.khu) store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
+    if (!to.grid && !to.khu && !to.war) store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
     if (to.grid) to.ev({ e: "spawn", id: p.id });
   }
 
@@ -1291,6 +1362,7 @@ export class Universe {
     const key = `gv:${uid}`;
     if (p.world.key === key) return;
     if (p.warping || p.dead) throw Object.assign(new Error("Không thể vào Gia Viên lúc này."), { status: 409 });
+    if (p.world.war) throw Object.assign(new Error("Đang ở Chính Tà chiến trường: rời trận trước đã."), { status: 409 });
     let w = this.worlds.get(key);
     if (!w) {
       const house = await gv.houseOf(uid);
@@ -1305,6 +1377,24 @@ export class Universe {
     await new Promise((r) => setTimeout(r, WARP_DELAY * 1000));
     try {
       await this.transfer(p, key, p.world.key);
+    } finally {
+      p.warping = false;
+    }
+  }
+  /**
+   * Take a player to the world `key` from wherever they are, as a gate does: they break into light, a moment later they
+   * arrive at `at` (a point, or a function giving one when they arrive). Used by Chính Tà to bring fighters in.
+   */
+  async warpTo(p, key, at = null) {
+    if (p.gone || p.warping) return;
+    send(p.ws, { t: "warp", to: key });
+    p.warping = true;
+    p.world.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
+    try {
+      await new Promise((r) => setTimeout(r, WARP_DELAY * 1000));
+      if (p.gone || !this.worlds.has(key)) return;
+      if (p.fish) p.world.fishEnd(p, "move");
+      await this.transfer(p, key, p.world.key, typeof at === "function" ? at() : at);
     } finally {
       p.warping = false;
     }
@@ -1331,6 +1421,7 @@ export class Universe {
     if (want !== null && (!Number.isInteger(want) || want < 1 || want > KHU_COUNT)) throw Object.assign(new Error("Không có khu này."), { status: 400 });
     if (cur && (want === null || want === cur)) return cur;
     if (p.warping || p.dead) throw no("Không thể tới Vọng Nguyệt Hồ lúc này.");
+    if (p.world.war) throw no("Đang ở Chính Tà chiến trường: rời trận trước đã.");
     if (p.fish) throw no("Hãy thu cần trước khi đổi khu.");
     let n = want;
     if (n === null) {

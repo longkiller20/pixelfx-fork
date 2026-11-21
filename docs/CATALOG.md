@@ -1,6 +1,6 @@
 # Catalog
 
-276 effects in 25 categories. Every one is a file in
+280 effects in 26 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -341,7 +341,7 @@ level ups, numbers, toasts, countdowns.
 | Health bar hit | `ui/health-bar-hit` | one-shot 2s | 160×64 | A segmented health bar takes a hit: it jolts and dips, the lost chunk flashes white and sheds chips, holds, then drains away behind a sparking edge. |
 | Heart lost | `ui/heart-lost` | one-shot 1.5s | 96×88 | A HUD heart is hit: it flashes white and jolts, a crack runs down it, it splits into two halves that tumble away, leaving an empty socket that fades. |
 | Level up | `ui/level-up` | one-shot 3.2s | 176×138 | Gold gathers at the feet and bursts up as a pillar of light round the hero; rings climb it, LEVEL UP! drops in letter by letter, a shine sweeps it, sparkles twinkle. |
-| Menu icon | `ui/menu-icon` | loop 1s | 24×24 | Small 20 px icons for a game's menu, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more, fishing. |
+| Menu icon | `ui/menu-icon` | loop 1s | 24×24 | Small 20 px menu icons, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more, fishing, love, war. |
 | Quest complete | `ui/quest-complete` | one-shot 2.6s | 204×92 | A stitched ribbon unrolls from the middle, QUEST COMPLETE types on letter by letter, a gold seal stamps down and ticks, stars pop; then it all rolls away. |
 
 ## pickups
@@ -453,3 +453,14 @@ a rose, wedding rings, hearts rising, a wedding of light and petals.
 | Wedding ring | `love/ring` | loop 2.4s | 32×32 | Three wedding rings, a glint sweeping round the band, the stone sparkling: silver and jade, twin gold bands and a ruby, rose gold and a star diamond. |
 | Rose | `love/rose` | loop 2s | 32×32 | A single red rose as a gift icon: layered petals curling round a dark heart, a thorned stem with two leaves, swaying, a dewdrop that glints. |
 | Wedding | `love/wedding` | one-shot 3.2s | 180×200 | Two become dao lu: two lights spiral up and meet as a heart of gold, a ring of red light opens, rose petals rain, gold sparks fall. |
+
+## chinhta
+
+two sides at war: their emblems, war banners, a camp's wall of light, the stele between them.
+
+| effect | id | | size | what it does |
+|---|---|---|---|---|
+| Camp barrier | `chinhta/barrier` | loop 2s | 32×208 | A camp's kết giới: a tall curtain of light rising from a rune plate, bright seams and glyph sparks flowing up it. Side c gold and azure, side t crimson and violet. |
+| Chính Tà emblem | `chinhta/emblem` | loop 2.4s | 32×32 | The two sides' emblems: side c a golden sun, rays turning, an azure sword before it; side t a blood-red crescent in violet demon fire, a slit eye opening in its hollow. |
+| War banner | `chinhta/flag` | loop 2s | 48×104 | A tall war banner on its pole, the cloth hanging from a crossbar, rippling, a swallowtail end. Side c: azure and gold with a sun; side t: crimson and violet with a crescent. |
+| Chính Tà stele | `chinhta/stele` | loop 3s | 56×96 | The stele between two camps: an old stone on a plinth, a disc carved in its face, half a gold sun, half a crimson moon; the light beats from one half to the other, motes rise. |

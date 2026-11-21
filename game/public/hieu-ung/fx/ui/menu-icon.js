@@ -4,7 +4,7 @@ import { lit } from "../farm/_lib.js";
 
 export const meta = {
   name: "Menu icon",
-  desc: "Small 20 px icons for a game's menu, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more, fishing.",
+  desc: "Small 20 px menu icons, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more, fishing, love, war.",
   tags: ["ui", "icon", "menu", "button"],
   size: [24, 24],
   origin: [12, 12],
@@ -16,7 +16,7 @@ export const meta = {
 };
 
 /** The icons, by name: what each draws (on a 20 x 20 grid, -10..9 each way). */
-export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more", "fish", "love"];
+export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more", "fish", "love", "chinhta"];
 
 const H = (a) => a.map(hex);
 const SKIN = H(["#8a4a3a", "#d8996e", "#f6cfa8", "#ffe6cc", "#fff4e8"]);
@@ -193,6 +193,27 @@ const DRAW = {
       const d = Math.hypot((x - 5) / 4, (y - 7.5) / 2.6);
       return d < 1 && d > 0.55 ? (y < 7.5 ? GOLD[3] : GOLD[2]) : 0;
     });
+  },
+  // Chính Tà: two swords crossed, a gold one (Chính) and a crimson one (Tà), over a disc half sun, half blood moon
+  chinhta(g) {
+    g.shade(-6, -6, 6, 6, (x, y) => {
+      const d = Math.hypot(x, y);
+      return d > 5.6 ? 0 : x < 0 ? (d < 3 ? GOLD[4] : GOLD[2]) : d < 3 ? RED[3] : RED[1];
+    });
+    const sword = (dir, C) => {
+      // blade from the bottom corner to the top one, a guard across, a grip and pommel
+      for (let s2 = -9; s2 <= 5; s2 += 0.5) {
+        const x = s2 * dir * -1 * 0.8, y = s2 * 0.8;
+        g.set(x, y, C[s2 < -6 ? 4 : 3]);
+        g.set(x + dir * 0.7, y + 0.7, C[1]);
+      }
+      const gx = 5 * dir * -1 * 0.8, gy = 5 * 0.8;
+      g.line(gx - 2.2, gy + 2.2 * dir * -1 * -1, gx + 2.2, gy - 2.2 * dir * -1 * -1, GOLD[3]);
+      g.line(gx + dir * -1 * 1.2, gy + 1.2, gx + dir * -1 * 3.2, gy + 3.2, WOOD[1]);
+      g.set(gx + dir * -1 * 3.8, gy + 3.8, GOLD[3]);
+    };
+    sword(1, STEEL);
+    sword(-1, RED);
   },
   // four gold tiles: more of the menu
   more(g) {

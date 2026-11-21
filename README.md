@@ -4,7 +4,7 @@
 
 # pixelfx.
 
-**<!-- count -->276<!-- /count --> pixel art effects and animations, every one a small piece of code.** Fire,
+**<!-- count -->280<!-- /count --> pixel art effects and animations, every one a small piece of code.** Fire,
 explosions, magic, weather, UI, pickups, critters and more. Play them live, recolor and mirror them, drop them into
 a browser game, or export sprite sheets for any engine. Plus a Claude Code skill that makes new ones the way a
 picky pixel artist would: draft, render, look, refine.
@@ -51,6 +51,7 @@ the idea at library scale, with a skill to keep going.
 | **home** | 5 | alchemy furnace, furniture, gamer house (live), paper lantern, tiên phủ (live) |
 | **fishing** | 7 | fishing float, fishing buttons, fish landed, fish, fishing gear, lake props… |
 | **love** | 7 | wedding banner frame, heart beating, heart falling, hearts rising, wedding ring, rose… |
+| **chinhta** | 4 | camp barrier, chính tà emblem, war banner, chính tà stele |
 <!-- /catalog -->
 
 Every effect is a file in `src/fx/<category>/<name>.js`. The [catalog](docs/CATALOG.md) lists them all.

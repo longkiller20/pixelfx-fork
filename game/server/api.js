@@ -10,6 +10,7 @@ import * as dao from "./dao-huu.js";
 import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
 import * as dl from "./dao-lu.js";
+import * as ct from "./chinh-ta.js";
 import { RINGS } from "../shared/dao-lu.js";
 import { khuOf, KHU_CAP } from "../shared/cau-ca.js";
 import { RANKS } from "../shared/tong-mon.js";
@@ -70,7 +71,7 @@ export function api(world) {
   }));
 
   r.post("/character", requireAuth, writeLimit, wrap(async (req, res) => {
-    res.json({ character: await store.createCharacter(req.userId, req.body?.name, req.body?.look) });
+    res.json({ character: await store.createCharacter(req.userId, req.body?.name, req.body?.look, req.body?.faction) });
   }));
 
   r.post("/shop/buy", requireAuth, writeLimit, wrap(async (req, res) => {
@@ -331,6 +332,39 @@ export function api(world) {
     await world.syncDaolu([req.userId, out.uid], { [out.uid]: `${out.me} đã ly hôn. ${out.ringName} không còn, buff của nhẫn cũng mất.` });
     return { name: out.name };
   });
+
+  // ---------------------------------------------------------------- Chính Tà Phân Tranh (server/chinh-ta.js decides everything)
+  // the panel (side, points, the next battle, signing up), changing side, the Tiệm Chính Tà, leaving the field
+  const ctRead = rateLimit({ windowMs: 10_000, max: 30, key: (req) => `cr${req.userId}` });
+  const ctWrite = rateLimit({ windowMs: 10_000, max: 12, key: (req) => `cw${req.userId}`, message: "Thao tác quá nhanh, hãy chậm lại." });
+  const ctRoute = (path, fn) => r.post(`/chinhta${path}`, requireAuth, writeLimit, ctWrite, wrap(async (req, res) => {
+    const out = (await fn(req)) ?? {};
+    res.json({ ok: true, ...out, view: await ct.view(req.userId, world.war) });
+  }));
+  r.get("/chinhta", requireAuth, ctRead, wrap(async (req, res) => res.json(await ct.view(req.userId, world.war))));
+  // the board of the battle on now (anyone may look: who leads, who fights)
+  r.get("/chinhta/board", requireAuth, ctRead, wrap(async (req, res) => res.json({ now: world.war.summary(req.userId), board: world.war.m ? world.war.board() : [] })));
+  ctRoute("/register", async (req) => {
+    if (world.war.fighting(req.userId)) throw new GameError("Đạo hữu đang ở trong trận.");
+    const out = await ct.register(req.userId);
+    return { again: out.again };
+  });
+  ctRoute("/unregister", async (req) => void (await ct.unregister(req.userId)));
+  ctRoute("/faction", async (req) => {
+    await world.flushUser(req.userId);
+    const out = await ct.setFaction(req.userId, req.body?.faction, req.body?.requestId, world.war.fighting(req.userId));
+    if (out.repeat) return { repeat: true };
+    // the stones, and the side shown by their name, at once
+    const ch = await store.loadCharacter(req.userId);
+    if (ch) world.refresh(req.userId, ch);
+    return { faction: out.faction, first: out.first };
+  });
+  ctRoute("/buy", async (req) => {
+    const out = await ct.buy(req.userId, req.body?.item, req.body?.qty, req.body?.requestId);
+    if (!out.repeat) await world.sendInv(req.userId);
+    return { repeat: !!out.repeat, item: out.item, qty: out.qty, inventory: await store.inventory(req.userId) };
+  });
+  ctRoute("/leave", async (req) => void (await world.war.forfeit(req.userId)));
 
   // ---------------------------------------------------------------- Tông Môn (server/tong-mon.js decides everything)
   // reading is limited per account, every change is a write (writeLimit) plus a tighter limit of its own; whatever changes,

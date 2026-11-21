@@ -767,6 +767,104 @@ Bài test `test/race.mjs` có phần "Gia Viên":
 Tab Cài đặt có nhóm Gia Viên (`home.*`): giá mở khoá, số vật nuôi tối đa. Tab **Nhà Ở**: tên, giá (0 là không bán) và thứ
 tự hiện của từng kiểu nhà. Trang người chơi có mục Gia Viên để tặng hoặc thu hồi nhà. Các sản phẩm của Gia Viên nằm trong tab Vật phẩm, sửa tên và mô tả như mọi món khác.
 
+## Chính Tà Phân Tranh (nút ▦ Thêm → Chính Tà)
+
+Chính Phái đối đầu Tà Phái, mỗi phe tối đa 30 người, trên bản đồ riêng **Chính Tà Chiến Trường**
+(`shared/chinh-ta.js`, `server/chinh-ta.js`, `shared/maps/chientruong.js`, `public/js/chinh-ta.js`).
+
+### Phe phái
+- Tạo nhân vật **bắt buộc** chọn Chính Phái (☀, vàng và lam) hoặc Tà Phái (☾, đỏ máu và tím).
+- Nhân vật tạo trước khi có tính năng này chọn phe trong bảng Chính Tà, lần đầu miễn phí.
+- Đổi phe: tốn `chinhta.change_cost` linh thạch (mặc định 5.000). Sau đó phải chờ `chinhta.change_days` ngày (mặc định 7) mới đổi lại được.
+- Không đổi phe được khi đang đăng ký trận sắp tới hoặc đang ở trong trận.
+- Huy hiệu phe hiện cạnh tên trên đầu nhân vật. Trên chiến trường, tên được tô theo màu phe.
+
+### Lịch và đăng ký
+- Tối đa 3 trận mỗi ngày: `chinhta.slot1..3`, dạng GIỜPHÚT (2000 = 20:00; -1 = tắt). Giờ tính theo múi `chinhta.tz` (7 = giờ Việt Nam).
+- Đăng ký ở bảng Chính Tà, cho phe đang thuộc. Cần đạt cấp `chinhta.level`.
+- Đóng đăng ký `chinhta.close_before` phút trước giờ trận.
+- Toàn server được nhắc lúc còn 30 phút, còn 10 phút và khi sắp đóng đăng ký. Người đã đăng ký được nhắc thêm 10 giây trước trận.
+
+### Xếp trận
+Đến giờ, hệ thống lấy những người đã đăng ký thỏa đủ các điều kiện:
+- đang trực tuyến;
+- vẫn ở phe đã đăng ký;
+- đủ cấp.
+
+Mỗi phe lấy tối đa `chinhta.team` (30) người mạnh nhất, xếp theo thứ tự:
+1. cấp;
+2. tu vi;
+3. điểm đấu trường;
+4. ai đăng ký trước.
+
+Phe đông hơn chỉ được hơn phe kia tối đa `chinhta.max_gap` người.
+
+Những người còn lại là **dự bị**. Nếu một phe có ít hơn `chinhta.min_side` người, trận bị hủy và mọi người được báo.
+
+### Trận đấu
+- **Vào trận:** người được chọn tự được dịch chuyển vào chiến trường, kể cả khi đang câu cá hay đang ở Gia Viên.
+- **Doanh trại:** mỗi phe xuất hiện ở doanh trại của mình (Chính phía tây, Tà phía đông).
+- **Chuẩn bị:** `chinhta.prep` giây, kết giới đóng, không ai ra khỏi doanh trại.
+- **Giao chiến:** kéo dài `chinhta.minutes` phút, trên bản đồ phẳng.
+- **Chỉ số:** dùng chỉ số đấu trường, không tính buff, để công bằng.
+- **Hạ gục:** mỗi đối thủ bị hạ tính một lượt hạ gục cho phe mình. Có thông báo Nhất Huyết và các chuỗi liên trảm.
+- **Hỗ trợ:** đánh trúng đối thủ trong 10 giây trước khi người đó bị hạ thì được tính một lượt hỗ trợ.
+- **Hồi sinh:** sau `chinhta.respawn` giây, ở doanh trại.
+- **Kết giới doanh trại:** trong doanh trại của mình không ai đánh được ai, và phe địch không vào được.
+- **Thanh tỉ số:** hiện ở giữa trên cùng màn hình. Phím Tab (hoặc nút Bảng) mở bảng chiến tích hạ / bại / trợ của từng người.
+- **Rời trận:** bấm nút Rời trận thì không được thưởng. Chỗ trống được nhường cho dự bị giỏi nhất nếu trận còn ít nhất `chinhta.refill`% thời gian.
+- **Mất kết nối:** chỗ được giữ `chinhta.away` giây. Vào lại game thì về thẳng chiến trường.
+- **Hết giờ:** phe nhiều lượt hạ gục hơn thắng; bằng nhau thì hòa. Màn hình kết quả hiện kèm pháo hoa, `AFTER` (12) giây sau mọi người được đưa về chỗ cũ.
+
+### Điểm "Chính Tà" và Tiệm Chính Tà
+Điểm thưởng mỗi trận:
+- thắng `chinhta.win` (30), thua `chinhta.lose` (10), hòa `chinhta.draw` (15);
+- cộng `chinhta.kill_pts` mỗi lượt hạ gục, tối đa `chinhta.kill_cap` điểm;
+- người hạ gục nhiều nhất mỗi phe (MVP) cộng thêm `chinhta.mvp`.
+
+Điều kiện nhận thưởng:
+- phải ở trong trận ít nhất `chinhta.min_stay`% thời gian;
+- người tự rời trận không nhận gì.
+
+**Tiệm Chính Tà** (tab trong bảng):
+- Đổi vật phẩm bằng điểm Chính Tà.
+- Luôn hiện ghi chú rằng tiệm sẽ được phát triển sau, người chơi cứ tích lũy điểm.
+- Admin thêm món (khóa vật phẩm và giá) ở tab Chính Tà. Mặc định tiệm trống.
+
+Bảng Chính Tà còn có tab Chiến tích (10 trận gần nhất của mình) và Xếp hạng (top điểm Chính Tà).
+
+### Chống race condition
+- **Một trận một lần:** mỗi trận là một dòng `ct_matches` với `slot` (giờ trận) là khóa duy nhất. Hai bộ đếm giờ, máy chủ khởi động lại hay nút của admin cũng không thể bắt đầu cùng một trận hai lần.
+- **Trận admin bắt đầu sớm:** không được mở đăng ký lại.
+- **Đăng ký và chọn đội chạy lần lượt** (khóa theo trận): không ai lọt vào danh sách khi đội đang được chọn, không ai đăng ký được trận đã bắt đầu.
+- **Đổi phe và đăng ký** cùng khóa dòng nhân vật (`FOR UPDATE`) nên không chen nhau. Đội chỉ lấy người còn đúng phe đã đăng ký.
+- **Mua ở tiệm và đổi phe:**
+  - kèm mã giao dịch (gửi nhiều lần chỉ tính một lần);
+  - trừ có điều kiện (`ct_points >= giá`), nên điểm không bao giờ âm dù mua nhiều lần cùng lúc.
+- **Thưởng một lần:** thưởng được ghi trong một giao dịch, bắt đầu bằng việc chuyển trận từ `running` sang `done`. Gọi kết thúc nhiều lần cũng chỉ thưởng một lần. Mỗi người một dòng `ct_players` với khóa (trận, người).
+- **Máy chủ tắt giữa trận:** khi khởi động lại, trận được đánh dấu hủy, không ai được thưởng.
+
+### Admin (tab ⚔ Chính Tà)
+- **Trận đang diễn ra:** bảng chiến tích, nút "Kết thúc ngay (có thưởng)" và "Hủy trận (không thưởng)".
+- **Trận kế tiếp:** danh sách người đăng ký và nút "Bắt đầu ngay".
+- **Cài đặt:** mọi số `chinhta.*`.
+- **Lịch sử:** các trận gần đây, xem từng người trong từng trận.
+- **Tiệm Chính Tà:** thêm, sửa, bỏ món.
+- **Người chơi:** cộng/trừ điểm và đặt phe. Trang người chơi cũng có mục Chính Tà.
+
+### Đồ họa (pixelfx, `src/fx/chinhta`)
+- `emblem`: huy hiệu hai phe, có chuyển động.
+  - Chính: mặt trời vàng tia xoay, thanh kiếm lam.
+  - Tà: trăng máu khuyết trong lửa quỷ tím, có con mắt mở ra.
+- `flag`: cờ chiến hai phe, có đuôi én, tung bay.
+- `barrier`: kết giới doanh trại, một bức màn ánh sáng có ký tự bay lên.
+- `stele`: Chính Tà Thạch Bia giữa chiến trường, nửa mặt trời nửa trăng máu, ánh sáng chuyển qua lại.
+- Biểu tượng menu `chinhta` trong `ui/menu-icon`.
+
+### Kiểm tra
+- `node test/chinh-ta.mjs`: phía máy chủ (phe, đăng ký, chọn đội, trận đấu, rời trận, mất kết nối, thưởng, hủy trận, tiệm).
+- `node test/ui-chinhta.mjs [url] [thư mục ảnh]`: trên trình duyệt, máy tính và điện thoại.
+
 ## Trò chuyện, Đạo Hữu và Truyền Âm
 
 ### Ba kênh trò chuyện
