@@ -843,6 +843,13 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       mid.append(t, s);
       if (weddingQueue.length) mid.append(el("i", `còn ${weddingQueue.length} cặp nữa đang chờ chúc mừng`));
       b.replaceChildren(lovePic("love/ring", { ring: look }, 32, 32, 56, "wring"), mid, lovePic("love/ring", { ring: look }, 32, 32, 56, "wring r"));
+      // the frame is pixelfx too (love/banner-frame): drawn at half the banner's size once it is laid out, so its
+      // pixels are doubled like the rest, the glint running round the rim and the pearls twinkling
+      b.classList.add("on");
+      const fw = Math.max(40, Math.round(b.offsetWidth / 2)), fh = Math.max(24, Math.round(b.offsetHeight / 2));
+      const frame = lovePic("love/banner-frame", { w: fw, h: fh }, fw, fh, fw * 2, "wframe");
+      frame.style.width = frame.style.height = "";
+      b.prepend(frame);
       b.classList.remove("on");
       void b.offsetWidth;
       b.classList.add("on");

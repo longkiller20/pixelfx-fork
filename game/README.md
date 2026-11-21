@@ -34,6 +34,8 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     - một băng rôn "A ♥ B đã kết thành Đạo Lữ với <nhẫn>. Chúc mừng!", vẽ bằng pixelfx:
       - hai bên là đúng chiếc nhẫn của cặp đó (`love/ring`, có ánh sáng chạy quanh và đá lấp lánh);
       - giữa hai tên là trái tim đập hai nhịp (`love/heart-beat`);
+      - khung viền (`love/banner-frame`, vẽ đúng kích thước băng rôn): viền vàng bo góc, nền lụa tím mận, chuỗi ngọc
+        nhấp nháy, huy hiệu trái tim ở bốn góc, nơ trái tim ở giữa cạnh trên, một đốm sáng chạy quanh viền;
     - khoảng 9 giây tim nhỏ rơi khắp màn hình, đung đưa và lật (pixelfx `love/heart-fall`, ba màu, hai cỡ);
     - pháo hoa nổ trên trời: `explosions/firework-burst` nhiều màu hồng, đỏ, vàng, tím, xen pháo thăng thiên
       `explosions/firework-rocket`.
