@@ -10,6 +10,7 @@ import * as dao from "./dao-huu.js";
 import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
 import * as dl from "./dao-lu.js";
+import { RINGS } from "../shared/dao-lu.js";
 import { khuOf, KHU_CAP } from "../shared/cau-ca.js";
 import { RANKS } from "../shared/tong-mon.js";
 import { USER_RE } from "../shared/balance.js";
@@ -315,7 +316,7 @@ export function api(world) {
     // hearts falling and fireworks on every map. Each wedding is announced once, numbered in the order they were made.
     const note = `💍 ${out.me} và ${out.name} đã kết thành Đạo Lữ với ${out.ringName}!`;
     world.feed(note);
-    world.celebrate(out.me, out.name, out.ringName);
+    world.celebrate(out.me, out.name, out.ringName, RINGS[out.ring]?.look ?? null);
     // then the two of them: their stones and bags, the ring's buff, the name by theirs, the wedding over them
     try {
       await touch([out.uid, req.userId]);

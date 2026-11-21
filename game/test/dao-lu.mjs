@@ -179,6 +179,7 @@ await sleep(600);
   assert.ok(await until(() => cA.msgs.some((m) => m.t === "s" && (m.E ?? []).some((e) => e.e === "love" && e.k === "wedding"))), "the wedding effect");
   assert.ok(await until(() => cA.msgs.some((m) => m.t === "feed" && /Đạo Lữ/.test(m.m))), "the feed tells everyone");
   assert.ok(await until(() => cZ.msgs.some((m) => m.t === "celebrate" && m.a === B.name && m.b === A.name && m.ring)), "everyone online celebrates: the whole server");
+  assert.equal(cZ.msgs.find((m) => m.t === "celebrate" && m.a === B.name).look, "uyenuong", "with the ring's look, for the banner's picture");
   // married: no roses to anyone else, no proposal to or from anyone else; roses to one's own dao lu are fine
   await befriend(A, D);
   await setPoints(A, D, dl.NEED);

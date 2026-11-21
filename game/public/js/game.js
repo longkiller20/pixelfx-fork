@@ -12,6 +12,7 @@ import { buildScene } from "./scenery.js";
 import { stepBody, PHYS, zoneLanding } from "/shared/physics.js";
 import { createHomeLayer } from "./gia-vien.js";
 import { createFishLayer } from "./cau-ca.js";
+import { lovePic } from "./dao-lu.js";
 
 // each buff's status icon (Xianxia Pixel Pack)
 const BUFF_ICON = { hp: "item_peach", atk: "status_burn", def: "status_golden_shield", spd: "status_swift", exp: "item_jade_slip", stones: "item_spirit_stone", med: "item_lingzhi" };
@@ -832,15 +833,16 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     weddingShowing = true;
     const dur = weddingQueue.length > 8 ? 1.5 : weddingQueue.length > 3 ? 2.5 : weddingQueue.length ? 3.5 : 5;
     if (b) {
-      const t = document.createElement("b"), s = document.createElement("small");
-      t.textContent = `💍 ${m.a} ♥ ${m.b}`;
-      s.textContent = `đã kết thành Đạo Lữ${m.ring ? ` với ${m.ring}` : ""}. Chúc mừng!`;
-      b.replaceChildren(t, s);
-      if (weddingQueue.length) {
-        const w = document.createElement("i");
-        w.textContent = `còn ${weddingQueue.length} cặp nữa đang chờ chúc mừng`;
-        b.append(w);
-      }
+      // pixelfx: the couple's own ring on both sides (love/ring, turning its glint), a heart beating between the names
+      // (love/heart-beat); the names go in with textContent
+      const el = (tag, text) => Object.assign(document.createElement(tag), text ? { textContent: text } : {});
+      const look = m.look ?? "dongtam";
+      const t = el("b"), mid = el("div"), s = el("small", `đã kết thành Đạo Lữ${m.ring ? ` với ${m.ring}` : ""}. Chúc mừng!`);
+      t.append(el("span", m.a), lovePic("love/heart-beat", {}, 24, 24, 36, "wheart"), el("span", m.b));
+      mid.className = "wmid";
+      mid.append(t, s);
+      if (weddingQueue.length) mid.append(el("i", `còn ${weddingQueue.length} cặp nữa đang chờ chúc mừng`));
+      b.replaceChildren(lovePic("love/ring", { ring: look }, 32, 32, 56, "wring"), mid, lovePic("love/ring", { ring: look }, 32, 32, 56, "wring r"));
       b.classList.remove("on");
       void b.offsetWidth;
       b.classList.add("on");

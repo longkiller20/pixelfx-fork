@@ -31,7 +31,9 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     tra lại: không đủ linh thạch thì không có gì xảy ra, lời cầu hôn vẫn chờ. Cả thế giới thấy dòng thông báo, hai người
     thấy hiệu ứng lễ cưới.
   - **Cả server ăn mừng**: mọi người đang online, ở bất kỳ map nào, đều thấy:
-    - một băng rôn "💍 A ♥ B đã kết thành Đạo Lữ với <nhẫn>. Chúc mừng!";
+    - một băng rôn "A ♥ B đã kết thành Đạo Lữ với <nhẫn>. Chúc mừng!", vẽ bằng pixelfx:
+      - hai bên là đúng chiếc nhẫn của cặp đó (`love/ring`, có ánh sáng chạy quanh và đá lấp lánh);
+      - giữa hai tên là trái tim đập hai nhịp (`love/heart-beat`);
     - khoảng 9 giây tim nhỏ rơi khắp màn hình, đung đưa và lật (pixelfx `love/heart-fall`, ba màu, hai cỡ);
     - pháo hoa nổ trên trời: `explosions/firework-burst` nhiều màu hồng, đỏ, vàng, tím, xen pháo thăng thiên
       `explosions/firework-rocket`.
