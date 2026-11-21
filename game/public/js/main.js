@@ -10,6 +10,8 @@ import { initSocial } from "./dao-huu.js";
 import { initHomeUI } from "./gia-vien.js";
 import { initFishUI, fishIconUrl } from "./cau-ca.js";
 import { initDaoLu, roseIconUrl } from "./dao-lu.js";
+import { initChinhTa, emblemPic } from "./chinh-ta.js";
+import { FACTIONS } from "/shared/chinh-ta.js";
 import { initMenu } from "./menu.js";
 import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange } from "./music.js";
 
@@ -161,6 +163,8 @@ function partGrid(box, items, isOn, pick, badge = () => "", dim = () => false) {
 // ---------------------------------------------------------------- making a character: gender, name, hair, robe
 // Only the free starter styles are offered here; the rest are bought in game at the Y Các.
 const look = { g: "m", hair: 0, robe: 0 };
+// the side (Chính Tà Phân Tranh): picked here, required
+let side = null;
 let catalog = [];
 const starters = (kind) => catalog.filter((c) => c.starter && c.kind === kind && c.g === look.g);
 const pickRandom = (kind) => {
@@ -180,7 +184,25 @@ async function showCreate() {
   fitMaker();
   preview($("pv"), () => look, () => !$("create").classList.contains("hidden"));
 }
+function fillSides() {
+  const box = $("sides");
+  if (!box.children.length)
+    for (const f of ["c", "t"]) {
+      const F = FACTIONS[f], b = document.createElement("button");
+      b.type = "button";
+      b.dataset.f = f;
+      b.className = `side f-${f}`;
+      b.setAttribute("role", "radio");
+      const txt = document.createElement("span");
+      txt.append(Object.assign(document.createElement("b"), { textContent: F.name }), Object.assign(document.createElement("small"), { textContent: F.motto }));
+      b.append(emblemPic(f, 40), txt);
+      b.addEventListener("click", () => ((side = f), fillSides()));
+      box.append(b);
+    }
+  for (const b of box.children) (b.classList.toggle("on", b.dataset.f === side), b.setAttribute("aria-checked", String(b.dataset.f === side)));
+}
 function fillPicks() {
+  fillSides();
   for (const b of document.querySelectorAll("[data-g]")) b.classList.toggle("on", b.dataset.g === look.g);
   for (const [kind, box] of [["hair", $("hairs")], ["robe", $("robes")]])
     partGrid(box, starters(kind), (it) => it.idx === look[kind], (it) => {
@@ -209,8 +231,9 @@ $("randLook").addEventListener("click", () => {
 $("createForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   $("createErr").textContent = "";
+  if (!side) return void ($("createErr").textContent = "Hãy chọn Chính Phái hoặc Tà Phái.");
   try {
-    await call("/character", { method: "POST", body: { name: $("charName").value, look } });
+    await call("/character", { method: "POST", body: { name: $("charName").value, look, faction: side } });
     state = await call("/me");
     play();
   } catch (err) {
@@ -240,6 +263,8 @@ function play() {
     onFrame: (dt) => fishUI.frame(dt),
     // Đạo Lữ: something changed (a rose, a proposal, a wedding, a divorce): the panel, if open, reads it again
     onDaolu: (m) => daoLu.onMsg(m),
+    // Chính Tà Phân Tranh: the battlefield's bar, board and result; a new map (off the field, the bar goes)
+    onCt: (m) => (m.t === "map" ? chinhTa.onMap(m.map) : chinhTa.onMsg(m)),
     onFatal: (msg, relog) => {
       game = null;
       $("fatalMsg").textContent = msg;
@@ -681,6 +706,7 @@ $("helpBtn").addEventListener("click", () => {
   <p><b>Công Pháp (nút cuộn trục trên menu):</b> hơn 200 công pháp, mỗi môn cần bí kíp riêng và tinh thạch theo hệ (môn cao cần thêm Linh Tủy), đều rơi ngẫu nhiên khi hạ yêu thú. Đủ vật phẩm thì bấm Lĩnh ngộ; gán tối đa 5 môn lên thanh, đổi lúc nào cũng được.  chiêu tự nhắm kẻ địch gần nhất.</p>
   <p><b>Y Các (trong nút Thêm, góc phải trên):</b> thử và mua kiểu tóc, y phục mới bằng linh thạch; đồ đã mua mặc lại lúc nào cũng được.</p>
   <p><b>Đạo Lữ (trong nút Thêm):</b> kết làm Đạo Lữ với một Đạo Hữu khác giới. Mua Hoa Hồng ở bảng Đạo Lữ, tặng ở tab Hảo cảm hoặc nút 🌹 trong cuộc Truyền Âm (chỉ tặng được cho Đạo Hữu khác giới): mỗi bông thêm hảo cảm. Đủ 100/100 thì cầu hôn, chọn một trong ba nhẫn cưới (Đồng Tâm, Uyên Ương, Thiên Duyên). Người kia đồng ý thì người cầu hôn trả linh thạch mua nhẫn, cả hai đeo nhẫn và được buff sinh lực, công, thủ, tốc độ vĩnh viễn khi còn là Đạo Lữ (ngoài đấu trường). Ly hôn thì mất nhẫn và mất buff, hảo cảm về 0.</p>
+  <p><b>Chính Tà Phân Tranh (trong nút Thêm):</b> mỗi nhân vật thuộc Chính Phái hoặc Tà Phái (chọn khi tạo nhân vật). Đăng ký trước giờ trận; đến giờ hệ thống chọn tối đa 30 người mạnh nhất mỗi phe đang trực tuyến và tự đưa vào Chính Tà Chiến Trường (bản đồ phẳng). Bị hạ thì hồi sinh ở doanh trại. Hết giờ, phe nhiều lượt hạ gục hơn thắng. Cả hai phe đều nhận điểm Chính Tà (phe thua ít hơn), đổi ở Tiệm Chính Tà. Trong trận: phím Tab mở bảng chiến tích.</p>
   <p><b>Câu Cá (trong nút Thêm):</b> tới Vọng Nguyệt Hồ. Mua cần và mồi ở quầy Ngư Cụ (bờ tây), ra cầu câu bấm Thả câu (phím E): ngồi vào chỗ trống gần nhất trong 8 chỗ, mỗi chỗ một người. Hồ có 30 khu, mỗi khu tối đa 20 người; vào hồ là tự vào khu còn chỗ, bấm nút Khu câu để xem độ đông (chấm xanh, vàng, đỏ) và sang khu khác. Phao rỉa nhẹ thì chưa giật; phao chìm hẳn (nút đỏ GIẬT!) thì giật ngay. Kéo: giữ nút để vùng xanh nổi lên, thả để chìm, giữ cá trong vùng xanh tới khi đầy thanh. Bán cá và xem Ngư Lục ở quầy Ngư Cụ.</p>
   <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (bệ đá dưới đĩa âm dương xoay, trước điện thờ) để tăng tu vi, tối đa mỗi ngày có hạn.</p>
   <p><b>Tân Thủ Thôn:</b> thôn khởi đầu, an toàn, không có yêu thú. Dưới gốc đào tiên có 2 bù nhìn rơm để thử chiêu: số sát thương hiện trên đầu, bù nhìn tự hồi máu khi để yên. Đi sang phải qua vườn đào, lên đồi; mũi tên vàng dưới chân bậc thang đá ở cuối thôn phía đông là lối ra (bản đồ mới sẽ mở sau).</p>
@@ -837,6 +863,10 @@ $("fishBtn").addEventListener("click", () => fishUI.menu());
 // ---------------------------------------------------------------- Đạo Lữ (▦ Thêm → Đạo Lữ): public/js/dao-lu.js
 const daoLu = initDaoLu({ call, uuid, panel, flash, game: () => game });
 $("loveBtn").addEventListener("click", () => daoLu.open());
+
+// ---------------------------------------------------------------- Chính Tà Phân Tranh (▦ Thêm → Chính Tà): public/js/chinh-ta.js
+const chinhTa = initChinhTa({ call, uuid, panel, flash, game: () => game });
+$("ctBtn").addEventListener("click", () => chinhTa.open());
 
 // ---------------------------------------------------------------- Đàm Đạo (💬) and Đạo Hữu (🤝, H): public/js/dao-huu.js
 // a Đạo Hữu of the other gender gets a 🌹 in their conversation: roses for Đạo Lữ

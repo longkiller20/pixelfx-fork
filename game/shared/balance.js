@@ -15,6 +15,7 @@
 import { CONG_PHAP_BY_KEY } from "./cong-phap.js";
 import { FISH, setRates } from "./cau-ca.js";
 import { RINGS, STATS as DL_STATS, setRingBuffs } from "./dao-lu.js";
+import { CT, slotOk, hhmm } from "./chinh-ta.js";
 
 export const TICK_HZ = 20;
 // Maps (size, walls, spawn, the spirit vein, the ways out) live in shared/maps/.
@@ -155,6 +156,31 @@ export const DEFAULTS = {
     "daolu.rose_buy_max": [99, "Mỗi lần mua tối đa bấy nhiêu bông Hoa Hồng"],
     "daolu.propose_hours": [72, "Lời cầu hôn hết hạn sau bấy nhiêu giờ"],
     "daolu.remarry_hours": [24, "Ly hôn xong phải chờ bấy nhiêu giờ mới kết Đạo Lữ lại được"],
+    // Chính Tà Phân Tranh (shared/chinh-ta.js, server/chinh-ta.js)
+    "chinhta.slot1": [2000, "Giờ trận Chính Tà thứ nhất mỗi ngày, dạng GIỜPHÚT (2000 = 20:00); -1: tắt"],
+    "chinhta.slot2": [-1, "Giờ trận thứ hai mỗi ngày (GIỜPHÚT, vd 1230 = 12:30); -1: tắt"],
+    "chinhta.slot3": [-1, "Giờ trận thứ ba mỗi ngày (GIỜPHÚT); -1: tắt"],
+    "chinhta.tz": [7, "Múi giờ của lịch Chính Tà: số giờ cộng vào giờ UTC (7 = giờ Việt Nam)"],
+    "chinhta.team": [30, "Mỗi phe tối đa bấy nhiêu người vào trận (1-30)"],
+    "chinhta.min_side": [3, "Mỗi phe cần ít nhất bấy nhiêu người đủ điều kiện, không thì trận bị hủy"],
+    "chinhta.max_gap": [5, "Phe đông hơn được hơn phe ít nhất bấy nhiêu người (30 = không giới hạn)"],
+    "chinhta.level": [3, "Cấp tối thiểu để đăng ký Chính Tà"],
+    "chinhta.minutes": [15, "Một trận kéo dài bấy nhiêu phút"],
+    "chinhta.close_before": [1, "Đóng đăng ký trước giờ trận bấy nhiêu phút"],
+    "chinhta.prep": [20, "Giây chuẩn bị trong doanh trại trước khi khai chiến (kết giới đóng)"],
+    "chinhta.respawn": [5, "Giây chờ hồi sinh ở doanh trại"],
+    "chinhta.protect": [3, "Giây miễn sát thương sau khi hồi sinh"],
+    "chinhta.win": [30, "Điểm Chính Tà cho mỗi người phe thắng"],
+    "chinhta.lose": [10, "Điểm Chính Tà cho mỗi người phe thua"],
+    "chinhta.draw": [15, "Điểm Chính Tà cho mỗi người khi hòa"],
+    "chinhta.kill_pts": [1, "Thêm bấy nhiêu điểm Chính Tà cho mỗi lượt hạ gục"],
+    "chinhta.kill_cap": [20, "Điểm từ hạ gục tối đa bấy nhiêu mỗi trận"],
+    "chinhta.mvp": [10, "Thêm bấy nhiêu điểm cho người hạ gục nhiều nhất mỗi phe"],
+    "chinhta.min_stay": [50, "Phải ở trong trận ít nhất bấy nhiêu % thời gian mới được thưởng"],
+    "chinhta.refill": [40, "Còn ít nhất bấy nhiêu % thời gian thì dự bị được gọi vào thay người rời trận"],
+    "chinhta.away": [60, "Mất kết nối quá bấy nhiêu giây thì chỗ được nhường cho dự bị"],
+    "chinhta.change_cost": [5000, "Linh thạch để đổi phe"],
+    "chinhta.change_days": [7, "Đổi phe xong phải chờ bấy nhiêu ngày mới đổi lại được"],
   },
 };
 
@@ -205,8 +231,19 @@ export function checkConfig(c) {
   const S = {};
   for (const [k, d] of Object.entries(DEFAULTS.settings)) {
     const v = c.settings?.[k];
-    S[k] = num(Array.isArray(v) ? v[0] : v ?? d[0], `settings ${k}`, k === "exp.power" ? 0.5 : 0, k === "exp.power" ? 4 : 1e9);
+    S[k] = num(Array.isArray(v) ? v[0] : v ?? d[0], `settings ${k}`, k === "exp.power" ? 0.5 : k.startsWith("chinhta.slot") ? -1 : 0, k === "exp.power" ? 4 : 1e9);
   }
+  for (const k of ["chinhta.slot1", "chinhta.slot2", "chinhta.slot3"])
+    if (!slotOk(S[k])) throw new Error(`settings ${k}: ${S[k]} không phải giờ hợp lệ (GIỜPHÚT như 2000 = 20:00, hoặc -1 để tắt)`);
+  num(S["chinhta.tz"], "chinhta.tz (múi giờ)", 0, 14);
+  num(S["chinhta.team"], "chinhta.team (người mỗi phe)", 1, 30);
+  num(S["chinhta.min_side"], "chinhta.min_side", 1, 30);
+  num(S["chinhta.minutes"], "chinhta.minutes (phút mỗi trận)", 1, 120);
+  num(S["chinhta.close_before"], "chinhta.close_before", 0, 120);
+  num(S["chinhta.min_stay"], "chinhta.min_stay (%)", 0, 100);
+  num(S["chinhta.refill"], "chinhta.refill (%)", 0, 100);
+  num(S["chinhta.respawn"], "chinhta.respawn", 1, 120);
+  num(S["chinhta.prep"], "chinhta.prep", 0, 300);
   num(S["fly.realm"], "fly.realm (cảnh giới mở khoá phi hành)", 1, 100);
   num(S["fly.speed"], "fly.speed (hệ số tốc độ bay)", 0.2, 5);
   num(S["sect.max_level"], "sect.max_level (cấp tông môn cao nhất)", 1, 100);
@@ -372,6 +409,17 @@ export function applyConfig(c) {
     rosePoints: Math.max(1, S["daolu.rose_points"] | 0), roseDaily: Math.max(1, S["daolu.rose_daily"] | 0), roseBuyMax: Math.max(1, S["daolu.rose_buy_max"] | 0),
     proposeHours: Math.max(1, S["daolu.propose_hours"]), remarryHours: Math.max(0, S["daolu.remarry_hours"]),
   });
+  {
+    const slots = [...new Set(["chinhta.slot1", "chinhta.slot2", "chinhta.slot3"].map((k) => S[k]).filter((v) => v >= 0))].sort((a, b) => a - b);
+    Object.assign(CT, {
+      slots, tz: S["chinhta.tz"], team: Math.max(1, Math.min(30, S["chinhta.team"] | 0)), minSide: Math.max(1, S["chinhta.min_side"] | 0),
+      maxGap: S["chinhta.max_gap"] | 0, level: Math.max(1, S["chinhta.level"] | 0), minutes: S["chinhta.minutes"], closeBefore: S["chinhta.close_before"],
+      respawn: S["chinhta.respawn"], protect: S["chinhta.protect"], win: S["chinhta.win"] | 0, lose: S["chinhta.lose"] | 0, draw: S["chinhta.draw"] | 0,
+      killPts: S["chinhta.kill_pts"] | 0, killCap: S["chinhta.kill_cap"] | 0, mvp: S["chinhta.mvp"] | 0, minStay: S["chinhta.min_stay"],
+      prep: S["chinhta.prep"], refill: S["chinhta.refill"], away: S["chinhta.away"], changeCost: S["chinhta.change_cost"] | 0, changeDays: S["chinhta.change_days"],
+      times: slots.map(hhmm),
+    });
+  }
   DAILY_STONES = S["daily.stones"] | 0;
   BUY_MAX = Math.max(1, S["shop.buy_max"] | 0);
   return k;

@@ -18,7 +18,7 @@ export class GameError extends Error {
   }
 }
 
-const COLS = "user_id, name, gender, hair, robe, weapon, sword, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots, map_id";
+const COLS = "user_id, name, gender, hair, robe, weapon, sword, faction, ct_points, exp, stones, rank_points, kills, deaths, (med_day = CURDATE()) AS med_today, med_exp, art_slots, map_id";
 /** The bar as saved, or the starters for a character that never changed it; always ART_SLOTS long. */
 export function parseSlots(raw) {
   let a = null;
@@ -34,6 +34,8 @@ const shape = (r) => r && {
   medLeft: Math.max(0, MEDITATE.dailyCap - (r.med_today ? Number(r.med_exp) : 0)),
   slots: parseSlots(r.art_slots),
   mapId: r.map_id ?? null,
+  // Chính Tà: the side (c, t, or null: not picked yet) and the điểm Chính Tà
+  faction: r.faction === "c" || r.faction === "t" ? r.faction : null, ctPoints: Number(r.ct_points ?? 0),
 };
 
 /** The map a character is on, so they come back there. */
@@ -59,9 +61,11 @@ export async function dailyClaimed(uid) {
   return rows.length > 0;
 }
 
-export function createCharacter(uid, name, look) {
+export function createCharacter(uid, name, look, faction) {
   name = String(name ?? "").trim().replace(/\s+/g, " ");
   if (!NAME_RE.test(name)) throw new GameError("Đạo hiệu dài 3-16 ký tự, chỉ gồm chữ, số, khoảng trắng hoặc _.");
+  // Chính Tà: every new character picks a side (Chính Phái or Tà Phái)
+  if (faction !== "c" && faction !== "t") throw new GameError("Hãy chọn Chính Phái hoặc Tà Phái.");
   const g = look?.g, hair = look?.hair, robe = look?.robe;
   if (!validLook(g, hair, robe)) throw new GameError("Ngoại hình không hợp lệ.");
   return userLock.run(uid, () => tx(async (c) => {
@@ -72,7 +76,7 @@ export function createCharacter(uid, name, look) {
     );
     if (free.length !== 2) throw new GameError("Ngoại hình này chưa mở, hãy chọn kiểu khởi đầu.");
     try {
-      await c.query("INSERT INTO characters (user_id, name, class, gender, hair, robe, stones) VALUES (?, ?, ?, ?, ?, ?, ?)", [uid, name, CLASS, g, hair, robe, START.stones]);
+      await c.query("INSERT INTO characters (user_id, name, class, gender, hair, robe, stones, faction) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [uid, name, CLASS, g, hair, robe, START.stones, faction]);
     } catch (e) {
       if (isDup(e)) throw new GameError(/uq_name/.test(e.message) ? "Đạo hiệu này đã có người dùng." : "Tài khoản đã có nhân vật.", 409);
       throw e;

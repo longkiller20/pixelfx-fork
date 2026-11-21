@@ -46,6 +46,8 @@
             <input id="charName" placeholder="Đạo hiệu (3-16 ký tự)" required minlength="3" maxlength="16" autocomplete="off">
             <button type="button" id="randLook" title="Ngẫu nhiên">🎲</button>
           </div>
+          <h4>Phe phái <span class="dim">(Chính Tà Phân Tranh: chọn một)</span></h4>
+          <div id="sides" class="sides" role="radiogroup" aria-label="Phe phái"></div>
           <h4>Tóc <span id="hairNo" class="dim"></span></h4>
           <div id="hairs" class="picks"></div>
           <h4>Y phục <span id="robeNo" class="dim"></span></h4>
@@ -101,6 +103,7 @@
         <button id="dailyBtn" data-icon="gift" title="Quà mỗi ngày" aria-label="Quà mỗi ngày"></button>
         <button id="moreBtn" data-icon="more" title="Thêm" aria-label="Thêm" aria-expanded="false" aria-controls="moreMenu"></button>
         <div id="moreMenu" class="moremenu" hidden>
+          <button id="ctBtn" data-icon="chinhta" title="Chính Tà Phân Tranh: đăng ký, phe phái, Tiệm Chính Tà"><span class="lbl">Chính Tà</span></button>
           <button id="loveBtn" data-icon="love" title="Đạo Lữ: tặng hoa hồng, cầu hôn, nhẫn cưới"><span class="lbl">Đạo Lữ</span></button>
           <button id="fishBtn" data-icon="fish" title="Câu Cá: tới Vọng Nguyệt Hồ; ở hồ thì mở quầy Ngư Cụ"><span class="lbl">Câu Cá</span></button>
           <button id="shopBtn" data-icon="shop" title="Đan Các"><span class="lbl">Đan Các</span></button>

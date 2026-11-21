@@ -26,7 +26,7 @@ async function player(look = { g: "m", hair: 8, robe: 16 }) {
     r = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
   }
   const { data } = r;
-  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } });
+  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look, faction: "c" } });
   assert.equal(c.status, 200, JSON.stringify(c.data));
   return { token: data.token, name: c.data.character.name };
 }
@@ -85,8 +85,8 @@ const SHOP_TEST = "Hàng thử nghiệm";
   const { data } = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
   // junk, a shop item (hair 0 is sold, not free), and a man's starter hair on a woman
   for (const look of [{ g: "x", hair: 8, robe: 16 }, { g: "m", hair: 1.5, robe: 16 }, { g: "f", hair: 24, robe: -1 }, null, { g: "m", hair: 0, robe: 16 }, { g: "f", hair: 8, robe: 2 }])
-    assert.equal((await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look } })).status, 400, JSON.stringify(look));
-  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: { g: "f", hair: 34, robe: 21 } } });
+    assert.equal((await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look, faction: "c" } })).status, 400, JSON.stringify(look));
+  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: { g: "f", hair: 34, robe: 21 }, faction: "t" } });
   assert.deepEqual({ ...c.data.character.look, weapon: undefined, sword: undefined }, { g: "f", hair: 34, robe: 21, weapon: undefined, sword: undefined });
   assert.equal(c.data.character.look.sword, 0, "and the basic flying sword, for when flight opens");
   assert.ok(Number.isInteger(c.data.character.look.weapon), "and a weapon in hand");

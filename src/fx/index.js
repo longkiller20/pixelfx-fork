@@ -276,6 +276,10 @@ import * as love_hearts from "./love/hearts.js";
 import * as love_ring from "./love/ring.js";
 import * as love_rose from "./love/rose.js";
 import * as love_wedding from "./love/wedding.js";
+import * as chinhta_barrier from "./chinhta/barrier.js";
+import * as chinhta_emblem from "./chinhta/emblem.js";
+import * as chinhta_flag from "./chinhta/flag.js";
+import * as chinhta_stele from "./chinhta/stele.js";
 
 export { categories } from "./categories.js";
 
@@ -556,4 +560,8 @@ export const effects = {
   "love/ring": love_ring,
   "love/rose": love_rose,
   "love/wedding": love_wedding,
+  "chinhta/barrier": chinhta_barrier,
+  "chinhta/emblem": chinhta_emblem,
+  "chinhta/flag": chinhta_flag,
+  "chinhta/stele": chinhta_stele,
 };
