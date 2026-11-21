@@ -7,7 +7,7 @@ import * as arcane_mana_burst from "./arcane/mana-burst.js";
 import * as arcane_portal from "./arcane/portal.js";
 import * as arcane_rune_circle from "./arcane/rune-circle.js";
 import * as arcane_teleport_array from "./arcane/teleport-array.js";
-import * as boss_nguu_ma_vuong from "./boss/nguu-ma-vuong.js";
+import * as boss_cuu_u_xa_vuong from "./boss/cuu-u-xa-vuong.js";
 import * as boss_roar_wave from "./boss/roar-wave.js";
 import * as chinhta_barrier from "./chinhta/barrier.js";
 import * as chinhta_emblem from "./chinhta/emblem.js";
@@ -102,7 +102,7 @@ export const effects = {
   "arcane/portal": arcane_portal,
   "arcane/rune-circle": arcane_rune_circle,
   "arcane/teleport-array": arcane_teleport_array,
-  "boss/nguu-ma-vuong": boss_nguu_ma_vuong,
+  "boss/cuu-u-xa-vuong": boss_cuu_u_xa_vuong,
   "boss/roar-wave": boss_roar_wave,
   "chinhta/barrier": chinhta_barrier,
   "chinhta/emblem": chinhta_emblem,

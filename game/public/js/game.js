@@ -20,8 +20,11 @@ import { isTele, teleAt } from "/shared/truyen-tong.js";
 import { zoneBox, zoneLabel, closeZoneBox } from "./khu.js";
 import { bossEvent, drawBossEnt, bossTop, createBossHud } from "./boss.js";
 import { bossOf } from "/shared/boss.js";
-// Boss Thế Giới: its effects (the first boss's; every boss names its own in shared/boss.js)
-const BOSS_FX = { slamFx: "impacts/ground-slam", roarFx: "boss/roar-wave", hitFx: "impacts/crit-hit" };
+// Boss Thế Giới: its effects and their colours, as each boss names them in shared/boss.js (the last one seen here)
+const BOSS_FX0 = { slamFx: "impacts/ground-slam", roarFx: "boss/roar-wave", hitFx: "impacts/crit-hit", colors: {} };
+let BOSS_FX = BOSS_FX0;
+const bossFx = (type) => (BOSS_FX = bossOf(type) ?? BOSS_FX);
+const bossTint = (k) => (BOSS_FX.colors?.[k] ? { palette: BOSS_FX.colors[k] } : {});
 // the Truyền Tống Trận on the floor where a map's arrays are
 const TELE_FX = "arcane/teleport-array";
 
@@ -398,8 +401,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         if (t) {
           // (on a boss: higher up, over its chest; its roar and the blows it throws back in their own colours)
           const big = !!bossOf(s.M.get(e.id)?.type);
-          texts.push({ x: t.x + (Math.random() * (big ? 60 : 12) - (big ? 30 : 6)), y: t.y - (big ? 120 : 70), s: e.roar ? `🔥-${e.d}` : e.th ? `↺-${e.d}` : `-${e.d}`, color: e.roar ? "#ff7a3a" : e.th ? "#ffb070" : e.id === myId ? "#ff6060" : "#ffffff", at: now });
-          if (e.roar && fxs.length < 40) addFx(BOSS_FX.hitFx, t.x, t.y - 34, { palette: ["#2a0606", "#7a1010", "#e0401a", "#ff9a3a", "#fff0c0"] }, null, 0, 0.8);
+          texts.push({ x: t.x + (Math.random() * (big ? 60 : 12) - (big ? 30 : 6)), y: t.y - (big ? 120 : 70), s: e.roar ? `🐍-${e.d}` : e.th ? `↺-${e.d}` : `-${e.d}`, color: e.roar ? "#ff6aa0" : e.th ? "#ffb070" : e.id === myId ? "#ff6060" : "#ffffff", at: now });
+          if (e.roar && fxs.length < 40) addFx(BOSS_FX.hitFx, t.x, t.y - 34, BOSS_FX.colors?.hit ? { palette: BOSS_FX.colors.hit } : { palette: ["#2a0606", "#7a1010", "#e0401a", "#ff9a3a", "#fff0c0"] }, null, 0, 0.8);
           else if (fxs.length < 30) addFx("impacts/hit-spark", t.x, t.y - (big ? 80 : 30), { flip: Math.random() < 0.5 });
         }
         break;
@@ -436,12 +439,14 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       }
       case "fx":
         if (e.k === "thunder") addFx("lightning/lightning-strike", e.x, e.y, {});
-        // Boss Thế Giới: the mace into the ground in front of it; its roar round it (and everyone's screen shaking)
+        // Boss Thế Giới: its strike on the ground in front of it; its roar round it (and everyone's screen shaking)
         else if (e.k === "bossslam") {
-          addFx(BOSS_FX.slamFx, e.x, e.y, {}, null, 0, 1.15);
+          bossFx(e.b);
+          addFx(BOSS_FX.slamFx, e.x, e.y, bossTint("slam"), null, 0, 1.15);
           artHelp.shake(7, 0.45, e.x, e.y);
         } else if (e.k === "bossroar") {
-          addFx(BOSS_FX.roarFx, e.x, e.y, {}, null, 0, 1.4);
+          bossFx(e.b);
+          addFx(BOSS_FX.roarFx, e.x, e.y, bossTint("roar"), null, 0, 1.4);
           artHelp.shake(10, 0.8, e.x, e.y);
         }
         break;

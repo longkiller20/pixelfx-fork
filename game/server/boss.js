@@ -1,6 +1,6 @@
 // Boss Thế Giới (shared/boss.js): the one boss up at a time, its life shared by its copies in every Khu of its map.
 //
-//   spawn     an admin calls it onto a map (the first boss, Hỏa Ngưu Ma Vương), with its life, its pools of linh thạch and
+//   spawn     an admin calls it onto a map (the first boss, Cửu U Xà Vương), with its life, its pools of linh thạch and
 //             tu vi, and how long it stays; one row in world_bosses (alive = 1: a second can't be called while it stands)
 //   attach    every Khu of that map gets a copy (World.addBoss), the ones made later too
 //   hit       a blow in any Khu takes from the one life, and is written down against whoever struck it
@@ -83,7 +83,7 @@ export class BossFight {
    * An admin calls a boss: key (shared/boss.js), map (one of bossMaps()), x (world px; or the middle of the map), and
    * optionally hp, stones, exp, killBonus (%), minutes, instead of the settings boss.*. Refused while one stands.
    */
-  async spawn({ key = "nguuma", map, x = null, hp = null, stones = null, exp = null, killBonus = null, minutes = null, by = null } = {}) {
+  async spawn({ key = "xavuong", map, x = null, hp = null, stones = null, exp = null, killBonus = null, minutes = null, by = null } = {}) {
     const def = BOSSES[key];
     if (!def) throw bad("Không có boss này.");
     if (!bossMaps().includes(map)) throw bad("Map này không gọi boss được (chỉ các map có yêu thú).");

@@ -1,6 +1,6 @@
 // Boss Thế Giới in the browser (shared/boss.js, server/boss.js):
-//   the boss itself    its rigged pixelfx figure (/hieu-ung/fx/boss/<key>.js, moved by /hieu-ung/fx/boss/_rig.js): it
-//                      breathes, strides, raises and slams its mace, throws its head back and roars, sinks when it falls
+//   the boss itself    its rigged pixelfx figure (/hieu-ung/fx/boss/<key>.js, moved by /hieu-ung/fx/boss/_rig.js): its
+//                      serpents weave and strike, its coils ripple as it slithers, it rears and roars, slumps when it falls
 //   the bar            on its map, at the top: its name, its one life (the same in every Khu), when it roars next, how
 //                      long it stays, and the ranking (the top five and one's own place), folded on a phone
 //   the word           elsewhere, a small pill: which boss is up, where, how much life it has left
@@ -17,7 +17,7 @@ function figure(key) {
   return null;
 }
 const fmt = (n) => Math.round(n).toLocaleString("vi-VN");
-const RED = hex("#ff3a1a"), EMBER = hex("#ff8a2a");
+const RED = hex("#e0205a"), VENOM = hex("#b02aa0");
 
 /** What each boss on screen is doing (from the server's "boss" events): when it began to slam, to roar, fell. */
 const acts = new Map(); // id -> { slam, roar, dead, lastX, movingUntil }
@@ -45,13 +45,13 @@ export function drawBossEnt(p, e, sx, sy, now, flash) {
   if (e.dead || a.dead) st.dead = { age: a.dead ? now - a.dead : 9 };
   if (st.dead && st.dead.age > 7) return true;
   p.place(sx, sy, e.face < 0);
-  // its weight on the ground: a wide shadow, the lava in its mace lighting the floor; a red aura while it roars
-  for (let i = 0; i < 3; i++) p.glow(0, 2, 70 - i * 18, hex("#000000"), 0.18);
-  p.glow(30, -60, 70, EMBER, 0.08 + 0.04 * Math.sin(now * 3));
+  // its weight on the ground: a wide shadow under the coils; a dim venom glow about it, a crimson aura while it roars
+  for (let i = 0; i < 3; i++) p.glow(0, 2, 100 - i * 24, hex("#000000"), 0.18);
+  p.glow(0, -70, 90, VENOM, 0.06 + 0.03 * Math.sin(now * 3));
   if (st.roar) p.glow(0, -80, 120, RED, 0.35 * Math.max(0, 1 - Math.abs(st.roar.age - 0.9) / 0.9));
   const fade = st.dead ? Math.max(0, 1 - Math.max(0, st.dead.age - 3) / 4) : 1;
   if (fade < 1) p.fade = fade;
-  drawBoss(p, F, poseOf(st), flash ? () => WHITE : e.f & 4 ? (c) => c : undefined);
+  drawBoss(p, F, poseOf(st, F), flash ? () => WHITE : e.f & 4 ? (c) => c : undefined);
   p.fade = 1;
   return true;
 }
@@ -92,7 +92,7 @@ export function createBossHud({ toast }) {
       $(".bbhp i").style.width = `${Math.max(0, Math.min(100, pct))}%`;
       $(".bbhp span").textContent = `${fmt(m.hp)} / ${fmt(m.max)} · ${pct >= 10 ? Math.ceil(pct) : pct.toFixed(1)}%`;
       // (the words in <em> are left out on a phone, where the bar is kept small)
-      $(".bbroar").replaceChildren("🔥 ", el("em", "", "Phản kích sau "), `${m.roarIn}s`);
+      $(".bbroar").replaceChildren("🐍 ", el("em", "", "Phản kích sau "), `${m.roarIn}s`);
       $(".bbleft").textContent = `⏳ ${clock(m.left)}`;
       if (m.me?.dmg) $(".bbme").replaceChildren(el("em", "", "Hạng "), el("i", "", "#"), `${m.me.rank} · `, el("em", "", `${fmt(m.me.dmg)} `), `${m.me.pct}%`);
       else $(".bbme").replaceChildren(el("em", "", "Chưa gây sát thương"), el("i", "", "—"));
