@@ -40,7 +40,7 @@ SPOTS.forEach((x, i) => pier.push(fx(x, "fishing/props", { piece: "seat", n: i +
 export const CAUCA = {
   id: "cauca",
   name: "Vọng Nguyệt Hồ",
-  sub: "Hồ câu dưới trăng: không có yêu thú. Mua cần, mồi ở quầy Ngư Cụ, ra cầu câu ngồi vào một trong 8 chỗ rồi thả câu. Hồ chia 30 khu, mỗi khu tối đa 20 người.",
+  sub: "Hồ câu dưới trăng: không có yêu thú. Mua cần, mồi ở quầy Ngư Cụ, ra cầu câu ngồi vào một trong 8 chỗ rồi thả câu. Ở hồ không đánh, không dùng công pháp, không ngự kiếm. Hồ chia 30 khu, mỗi khu tối đa 20 người.",
   // its own background music, always this one (public/nhac-nen/2-asianstringsuite/)
   music: "2-asianstringsuite",
   // entered from the menu, not by a road: the way out goes back to wherever one came from. Run as numbered copies (Khu).
@@ -48,6 +48,8 @@ export const CAUCA = {
   instanced: true,
   cell: 32,
   pvp: false,
+  // a quiet lake: no attacks, no arts, no flying sword here (the server refuses them; the fishing buttons take their place)
+  peaceful: true,
   theme: {
     sky: ["#161a3e", "#2c3670", "#5a5a96", "#a07ea6", "#f0b08a"],
     heaven: [["bg_far_01_03", 380, 26, { tint: "#ffe8c8", k: 0.15 }], ["bg_xianxia_far_04_01", 1100, 40, { tint: "#6a5a9a", k: 0.4 }], ["bg_xianxia_far_03_02", 1700, 30, { tint: "#6a5a9a", k: 0.4 }]],

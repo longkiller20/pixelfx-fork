@@ -67,6 +67,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         if (!map || map.id !== m.map) {
           // a new map (logging in, or through a gate): forget everything of the last one
           map = mapInfo(m.map);
+          // a peaceful map (the fishing lake): the fight buttons go, its own take their place (css: body.peace)
+          document.body.classList.toggle("peace", !!map.def.peaceful);
           home.onWelcome(m.map);
           fish.st = null;
           // each map has its own music
@@ -418,8 +420,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     const sk = { j: 0, k: 1, l: 2, u: 3, i: 4, o: 5, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 }[k];
     if (sk !== undefined && !e.repeat) cast(sk);
     if (k === "f" && !e.repeat) toggleFly();
-    if (k === "z" && !e.repeat) use("hoixuan");
-    if (k === "x" && !e.repeat) use("tukhi");
+    if (k === "z" && !e.repeat && !map?.def.peaceful) use("hoixuan");
+    if (k === "x" && !e.repeat && !map?.def.peaceful) use("tukhi");
   });
   addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
   addEventListener("blur", () => keys.clear());
@@ -482,6 +484,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   const flyingNow = () => !!(snaps[snaps.length - 1]?.P.get(myId)?.f & 256);
   function toggleFly() {
     if (!me) return;
+    if (map?.def.peaceful) return toast("Ở Vọng Nguyệt Hồ không ngự kiếm được.");
     if (!canFly(me.lv)) return toast(`Tới cảnh giới ${flyRealmName()} mới ngự kiếm phi hành được.`);
     send({ t: "fly", on: !flyingNow() });
   }
@@ -581,6 +584,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     return best ? { ax: best.x - self.x, ay: best.y - self.y } : { ax: lastDir.x, ay: lastDir.y };
   }
   function cast(i, to = null) {
+    // nothing to fight on a peaceful map (the fishing lake): its buttons are hidden and the server would refuse
+    if (map?.def.peaceful) return;
     // an empty slot opens the list of arts, to put one there
     if (i > 0 && !arts.slots[i - 1]) return openArts?.(i - 1);
     if (!me || me.respawn > 0) return;

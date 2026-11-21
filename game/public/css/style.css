@@ -1499,3 +1499,54 @@ body.rotated .ccp .cclbtn button { font-size: 11.5px; padding: 2px 6px; min-heig
 }
 body.rotated .ckbox { width: min(620px, 100%); }
 body.rotated .ckgrid { grid-template-columns: repeat(10, 1fr); gap: 4px; }
+
+/* ---------------------------------------------------------------- a peaceful map (the fishing lake): no fight buttons
+   The attack, the arts, the pills and the flying sword are hidden (the server refuses them there too). The fishing buttons
+   take their place in the same arc: the big round one where the attack is, under the right thumb; Ngư Cụ, the Khu and
+   reel-in around it where the arts are. Placed from the big button's centre (--cx, --cy), so the arc scales as one. */
+body.peace .skills { display: none !important; }
+#fishbar { left: auto; right: 0; bottom: 0; transform: none; width: 270px; height: 210px; display: block; pointer-events: none;
+  transform-origin: 100% 100%; --cx: 64px; --cy: 62px; z-index: 3; }
+#fishbar > button { position: absolute; pointer-events: auto; padding: 0; width: var(--s); height: var(--s); border-radius: 50%;
+  right: calc(var(--cx) + var(--dx, 0px) - var(--s) / 2); bottom: calc(var(--cy) + var(--dy, 0px) - var(--s) / 2);
+  touch-action: none; user-select: none; -webkit-user-select: none; }
+#fishbar > button[hidden] { display: none; }
+#fishbar kbd { position: absolute; top: 3px; left: 50%; transform: translateX(-50%); font-size: 9px; color: #d8c8a0; background: #0008; border-radius: 4px; padding: 0 3px; }
+body.touch #fishbar kbd { display: none; }
+/* the big one: cast, strike, hold to reel */
+#fishbar .fact { --s: 96px; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 0;
+  border: 4px solid #7af0d8; box-shadow: 0 0 0 2px #0a2a26, 0 0 18px #7af0d855, 0 6px 14px #000a, inset 0 0 18px #000c;
+  background: radial-gradient(circle at 50% 38%, #1e6a64, #0a1e24 72%); }
+#fishbar .fact .fi { width: 38px; height: 38px; border-radius: 50%; background: #0006; grid-row: auto; }
+#fishbar .fact .fi canvas { width: 34px; height: 34px; }
+#fishbar .fact b { font-size: 13.5px; text-align: center; text-shadow: 0 1px 2px #000; }
+#fishbar .fact small { font-size: 8.5px; text-align: center; color: #c8f0e4; max-width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#fishbar .fact kbd { top: auto; bottom: -1px; }
+#fishbar .fact.wait { background: radial-gradient(circle at 50% 38%, #34488a, #10142e 72%); border-color: #8ab0ff; }
+#fishbar .fact.bite { background: radial-gradient(circle at 50% 38%, #e0502e, #5a1010 72%); border-color: #ffd060; }
+#fishbar .fact.reel { background: radial-gradient(circle at 50% 38%, #2e8a40, #0e2a14 72%); border-color: #a8ffb0; }
+#fishbar .fact.hold { transform: scale(.94); filter: brightness(1.2); }
+@keyframes fbite { from { transform: scale(1); box-shadow: 0 0 0 2px #3a1008, 0 0 0 #ffd06000; } to { transform: scale(1.08); box-shadow: 0 0 0 2px #3a1008, 0 0 28px #ffd060dd; } }
+/* the small ones: a round button each, its name on a little plate under it */
+#fishbar .fsmall { --s: 54px; min-width: 0; height: var(--s); overflow: visible; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 3px solid #c99a3a; box-shadow: 0 0 0 2px #2a1a08, 0 6px 14px #000a, inset 0 0 12px #000c; background: radial-gradient(circle at 50% 40%, #2c2240, #0e0a18 72%); }
+#fishbar .fsmall span { font-size: 22px; line-height: 1; }
+#fishbar .fsmall small { position: absolute; top: calc(100% + 1px); left: 50%; transform: translateX(-50%); padding: 0 5px; border-radius: 6px;
+  background: #0b0814d8; font-size: 10px; line-height: 15px; color: var(--gold2); white-space: nowrap; }
+#fishbar .fsmall.khu span { height: auto; }
+#fishbar .fsmall.khu .ckdot { width: 16px; height: 16px; }
+#fishbar .shop { --dx: 104px; --dy: -12px; }
+#fishbar .khu { --dx: 92px; --dy: 62px; }
+#fishbar .stop { --dx: 12px; --dy: 98px; border-color: #e07a5a; }
+#fishbar > button:active { filter: brightness(1.25); }
+#fishbar .fsmall:active { transform: scale(.92); }
+body.touch #fishbar { bottom: 0; }
+body.touch #fishbar .fact, body.rotated #fishbar .fact { min-width: 0; padding: 0; }
+body.touch #fishbar .fact b { font-size: 13.5px; }
+/* small landscape screens and phones turned by the page: the same arc, smaller (as the fight buttons) */
+@media (max-height: 520px) { #fishbar .fact { min-width: 0; } #fishbar .fact .fi { width: 34px; height: 34px; } }
+@media (max-height: 420px) { #fishbar { transform: scale(0.82); } }
+body.rotated #fishbar { transform: scale(0.82); }
+@media (max-height: 340px) { #fishbar { transform: scale(0.7); } }
+/* the reeling bar: left of the arc, by the player */
+#reel { left: auto; right: 290px; }

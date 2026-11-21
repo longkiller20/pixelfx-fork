@@ -1268,6 +1268,12 @@ const SHOP_TEST = "Hàng thử nghiệm";
   assert.equal(msgs("welcome").pop().map, cc.FISH_MAP, "at the lake");
   const k0 = msgs("fkhu").filter((m) => m.n).pop();
   assert.ok(k0?.n >= 1 && k0.occ.length === cc.KHU_COUNT, "put in a Khu, told how full all 30 are");
+  // a peaceful map: the attack and the arts do nothing, the flying sword is refused (and said why)
+  for (const s of [0, 1, 2, 5]) send(c, { t: "cast", s });
+  send(c, { t: "fly", on: true });
+  await sleep(600);
+  assert.ok(!c.msgs.filter((m) => m.t === "s").flatMap((m) => m.E ?? []).some((e) => e.e === "cast" && e.id === c.id), "no attack or art at the lake");
+  assert.ok(msgs("toast").some((m) => /không ngự kiếm/.test(m.m)) && !(me0()[5] & 256), "no flying sword at the lake");
   assert.equal(k0.n, k0.occ.findIndex((n) => n < cc.KHU_CAP) + 1, "the first Khu with room");
   // ---- the stall: nothing is sold away from it
   const rod = "cc_can_truc", bait = "cc_moi_giun", P = { rod: cc.RODS[rod].price, bait: cc.BAITS[bait].price };
@@ -1398,7 +1404,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
     assert.equal(await qty(landed.fish), 0);
   }
   c.ws.close();
-  ok("Câu Cá: to the lake from the menu; a rod bought once and paid once, bait by the handful, only at the stall; a strike too early costs nothing, moving reels in, a bite takes one bait; put in the first of 30 Khu with room, the next one in the same, moving to the Khu chosen and everyone hearing how full each is; only from a free place on the pier (a taken one says which are free), the reeling run by the server lands a fish of that spot into the bag and the Ngư Lục; selling paid once");
+  ok("Câu Cá: to the lake from the menu; a rod bought once and paid once, bait by the handful, only at the stall; a strike too early costs nothing, moving reels in, a bite takes one bait; no attack, art or flying sword at the lake; put in the first of 30 Khu with room, the next one in the same, moving to the Khu chosen and everyone hearing how full each is; only from a free place on the pier (a taken one says which are free), the reeling run by the server lands a fish of that spot into the bag and the Ngư Lục; selling paid once");
 }
 
 // Câu Cá: a Khu holds 20 at most, however many come at once: 18 go in, then 5 at the same moment for the 2 places left

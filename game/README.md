@@ -20,11 +20,16 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     Chọn một mục, bấm ra ngoài hoặc Esc thì khung đóng lại.
 - **Câu Cá (trong nút ▦ Thêm):** bản đồ riêng **Vọng Nguyệt Hồ**, hồ câu dưới trăng, không có yêu thú. Bấm Câu Cá ở bất
   cứ đâu là dịch chuyển tới hồ; lối ra ở bờ tây đưa về đúng chỗ vừa đi. Đang ở hồ thì nút Câu Cá mở quầy Ngư Cụ.
+  - **Ở hồ không đánh, không dùng công pháp, không ngự kiếm** (bản đồ `peaceful: true`; máy chủ bỏ qua lệnh đánh/chiêu và
+    từ chối phi kiếm, ai đang bay vào hồ thì hạ xuống). Cụm nút chiến đấu (nút đánh, 5 công pháp, 2 viên đan, phi kiếm) ẩn
+    đi, các **nút câu đứng đúng chỗ đó** theo vòng cung ở góc phải dưới: nút tròn lớn **Thả câu / Giật / Giữ kéo** ở chỗ nút
+    đánh (ngay dưới ngón cái), quanh nó là **Ngư Cụ**, **Khu** và **Thu cần** (chỉ hiện khi đang thả câu). Trên máy tính:
+    **E hoặc J** thả/giật/giữ kéo, **R** thu cần, **Q** mở Ngư Cụ, **K** mở bảng khu. Rời hồ là cụm nút chiến đấu trở lại.
   - **30 khu câu, mỗi khu như một map câu riêng** (một thế giới riêng trên máy chủ, `cc:1`..`cc:30`), chỉ đánh số, khu nào
     cũng giống khu nào. Mỗi khu tối đa **20 người**, có **8 chỗ câu**.
     - Vào hồ (nút Câu Cá) là **tự vào khu số nhỏ nhất còn dưới 20 người**. Người đang trên đường vào cũng được tính, nên một
       khu không bao giờ quá 20.
-    - Nút **Khu câu** (cạnh nút Thả câu) ghi khu đang ở và số người, vd "Khu 3 · 12/20", kèm chấm màu. Bấm vào mở **bảng 30
+    - Nút **Khu** (cạnh nút Thả câu) ghi khu đang ở và số người, vd "Khu 3 · 12/20", kèm chấm màu. Bấm vào mở **bảng 30
       khu**: mỗi khu một ô có số khu, **chấm tròn xanh lá (thoáng, dưới 9 người) - vàng (đông, 9-15) - đỏ (16-20, sắp đầy hoặc
       đầy)** và số người "n/20". Bấm ô là sang khu đó; khu đủ 20 người thì khoá. Đang câu thì phải thu cần trước.
     - Số người các khu tự cập nhật mỗi giây cho mọi người đang ở hồ. Rời hồ từ khu nào cũng về đúng chỗ trước khi vào hồ.
@@ -72,6 +77,8 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     `node test/ui-khu.mjs` thử bảng khu trong trình duyệt thật (Playwright). Bài này làm đầy một khu 20 người, một khu 10
     người, rồi kiểm tra: tự vào khu đầu tiên còn chỗ; bảng có 30 ô, số người và màu chấm khớp máy chủ (xanh/vàng/đỏ); khu đầy bị
     khoá; bấm ô là sang khu đó.
+    `node test/ui-peace.mjs` thử trên máy tính và điện thoại: ở hồ cụm nút chiến đấu ẩn, nút câu lớn đứng đúng chỗ nút đánh, các
+    nút không đè nhau, không lọt khỏi màn hình; phím đánh/chiêu/F không gửi gì; K mở bảng khu, Q mở Ngư Cụ.
   - **Admin (tab Câu Cá):** đổi **tên và giá** từng cần (giá Ngư Cụ bán), từng mồi (giá một viên), từng loại cá và vật câu
     được (giá Ngư Cụ mua; 0 là không bán/không mua; Rương Chìm thì chỉnh số linh thạch mở ra được, ít nhất và nhiều nhất), và
     **tỉ lệ cắn câu** của từng loại (0 là không bao giờ câu được). Có bảng
