@@ -179,7 +179,10 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
       | U Minh Cổ Mộ | Forgotten Tomb Ambience |
     - Bài của bản đồ ghi ở `music` trong `shared/maps/<bản đồ>.js` (tên thư mục trong `public/nhac-nen/`). Đổi bài cho một bản
       đồ, hay cho bản đồ mới một bài: thêm thư mục nhạc, một dòng trong `public/nhac-nen/danh-sach.json`, rồi sửa `music`.
-    - Trình duyệt chỉ cho phát tiếng sau lần chạm hoặc bấm phím đầu tiên, nên nhạc bắt đầu từ lúc đó.
+    - Trình duyệt chỉ cho phát tiếng sau lần chạm hoặc bấm phím đầu tiên, nên nhạc tự bắt đầu ở lần chạm đầu tiên, kể cả
+      chạm ngay ở màn hình đang tải hay đăng nhập (nhạc phát khi vào tới map).
+    - Nhạc đang bật mà không phát (trình duyệt từ chối, điện thoại dừng khi có cuộc gọi hay chuyển ứng dụng) thì lần chạm
+      hoặc bấm phím tiếp theo, hay lúc quay lại game, sẽ phát tiếp. Không cần tắt rồi bật lại.
     - Bật/tắt và âm lượng lưu trên thiết bị (localStorage), mở lại game vẫn giữ.
   - **Đăng xuất:** nút đăng xuất chuyển vào đây (bấm 2 lần để chắc chắn), không còn nằm trên thanh menu.
 - **Nhân vật (nút 👤, phím C):** bên trái là nhân vật đang đứng trong bộ đồ đang mặc, 4 ô trang bị quanh nhân vật (tóc, y
