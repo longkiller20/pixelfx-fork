@@ -85,7 +85,13 @@ try {
     await page.click(".ctnext .cbtns .primary");
     await page.waitForSelector(".ctnext .cbtns .ghost");
     assert.notEqual(await page.textContent(".ctreg .f-t"), before, "the count went up");
-    assert.match(await page.textContent(".ctnext"), /đã đăng ký/);
+    assert.match(await page.textContent(".ctnext"), /Đã đăng ký cho Tà Phái/);
+    // a phone held sideways: the whole tab shows at once, two columns, nothing to scroll
+    if (label === "phone") {
+      assert.ok(await page.$(".ctp.short .ctwar.cols"), "the short layout in two columns");
+      const over = await page.evaluate(() => [...document.querySelectorAll("#panel *")].filter((e) => e.getClientRects().length && e.checkVisibility() && e.scrollHeight > e.clientHeight + 2 && /auto|scroll/.test(getComputedStyle(e).overflowY)).map((e) => `${e.id} ${e.className} ${e.scrollHeight}/${e.clientHeight}`).join("; "));
+      assert.equal(over, "", "nothing scrolls in the Chính Tà panel on a phone");
+    }
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/chinhta-panel-${label}.png` });
     await page.click(".ctp .ctabs button:nth-child(2)");
     assert.match(await page.textContent(".ctnote"), /phát triển thêm sau/);

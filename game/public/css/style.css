@@ -1785,3 +1785,42 @@ body.war .hudl .top { display: none; }
   #ctend .ctepics canvas { width: 64px !important; height: 64px !important; }
   .ctsides { grid-template-columns: 1fr 1fr; }
 }
+/* the Chính Tà panel on a short screen (a phone held sideways): two columns, everything at once, no scrolling */
+#panel .pbox:has(.ctp.short) { width: min(860px, 100%); border-width: 14px; border-image-width: 14px; }
+#panel .pbox:has(.ctp.short) header { padding-bottom: 2px; }
+#panel .pbox:has(.ctp.short) header h3 { font-size: 15px; margin: 0; }
+#panel .pbox:has(.ctp.short) header h3::after { display: none; }
+.ctp.short { width: 100%; gap: 6px; font-size: 12.5px; }
+.ctp.short .ctbanner { display: none; }
+.ctp.short .stabs { margin: 0; padding: 2px; }
+.ctp.short .stabs button { padding: 4px 8px; font-size: 12px; }
+.ctp.short .ctwar.cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px; align-items: start; }
+.ctp.short .ctcol1, .ctp.short .ctcol2 { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ctp.short .ctlead { font-size: 12px; }
+.ctp.short .ctsides { grid-template-columns: 1fr; gap: 6px; }
+.ctp.short .ctside { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; column-gap: 8px; row-gap: 0; align-items: center; text-align: left; padding: 5px 8px; }
+.ctp.short .ctside canvas { grid-row: 1 / 3; }
+.ctp.short .ctside b { font-size: 14px; }
+.ctp.short .ctside small { grid-column: 2; font-size: 11px; line-height: 1.25; }
+.ctp.short .ctside button { grid-column: 3; grid-row: 1 / 3; padding: 4px 10px; font-size: 12px; }
+.ctp.short .ctme { padding: 5px 8px; gap: 8px; }
+.ctp.short .ctme canvas { width: 36px !important; height: 36px !important; }
+.ctp.short .ctme b { font-size: 14px; }
+.ctp.short .ctme small { font-size: 11px; line-height: 1.25; }
+.ctp.short .ctnow, .ctp.short .ctnext { padding: 6px 8px; gap: 3px; }
+.ctp.short .ctnhead b { font-size: 13px; }
+.ctp.short .ctcount { font-size: 12px; }
+.ctp.short .ctreg .chip { font-size: 11px; padding: 1px 6px; }
+.ctp.short .ctnext small { font-size: 11px; line-height: 1.3; }
+.ctp.short .ctnext .cbtns { margin-top: 2px; }
+.ctp.short .ctnext .cbtns button, .ctp.short .ctchange button { padding: 4px 10px; font-size: 12px; }
+.ctp.short .ctscore { font-size: 17px; gap: 6px; }
+.ctp.short .ctscore canvas { width: 22px !important; height: 22px !important; }
+.ctp.short .ctchange { flex-direction: column; align-items: flex-start; gap: 3px; font-size: 11px; }
+.ctp.short .ctrules summary { font-size: 12px; }
+.ctp.short .ctrules ul { font-size: 11px; max-height: 120px; overflow: auto; }
+.ctp.short .ctside canvas { width: 36px !important; height: 36px !important; }
+.ctp.short .ctpbig b { font-size: 20px; }
+.ctp.short .ctnote { padding: 6px 8px; }
+.ctp.short .ctnote p { font-size: 11.5px; }
+.ctp.short .cthrow, .ctp.short .ctitem { padding: 4px 6px; }

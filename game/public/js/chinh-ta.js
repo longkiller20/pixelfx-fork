@@ -10,9 +10,10 @@ import { confirmBox } from "./gia-vien.js";
 const fmt = (n) => Number(n ?? 0).toLocaleString("vi-VN");
 const $ = (id) => document.getElementById(id);
 const clock = (s) => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.floor(Math.max(0, s) % 60)).padStart(2, "0")}`;
-/** "2 giờ 13 phút", "45 giây". */
+/** "3 ngày 5 giờ", "2 giờ 13 phút", "45 giây". */
 const until = (ms) => {
   const s = Math.max(0, Math.round(ms / 1000));
+  if (s >= 86400) return `${Math.floor(s / 86400)} ngày ${Math.floor((s % 86400) / 3600)} giờ`;
   if (s >= 3600) return `${Math.floor(s / 3600)} giờ ${Math.floor((s % 3600) / 60)} phút`;
   if (s >= 60) return `${Math.floor(s / 60)} phút ${s % 60} giây`;
   return `${s} giây`;
@@ -78,6 +79,7 @@ export function initChinhTa({ call, uuid, panel, flash, game }) {
   }
 
   // ---- the tabs
+  let short = false;
   function warTab(v) {
     const R = v.rules, out = [];
     if (!v.faction) {
@@ -107,13 +109,13 @@ export function initChinhTa({ call, uuid, panel, flash, game }) {
         h("div.ctnhead", {}, h("b", { text: `Trận kế tiếp: ${N.text}` }), h("span.ctcount", { "data-at": N.at, text: `còn ${until(N.at - now)}` })),
         h("div.ctreg", {},
           h("span.chip.f-c", { text: `Chính Phái: ${N.counts.c} đăng ký` }), h("span.chip.f-t", { text: `Tà Phái: ${N.counts.t} đăng ký` })),
-        h("small", { text: N.open ? `Đăng ký đến ${dayText(N.closes, R.tz)} (còn ${until(closes)}).` : "Đã đóng đăng ký trận này." }),
-        N.signed ? h("small.gold", { text: `✓ Đạo hữu đã đăng ký cho ${FACTIONS[v.faction]?.name ?? ""}. Hãy trực tuyến lúc ${N.text.split(" ")[0]} để được đưa vào trận.` }) : null,
+        h("small", { text: N.open ? `Đóng đăng ký lúc ${dayText(N.closes, R.tz)}.` : "Đã đóng đăng ký trận này." }),
+        N.signed ? h("small.gold", { text: `✓ Đã đăng ký cho ${FACTIONS[v.faction]?.name ?? ""}: trực tuyến lúc ${N.text.split(" ")[0]} để vào trận.` }) : null,
         v.level < R.level ? h("small.err", { text: `Cần đạt cấp ${R.level} (${realmName(R.level)}) mới đăng ký được.` }) : null,
         h("div.cbtns", {}, btn)));
     } else out.push(h("p.dim", { text: "Chính Tà Phân Tranh chưa có lịch. Hãy chờ thông báo của ban quản trị." }));
     // the rules
-    out.push(h("details.ctrules", { open: !v.faction },
+    out.push(h("details.ctrules", { open: !v.faction && !short },
       h("summary", { text: "Luật Chính Tà Phân Tranh" }),
       h("ul", {},
         h("li", { text: `Mỗi ngày lúc ${R.times.join(", ") || "(chưa có giờ)"}. Đăng ký trước, đến giờ hệ thống tự đưa người được chọn vào Chính Tà Chiến Trường.` }),
@@ -127,6 +129,11 @@ export function initChinhTa({ call, uuid, panel, flash, game }) {
       const o = v.faction === "c" ? "t" : "c";
       out.push(h("div.ctchange", {}, h("small", { text: v.change.wait > 0 ? `Vừa đổi phe: còn ${until(v.change.wait * 1000)} mới đổi lại được.` : `Đổi phe: ${fmt(v.change.cost)} linh thạch, ${v.change.days} ngày mới đổi lại được một lần.` }),
         h("button.ghost", { type: "button", text: `Đổi sang ${FACTIONS[o].name}`, disabled: v.change.wait > 0 || !!v.next?.signed, onclick: () => pickSide(o) })));
+    }
+    // a short screen: two columns side by side, each as tall as its own content (the next battle and the rules on the right)
+    if (short) {
+      const right = (e) => e && (e.classList.contains("ctnext") || e.classList.contains("ctrules"));
+      return h("div.ctwar.cols", {}, h("div.ctcol1", {}, ...out.filter((e) => !right(e))), h("div.ctcol2", {}, ...out.filter(right)));
     }
     return h("div.ctwar", {}, ...out);
   }
@@ -159,7 +166,10 @@ export function initChinhTa({ call, uuid, panel, flash, game }) {
   function draw(first = false) {
     const v = view;
     const tabs = [["war", "Phân Tranh"], ["shop", "Tiệm Chính Tà"], ["hist", "Chiến tích"], ["top", "Xếp hạng"]];
-    const wrap = h("div.ctp", {},
+    // a phone held sideways (a short screen): no banner, two columns, smaller everything, so it all shows without scrolling
+    const rot = document.body.classList.contains("rotated"), H = rot ? innerWidth : innerHeight, W = rot ? innerHeight : innerWidth;
+    short = H < 521 && W > 560;
+    const wrap = h(`div.ctp${short ? ".short" : ""}`, {},
       h("div.ctbanner", {}, emblemPic("c", 40), h("b", { text: "Chính Tà Phân Tranh" }), emblemPic("t", 40)),
       h("div.ctabs.stabs", {}, ...tabs.map(([k, l]) => h("button", { type: "button", text: l, className: tab === k ? "on" : "", onclick: () => ((tab = k), draw()) }))),
       { war: warTab, shop: shopTab, hist: historyTab, top: topTab }[tab](v));
@@ -172,6 +182,8 @@ export function initChinhTa({ call, uuid, panel, flash, game }) {
       for (const el of document.querySelectorAll(".ctcount[data-at]")) el.textContent = `còn ${until(Number(el.dataset.at) - Date.now())}`;
     }, 1000);
   }
+  // turning the phone or resizing the window: drawn again for the new screen
+  addEventListener("resize", () => open() && view && draw());
   async function openPanel(t = null) {
     try {
       await load();
