@@ -280,6 +280,8 @@ import * as chinhta_barrier from "./chinhta/barrier.js";
 import * as chinhta_emblem from "./chinhta/emblem.js";
 import * as chinhta_flag from "./chinhta/flag.js";
 import * as chinhta_stele from "./chinhta/stele.js";
+import * as nhanvat_kiem_khach from "./nhanvat/kiem-khach.js";
+import * as nhanvat_tien_tu from "./nhanvat/tien-tu.js";
 
 export { categories } from "./categories.js";
 
@@ -564,4 +566,6 @@ export const effects = {
   "chinhta/emblem": chinhta_emblem,
   "chinhta/flag": chinhta_flag,
   "chinhta/stele": chinhta_stele,
+  "nhanvat/kiem-khach": nhanvat_kiem_khach,
+  "nhanvat/tien-tu": nhanvat_tien_tu,
 };

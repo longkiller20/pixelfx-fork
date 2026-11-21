@@ -1880,3 +1880,6 @@ canvas.fpart { width: 86%; height: 86%; max-width: none; max-height: none; objec
 .ward .seg.wkinds button { padding: 4px 9px; font-size: 12.5px; }
 .ward .wpager .gap { align-self: center; color: var(--dim); padding: 0 2px; }
 .picks button .tag { font-size: 10px; }
+/* a whole character is tall: in a square cell it is laid over it (a percentage of the cell), never stretching the cell */
+.cell canvas.fpart, .eslot canvas.fpart { position: absolute; inset: 7%; width: 86%; height: 86%; object-fit: contain; }
+.eslot canvas.fpart { inset: 6% 6% 14%; width: 88%; height: 80%; }

@@ -1,20 +1,20 @@
 // Admin tool for the wardrobe (the cosmetics table). Uses the same .env as the server; safe while the game runs, since the
 // game reads the table on every request.
 //
-//   npm run cosmetics -- list [toc|ao|quan|non|...|sword] [m|f|a]
-//   npm run cosmetics -- add <kind> <m|f|a> <idx> <price> "<name>" [--starter]     (kinds: shared/thoi-trang.js, and sword)
+//   npm run cosmetics -- list [skin|sword] [m|f|a]
+//   npm run cosmetics -- add <kind> <m|f|a> <idx> <price> "<name>" [--starter]     (kinds: skin, sword)
 //   npm run cosmetics -- price <id> <price>
 //   npm run cosmetics -- rename <id> "<name>"
 //   npm run cosmetics -- sale <id> on|off          take off sale (owners keep it) or put back
 //   npm run cosmetics -- starter <id> on|off       free at creation, or not
 //   npm run cosmetics -- give <username> <id>      hand an item to a player (an event prize, a refund)
 //
-// idx is the number of the picture: public/thoi-trang/<kind>/<idx>.png (a flying sword: public/phi-kiem/<idx>-<name>/hinh.png). To add
-// a new style, put its folder there (hinh.png + thong-tin.json, see the README), then add it here.
+// idx: a character's number in shared/nhan-vat.js (its figure is src/fx/nhanvat/<key>.js), a flying sword's folder
+// public/phi-kiem/<idx>-<name>/hinh.png. A new character is a new figure and a line in shared/nhan-vat.js (see the README).
 import { pool, migrate } from "../server/db.js";
 
 const [cmd, ...a] = process.argv.slice(2);
-const KINDS = ["toc", "ao", "quan", "non", "kinh", "matna", "mat", "khuonmat", "canh", "haoquang", "docamtay", "thucung", "sword"], GENDERS = ["m", "f", "a"];
+const KINDS = ["skin", "sword"], GENDERS = ["m", "f", "a"];
 const die = (m) => {
   console.error(m);
   process.exitCode = 1;

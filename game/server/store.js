@@ -8,7 +8,7 @@
 //     that happened in between is never overwritten.
 import { q, tx, isDup } from "./db.js";
 import { userLock } from "./lock.js";
-import { KIND_KEYS, KIND, WEAR_KINDS, isBase, BASIC_SWORD } from "../shared/thoi-trang.js";
+import { KIND_KEYS, WEAR_KINDS, SKIN, defaultSkin, BASIC_SWORD } from "../shared/nhan-vat.js";
 import { CLASS, GENDERS, ITEMS, BUY_MAX, DAILY_STONES, MEDITATE, START, NAME_RE, levelFromExp, ARTS, ART_SLOTS, STARTER_ARTS, canFly, flyRealmName } from "../shared/balance.js";
 
 export class GameError extends Error {
@@ -45,8 +45,11 @@ export async function setSatKhi(uid, v) {
   await q("UPDATE characters SET sat_khi = ?, sat_khi_at = NOW() WHERE user_id = ?", [v, uid]);
 }
 
-/** A character's look from its row: the gender, what is worn in each fashion layer (0: the figure's own), the flying sword. */
-export const lookOf = (r) => ({ g: r.gender === "f" ? "f" : "m", ...Object.fromEntries(KIND_KEYS.map((k) => [k, Number(r[k] ?? 0)])), sword: Number(r.sword ?? BASIC_SWORD) });
+/** A character's look from its row: the gender, the whole character worn (shared/nhan-vat.js; its gender's own if none), the flying sword. */
+export const lookOf = (r) => {
+  const g = r.gender === "f" ? "f" : "m";
+  return { g, skin: Number(r.skin ?? 0) || defaultSkin(g), sword: Number(r.sword ?? BASIC_SWORD) };
+};
 
 /** The map a character is on, so they come back there. */
 export async function setMap(uid, mapId) {
@@ -76,25 +79,20 @@ export function createCharacter(uid, name, look, faction) {
   if (!NAME_RE.test(name)) throw new GameError("Đạo hiệu dài 3-16 ký tự, chỉ gồm chữ, số, khoảng trắng hoặc _.");
   // Chính Tà: every new character picks a side (Chính Phái or Tà Phái)
   if (faction !== "c" && faction !== "t") throw new GameError("Hãy chọn Chính Phái hoặc Tà Phái.");
-  // the gender, and for each base layer (hair, shirt, trousers, eyes, face) the figure's own (0) or one of the free ones
+  // the gender, and the character: its gender's own (0), or another free one of that gender
   const g = look?.g;
   if (!GENDERS.includes(g)) throw new GameError("Ngoại hình không hợp lệ.");
-  const pick = {};
-  for (const k of KIND_KEYS) {
-    const v = look?.[k] ?? 0;
-    if (!Number.isInteger(v) || v < 0 || v > 65535 || (v && !isBase(k))) throw new GameError("Ngoại hình không hợp lệ.");
-    if (v) pick[k] = v;
-  }
+  const skin = look?.skin ?? 0;
+  if (!Number.isInteger(skin) || (skin && (!SKIN[skin] || (SKIN[skin].g !== g && SKIN[skin].g !== "a")))) throw new GameError("Ngoại hình không hợp lệ.");
   return userLock.run(uid, () => tx(async (c) => {
-    // at creation only the free starter styles can be picked; the rest are bought in game
-    for (const [k, v] of Object.entries(pick)) {
-      const [free] = await c.query("SELECT 1 AS x FROM cosmetics WHERE kind = ? AND idx = ? AND starter = 1 AND special = 0", [k, v]);
-      if (!free) throw new GameError("Ngoại hình này chưa mở, hãy chọn kiểu khởi đầu.");
+    // at creation only a free character can be picked; the rest are bought in game
+    if (skin) {
+      const [free] = await c.query("SELECT 1 AS x FROM cosmetics WHERE kind = 'skin' AND idx = ? AND gender IN (?, 'a') AND starter = 1 AND special = 0", [skin, g]);
+      if (!free) throw new GameError("Nhân vật này chưa mở, hãy chọn nhân vật khởi đầu.");
     }
-    const cols = Object.keys(pick);
     try {
-      await c.query(`INSERT INTO characters (user_id, name, class, gender, stones, faction${cols.map((k) => `, ${k}`).join("")}) VALUES (?, ?, ?, ?, ?, ?${cols.map(() => ", ?").join("")})`,
-        [uid, name, CLASS, g, START.stones, faction, ...cols.map((k) => pick[k])]);
+      await c.query("INSERT INTO characters (user_id, name, class, gender, stones, faction, skin) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [uid, name, CLASS, g, START.stones, faction, skin]);
     } catch (e) {
       if (isDup(e)) throw new GameError(/uq_name/.test(e.message) ? "Đạo hiệu này đã có người dùng." : "Tài khoản đã có nhân vật.", 409);
       throw e;
@@ -274,7 +272,7 @@ export function adminArt(uid, key, learn) {
 }
 
 // ---------------------------------------------------------------- the wardrobe (Y Các)
-// the column each kind is worn in: its own name (shared/thoi-trang.js)
+// the column each kind is worn in: its own name (shared/nhan-vat.js)
 const SLOT = Object.fromEntries(WEAR_KINDS.map((k) => [k, k]));
 const ITEM_COLS = "id, kind, gender, idx, name, price, starter, on_sale, special";
 // a special item (bảo vật) is never on sale and never free, whatever its other flags say
@@ -299,7 +297,7 @@ const itemId = (id) => {
 };
 
 /**
- * Buy a hair style or robe for spirit stones, and wear it straight away if asked. Owning is one row per (account, item):
+ * Buy a character or a flying sword for spirit stones, and wear it straight away if asked. Owning is one row per (account, item):
  * a second buy of the same item, however many arrive at once, finds the row and is refused without charging.
  */
 export function buyCosmetic(uid, id, wear) {
@@ -323,17 +321,6 @@ export function buyCosmetic(uid, id, wear) {
     const r = await c.query("UPDATE characters SET stones = stones - ? WHERE user_id = ? AND stones >= ?", [it.price, uid, it.price]);
     if (r.affectedRows !== 1) throw new GameError("Không đủ linh thạch.", 409);
     if (wear) await c.query(`UPDATE characters SET ${SLOT[it.kind]} = ? WHERE user_id = ?`, [it.idx, uid]);
-    return loadCharacter(uid, c);
-  }));
-}
-
-/** Take off what is worn in one layer: a base layer (hair, shirt...) goes back to the figure's own, the rest to nothing. */
-export function unwearCosmetic(uid, kind) {
-  if (!KIND[kind]) throw new GameError("Không có ô trang phục này.");
-  return userLock.run(uid, () => tx(async (c) => {
-    const [ch] = await c.query("SELECT 1 AS x FROM characters WHERE user_id = ?", [uid]);
-    if (!ch) throw new GameError("Hãy tạo nhân vật trước.");
-    await c.query(`UPDATE characters SET ${kind} = 0 WHERE user_id = ?`, [uid]);
     return loadCharacter(uid, c);
   }));
 }

@@ -72,10 +72,10 @@ const SHOP_TEST = "Hàng thử nghiệm";
 {
   const { q } = await import("../server/db.js");
   await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);
-  for (const [kind, g, idx, price] of [["toc", "m", 1, 150], ["ao", "m", 1, 300], ["toc", "f", 1, 150], ["sword", "a", 1, 600]])
+  for (const [kind, g, idx, price] of [["skin", "m", 101, 150], ["skin", "m", 103, 300], ["skin", "f", 102, 150], ["sword", "a", 1, 600]])
     await q("INSERT INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, ?, ?, ?, ?, 0, 1, 0, 0)", [kind, g, idx, `${SHOP_TEST} ${kind} ${g}`, price]);
-  // and two bảo vật, never sold: wings and a flying sword
-  for (const [kind, idx] of [["canh", 9001], ["sword", 3]])
+  // and two bảo vật, never sold: a character and a flying sword
+  for (const [kind, idx] of [["skin", 9001], ["sword", 3]])
     await q("INSERT INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, 'a', ?, ?, 0, 0, 0, 1, 0)", [kind, idx, `${SHOP_TEST} bảo vật ${kind}`]);
 }
 
@@ -83,27 +83,24 @@ const SHOP_TEST = "Hàng thử nghiệm";
   // the look is checked: bad genders and out-of-range parts are refused
   const u = "t_" + uid();
   const { data } = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
-  // junk, a sold (not free) hair style, a hat (not picked at creation), a fraction, a negative
+  // junk, a sold (not free) character, the other gender's, one that doesn't exist, a fraction, a negative
   const w0 = (await call("/cosmetics", { token: data.token })).data;
-  const free = (k) => w0.items.filter((i) => i.kind === k && i.starter).map((i) => i.idx);
-  const paid = w0.items.find((i) => i.kind === "toc" && !i.starter && i.g === "a").idx;
-  for (const look of [{ g: "x" }, { g: "m", toc: 1.5 }, { g: "f", ao: -1 }, null, { g: "m", toc: paid }, { g: "m", non: 10 }])
+  const free = (g) => w0.items.filter((i) => i.kind === "skin" && i.starter && i.g === g).map((i) => i.idx);
+  const paid = w0.items.find((i) => i.kind === "skin" && !i.starter && i.g === "m").idx;
+  for (const look of [{ g: "x" }, { g: "m", skin: 1.5 }, { g: "f", skin: -1 }, null, { g: "m", skin: paid }, { g: "m", skin: free("f")[0] }, { g: "m", skin: 4321 }])
     assert.equal((await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look, faction: "c" } })).status, 400, JSON.stringify(look));
-  const pick = { g: "f", toc: free("toc")[1], ao: free("ao")[2], quan: free("quan")[0], mat: free("mat")[3] };
-  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: pick, faction: "t" } });
+  assert.equal(free("m").length, 1, "one free character for men");
+  assert.equal(free("f").length, 1, "and one for women");
+  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: { g: "f" }, faction: "t" } });
   assert.equal(c.status, 200, JSON.stringify(c.data));
-  for (const [k, v] of Object.entries(pick)) assert.equal(c.data.character.look[k], v, `${k} saved`);
-  assert.equal(c.data.character.look.khuonmat, 0, "the rest the figure's own");
-  assert.equal(c.data.character.look.non, 0);
+  assert.equal(c.data.character.look.skin, free("f")[0], "nothing picked: her gender's own character");
   assert.equal(c.data.character.look.sword, 0, "and the basic flying sword, for when flight opens");
-  for (const [k, n] of [["toc", 10], ["ao", 8], ["quan", 8], ["mat", 8], ["khuonmat", 4]])
-    assert.equal(free(k).length, n, `${n} free ${k}`);
-  assert.ok(w0.items.filter((i) => !i.starter && i.g === "a").length > 700, "the old game's fashion in the Y Các");
-  ok("creating a character: only the free hair, shirts, trousers, eyes and faces, and it's saved; 800 more in the Y Các");
+  assert.deepEqual(Object.keys(c.data.character.look).sort(), ["g", "skin", "sword"], "a look is the gender, the character and the sword: no hair or robe apart");
+  ok("creating a character: only a free character of the gender, and it's saved; a look is one whole character");
 }
 
 {
-  // the wardrobe: 10 buys of one robe at once charge once; a robe you can't afford, or don't own, can't be worn
+  // the wardrobe: 10 buys of one character at once charge once; one you can't afford, or don't own, can't be worn
   const p = await player();
   const items = (await call("/cosmetics", { token: p.token })).data.items;
   const shop = items.filter((i) => i.g === "m" && !i.starter && i.onSale).sort((a, b) => a.price - b.price);
@@ -125,10 +122,8 @@ const SHOP_TEST = "Hàng thử nghiệm";
   const free = items.find((i) => (i.g === "m" || i.g === "a") && i.starter && i.kind === cheap.kind && i.idx !== cheap.idx);
   assert.equal((await call("/cosmetics/wear", { token: p.token, method: "POST", body: { id: free.id } })).status, 200);
   assert.equal((await me(p.token)).character.look[free.kind], free.idx);
-  // taken off: back to the figure's own
-  assert.equal((await call("/cosmetics/unwear", { token: p.token, method: "POST", body: { kind: free.kind } })).status, 200);
-  assert.equal((await me(p.token)).character.look[free.kind], 0, "taken off");
-  assert.equal((await call("/cosmetics/unwear", { token: p.token, method: "POST", body: { kind: "hair" } })).status, 400, "no such layer");
+  // nothing to take off any more: a character is changed for another, not undressed
+  assert.equal((await call("/cosmetics/unwear", { token: p.token, method: "POST", body: { kind: "skin" } })).status, 404);
   ok("Y Các: 10 buys at once charge once and wear it; can't wear unbought, other-gender or unaffordable items");
 }
 
@@ -332,8 +327,8 @@ const SHOP_TEST = "Hàng thử nghiệm";
     c2.ws.close();
 
     // bảo vật: not in the wardrobe, can't be bought or worn; given by an admin, it shows up and is worn
-    const gem = (await adm("/t/cosmetics", { token })).data.find((c) => c.special && c.kind === "canh" && c.idx === 9001);
-    assert.ok(gem, "the test bảo vật wings are there");
+    const gem = (await adm("/t/cosmetics", { token })).data.find((c) => c.special && c.kind === "skin" && c.idx === 9001);
+    assert.ok(gem, "the test bảo vật character is there");
     const before = (await call("/cosmetics", { token: q2.token })).data;
     assert.ok(!before.items.some((it) => it.id === gem.id), "a bảo vật nobody gave you isn't on the shelf");
     assert.equal((await call("/cosmetics/buy", { token: q2.token, method: "POST", body: { id: gem.id } })).status, 403, "and can't be bought");
@@ -342,7 +337,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
     const after = (await call("/cosmetics", { token: q2.token })).data;
     const mineGem = after.items.find((it) => it.id === gem.id);
     assert.ok(mineGem?.special && !mineGem.onSale && after.owned.includes(gem.id), "given: it is theirs, marked special");
-    assert.equal((await call("/cosmetics/wear", { token: q2.token, method: "POST", body: { id: gem.id } })).data.character.look.canh, 9001, "and on their back");
+    assert.equal((await call("/cosmetics/wear", { token: q2.token, method: "POST", body: { id: gem.id } })).data.character.look.skin, 9001, "and worn");
 
     // công pháp: learning spends every required item exactly once, even when the same learn (or two arts that need the
     // same essence) arrive together; the bar holds only known arts, none twice; a monster's drop lands in the bag

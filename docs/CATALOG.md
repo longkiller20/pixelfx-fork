@@ -1,6 +1,6 @@
 # Catalog
 
-280 effects in 26 categories. Every one is a file in
+282 effects in 27 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -464,3 +464,12 @@ two sides at war: their emblems, war banners, a camp's wall of light, the stele 
 | Chính Tà emblem | `chinhta/emblem` | loop 2.4s | 32×32 | The two sides' emblems: side c a golden sun, rays turning, an azure sword before it; side t a blood-red crescent in violet demon fire, a slit eye opening in its hollow. |
 | War banner | `chinhta/flag` | loop 2s | 48×104 | A tall war banner on its pole, the cloth hanging from a crossbar, rippling, a swallowtail end. Side c: azure and gold with a sun; side t: crimson and violet with a crescent. |
 | Chính Tà stele | `chinhta/stele` | loop 3s | 56×96 | The stele between two camps: an old stone on a plinth, a disc carved in its face, half a gold sun, half a crimson moon; the light beats from one half to the other, motes rise. |
+
+## nhanvat
+
+whole player characters, rigged: the hair and hem sway, the legs step, the arms strike, the eyes blink.
+
+| effect | id | | size | what it does |
+|---|---|---|---|---|
+| Bạch Y Kiếm Khách | `nhanvat/kiem-khach` | loop 2.4s | 72×100 | A swordsman in white and gold over black, a high black ponytail with a gold crown. Rigged: hair, hem, legs, arms, blinks. options.anim: idle walk attack jump fly. |
+| Tử Y Tiên Tử | `nhanvat/tien-tu` | loop 2.4s | 72×100 | A fairy maiden in a lilac gown, knee-long black hair in a gold-crowned bun. Rigged: hair, hem, legs, arms, blinks. options.anim: idle walk attack jump fly. |

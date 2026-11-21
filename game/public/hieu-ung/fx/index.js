@@ -68,6 +68,8 @@ import * as melee_double_slash from "./melee/double-slash.js";
 import * as melee_heavy_cleave from "./melee/heavy-cleave.js";
 import * as melee_sword_slash from "./melee/sword-slash.js";
 import * as nature_earth_spike from "./nature/earth-spike.js";
+import * as nhanvat_kiem_khach from "./nhanvat/kiem-khach.js";
+import * as nhanvat_tien_tu from "./nhanvat/tien-tu.js";
 import * as pickups_loot_beam from "./pickups/loot-beam.js";
 import * as projectiles_laser_bolt from "./projectiles/laser-bolt.js";
 import * as shadow_dark_explosion from "./shadow/dark-explosion.js";
@@ -156,6 +158,8 @@ export const effects = {
   "melee/heavy-cleave": melee_heavy_cleave,
   "melee/sword-slash": melee_sword_slash,
   "nature/earth-spike": nature_earth_spike,
+  "nhanvat/kiem-khach": nhanvat_kiem_khach,
+  "nhanvat/tien-tu": nhanvat_tien_tu,
   "pickups/loot-beam": pickups_loot_beam,
   "projectiles/laser-bolt": projectiles_laser_bolt,
   "shadow/dark-explosion": shadow_dark_explosion,

@@ -1130,18 +1130,17 @@ game/
   shared/maps/           bản đồ: lưới ô, công trình, điểm xuất hiện, lối ra
   shared/physics.js      vật lý đi ngang dùng chung cho máy chủ và trình duyệt
   public/                trang game: canvas, giao diện, điều khiển; public/js/scenery.js vẽ bản đồ; public/maps/tiles/ tileset
-  public/js/avatar.js    rig và hoạt ảnh nhân vật (thân gốc + tóc + y phục)
-  public/thoi-trang/     thời trang của nhân vật (12 loại, thân gốc ở goc/)
+  public/js/avatar.js    vẽ nhân vật: hình pixelfx có rig (src/fx/nhanvat/), theo trạng thái từng khung
   public/hieu-ung/       các hiệu ứng game dùng, chép từ pixelfx (tools/hieu-ung.mjs)
   public/phi-kiem/ cong-phap/
                          mỗi món, mỗi công pháp một thư mục (xem "Hình ảnh: mỗi món một thư mục")
   server/assets.js       liệt kê các thư mục hình đó, phục vụ ở /assets.json
-  tools/cosmetics.mjs    công cụ admin cho tóc và y phục (giá, tên, bán, tặng, thêm mới)
+  tools/cosmetics.mjs    công cụ admin cho nhân vật và phi kiếm (giá, tên, bán, tặng, thêm mới)
   tools/admin.mjs        công cụ admin dòng lệnh cho cảnh giới, đan dược, yêu thú, chiêu thức, cài đặt
   server/admin.js        máy chủ trang admin (cổng 5885): tài khoản admin, API, nhật ký
   admin/                 giao diện trang admin (HTML, CSS, JS)
   server/gameconfig.js   đọc số liệu game từ database, kiểm tra, tự cập nhật khi admin sửa
-  server/cosmetics-seed.js  danh sách tóc và y phục ban đầu, nạp vào bảng cosmetics lần đầu chạy
+  server/cosmetics-seed.js  danh sách nhân vật và phi kiếm ban đầu, nạp vào bảng cosmetics lần đầu chạy
   test/race.mjs          kiểm tra tranh chấp, tường và lối ra
 ```
 
@@ -1171,24 +1170,18 @@ Lệnh (chạy trong `game/`, cần thư mục `src/` của pixelfx ở cạnh):
 Trang admin chỉ cho đặt hiệu ứng có trong `public/hieu-ung/` (cho hình và đạn của yêu thú). Hiệu ứng chưa có thì
 báo lệnh cần chạy để chép nó vào. Vì game đã có bản chép riêng, máy chủ chạy được mà không cần `../src`.
 
-## Hình ảnh: thời trang, phi kiếm, công pháp
+## Hình ảnh: phi kiếm, công pháp
 
 | Thư mục | Chứa | Ví dụ |
 | --- | --- | --- |
-| `thoi-trang/<loại>/` | 812 món thời trang của game cũ, mỗi món một hình `<số>.png`, khung thứ hai (nếu có) ở `load/<số>.png` | `thoi-trang/toc/12.png` |
-| `thoi-trang/goc/` | thân gốc ai cũng có: áo, quần, khuôn mặt, mắt (và mắt nhắm), tóc nam, tóc nữ | `thoi-trang/goc/toc-f.png` |
 | `phi-kiem/` | phi kiếm để bay (Thanh Vân Kiếm) | `phi-kiem/0-thanhvankiem/` |
 | `cong-phap/` | icon công pháp (6 môn) | `cong-phap/1-phikiem/` |
 
 **Phi kiếm** có hai file: `hinh.png` và `thong-tin.json` (`by`: hàng điểm ảnh của lưỡi kiếm, nơi chân đứng).
 
-**Số** của món là số database dùng (`cosmetics.idx`, `characters.toc`…).
+**Số** của món là số database dùng (`cosmetics.idx`, `characters.sword`). Nhân vật không phải hình trong `public/`: xem mục "Nhân vật (Y Các)" bên dưới.
 
 **Công pháp** có `icon.png` và `thong-tin.json` chứa `key` (mã công pháp). Game tìm icon theo `key`, nên đổi tên hay đánh số lại thư mục không ảnh hưởng.
-
-**Thêm món thời trang mới:** vẽ (hoặc lấy) hình 45 × 48 cùng khung với game cũ (chân ở hàng 40, giữa thân ở cột 23, hướng sang phải), bỏ vào `public/thoi-trang/<loại>/<số mới>.png` (và `load/<số>.png` nếu có khung thứ hai). Lần khởi động sau, máy chủ tự thêm món vào Y Các với tên "<Loại> #<số>" và giá mặc định của loại đó; admin sửa tên, giá ở tab Thời trang. Máy chủ thấy hình mới trong vài giây (`/assets.json`).
-
-Trình duyệt chỉ tải hình của món khi có người đang mặc hoặc khi mở Y Các, không tải tất cả lúc vào game.
 
 **Công cụ:**
 
@@ -1236,7 +1229,7 @@ Mở `http://IP-VPS:5885`. Trang admin chạy cùng tiến trình với game nh�
 | Yêu thú | Thêm, sửa, xóa yêu thú: hình, kiểu đánh (gần, xa, đứng yên), bay, chỉ số, tầm bắn và đạn, phần thưởng, tỉ lệ rơi đồ; số món trong danh sách rơi |
 | Đánh thường | Tên, thời gian hồi, sát thương và tầm của Kiếm Khí Trảm |
 | Cài đặt | 25 con số còn lại, chia nhóm, mỗi số có giải thích |
-| Tóc & Y phục | Lọc theo loại, giới, trạng thái; ảnh xem trước; sửa tên, giá, miễn phí, đang bán; thêm món theo số thư mục hình có sẵn; xóa |
+| Nhân vật & phi kiếm | Lọc theo loại, giới, trạng thái; ảnh xem trước; sửa tên, giá, miễn phí, đang bán; thêm món theo số có sẵn; xóa |
 | Admin | Thêm admin (người mới phải đổi mật khẩu lần đầu), xóa admin, đổi mật khẩu của mình |
 | Nhật ký | Mọi thao tác của admin: ai, làm gì, lúc nào, giá trị trước và sau |
 
@@ -1251,7 +1244,7 @@ Trên điện thoại cầm dọc, các tab thành một hàng kéo ngang và m�
 | Buff riêng | Tăng (hoặc giảm) theo % từng chỉ số: sinh lực, công, thủ, tốc độ, tu vi nhận được, linh thạch nhận được, tốc độ tu luyện. Có hạn theo giờ hoặc vĩnh viễn, kèm ghi chú; nhiều buff cùng chỉ số thì cộng dồn; gỡ bất cứ lúc nào. Người chơi thấy buff và thời gian còn lại trên màn hình |
 | Túi đồ | Từng loại đan: Cộng / Trừ / Đặt |
 | Tên & ngoại hình | Đổi đạo hiệu, giới tính, chọn tóc và áo bằng ảnh; mọi người thấy ngay, không cần vào lại |
-| Tóc & y phục đã mua | Xem, tặng thêm, lấy lại |
+| Nhân vật & phi kiếm đã mua | Xem, tặng thêm, lấy lại |
 | Tài khoản | Khóa/mở khóa kèm lý do, đặt lại mật khẩu, xóa tài khoản |
 | Lịch sử | Các lần admin đã chỉnh người này, PvP gần đây, mua ở Đan Các |
 
@@ -1364,7 +1357,7 @@ Tới cảnh giới mở khoá, người chơi đứng lên phi kiếm và bay. 
 
 Khi người chơi vừa đột phá tới cảnh giới đó, game báo đã mở khoá.
 
-**Phi kiếm** là loại `sword` trong bảng `cosmetics` (tab "Tóc, áo, vũ khí & phi kiếm" của admin, chọn "Phi kiếm (bay)"):
+**Phi kiếm** là loại `sword` trong bảng `cosmetics` (tab "Nhân vật & phi kiếm" của admin, chọn "Phi kiếm (bay)"):
 
 - Hiện có 1 thanh: `public/phi-kiem/0-thanhvankiem/`. Phi kiếm mới là một thư mục mới ở đó (hình nằm ngang, mũi kiếm bên phải; `by` trong `thong-tin.json` là hàng điểm ảnh chân đứng).
 - **Thanh Vân Kiếm** là kiếm cơ bản (`starter`): ai mở khoá bay cũng có ngay, không phải mua.
@@ -1373,83 +1366,67 @@ Khi người chơi vừa đột phá tới cảnh giới đó, game báo đã m�
 - Admin đổi giá, tên, bật/tắt bán, chuyển thành bảo vật cho từng thanh. Trang người chơi đổi được phi kiếm đang dùng và tặng hoặc lấy lại phi kiếm.
 - Nhân vật lưu phi kiếm đang dùng ở cột `characters.sword`.
 
-## Nhân vật và thời trang (Y Các)
+## Nhân vật (Y Các)
 
-Nhân vật dùng **cơ chế nhân vật và rig của game cũ** (`shared/thoi-trang.js`, `public/js/avatar.js`): một nhân vật chibi 45 × 48 điểm ảnh, vẽ to gấp đôi (cao khoảng 66 px), ghép từ 12 lớp hình. Thứ tự vẽ từ sau ra trước:
+Người chơi **mua nguyên một nhân vật**, không mua tóc, áo, nón riêng. Có hai nhân vật, vẽ lại từ hai bảng nhân vật của chủ game:
 
-1. Cánh
-2. Hào quang
-3. Quần
-4. Áo
-5. Khuôn mặt
-6. Mắt
-7. Tóc
-8. Kính
-9. Mặt nạ
-10. Nón
-11. Đồ cầm tay
-12. Thú cưng
+| Số | Nhân vật | Giới tính | Hình |
+| --- | --- | --- | --- |
+| 1 | Bạch Y Kiếm Khách: áo trắng viền vàng, tóc đuôi ngựa buộc mũ vàng, dải lụa trắng | nam | `src/fx/nhanvat/kiem-khach.js` |
+| 2 | Tử Y Tiên Tử: váy tím trắng thêu vàng, tóc dài búi cao cài hoa vàng, dải lụa tím | nữ | `src/fx/nhanvat/tien-tu.js` |
 
-Phi kiếm nằm dưới chân khi bay.
+Cả hai đều miễn phí, là nhân vật khởi đầu của giới tính đó.
 
-- **Thân gốc:** ai chưa mua gì vẫn mặc bộ của thân gốc (`public/thoi-trang/goc/`): áo, quần, khuôn mặt, mắt, và tóc mặc định theo giới tính.
-- **Rig** theo game cũ:
-  - Có hai khung: khung thứ hai là hình `load/<số>.png` của món nếu có (cánh vỗ, thú cưng bước, áo lay), không thì là chính hình đó hạ xuống 1 điểm ảnh, áp cho phần thân trên (ngực phập phồng). Quần và hào quang đứng yên.
-  - Đứng yên: đổi khung mỗi 0,45 giây. Ngồi thiền: chậm hơn.
-  - Đi: đổi khung nhanh, người nảy lên, hai chân bước ra.
-  - Nhảy: co chân.
-  - Tấn công: thân trên nghiêng tới, đồ cầm tay đâm ra.
-  - Thỉnh thoảng chớp mắt.
-  - Quay trái thì lật hình.
-- **Y Các:** 12 tab thời trang và tab Phi kiếm, mỗi trang 15 món, có giá ngay trên ô. Bấm một món để thử lên nhân vật xem trước, rồi mua.
-- **Bảng nhân vật (👤):** 13 ô trang bị quanh nhân vật. Mặc món đã có. Nút **Tháo** đưa tóc, áo, quần, mắt, khuôn mặt về kiểu mặc định; các lớp còn lại về trống.
-- **Tạo nhân vật:** chọn giới tính, phe, và tóc, áo, quần, mắt, khuôn mặt trong các món miễn phí.
+**Hình và rig làm bằng pixelfx** (`src/fx/nhanvat/`, chép vào `public/hieu-ung/fx/nhanvat/` bằng `node tools/hieu-ung.mjs`):
+- Mỗi nhân vật là một file: bảng màu, các điểm ảnh (khoảng 44 × 86, chân ở giữa hàng dưới cùng, hướng sang phải), và mỗi điểm ảnh thuộc phần nào của thân.
+- Các phần: tóc sau lưng, tay gần, tay xa, hai chân, vạt áo, phần còn lại (đầu, ngực).
+- `_rig.js` dùng chung cho mọi nhân vật, tính tư thế từ trạng thái mỗi khung hình (không có khung vẽ sẵn):
+  - **Đứng:** ngực phập phồng theo nhịp thở; tóc và vạt áo đung đưa, càng xa gốc càng lắc nhiều.
+  - **Đi:** hai chân bước lần lượt, nhấc lên; người nhún; hai tay đánh ngược chân; tóc và vạt áo bay ra sau.
+  - **Nhảy:** co chân, vạt áo xòe, tóc hất lên lúc bay lên, bay ngược lúc rơi.
+  - **Đánh:** lấy đà lùi một chút, tay gần đâm tới, tay xa kéo về, người nghiêng vào. Chỗ tay rời đi được lấp bằng màu áo bên cạnh, không để lỗ.
+  - **Ngự kiếm:** đứng trên phi kiếm, tóc và vạt áo bay thẳng ra sau.
+  - **Ngồi thiền:** thở chậm hơn.
+  - Thỉnh thoảng chớp mắt. Quay trái thì lật hình.
+- Xem thử: `node tools/render.mjs nhanvat/tien-tu --opts '{"anim":"walk"}'` (anim: `idle`, `walk`, `attack`, `jump`, `fly`), ảnh ở `records/nhanvat/tien-tu/contact.png`.
 
-**Giá mặc định** (admin sửa từng món ở tab Thời trang & phi kiếm):
+**Trong game:**
+- **Tạo nhân vật:** chọn giới tính, phe, rồi nhân vật miễn phí của giới tính đó.
+- **Y Các** có 2 tab: **Nhân vật** và **Phi hành** (phi kiếm). Bấm một ô để xem trước, rồi mua.
+- **Bảng nhân vật (👤):** nút **Trang bị** mở bảng nhỏ có 2 ô (Nhân vật, Phi kiếm). Đổi nhân vật hay phi kiếm đã có trong túi, tab Trang bị.
 
-| Loại | Giá | Miễn phí lúc tạo |
-| --- | --- | --- |
-| Tóc | 500 | 10 kiểu đầu |
-| Áo | 500 | 8 kiểu đầu |
-| Quần | 400 | 8 kiểu đầu |
-| Mắt | 200 | 8 kiểu đầu |
-| Khuôn mặt | 300 | cả 4 |
-| Kính | 400 | |
-| Nón | 600 | |
-| Mặt nạ, Đồ cầm tay | 800 | |
-| Cánh | 3.000 | |
-| Thú cưng | 4.000 | |
-| Hào quang | 5.000 | |
-
-Tên và giá gốc của game cũ nằm ở bảng `shopdo` (không có trong gói), nên món được đặt tên "<Loại> #<số>".
+**Thêm nhân vật mới:**
+1. Tạo `src/fx/nhanvat/<tên>.js` theo mẫu hai file có sẵn (`FIGURE = makeFigure({...})`: màu, điểm ảnh, nhãn phần thân, vị trí mắt, khoảng tóc, khoảng vạt áo, hàng bắt đầu chân).
+2. Thêm một dòng vào `SKINS` trong `shared/nhan-vat.js` (số mới, tên, giới tính `m`/`f`/`a`, giá mặc định, `starter`).
+3. Chạy `node tools/hieu-ung.mjs`, rồi khởi động lại máy chủ: nhân vật tự vào Y Các. Admin sửa tên, giá, bật bán ở tab "Nhân vật & phi kiếm".
 
 **Bảng `cosmetics`**, mỗi dòng một món:
 
 | Cột | Ý nghĩa |
 | --- | --- |
-| `kind` | loại: `toc`, `ao`, `quan`, `non`, `kinh`, `matna`, `mat`, `khuonmat`, `canh`, `haoquang`, `docamtay`, `thucung`, hoặc `sword` (phi kiếm) |
+| `kind` | `skin` (nhân vật) hoặc `sword` (phi kiếm) |
 | `gender` | `a` (mọi giới tính), `m` hoặc `f` |
-| `idx` | số của hình, `public/thoi-trang/<kind>/<idx>.png` |
+| `idx` | số của nhân vật trong `shared/nhan-vat.js`, hoặc số thư mục phi kiếm |
 | `name`, `price` | tên và giá (linh thạch) |
-| `starter` | 1 = miễn phí (chọn lúc tạo nhân vật) |
+| `starter` | 1 = miễn phí (nhân vật: chọn lúc tạo nhân vật) |
 | `on_sale` | 0 = ngừng bán; người đã mua vẫn giữ |
 | `special` | 1 = bảo vật: không bán, chỉ admin tặng |
 
 **Lưu trữ:**
-- Mỗi lớp là một cột của `characters` (`toc`, `ao`… `thucung`), 0 là thân gốc hoặc không có gì.
+- Nhân vật đang dùng ở cột `characters.skin` (0 = nhân vật khởi đầu theo giới tính), phi kiếm ở `characters.sword`.
 - Đồ đã mua nằm trong `owned_cosmetics`. Khóa chính là (tài khoản, món), nên bấm mua dồn dập chỉ bị trừ tiền một lần.
 
-**Chuyển từ hệ cũ** (chạy một lần, `chibi_wardrobe_2026_11`):
-- Tóc, y phục và vũ khí cầm tay kiểu cũ được gỡ khỏi Y Các.
+**Chuyển từ hệ chibi** (chạy một lần, `whole_characters_2026_11`):
+- Toàn bộ 812 món thời trang chibi được gỡ khỏi Y Các, ảnh của chúng bị xóa khỏi `public/`.
 - Ai đã mua được hoàn đủ số linh thạch đã trả.
-- Mọi người mặc bộ thân gốc; phi kiếm giữ nguyên.
+- 12 cột thời trang của `characters` bị bỏ; mọi người dùng nhân vật khởi đầu theo giới tính. Phi kiếm giữ nguyên.
 
 **Công cụ** (dùng `.env` của máy chủ):
 
 ```bash
-npm run cosmetics -- list toc a                        # xem các kiểu tóc: id, giá, số người đã mua
+npm run cosmetics -- list skin                         # xem các nhân vật: id, giá, số người đã mua
 npm run cosmetics -- price 57 800                      # đổi giá
-npm run cosmetics -- rename 57 "Phượng Hoàng Phát"
+npm run cosmetics -- rename 57 "Bạch Y Kiếm Khách"
 npm run cosmetics -- sale 57 off                       # ngừng bán
 npm run cosmetics -- starter 57 on                     # cho chọn miễn phí lúc tạo nhân vật
 npm run cosmetics -- give tenDangNhap 57               # tặng một món (giải thưởng sự kiện, đền bù)
