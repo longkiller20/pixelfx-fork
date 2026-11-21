@@ -251,6 +251,18 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - Ngồi thiền trên Thái Cực Đài để tu luyện; đĩa âm dương phía trên quay nhanh hơn khi có người tu luyện.
   - Truyền Tống Trận dưới chân bậc thang đá cuối thôn đưa đi các vùng luyện cấp.
 - **Bốn bản đồ luyện cấp nối tiếp về phía đông.** Thoát game rồi vào lại thì xuất hiện ở map đang đứng.
+- **Khu** (`shared/khu.js`, giống Vọng Nguyệt Hồ): Tân Thủ Thôn và 4 map luyện cấp mỗi map có **30 khu**, mỗi khu
+  **tối đa 20 người**. Mỗi khu là một thế giới riêng: người chơi, yêu thú, đạn và kênh Khu Vực riêng.
+  - Khu 1 chính là map đó, luôn mở. Khu 2 đến 30 mở khi có người vào, tự đóng 1 phút sau khi người cuối cùng rời đi.
+  - Vào map (đăng nhập, Truyền Tống Trận, về từ Gia Viên, hồ câu hay chiến trường): vào khu đang muốn nếu còn chỗ, không
+    thì khu đầu tiên còn chỗ. Đăng nhập lại thì về khu cũ nếu còn chỗ. Cả 30 khu đầy thì Truyền Tống Trận báo lại, không
+    đưa đi; riêng đăng nhập thì vào khu vắng nhất.
+  - Nút **Khu N · x/20** (chấm xanh/vàng/đỏ theo độ đông) nằm dưới nút Đồ Sát. Bấm để mở bảng 30 khu, mỗi ô có số người;
+    khu đầy bị khóa. Chọn một khu thì được đưa sang đúng chỗ đang đứng, qua hiệu ứng dịch chuyển.
+  - Máy chủ giữ chỗ ngay khi có người xin vào, nên nhiều người xin cùng lúc một chỗ trống thì chỉ một người vào được, không
+    khu nào quá 20 người.
+  - Mọi người trên map được báo số người từng khu mỗi khi thay đổi (mỗi giây kiểm tra một lần).
+  - Khu đang ở được lưu (`characters.map_id`, ví dụ `bichlac:7`).
 - **Truyền Tống Trận** (`shared/truyen-tong.js`): mỗi map luyện cấp có trận ở hai đầu, Tân Thủ Thôn có một trận cuối thôn.
   - Bước lên trận **không tự dịch chuyển**, nên không ai bị đưa đi nhầm.
   - Đứng cạnh trận (trong 3 ô) thì hiện nút **☯ Truyền tống** (máy tính bấm thêm được phím **T**). Nút mở bảng chọn nơi

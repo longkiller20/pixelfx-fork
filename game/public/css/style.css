@@ -1920,3 +1920,11 @@ body.rotated .telep .tmap small { -webkit-line-clamp: 1; }
   .telep { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
   .telep .hint { display: none; }
 }
+/* Khu of a map: under the Đồ Sát button, right of the character panel; it opens the box of Khu */
+.zonebtn { position: absolute; top: 50px; left: calc(10px + min(260px, 34vw) + 8px); z-index: 3; display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 16px; border: 2px solid #3a6a5a; background: radial-gradient(circle at 30% 50%, #12302a, #06120e 80%);
+  color: #c8f0e0; font-size: 12px; font-weight: 800; box-shadow: 0 0 0 2px #04100c, 0 4px 10px #000a; cursor: pointer; white-space: nowrap; }
+.zonebtn .dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 6px currentColor; }
+.zonebtn[hidden] { display: none; }
+.zonebtn:active { transform: scale(0.94); }
+.pkbtn[hidden] + .zonebtn { top: 10px; }

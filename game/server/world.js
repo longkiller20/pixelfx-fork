@@ -8,6 +8,7 @@ import {
 } from "../shared/balance.js";
 import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
 import { isTele, teleAt, TELE_MAPS } from "../shared/truyen-tong.js";
+import { ZONE_COUNT, ZONE_CAP, isField, zoneKey, zoneOf } from "../shared/khu.js";
 import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
 import { CAST, stepReturning } from "./cong-phap.js";
 import * as store from "./store.js";
@@ -64,6 +65,10 @@ export class World {
       // a Khu of the fishing lake: one of KHU_COUNT copies of it, numbered
       this.key = home.key;
       this.khu = home.khu;
+    } else if (home?.zone) {
+      // Khu 2..30 of a map of the road (shared/khu.js): a copy of it, its own monsters and its own people
+      this.key = home.key;
+      this.zone = home.zone;
     } else if (home) {
       // a Gia Viên: its owner's ready-made house over the plain map, its walls and floors carrying people like the ground
       this.key = home.key;
@@ -72,6 +77,8 @@ export class World {
       this.grid = new HomeGrid(this.map).load(houseCells(home.house));
       this.map = this.grid.wrap();
     }
+    // a map of the road is Khu 1 of itself
+    if (!home && isField(mapId)) this.zone = 1;
     this.spawnMonsters();
   }
 
@@ -118,6 +125,8 @@ export class World {
     this.broadcast({ t: "pi", ...info(p) }, p);
     if (this.map.def.fishing) send(p.ws, { t: "fzones", occ: this.khuOcc() });
     if (this.khu) send(p.ws, { t: "fkhu", n: this.khu, occ: this.u?.khuCounts() ?? [] });
+    // a Khu of a map of the road: which, and how full each of the map's Khu is (for the Khu box)
+    if (this.zone) send(p.ws, { t: "zones", n: this.zone, occ: this.u?.zoneCounts(this.map.id) ?? [], cap: ZONE_CAP });
     this.sendArts(p);
     this.sendMe(p);
     this.war?.onEnter(p);
@@ -129,7 +138,7 @@ export class World {
     this.ents.delete(p.id);
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
     this.broadcast({ t: "gone", id: p.id });
-    if ((this.grid || this.khu) && !this.players.size) this.u?.dropHomeLater(this.key);
+    if ((this.grid || this.khu || this.zone > 1) && !this.players.size) this.u?.dropHomeLater(this.key);
   }
 
   /** Take a player out and save what they earned. Safe to call twice. */
@@ -141,7 +150,7 @@ export class World {
     this.ents.delete(p.id);
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
     this.broadcast({ t: "gone", id: p.id });
-    if ((this.grid || this.khu) && !this.players.size) this.u?.dropHomeLater(this.key);
+    if ((this.grid || this.khu || this.zone > 1) && !this.players.size) this.u?.dropHomeLater(this.key);
     this.war?.onGone(p);
     await this.save(p);
   }
@@ -381,8 +390,8 @@ export class World {
     if (p.dead) return no("Đạo hữu đang tử trận.");
     if (p.fish) return no("Hãy thu cần trước khi truyền tống.");
     if (!teleAt(this.map, p.x, p.y)) return no("Hãy đứng cạnh Truyền Tống Trận.");
-    if (!TELE_MAPS.includes(to) || !this.u?.worlds.has(to)) return no("Truyền Tống Trận không đến được nơi này.");
-    if (to === this.key) return no("Đạo hữu đang ở đây rồi.");
+    if (!TELE_MAPS.includes(to) || !this.u?.canGo(to)) return no("Truyền Tống Trận không đến được nơi này.");
+    if (to === this.map.id) return no("Đạo hữu đang ở đây rồi.");
     const t = this.t, from = this.key;
     p.portalAt = t + 2.5;
     p.warping = true;
@@ -412,6 +421,9 @@ export class World {
       // Truyền Tống Trận: standing by an array, sent to a map it lists
       case "tele":
         return this.teleport(p, String(m.to ?? ""));
+      // Khu: to another Khu of this map, at the same spot
+      case "zone":
+        return void this.u?.enterZone(p.userId, m.n).catch((e) => send(p.ws, { t: "toast", m: e.message, zfull: e.full ? 1 : 0 }));
       // Đồ Sát: switch it on (then they may hit anyone, and anyone may hit them) or off (after a while without fighting)
       case "pk":
         return this.setPk(p, m.on === true);
@@ -1067,8 +1079,8 @@ export class World {
     // (shared/truyen-tong.js) takes nobody by walking onto it: it waits for its button (the "tele" message)
     const g0 = this.map.portalAt(p.x, p.y), gate0 = isTele(g0) ? null : g0;
     // a Gia Viên's way out leads back to wherever its owner came from
-    const gate = gate0?.to === "@back" ? { ...gate0, to: this.u?.worlds.has(p.homeFrom?.key) && p.homeFrom.key !== this.key ? p.homeFrom.key : START_MAP } : gate0;
-    if (gate && t >= p.portalAt && gate.to && this.u?.worlds.has(gate.to) && !p.warping) {
+    const gate = gate0?.to === "@back" ? { ...gate0, to: this.u?.canGo(p.homeFrom?.key) && p.homeFrom.key !== this.key ? p.homeFrom.key : START_MAP } : gate0;
+    if (gate && t >= p.portalAt && gate.to && this.u?.canGo(gate.to) && !p.warping) {
       // the teleport: everyone here sees them break into light at the gate, their own screen closes in a star; a moment
       // later they are moved, and the map they arrive on sees a pillar of light bring them down
       p.portalAt = t + 2.5;
@@ -1301,7 +1313,7 @@ export class Universe {
     // one tick for every map, so all their clocks stay equal
     this.timer = setInterval(() => {
       for (const w of this.worlds.values()) w.step();
-      if (++this.ticks % TICK_HZ === 0) this.pushKhu();
+      if (++this.ticks % TICK_HZ === 0) (this.pushKhu(), this.pushZones());
     }, 1000 / TICK_HZ);
     this.ticks = 0;
     // Truyền Âm older than pm.keep_days goes, once an hour
@@ -1419,7 +1431,9 @@ export class Universe {
       // back on the map they were last on (at its arrival point), or the starter town; one with a place in the Chính Tà
       // battle on now goes back onto the field, at their camp
       const warW = this.war.fighting(uid) ? this.war.world : null;
-      (warW ?? this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect, social, spouse);
+      // (a map of the road: the Khu they were in if it has room, else the first with room)
+      const zk = this.zoneFor(ch.mapId ?? START_MAP, true);
+      (warW ?? (zoneOf(zk) ? this.zoneWorld(zk) : null) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect, social, spouse);
       const me = ws.player;
       if (me) {
         me.chatMuted = mute;
@@ -1433,16 +1447,35 @@ export class Universe {
    * Walk a player through a gate: off this map, onto the other, just inside its gate back to where they came from (or at
    * its spawn). Nothing they carry is lost: their unsaved gains and saves in flight go with them. The map is remembered.
    */
-  async transfer(p, toId, fromId, at0 = null, byArray = false) {
-    const from = p.world, to = this.worlds.get(toId);
+  async transfer(p, toId, fromId, at0 = null, byArray = false, held = false) {
+    // a map of the road (or a Khu of it): the Khu asked for if it has room, else the first with room (held: a place in
+    // it is already kept for them, by enterZone)
+    const key = held ? toId : this.zoneFor(toId);
+    if (key === null) {
+      send(p.ws, { t: "toast", m: `Cả ${ZONE_COUNT} khu của ${MAPS[zoneOf(toId).map].name} đều đã đủ ${ZONE_CAP} người, hãy thử lại sau.` });
+      return;
+    }
+    const from = p.world, to = this.worlds.get(key) ?? this.zoneWorld(key);
     if (!to || p.gone || from === to) return;
-    // the bag first (the one wait), then off one map and onto the other in the same moment: never on no map at all
-    const inv = await store.inventory(p.userId).catch(() => ({}));
-    if (p.gone || p.world !== from) return;
+    clearTimeout(this.homeDrops?.get(key));
+    // the bag first (the one wait), then off one map and onto the other in the same moment: never on no map at all. While
+    // waiting they count in the Khu already, so it never takes more than its room
+    if (!held) to.coming = (to.coming ?? 0) + 1;
+    let inv;
+    try {
+      inv = await store.inventory(p.userId).catch(() => ({}));
+    } finally {
+      if (!held) to.coming--;
+    }
+    if (p.gone || p.world !== from) {
+      if (to.zone > 1 && !to.players.size && !to.coming) this.dropHomeLater(key);
+      return;
+    }
     from.leave(p);
+    const fromMap = zoneOf(fromId)?.map ?? fromId;
     // through a Truyền Tống Trận: by the array there nearest where one appears; else by the gate back to where they came from
     const arrays = to.map.portals.filter(isTele).sort((a, b) => Math.abs(a.x - to.map.spawn.x) - Math.abs(b.x - to.map.spawn.x));
-    const back = at0 ? null : byArray ? (arrays[0] ?? null) : to.map.portals.find((g) => g.to === fromId);
+    const back = at0 ? null : byArray ? (arrays[0] ?? null) : to.map.portals.find((g) => g.to === fromMap);
     let at = at0 && fits(at0.x, at0.y, to.map) ? { x: at0.x, y: at0.y } : null;
     // an array brings them down onto itself
     if (byArray && back && !at && fits(back.x, back.y, to.map)) at = { x: back.x, y: back.y };
@@ -1466,7 +1499,7 @@ export class Universe {
     to.enter(p, inv, at);
     to.ev({ e: "warp", id: p.id, x: Math.round(at.x), y: Math.round(at.y), out: 0 });
     // a Gia Viên isn't remembered: logging in again starts where they came from
-    if (!to.grid && !to.khu && !to.war) store.setMap(p.userId, toId).catch((e) => console.error("map", e.message));
+    if (!to.grid && !to.khu && !to.war) store.setMap(p.userId, key).catch((e) => console.error("map", e.message));
     if (to.grid) to.ev({ e: "spawn", id: p.id });
   }
 
@@ -1508,13 +1541,94 @@ export class Universe {
     p.world.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
     try {
       await new Promise((r) => setTimeout(r, WARP_DELAY * 1000));
-      if (p.gone || !this.worlds.has(key)) return;
+      if (p.gone || !this.canGo(key)) return;
       if (p.fish) p.world.fishEnd(p, "move");
       await this.transfer(p, key, p.world.key, typeof at === "function" ? at() : at);
     } finally {
       p.warping = false;
     }
   }
+  // ---- Khu of the road's maps (shared/khu.js): ZONE_COUNT copies of each, Khu 1 the map itself (always up), the others made
+  // when someone goes in and dropped a while after the last leaves; at most ZONE_CAP in one, those on their way counting
+  /** How many are in (or on their way into) Khu n of a map. */
+  zoneCount(map, n) {
+    const w = this.worlds.get(zoneKey(map, n));
+    return w ? w.players.size + (w.coming ?? 0) : 0;
+  }
+  zoneCounts(map) {
+    return Array.from({ length: ZONE_COUNT }, (_, i) => this.zoneCount(map, i + 1));
+  }
+  /**
+   * Where someone going to `key` (a map of the road, or one of its Khu) goes: that Khu if it has room, else the first with
+   * room; null when every Khu is full (force: the emptiest then, for a login, which can't be turned away). A key that
+   * isn't a Khu (the lake, a Gia Viên, the battlefield) is itself.
+   */
+  zoneFor(key, force = false) {
+    const z = zoneOf(key);
+    if (!z) return key;
+    const room = (n) => this.zoneCount(z.map, n) < ZONE_CAP;
+    if (room(z.n)) return zoneKey(z.map, z.n);
+    for (let n = 1; n <= ZONE_COUNT; n++) if (room(n)) return zoneKey(z.map, n);
+    if (!force) return null;
+    const c = this.zoneCounts(z.map);
+    return zoneKey(z.map, c.indexOf(Math.min(...c)) + 1);
+  }
+  /** A Khu's world, made if it isn't up (null for a key that isn't a Khu). */
+  zoneWorld(key) {
+    let w = this.worlds.get(key);
+    if (w) return w;
+    const z = zoneOf(key);
+    if (!z) return null;
+    this.worlds.set(key, (w = new World(z.map, this, { key, zone: z.n })));
+    return w;
+  }
+  /** Whether a world can be gone to: one that is up, or any Khu of a map of the road (made when they arrive). */
+  canGo(key) {
+    return this.worlds.has(key) || !!zoneOf(key);
+  }
+  /**
+   * Move a player to Khu n of the map they are on, at the same spot (or near it), through the same light as a gate. The
+   * place in it is kept for them from the moment they ask, so a Khu never takes more than ZONE_CAP however many ask.
+   */
+  async enterZone(uid, n) {
+    const p = this.players.get(uid);
+    if (!p) throw new Error("not online");
+    const no = (m, full = false) => Object.assign(new Error(m), { status: 409, full });
+    const cur = zoneOf(p.world.key);
+    if (!cur) throw no("Ở đây không chia khu.");
+    n = Number(n);
+    if (!Number.isInteger(n) || n < 1 || n > ZONE_COUNT) throw no("Không có khu này.");
+    if (n === cur.n) return n;
+    if (p.warping || p.dead || p.gone) throw no("Không thể đổi khu lúc này.");
+    if (this.zoneCount(cur.map, n) >= ZONE_CAP) throw no(`Khu ${n} đã đủ ${ZONE_CAP} người, hãy chọn khu khác.`, true);
+    const key = zoneKey(cur.map, n), w = this.zoneWorld(key), at = { x: p.x, y: p.y };
+    clearTimeout(this.homeDrops?.get(key));
+    w.coming = (w.coming ?? 0) + 1;
+    try {
+      send(p.ws, { t: "warp", to: key });
+      p.warping = true;
+      p.world.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
+      await new Promise((r) => setTimeout(r, WARP_DELAY * 1000));
+      if (!p.gone) await this.transfer(p, key, p.world.key, at, false, true);
+    } finally {
+      w.coming--;
+      p.warping = false;
+      if (w.zone > 1 && !w.players.size) this.dropHomeLater(key);
+    }
+    return n;
+  }
+  /** Every second: for each map of the road whose Khu changed, everyone on it is told how full each is (the Khu box). */
+  pushZones() {
+    this.lastZones ??= {};
+    for (const map of Object.keys(MAPS).filter(isField)) {
+      const occ = this.zoneCounts(map), j = JSON.stringify(occ);
+      if (j === this.lastZones[map]) continue;
+      this.lastZones[map] = j;
+      const raw = JSON.stringify({ t: "zones", occ, cap: ZONE_CAP });
+      for (const w of this.worlds.values()) if (w.zone && w.map.id === map) for (const q of w.players.values()) sendRaw(q.ws, raw);
+    }
+  }
+
   // ---- Câu Cá: the lake is KHU_COUNT Khu (worlds "cc:<n>", made when someone goes in, dropped a while after the last leaves),
   // each for at most KHU_CAP people; someone on their way in counts already, so a Khu never takes more than its room
   /** How many are in (or on their way into) Khu n. */
@@ -1580,7 +1694,7 @@ export class Universe {
   async leaveHome(uid) {
     const p = this.players.get(uid);
     if (!p || !p.world.grid) return;
-    const to = this.worlds.has(p.homeFrom?.key) && !this.worlds.get(p.homeFrom.key).grid ? p.homeFrom.key : START_MAP;
+    const to = this.canGo(p.homeFrom?.key) && !this.worlds.get(p.homeFrom.key)?.grid ? p.homeFrom.key : START_MAP;
     await this.transfer(p, to, p.world.key, p.homeFrom?.at ?? null);
   }
   dropHomeLater(key) {
@@ -1588,7 +1702,7 @@ export class Universe {
     clearTimeout(this.homeDrops.get(key));
     this.homeDrops.set(key, setTimeout(() => {
       const w = this.worlds.get(key);
-      if (w && (w.grid || w.khu) && !w.players.size && !w.coming) this.worlds.delete(key);
+      if (w && (w.grid || w.khu || w.zone > 1) && !w.players.size && !w.coming) this.worlds.delete(key);
     }, 60_000));
   }
   /**
