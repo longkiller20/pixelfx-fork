@@ -23,6 +23,5 @@ Also used, from `public/xianxia/` (licence text in `public/xianxia/LICENSE.txt`)
 Everything else in the town (walls, doors, windows, pillars, the gate, lanterns, cherry trees, bamboo, water, sky and the
 floating isles) is drawn in code in `public/js/scenery.js`.
 
-The characters' fashion (`thoi-trang/`: the chibi figure and its 812 items, hair, shirts, trousers, hats, glasses, masks,
-eyes, faces, wings, halos, things in hand, pets) comes from the owner's earlier game (its `images/*-rip/` folders), copied
-as they were; the owner is responsible for the right to use them.
+The player characters (Bạch Y Kiếm Khách, Tử Y Tiên Tử) are pixelfx figures in code (`src/fx/nhanvat/`, copied to
+`public/hieu-ung/fx/nhanvat/`), redrawn from the owner's own character sheets.

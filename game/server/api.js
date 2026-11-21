@@ -98,13 +98,6 @@ export function api(world) {
     res.json({ character });
   }));
 
-  // take off what is worn in one layer (the base layers go back to the figure's own)
-  r.post("/cosmetics/unwear", requireAuth, writeLimit, wrap(async (req, res) => {
-    const character = await store.unwearCosmetic(req.userId, String(req.body?.kind ?? ""));
-    world.refresh(req.userId, character);
-    res.json({ character });
-  }));
-
   // công pháp: learn one (spends its items; arts are never sold), or set the five on the bar. The world takes the new bar at once.
   r.post("/arts/learn", requireAuth, writeLimit, wrap(async (req, res) => {
     const character = await store.learnArt(req.userId, req.body?.key);

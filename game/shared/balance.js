@@ -24,9 +24,8 @@ export const PLAYER_R = 14; // body radius on the ground plane
 export const NAME_RE = /^[\p{L}\p{N}_ ]{3,16}$/u;
 export const USER_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
-// A character's look: a gender and what is worn in each fashion layer (shared/thoi-trang.js). Which items exist, what they
-// cost and which are free at creation lives in the cosmetics table; idx is the number of the picture,
-// public/thoi-trang/<kind>/<idx>.png.
+// A character's look: a gender and the whole character worn (shared/nhan-vat.js). What each costs and which are free at
+// creation lives in the cosmetics table (kind skin, idx as in shared/nhan-vat.js).
 export const GENDERS = ["m", "f"];
 
 // Buffs an admin can give one player, per stat, in percent (+20 = 20% more), with the range each allows.

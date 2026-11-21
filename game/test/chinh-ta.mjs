@@ -100,8 +100,8 @@ try {
   // ---------------------------------------------------------------- the side at creation, and changing it
   {
     const id = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [`tc_${tag}_new`])).insertId, token = await createSession(id);
-    const look = (await call("/cosmetics", { token })).data.items.filter((c) => c.starter && c.g === "m");
-    const lk = { g: "m", hair: look.find((c) => c.kind === "hair").idx, robe: look.find((c) => c.kind === "robe").idx };
+    // the free character for men
+    const lk = { g: "m", skin: (await call("/cosmetics", { token })).data.items.find((c) => c.kind === "skin" && c.starter && c.g === "m").idx };
     assert.equal((await call("/character", { token, method: "POST", body: { name: `Mới ${tag}`, look: lk } })).status, 400, "no side: refused");
     assert.equal((await call("/character", { token, method: "POST", body: { name: `Mới ${tag}`, look: lk, faction: "x" } })).status, 400, "a side that isn't one: refused");
     const r = await call("/character", { token, method: "POST", body: { name: `Mới ${tag}`, look: lk, faction: "t" } });

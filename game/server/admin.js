@@ -21,7 +21,7 @@ import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
 import * as dl from "./dao-lu.js";
 import * as ct from "./chinh-ta.js";
-import { KIND_KEYS, KIND_NAME } from "../shared/thoi-trang.js";
+import { KIND_KEYS, KIND_NAME, SKIN } from "../shared/nhan-vat.js";
 import { RINGS, RING_BUFF, ROSE, NEED } from "../shared/dao-lu.js";
 import { RODS, BAITS, FISH, RARITY, RATES, CHEST, odds } from "../shared/cau-ca.js";
 import { ITEMS } from "../shared/balance.js";
@@ -137,8 +137,8 @@ function value(type, v, col) {
 
 // the parts there are pictures of: one folder each in public/ (server/assets.js)
 const partName = KIND_NAME;
-// where a part's picture must be: a fashion item public/thoi-trang/<kind>/<idx>.png, a flying sword public/phi-kiem/<idx>-<name>/
-const whereOf = (kind, g, idx) => (KIND_KEYS.includes(kind) ? `public/thoi-trang/${kind}/${idx}.png` : `thư mục public/${Object.entries(PART_DIRS).find(([, v]) => v[0] === kind && v[1] === g)?.[0] ?? kind}/${idx}-tenmon/ có hinh.png`);
+// where a part must be: a character in shared/nhan-vat.js (drawn by src/fx/nhanvat/<key>.js), a flying sword public/phi-kiem/<idx>-<name>/
+const whereOf = (kind, g, idx) => (kind === "skin" ? (SKIN[idx] ? `hiệu ứng ${SKIN[idx].fx} trong public/hieu-ung (chạy tools/hieu-ung.mjs)` : `nhân vật số ${idx} trong shared/nhan-vat.js`) : `thư mục public/${Object.entries(PART_DIRS).find(([, v]) => v[0] === kind && v[1] === g)?.[0] ?? kind}/${idx}-tenmon/ có hinh.png`);
 
 // ---------------------------------------------------------------- the app
 export function adminApp(world) {
@@ -608,12 +608,11 @@ export function adminApp(world) {
       if (!GENDERS.includes(b.gender)) throw bad("Giới tính m hoặc f.");
       set.gender = b.gender;
     }
-    // each fashion layer: 0 (the figure's own / nothing) or an item there is a picture of
-    for (const k of KIND_KEYS) {
-      if (b[k] === undefined) continue;
-      const v = value("uint", b[k], KIND_NAME[k]);
-      if (v && !hasPart(k, "a", v)) throw bad(`${KIND_NAME[k]} số ${v} không có (không có ${whereOf(k, "a", v)}).`);
-      set[k] = v;
+    // the character: 0 (their gender's own) or one there is (shared/nhan-vat.js)
+    if (b.skin !== undefined) {
+      const v = value("uint", b.skin, "nhân vật");
+      if (v && !hasPart("skin", "a", v)) throw bad(`Nhân vật số ${v} không có (cần ${whereOf("skin", "a", v)}).`);
+      set.skin = v;
     }
     if (b.sword !== undefined) {
       const v = value("uint", b.sword, "phi kiếm");
@@ -756,7 +755,7 @@ export function adminApp(world) {
   // the page, plus the parts' pictures (one folder each) for the thumbnails
   // the pictures of parts and arts (one folder each), and their list, for the thumbnails
   app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type("application/json").send(assetsJson()));
-  for (const d of [...Object.keys(PART_DIRS), ART_DIR, "thoi-trang"]) app.use(`/${d}`, express.static(join(ROOT, "public", d), { maxAge: 0 }));
+  for (const d of [...Object.keys(PART_DIRS), ART_DIR]) app.use(`/${d}`, express.static(join(ROOT, "public", d), { maxAge: 0 }));
   app.use("/xianxia", express.static(join(ROOT, "public", "xianxia"), { maxAge: "1h" }));
   // the Gia Viên's house pictures, shown in the Nhà Ở tab
   app.use("/gia-vien", express.static(join(ROOT, "public", "gia-vien"), { maxAge: "1h" }));
