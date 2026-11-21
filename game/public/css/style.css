@@ -561,7 +561,7 @@ body.rotated #panel:has(.charp) { --vh: 100dvw; }
 /* ---- left */
 .cleft { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .stage {
-  position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; padding: 10px 8px 8px;
+  position: relative; display: grid; grid-template-columns: 1fr; align-items: center; gap: 6px; padding: 10px 8px 8px;
   border-radius: 12px; border: 1px solid #f0c05030;
   background:
     radial-gradient(circle at 50% 62%, #7ff0ff22 0, #7ff0ff00 38%),
@@ -572,7 +572,23 @@ body.rotated #panel:has(.charp) { --vh: 100dvw; }
 .stage .fig { position: relative; display: grid; place-items: center; min-width: 0; overflow: hidden; }
 .stage canvas { width: clamp(84px, calc(var(--vh) * 0.27), 150px); max-width: 100%; height: auto; image-rendering: pixelated; position: relative; z-index: 1; }
 .stage .plinth { position: absolute; bottom: 4%; width: 70%; height: 12px; border-radius: 50%; background: radial-gradient(#7ff0ff40, transparent 70%); }
-.slots { display: flex; flex-direction: column; gap: 8px; }
+/* the small button by the figure that opens what is worn, and that box over the panel */
+.eqbtn {
+  position: absolute; right: 6px; top: 6px; z-index: 2; display: flex; align-items: center; gap: 3px; padding: 2px 6px 2px 4px;
+  font-size: 10px; line-height: 1.2; border-radius: 8px; background: linear-gradient(180deg, #3a2a14, #22180c); border: 1px solid #b08a3a; color: var(--gold2);
+}
+.eqbtn b { font-size: 11px; line-height: 1; }
+.eqbtn:hover { border-color: var(--gold); box-shadow: 0 0 10px #f0c05050; }
+.charp { position: relative; }
+.eqpop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; background: #05030ab8; border-radius: 10px; }
+.eqbox { max-width: calc(100% - 16px); max-height: calc(100% - 16px); overflow: auto; padding: 10px 12px 8px; border-radius: 12px; border: 1px solid #f0c05060; background: linear-gradient(180deg, #1a1430, #0e0b18); box-shadow: 0 8px 30px #000c; }
+.eqbox header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: var(--gold2); }
+.eqbox .x { background: none; border: 0; font-size: 14px; padding: 2px 6px; }
+.eqgrid { display: grid; grid-template-columns: repeat(7, auto); gap: 14px 16px; padding: 0 6px 6px; }
+.eqbox .hint { margin: 6px 0 0; font-size: 11px; opacity: .7; text-align: center; }
+.charp.short .eqgrid { gap: 12px 14px; }
+.charp.short .eqbox { padding: 6px 8px 4px; }
+.charp.short .eqbox header { margin-bottom: 6px; }
 .eslot {
   width: clamp(44px, calc(var(--vh) * 0.1), 58px); aspect-ratio: 1; position: relative; display: grid; place-items: center; padding: 3px;
   background: linear-gradient(180deg, #221a36, #120e1c); border: 1px solid #f0c05055; border-radius: 10px;
@@ -672,7 +688,6 @@ body.rotated .charp.short { --cell: clamp(32px, calc((100vh - 330px) / 10), 48px
 /* very short (under 400 px): a smaller figure and slots, no flourishes */
 .charp.tiny .eslot { width: 38px; }
 .charp.tiny .stage canvas { width: 88px; }
-.charp.tiny .slots { gap: 5px; }
 .charp.tiny .ident { flex-direction: row; justify-content: center; align-items: baseline; gap: 6px; }
 #panel .pbox:has(.charp.tiny) header h3::after { display: none; }
 #panel .pbox:has(.charp.short) { border-width: 16px; border-image-width: 16px; }
