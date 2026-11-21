@@ -113,6 +113,11 @@ export class World {
   enter(p, inv, at = null) {
     p.world = this;
     p.safe = null;
+    // a safe map (Tân Thủ Thôn, a Gia Viên, the lake): nobody fights there, so Đồ Sát goes off on the way in
+    if (p.pk && (this.map.def.nopk || this.map.def.peaceful)) {
+      p.pk = false;
+      send(p.ws, { t: "toast", m: `${this.map.name} là vùng an toàn: Đồ Sát đã tắt.` });
+    }
     if (at) Object.assign(p, { x: at.x, y: at.y, vx: 0, vy: 0, ground: false });
     this.players.set(p.userId, p);
     this.ents.set(p.id, p);
@@ -715,10 +720,12 @@ export class World {
   setPk(p, on) {
     if (on === p.pk) return;
     if (on) {
+      // a safe map: no Đồ Sát at all (in Tân Thủ Thôn one only tries one's arts on the straw dummies)
+      if (this.map.def.nopk || this.map.def.peaceful) return send(p.ws, { t: "toast", m: `${this.map.name} là vùng an toàn: không bật được Đồ Sát.${this.map.id === START_MAP ? " Ở đây chỉ thử chiêu trên bù nhìn rơm." : ""}` });
       if (p.level < PK.level) return send(p.ws, { t: "toast", m: `Tới cấp ${PK.level} (${realmName(PK.level)}) mới bật được Đồ Sát.` });
       p.pk = true;
       p.pkSince = this.t;
-      send(p.ws, { t: "toast", m: this.map.def.nopk ? "Đã bật Đồ Sát (ở đây là vùng an toàn: rời khỏi đây mới giao chiến được)." : "⚔ Đã bật Đồ Sát: đạo hữu đánh được người khác, và ai cũng đánh được đạo hữu!", big: 1 });
+      send(p.ws, { t: "toast", m: "⚔ Đã bật Đồ Sát: đạo hữu đánh được người khác, và ai cũng đánh được đạo hữu!", big: 1 });
       this.ev({ e: "pk", id: p.id, on: 1 });
     } else {
       const wait = this.pkOffIn(p);

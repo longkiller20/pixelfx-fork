@@ -134,19 +134,35 @@ try {
   assert.ok(await until(() => A.me?.pk?.on === false), "off after pk.off_delay without fighting");
   ok("Switched off after pk.off_delay without fighting");
 
-  // ---- Tân Thủ Thôn: safe whatever is on
+  // ---- Tân Thủ Thôn: safe; Đồ Sát can't be switched on there, and goes off on the way in
   const T1 = await connect(await person("tanthu")), T2 = await connect(await person("tanthu"));
   socks.push(T1, T2);
   await sleep(800);
+  let k = T1.msgs.length;
   tx(T1, { t: "pk", on: true });
-  tx(T2, { t: "pk", on: true });
-  await until(() => T1.me?.pk?.on && T2.me?.pk?.on);
+  await until(() => T1.msgs.slice(k).some((m) => m.t === "toast"));
+  assert.ok(T1.msgs.slice(k).some((m) => m.t === "toast" && /vùng an toàn/.test(m.m) && /bù nhìn rơm/.test(m.m)), "refused: a safe place, only the straw dummies");
+  assert.equal(T1.me.pk.on, false, "still off");
   assert.equal(T1.me.pk.here, false, "it says this place is safe");
   await near(T1, T2);
   const ht = T2.pos[T2.id].hp;
   await swing(T1, T2, 1500);
   assert.equal(T2.pos[T2.id].hp, ht, "no harm in Tân Thủ Thôn");
-  ok("Tân Thủ Thôn is safe even with Đồ Sát on");
+  // on Đồ Sát elsewhere, through a Truyền Tống Trận into Tân Thủ Thôn: off on arrival
+  const W = await connect(await person("bichlac"));
+  socks.push(W);
+  tx(W, { t: "pk", on: true });
+  await until(() => W.me?.pk?.on);
+  const { mapInfo } = await import("../shared/maps/index.js"), { teleAt } = await import("../shared/truyen-tong.js"), BL = mapInfo("bichlac");
+  for (let i = 0; i < 120 && !teleAt(BL, W.pos[W.id].x, W.pos[W.id].y); i++) (tx(W, { t: "in", dx: -1, jump: false, down: false }), await sleep(50));
+  tx(W, { t: "in", dx: 0, jump: false, down: false });
+  k = W.msgs.length;
+  tx(W, { t: "tele", to: "tanthu" });
+  assert.ok(await until(() => W.msgs.slice(k).some((m) => m.t === "welcome" && m.map === "tanthu"), 6000), "arrived in Tân Thủ Thôn");
+  await until(() => W.me?.pk?.on === false);
+  assert.equal(W.me.pk.on, false, "Đồ Sát off on the way in");
+  assert.ok(W.msgs.slice(k).some((m) => m.t === "toast" && /Đồ Sát đã tắt/.test(m.m)), "and told so");
+  ok("Tân Thủ Thôn is safe: Đồ Sát can't be switched on there (only the straw dummies to try arts on), it goes off on the way in, and nobody is hurt");
 
   // ---- one's own Đạo Lữ: never
   const D1 = await connect(await person("bichlac")), D2 = await connect(await person("bichlac"));
