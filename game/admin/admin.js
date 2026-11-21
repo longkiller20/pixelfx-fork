@@ -504,6 +504,59 @@ const VIEWS = {
   // Chính Tà Phân Tranh: the battle on now (its board, the buttons to end or cancel it), the next battle and who signed up,
   // a button to start it now, the rules (settings chinhta.*), the record of battles (each one's fighters), the Tiệm Chính
   // Tà (items sold for điểm Chính Tà), and a player's points or side set by hand
+  async boss() {
+    const d = await api("/boss"), out = el("div"), at = (v) => (v ? new Date(v).toLocaleString("vi-VN") : "");
+    const STATE = { alive: "đang ở ngoài", dying: "đang chia thưởng", dead: "đã bị hạ", gone: "đã rời / thu hồi" };
+    out.append(el("h2", {}, "Boss Thế Giới"),
+      el("p", { class: "dim" }, "Gọi boss ra một map có yêu thú. Boss có mặt ở mọi khu (30 khu) của map đó, chung một thanh máu: ai đánh ở khu nào cũng trừ vào cùng một thanh. Boss đập búa vào người trước mặt, cứ boss.roar_every giây lại gầm phản kích đánh mọi người chơi trên map ở mọi khu (boss.roar_pct % máu), và mỗi đòn đánh vào nó dội lại boss.thorns_pct % sát thương lên người đánh. Khi boss tử trận, tổng linh thạch và tu vi chia theo sát thương của từng người; người kết liễu được thêm % thưởng. Hết thời gian mà chưa bị hạ thì boss rời đi, không ai được thưởng. Chỉ một boss một lúc."));
+    // the boss up now
+    out.append(el("h3", {}, "Boss đang ở ngoài"));
+    if (d.now) {
+      const n = d.now, pct = ((n.hp / n.max) * 100).toFixed(1);
+      out.append(el("div", { class: "card" },
+        el("p", {}, el("b", {}, `👹 ${n.name}`), ` tại ${n.mapName} · ${STATE[n.state] ?? n.state}`),
+        el("p", {}, `Máu: ${fmt(n.hp)} / ${fmt(n.max)} (${pct}%) · ${n.fighters} người đã đánh · còn ${Math.floor(n.left / 60)} phút ${n.left % 60} giây · phản kích sau ${n.roarIn} giây`),
+        el("p", {}, `Thưởng: ${fmt(n.stones)} linh thạch, ${fmt(n.exp)} tu vi chia theo sát thương; người kết liễu thêm ${n.killBonus}%.`),
+        n.top.length ? el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["#", "Tên", "Sát thương", "%"].map((t) => el("th", {}, t))),
+          ...n.top.map((r, i) => el("tr", {}, el("td", {}, String(i + 1)), el("td", {}, r.name), el("td", {}, fmt(r.dmg)), el("td", {}, `${r.pct}%`))))) : el("p", { class: "dim" }, "Chưa ai gây sát thương."),
+        el("div", { class: "bar" }, el("button", { class: "small danger", disabled: n.state !== "alive", onclick: async () => confirm("Thu hồi boss? Boss biến mất ở mọi khu, không ai được thưởng.") && (await guard(() => api("/boss/despawn", { method: "POST" }), "Đã thu hồi.")) && reload() }, "Thu hồi (không thưởng)"))));
+    } else out.append(el("p", { class: "dim" }, "Không có boss nào."));
+    // calling one
+    out.append(el("h3", {}, "Gọi boss"));
+    const key = el("select", {}, ...d.bosses.map((b) => el("option", { value: b.key }, `${b.name} — ${b.title}`)));
+    const map = el("select", {}, ...d.maps.map((m) => el("option", { value: m.id }, m.name)));
+    const num = (ph, v) => el("input", { type: "number", placeholder: ph, value: v ?? "" });
+    const x = num("Vị trí x (điểm ảnh; trống = giữa map)"), hp = num("Máu", d.defaults.hp), stones = num("Tổng linh thạch", d.defaults.stones), exp = num("Tổng tu vi", d.defaults.exp);
+    const kb = num("% thưởng kết liễu", d.defaults.killBonus), min = num("Ở lại (phút)", d.defaults.minutes);
+    const lab = (t, i) => el("label", {}, t, i);
+    out.append(el("div", { class: "fields" }, lab("Boss", key), lab("Map", map), lab("Vị trí x (trống: giữa map)", x), lab("Máu", hp), lab("Tổng linh thạch", stones), lab("Tổng tu vi", exp), lab("% thưởng kết liễu", kb), lab("Ở lại bao nhiêu phút", min)),
+      el("div", { class: "bar" }, el("button", { class: "primary small", disabled: !!d.now && d.now.state !== "dead", onclick: async () => {
+        if (!confirm(`Gọi ${key.selectedOptions[0].textContent} ra ${map.selectedOptions[0].textContent}? Cả server sẽ được báo.`)) return;
+        const body = { key: key.value, map: map.value, hp: hp.value, stones: stones.value, exp: exp.value, killBonus: kb.value, minutes: min.value };
+        if (x.value !== "") body.x = x.value;
+        (await guard(() => api("/boss/spawn", { method: "POST", body }), "Boss đã xuất hiện.")) && reload();
+      } }, "Gọi boss")),
+      el("p", { class: "dim" }, `Mặc định lấy từ tab Cài đặt (boss.*). Bề rộng các map: ${d.maps.map((m) => `${m.name} ${fmt(m.w)}`).join(", ")} điểm ảnh.`));
+    // the ones before
+    out.append(el("h3", {}, "Các lần trước"));
+    const box = el("div");
+    out.append(el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["#", "Boss", "Map", "Máu", "Trạng thái", "Kết liễu", "Người nhận", "Gọi bởi", "Lúc gọi", "Kết thúc", ""].map((t) => el("th", {}, t))),
+      ...d.history.map((h) => el("tr", {}, el("td", {}, String(h.id)), el("td", {}, h.name), el("td", {}, h.mapName), el("td", {}, `${fmt(h.hp)} / ${fmt(h.max_hp)}`), el("td", {}, STATE[h.state] ?? h.state),
+        el("td", {}, h.killer_name ?? ""), el("td", {}, String(h.rewarded)), el("td", {}, h.spawned_by ?? ""), el("td", {}, at(h.spawned_at)), el("td", {}, at(h.ended_at)),
+        el("td", {}, h.rewarded ? el("button", { class: "small", onclick: async () => {
+          const rows = await api(`/boss/${h.id}/rewards`);
+          box.replaceChildren(el("h4", {}, `Boss #${h.id}: chia thưởng`), el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["ID", "Tên", "Sát thương", "Linh thạch", "Tu vi", "Kết liễu"].map((t) => el("th", {}, t))),
+            ...rows.map((r) => el("tr", {}, ...[r.user_id, r.name, fmt(r.dmg), fmt(r.stones), fmt(r.exp), r.killer ? "★" : ""].map((v) => el("td", {}, String(v ?? ""))))))));
+        } }, "Xem") : ""))))), box);
+    // the rules
+    out.append(el("h3", {}, "Thông số"), el("p", { class: "dim" }, "Cũng có ở tab Cài đặt (boss.*). Đổi là áp dụng ngay, cả cho boss đang ở ngoài (trừ máu và tổng thưởng đã đặt lúc gọi)."));
+    const S = (await api("/t/settings")).filter((r) => r.k.startsWith("boss."));
+    for (const r of S)
+      out.append(record({ title: r.note || r.k, sub: `${r.k} = ${r.v}`, row: { v: r.v }, fields: [{ k: "v", label: "Giá trị", type: "number", step: "any" }],
+        onSave: async (c) => (await guard(() => api(`/t/settings/${r.k}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload() }));
+    return out;
+  },
+
   async chinhta() {
     const d = await api("/chinhta"), out = el("div"), R = d.rules;
     const F = { c: "Chính Phái", t: "Tà Phái", d: "Hòa" }, RES = { w: "Thắng", l: "Thua", d: "Hòa", x: "Rời trận" };

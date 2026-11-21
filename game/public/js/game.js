@@ -18,6 +18,10 @@ import { emblemStill } from "./chinh-ta.js";
 import { WAR_MAP } from "/shared/chinh-ta.js";
 import { isTele, teleAt } from "/shared/truyen-tong.js";
 import { zoneBox, zoneLabel, closeZoneBox } from "./khu.js";
+import { bossEvent, drawBossEnt, bossTop, createBossHud } from "./boss.js";
+import { bossOf } from "/shared/boss.js";
+// Boss Thế Giới: its effects (the first boss's; every boss names its own in shared/boss.js)
+const BOSS_FX = { slamFx: "impacts/ground-slam", roarFx: "boss/roar-wave", hitFx: "impacts/crit-hit" };
 // the Truyền Tống Trận on the floor where a map's arrays are
 const TELE_FX = "arcane/teleport-array";
 
@@ -239,6 +243,16 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "portal":
         zoneBanner("Đường phía trước chưa mở", m.m);
         break;
+      // Boss Thế Giới: its bar (on its map), the word about it (anywhere), the result when it falls
+      case "boss":
+        bossHud.update({ ...m, myName: infos.get(myId)?.name });
+        break;
+      case "bossinfo":
+        bossHud.info(m);
+        break;
+      case "bossend":
+        bossHud.end(m, $("hud"));
+        break;
       // Khu of this map: which one, how full each is (the Khu button and its box)
       case "zones":
         if (m.n) zone.n = m.n;
@@ -382,8 +396,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         flashes.set(e.id, now);
         const t = posOf(e.id, s);
         if (t) {
-          texts.push({ x: t.x + (Math.random() * 12 - 6), y: t.y - 70, s: `-${e.d}`, color: e.id === myId ? "#ff6060" : "#ffffff", at: now });
-          if (fxs.length < 30) addFx("impacts/hit-spark", t.x, t.y - 30, { flip: Math.random() < 0.5 });
+          // (on a boss: higher up, over its chest; its roar and the blows it throws back in their own colours)
+          const big = !!bossOf(s.M.get(e.id)?.type);
+          texts.push({ x: t.x + (Math.random() * (big ? 60 : 12) - (big ? 30 : 6)), y: t.y - (big ? 120 : 70), s: e.roar ? `🔥-${e.d}` : e.th ? `↺-${e.d}` : `-${e.d}`, color: e.roar ? "#ff7a3a" : e.th ? "#ffb070" : e.id === myId ? "#ff6060" : "#ffffff", at: now });
+          if (e.roar && fxs.length < 40) addFx(BOSS_FX.hitFx, t.x, t.y - 34, { palette: ["#2a0606", "#7a1010", "#e0401a", "#ff9a3a", "#fff0c0"] }, null, 0, 0.8);
+          else if (fxs.length < 30) addFx("impacts/hit-spark", t.x, t.y - (big ? 80 : 30), { flip: Math.random() < 0.5 });
         }
         break;
       }
@@ -419,6 +436,21 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       }
       case "fx":
         if (e.k === "thunder") addFx("lightning/lightning-strike", e.x, e.y, {});
+        // Boss Thế Giới: the mace into the ground in front of it; its roar round it (and everyone's screen shaking)
+        else if (e.k === "bossslam") {
+          addFx(BOSS_FX.slamFx, e.x, e.y, {}, null, 0, 1.15);
+          artHelp.shake(7, 0.45, e.x, e.y);
+        } else if (e.k === "bossroar") {
+          addFx(BOSS_FX.roarFx, e.x, e.y, {}, null, 0, 1.4);
+          artHelp.shake(10, 0.8, e.x, e.y);
+        }
+        break;
+      case "boss":
+        bossEvent(e, now);
+        if (e.a === "dead") {
+          const t = posOf(e.id, s);
+          if (t) addFx("explosions/big-explosion", t.x, t.y - 60, {}, null, 0, 1.3);
+        }
         break;
       case "pk": {
         // Đồ Sát switched on: a red rage over them
@@ -580,6 +612,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     flyBtn.title = on ? "Hạ kiếm (F)" : "Ngự kiếm phi hành (F)";
   }
   flyBtn.addEventListener("pointerdown", (e) => (e.preventDefault(), toggleFly()));
+  // Boss Thế Giới (public/js/boss.js): its bar on its map, the pill elsewhere, the result
+  const bossHud = createBossHud({ toast });
+  bossHud.mount($("hud"));
+  setInterval(() => bossHud.pill(), 1000);
   // Khu (shared/khu.js): on a map of the road, the button says which Khu and how full; it opens the box of all 30
   const zone = { n: 0, occ: [] }, zoneBtn = $("zoneBtn");
   const fieldHere = () => !!map && !map.def.instanced;
@@ -1403,6 +1439,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       const c = casts.get(e.id), age = c ? now - c.at : 9;
       drawAvatar(p, info.look, { t: now + e.id, moving: !flying && !!(e.f & 32), air: !flying && !!(e.f & 128), fly: flying, meditating: !!(e.f & 16), cast: c && age < 0.6 ? { ...c, age } : null, busy: !!(e.f & 64), slow: !!(e.f & 4), flash });
     } else if (e.kind === "m") {
+      // Boss Thế Giới: its rigged figure (it sinks when it falls, so it is drawn dead too)
+      if (bossOf(e.type)) return void drawBossEnt(p, e, sx, sy, now, flash);
       if (e.dead) return;
       const md = MONSTERS[e.type];
       if (!md?.fx || !effects[md.fx]) {
@@ -1479,6 +1517,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         else if (info.pk) color = "#ff4a3a";
         sect = info.sect;
         dl = info.dl;
+      } else if (bossOf(e.type)) {
+        if (e.dead) continue;
+        top = (e.y - camY - bossTop(e.type) - 10) * k;
+        name = `👹 ${bossOf(e.type).name}`;
+        color = "#ff7a4a";
       } else {
         const md = MONSTERS[e.type];
         if (!md) continue;

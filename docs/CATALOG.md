@@ -1,6 +1,6 @@
 # Catalog
 
-283 effects in 27 categories. Every one is a file in
+285 effects in 28 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -474,3 +474,12 @@ whole player characters, rigged: the hair and hem sway, the legs step, the arms 
 |---|---|---|---|---|
 | Bạch Y Kiếm Khách | `nhanvat/kiem-khach` | loop 2.4s | 72×100 | A swordsman in white and gold over black, a high black ponytail with a gold crown. Rigged: hair, hem, legs, arms, blinks. options.anim: idle walk attack jump fly. |
 | Tử Y Tiên Tử | `nhanvat/tien-tu` | loop 2.4s | 72×100 | A fairy maiden in a lilac gown, knee-long black hair in a gold-crowned bun. Rigged: hair, hem, legs, arms, blinks. options.anim: idle walk attack jump fly. |
+
+## boss
+
+world bosses, rigged, and what they throw: the bull demon king and his roar.
+
+| effect | id | | size | what it does |
+|---|---|---|---|---|
+| Hỏa Ngưu Ma Vương | `boss/nguu-ma-vuong` | loop 2.4s | 300×200 | A rigged world boss: a bull demon king with a lava-cracked spiked mace. options.anim: idle, walk, slam, roar, dead. |
+| Roar wave | `boss/roar-wave` | one-shot 2s | 420×220 | A boss's roar: a dark-red aura swells, three rings of fire tear out along the floor, heat rises, embers and ash fly wide, a scorch fades. |

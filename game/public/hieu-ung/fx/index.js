@@ -7,6 +7,8 @@ import * as arcane_mana_burst from "./arcane/mana-burst.js";
 import * as arcane_portal from "./arcane/portal.js";
 import * as arcane_rune_circle from "./arcane/rune-circle.js";
 import * as arcane_teleport_array from "./arcane/teleport-array.js";
+import * as boss_nguu_ma_vuong from "./boss/nguu-ma-vuong.js";
+import * as boss_roar_wave from "./boss/roar-wave.js";
 import * as chinhta_barrier from "./chinhta/barrier.js";
 import * as chinhta_emblem from "./chinhta/emblem.js";
 import * as chinhta_flag from "./chinhta/flag.js";
@@ -23,6 +25,7 @@ import * as critters_jellyfish from "./critters/jellyfish.js";
 import * as critters_slime from "./critters/slime.js";
 import * as critters_snake from "./critters/snake.js";
 import * as critters_wisp from "./critters/wisp.js";
+import * as explosions_big_explosion from "./explosions/big-explosion.js";
 import * as explosions_firework_burst from "./explosions/firework-burst.js";
 import * as explosions_firework_rocket from "./explosions/firework-rocket.js";
 import * as explosions_nuke from "./explosions/nuke.js";
@@ -54,6 +57,7 @@ import * as home_furniture from "./home/furniture.js";
 import * as home_gamer_house from "./home/gamer-house.js";
 import * as home_lantern from "./home/lantern.js";
 import * as home_tien_phu from "./home/tien-phu.js";
+import * as impacts_crit_hit from "./impacts/crit-hit.js";
 import * as impacts_ground_slam from "./impacts/ground-slam.js";
 import * as impacts_hit_spark from "./impacts/hit-spark.js";
 import * as lightning_charge_up from "./lightning/charge-up.js";
@@ -98,6 +102,8 @@ export const effects = {
   "arcane/portal": arcane_portal,
   "arcane/rune-circle": arcane_rune_circle,
   "arcane/teleport-array": arcane_teleport_array,
+  "boss/nguu-ma-vuong": boss_nguu_ma_vuong,
+  "boss/roar-wave": boss_roar_wave,
   "chinhta/barrier": chinhta_barrier,
   "chinhta/emblem": chinhta_emblem,
   "chinhta/flag": chinhta_flag,
@@ -114,6 +120,7 @@ export const effects = {
   "critters/slime": critters_slime,
   "critters/snake": critters_snake,
   "critters/wisp": critters_wisp,
+  "explosions/big-explosion": explosions_big_explosion,
   "explosions/firework-burst": explosions_firework_burst,
   "explosions/firework-rocket": explosions_firework_rocket,
   "explosions/nuke": explosions_nuke,
@@ -145,6 +152,7 @@ export const effects = {
   "home/gamer-house": home_gamer_house,
   "home/lantern": home_lantern,
   "home/tien-phu": home_tien_phu,
+  "impacts/crit-hit": impacts_crit_hit,
   "impacts/ground-slam": impacts_ground_slam,
   "impacts/hit-spark": impacts_hit_spark,
   "lightning/charge-up": lightning_charge_up,
