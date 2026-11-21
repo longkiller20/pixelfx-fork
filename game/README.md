@@ -863,8 +863,9 @@ trong database được đổi sang boss này khi máy chủ khởi động.)
 - Hết `boss.minutes` phút (đặt lúc gọi) mà chưa ai hạ được thì boss rời đi, không ai được thưởng. Admin cũng thu hồi được.
 
 **Trong game:**
-- Trên map có boss: thanh máu ở trên cùng (tên, máu, %, giây tới lần phản kích, thời gian còn lại, hạng và sát thương
-  của mình), nút 🏆 mở bảng top 5. Trên điện thoại nằm ngang, thanh dời sang phải để không che nút Khu.
+- Trên map có boss: chỉ một nút nhỏ ở trên cùng (👹, thanh máu mini, %, 🐍 giây tới lần phản kích; nháy khi còn ≤ 3
+  giây). Bấm nút mở bảng chi tiết: tên, máu, thời gian còn lại, hạng và sát thương của mình, bảng sát thương top 5. Bấm
+  lại hoặc ✕ để thu gọn. Trên điện thoại nằm ngang, nút và bảng nằm bên phải để không che nút Khu.
 - Ở map khác: một dòng nhấp nháy "👹 Cửu U Xà Vương · Linh Thủy Đàm · 73%". Đến đó bằng Truyền Tống Trận.
 - Lúc boss xuất hiện, cả server nhận thông báo lớn.
 
