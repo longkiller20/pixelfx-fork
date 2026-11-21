@@ -269,6 +269,7 @@ import * as fishing_fish from "./fishing/fish.js";
 import * as fishing_gear from "./fishing/gear.js";
 import * as fishing_props from "./fishing/props.js";
 import * as fishing_stall from "./fishing/stall.js";
+import * as love_heart_fall from "./love/heart-fall.js";
 import * as love_hearts from "./love/hearts.js";
 import * as love_ring from "./love/ring.js";
 import * as love_rose from "./love/rose.js";
@@ -546,6 +547,7 @@ export const effects = {
   "fishing/gear": fishing_gear,
   "fishing/props": fishing_props,
   "fishing/stall": fishing_stall,
+  "love/heart-fall": love_heart_fall,
   "love/hearts": love_hearts,
   "love/ring": love_ring,
   "love/rose": love_rose,

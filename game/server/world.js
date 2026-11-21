@@ -1153,6 +1153,10 @@ export class Universe {
   feed(m) {
     this.broadcast({ t: "feed", m });
   }
+  /** A wedding (Đạo Lữ): every map, everyone online sees the banner, hearts falling and fireworks. */
+  celebrate(a, b, ring) {
+    this.broadcast({ t: "celebrate", a, b, ring });
+  }
 
   attach(ws) {
     ws.bucket = 80;

@@ -30,6 +30,13 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - **Đồng ý** thì người cầu hôn trả giá nhẫn (một đôi) bằng linh thạch, cả hai đeo nhẫn. Lúc đó mọi điều kiện được kiểm
     tra lại: không đủ linh thạch thì không có gì xảy ra, lời cầu hôn vẫn chờ. Cả thế giới thấy dòng thông báo, hai người
     thấy hiệu ứng lễ cưới.
+  - **Cả server ăn mừng**: mọi người đang online, ở bất kỳ map nào, đều thấy:
+    - một băng rôn "💍 A ♥ B đã kết thành Đạo Lữ với <nhẫn>. Chúc mừng!";
+    - khoảng 9 giây tim nhỏ rơi khắp màn hình, đung đưa và lật (pixelfx `love/heart-fall`, ba màu, hai cỡ);
+    - pháo hoa nổ trên trời: `explosions/firework-burst` nhiều màu hồng, đỏ, vàng, tím, xen pháo thăng thiên
+      `explosions/firework-rocket`.
+
+    Hiệu ứng vẽ theo màn hình nên đi lại không bị bỏ lại phía sau, mỗi lúc tối đa 90 hiệu ứng.
   - **Ba nhẫn** (giá và buff mặc định, admin đổi được):
 
     | Nhẫn | Giá một đôi | Sinh lực | Công | Thủ | Tốc độ |

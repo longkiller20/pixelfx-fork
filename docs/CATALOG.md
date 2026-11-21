@@ -1,6 +1,6 @@
 # Catalog
 
-273 effects in 25 categories. Every one is a file in
+274 effects in 25 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -446,6 +446,7 @@ a rose, wedding rings, hearts rising, a wedding of light and petals.
 
 | effect | id | | size | what it does |
 |---|---|---|---|---|
+| Heart falling | `love/heart-fall` | one-shot 4.2s | 40×240 | One small pixel heart drifting down from the top, swaying side to side, turning edge-on and back as it falls, a glint, fading at the bottom. |
 | Hearts rising | `love/hearts` | one-shot 1.8s | 96×96 | A rose given: a pop of pink light, little pixel hearts rising and swaying as they fade, red petals drifting down. |
 | Wedding ring | `love/ring` | loop 2.4s | 32×32 | Three wedding rings, a glint sweeping round the band, the stone sparkling: silver and jade, twin gold bands and a ruby, rose gold and a star diamond. |
 | Rose | `love/rose` | loop 2s | 32×32 | A single red rose as a gift icon: layered petals curling round a dark heart, a thorned stem with two leaves, swaying, a dewdrop that glints. |

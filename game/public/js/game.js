@@ -210,6 +210,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         toast(m.m);
         if (m.ch === "s") logLine(null, m.m, "sect");
         break;
+      case "celebrate":
+        // a couple became Đạo Lữ somewhere: everyone, on every map, gets the banner, hearts falling and fireworks
+        celebrate(m);
+        break;
       case "fatal":
         alive = false;
         onFatal(m.m, true);
@@ -794,6 +798,67 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   }
   const CH_TAG = { w: "Thế Giới", k: "Khu Vực", s: "Tông Môn" };
   let toastTimer = 0;
+  // ---- a wedding anywhere on the server: a banner, then for about nine seconds little hearts drifting down over the whole
+  // view and fireworks bursting in the sky (pixelfx love/heart-fall, explosions/firework-burst and -rocket). They live in
+  // the screen, not the world, so walking does not leave them behind; at most CELEB_MAX at once.
+  const celebs = [], celebPlan = [], CELEB_MAX = 90;
+  const SHELLS = [
+    { palette: ["#3d0a33", "#701560", "#b0228f", "#f53cd1", "#ff86e6", "#ffd2f6", "#ffffff"] },
+    { palette: ["#3a0610", "#7a1020", "#c01e34", "#ee4a5a", "#ff9a9a", "#ffd8d8", "#ffffff"] },
+    { palette: ["#4a2c08", "#86520c", "#c48412", "#f0b424", "#ffe066", "#fff6c4", "#ffffff"] },
+    { palette: ["#1a0a3a", "#3a1a7a", "#6a3ac0", "#a07aff", "#d0b8ff", "#f0e8ff", "#ffffff"] },
+  ];
+  let celebUntil = 0;
+  function celebrate(m) {
+    const now = performance.now() / 1000;
+    const b = $("wedding");
+    if (b) {
+      b.replaceChildren();
+      const t = document.createElement("b"), s = document.createElement("small");
+      t.textContent = `💍 ${m.a} ♥ ${m.b}`;
+      s.textContent = `đã kết thành Đạo Lữ${m.ring ? ` với ${m.ring}` : ""}. Chúc mừng!`;
+      b.append(t, s);
+      b.classList.remove("on");
+      void b.offsetWidth;
+      b.classList.add("on");
+      clearTimeout(celebrate.timer);
+      celebrate.timer = setTimeout(() => b.classList.remove("on"), 7000);
+    }
+    // a new wedding while one is still going adds to it, but never more than nine seconds from now
+    const start = Math.max(now, Math.min(celebUntil, now + 2));
+    celebUntil = start + 9;
+    for (let i = 0; i < 70; i++)
+      celebPlan.push({ at: start + Math.random() * 8, id: "love/heart-fall", x: Math.random(), y: -0.02, opts: { color: (Math.random() * 3) | 0, big: Math.random() < 0.35 ? 1 : 0 }, fall: true });
+    for (let i = 0; i < 12; i++) {
+      const rocket = i % 3 === 2;
+      celebPlan.push({ at: start + 0.3 + i * 0.65 + Math.random() * 0.4, id: rocket ? "explosions/firework-rocket" : "explosions/firework-burst",
+        x: 0.12 + Math.random() * 0.76, y: rocket ? 1 : 0.22 + Math.random() * 0.25, opts: rocket ? {} : SHELLS[(Math.random() * SHELLS.length) | 0], fall: false });
+    }
+  }
+  /** Each frame: start what is due, move and draw what is live, over the world. */
+  function drawCelebration(dt) {
+    if (!celebs.length && !celebPlan.length) return;
+    const now = performance.now() / 1000;
+    for (let i = celebPlan.length - 1; i >= 0; i--) {
+      const c = celebPlan[i];
+      if (c.at > now) continue;
+      celebPlan.splice(i, 1);
+      if (celebs.length >= CELEB_MAX || !effects[c.id]) continue;
+      // a heart falls the height of the view (its effect falls 240 px), a firework is drawn at about its own size
+      const k = c.fall ? VH / 230 : Math.max(1, VH / 360);
+      celebs.push({ fx: createFx(effects[c.id], { seed: (Math.random() * 1e6) | 0, actor: BLANK_ACTOR, ...c.opts }), sx: c.x * VW, sy: c.y * VH, k });
+    }
+    for (let i = celebs.length - 1; i >= 0; i--) {
+      const c = celebs[i];
+      c.fx.update(dt);
+      if (c.fx.done()) {
+        celebs.splice(i, 1);
+        continue;
+      }
+      drawFx(c.fx, "back", camX + c.sx, camY + c.sy, c.k);
+      drawFx(c.fx, "front", camX + c.sx, camY + c.sy, c.k);
+    }
+  }
   function toast(m) {
     const t = $("toast");
     t.textContent = m;
@@ -1104,6 +1169,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     drawPortalArrows(p, now, on);
     drawAim(p, now);
     drawPetals(p, now, dt);
+    drawCelebration(dt);
     if (screenFx) {
       // hold it shut while waiting for the new map; then let it open and finish
       const D = screenFx.meta.duration;
