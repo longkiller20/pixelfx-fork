@@ -594,7 +594,7 @@ export class War {
   }
   /** Take p off the field to where they were (still there), else the starter town. */
   async sendBack(p, r) {
-    const from = r?.from ?? p.homeFrom, to = from && this.u.worlds.has(from.key) && from.key !== WAR_KEY ? from.key : "tanthu";
+    const from = r?.from ?? p.homeFrom, to = from && this.u.canGo(from.key) && from.key !== WAR_KEY ? from.key : "tanthu";
     p.dead = false;
     p.hpFrac = Math.max(p.hpFrac, 1);
     await this.u.transfer(p, to, WAR_KEY, to === from?.key ? from.at : null);

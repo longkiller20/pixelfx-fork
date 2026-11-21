@@ -17,6 +17,7 @@ import { menuIcon } from "./menu.js";
 import { emblemStill } from "./chinh-ta.js";
 import { WAR_MAP } from "/shared/chinh-ta.js";
 import { isTele, teleAt } from "/shared/truyen-tong.js";
+import { zoneBox, zoneLabel, closeZoneBox } from "./khu.js";
 // the Truyền Tống Trận on the floor where a map's arrays are
 const TELE_FX = "arcane/teleport-array";
 
@@ -116,7 +117,26 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
               warpWaiting = false;
             }
           }, () => onFatal("Không tải được bản đồ, hãy thử lại.", false));
+        } else {
+          // the same map, another Khu (or a lake's Khu): its people and monsters, not the last one's; the scene stays
+          infos.clear();
+          snaps.length = 0;
+          fxs.length = 0;
+          texts.length = 0;
+          casts.clear();
+          ghosts.clear();
+          boltFx.clear();
+          vanish.clear();
+          body = null;
+          closeZoneBox();
+          if (warpWaiting && effects[WARP_FX]) {
+            screenFx = createFx(effects[WARP_FX], { seed: (Math.random() * 1e6) | 0 });
+            screenFx.update(screenFx.meta.duration * 0.55);
+            warpWaiting = false;
+          }
         }
+        // a map without Khu (the lake, a Gia Viên, the battlefield): no Khu button; a map of the road says which it is next
+        if (map.def.instanced) (zone.n = 0), renderZone();
         inv = m.inv;
         for (const p of m.players) infos.set(p.id, p);
         renderInv();
@@ -219,8 +239,16 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "portal":
         zoneBanner("Đường phía trước chưa mở", m.m);
         break;
+      // Khu of this map: which one, how full each is (the Khu button and its box)
+      case "zones":
+        if (m.n) zone.n = m.n;
+        zone.occ = m.occ ?? zone.occ;
+        renderZone();
+        break;
       case "toast":
         toast(m.m);
+        // the Khu asked for filled up meanwhile: the box again, with the others' room
+        if (m.zfull) openZones(m.m);
         if (m.ch === "s") logLine(null, m.m, "sect");
         break;
       case "ctstate":
@@ -552,6 +580,18 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     flyBtn.title = on ? "Hạ kiếm (F)" : "Ngự kiếm phi hành (F)";
   }
   flyBtn.addEventListener("pointerdown", (e) => (e.preventDefault(), toggleFly()));
+  // Khu (shared/khu.js): on a map of the road, the button says which Khu and how full; it opens the box of all 30
+  const zone = { n: 0, occ: [] }, zoneBtn = $("zoneBtn");
+  const fieldHere = () => !!map && !map.def.instanced;
+  function renderZone() {
+    zoneBtn.hidden = !(fieldHere() && zone.n);
+    if (!zoneBtn.hidden) zoneLabel(zoneBtn, zone.n, zone.occ);
+  }
+  function openZones(note = null) {
+    if (!fieldHere() || !zone.n) return;
+    zoneBox({ cur: zone.n, occ: zone.occ, map: map.name, note, pick: (n) => send({ t: "zone", n }) });
+  }
+  zoneBtn.addEventListener("click", (e) => (e.preventDefault(), openZones()));
   // Truyền Tống Trận: standing by an array (and alive), its button shows; it (or T) opens the list of maps
   const teleBtn = $("teleBtn");
   const teleNear = () => {
