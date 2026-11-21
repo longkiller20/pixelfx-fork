@@ -1,6 +1,6 @@
 # Catalog
 
-268 effects in 24 categories. Every one is a file in
+269 effects in 24 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -341,7 +341,7 @@ level ups, numbers, toasts, countdowns.
 | Health bar hit | `ui/health-bar-hit` | one-shot 2s | 160×64 | A segmented health bar takes a hit: it jolts and dips, the lost chunk flashes white and sheds chips, holds, then drains away behind a sparking edge. |
 | Heart lost | `ui/heart-lost` | one-shot 1.5s | 96×88 | A HUD heart is hit: it flashes white and jolts, a crack runs down it, it splits into two halves that tumble away, leaving an empty socket that fades. |
 | Level up | `ui/level-up` | one-shot 3.2s | 176×138 | Gold gathers at the feet and bursts up as a pillar of light round the hero; rings climb it, LEVEL UP! drops in letter by letter, a shine sweeps it, sparkles twinkle. |
-| Menu icon | `ui/menu-icon` | loop 1s | 24×24 | Small 20 px icons for a game's menu, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more. |
+| Menu icon | `ui/menu-icon` | loop 1s | 24×24 | Small 20 px icons for a game's menu, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more, fishing. |
 | Quest complete | `ui/quest-complete` | one-shot 2.6s | 204×92 | A stitched ribbon unrolls from the middle, QUEST COMPLETE types on letter by letter, a gold seal stamps down and ticks, stars pop; then it all rolls away. |
 
 ## pickups
@@ -433,8 +433,9 @@ fish, rods, bait, a float, a fishmonger's stall, a dock.
 | effect | id | | size | what it does |
 |---|---|---|---|---|
 | Fishing float | `fishing/bobber` | loop 1.2s | 48×32 | A red and white float on the water, drawn at the waterline: bobbing, nibbled (quick dips), pulled under by a bite (splash, rings), or thrashing with a fish on. |
+| Fishing buttons | `fishing/button` | loop 2s | 48×48 | Round fishing-control buttons: a big gold and jade ring around rippling water coloured by the moment, small bronze ones, and their icons. |
 | Fish landed | `fishing/catch` | one-shot 1.6s | 200×160 | A catch flies out of the water: a splash and spray, the fish flopping up an arc towards the angler, a burst of light in its rarity's colour at the top, then gone into the bag. |
 | Fish | `fishing/fish` | loop 1.2s | 80×48 | A catch for a fishing game, side view facing right: 15 looks from a boot and pond weed to carp, sturgeon, a jade turtle, dragon and phoenix fish, a sunken chest. Swims or flops. |
 | Fishing gear | `fishing/gear` | loop 1.6s | 32×32 | Icons for a fishing game's rods and baits, 28 px, shaded and outlined: bamboo, bronze, jade and golden dragon rods; earthworms, shrimp, spirit-rice balls, peach blossom. |
-| Lake props | `fishing/props` | loop 2.4s | 96×96 | A fishing lake's pieces, standing on y = 0 (the floor or the waterline): dock stilt, reeds, lily pads with pink or jade lotus, a moored boat, a buoy, a spirit spring's mist. |
-| Fishmonger's stall | `fishing/stall` | loop 3.2s | 176×128 | A lakeside tackle stall: a thatched roof on posts, an old fisherman in a conical hat puffing a long pipe behind the counter, baskets, rods on a rack, dried fish swaying, a net, a lantern. |
+| Lake props | `fishing/props` | loop 2.4s | 96×96 | A fishing lake's pieces on y = 0: pier stilt, a numbered fishing seat (straw or jade), reeds, lily pads with lotus, a moored boat, a buoy, a spirit spring's mist. |
+| Fishmonger's stall | `fishing/stall` | loop 3.2s | 176×128 | A lakeside tackle stall: thatched roof, an old fisherman in a conical hat puffing a long pipe behind the counter, baskets, rods on a rack, dried fish swaying, a net, a lantern. |

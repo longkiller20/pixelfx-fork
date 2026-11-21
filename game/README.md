@@ -25,6 +25,10 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
     đi, các **nút câu đứng đúng chỗ đó** theo vòng cung ở góc phải dưới: nút tròn lớn **Thả câu / Giật / Giữ kéo** ở chỗ nút
     đánh (ngay dưới ngón cái), quanh nó là **Ngư Cụ**, **Khu** và **Thu cần** (chỉ hiện khi đang thả câu). Trên máy tính:
     **E hoặc J** thả/giật/giữ kéo, **R** thu cần, **Q** mở Ngư Cụ, **K** mở bảng khu. Rời hồ là cụm nút chiến đấu trở lại.
+    Mặt các nút vẽ bằng pixelfx (`src/fx/fishing/button.js`): nút lớn là vòng vàng khảm ngọc bích quanh mặt nước gợn sóng
+    dưới trăng, nước và icon đổi theo lúc (xanh ngọc khi thả câu, xanh đêm khi chờ cá, đỏ vàng và lưỡi câu khi cá cắn, xanh
+    lá và guồng quay khi kéo); nút nhỏ là vòng đồng (Ngư Cụ: giỏ tre có đuôi cá), ngọc (Khu: lá sen với viên ngọc màu theo
+    độ đông của khu), san hô (Thu cần: phao với mũi tên quay về). Các mặt nút chuyển động 10 khung hình mỗi giây.
   - **30 khu câu, mỗi khu như một map câu riêng** (một thế giới riêng trên máy chủ, `cc:1`..`cc:30`), chỉ đánh số, khu nào
     cũng giống khu nào. Mỗi khu tối đa **20 người**, có **8 chỗ câu**.
     - Vào hồ (nút Câu Cá) là **tự vào khu số nhỏ nhất còn dưới 20 người**. Người đang trên đường vào cũng được tính, nên một
