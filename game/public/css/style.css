@@ -1646,3 +1646,4 @@ button.dlring:disabled { opacity: .45; cursor: not-allowed; }
 #wedding b { font-size: 19px; color: #fff0f6; text-shadow: 0 0 8px #ff5a9a; }
 #wedding small { font-size: 13px; color: #ffd860; }
 body.touch #wedding b { font-size: 16px; }
+#wedding i { font-size: 11px; font-style: normal; color: #ffc8dc; opacity: .85; }

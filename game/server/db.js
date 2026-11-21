@@ -39,6 +39,37 @@ export async function tx(fn) {
   }
 }
 
+/** The database gave up on a transaction to break a deadlock (or a lock wait ran out): running it again is safe. */
+export const isDeadlock = (e) => e?.code === "ER_LOCK_DEADLOCK" || e?.errno === 1213 || e?.code === "ER_LOCK_WAIT_TIMEOUT" || e?.errno === 1205;
+
+/**
+ * A transaction for work that many people do at once, each about their own rows (Đạo Lữ: many couples marrying at the
+ * same moment). Two things keep them from tripping over each other:
+ *  - READ COMMITTED: InnoDB then locks only the rows a statement touches, not the gaps between index entries, so two
+ *    couples' statements never lock each other's neighbourhood. What must not happen at once is serialised by the rows
+ *    the work locks on purpose (the people's user rows, SELECT ... FOR UPDATE) and by unique keys, not by gap locks.
+ *  - if the database still breaks a deadlock by rolling one back, everything of it is undone (the request id with it),
+ *    so it is simply run again from the start, after a short random wait, up to `tries` times.
+ */
+export async function txRetry(fn, tries = 5) {
+  for (let i = 1; ; i++) {
+    const c = await pool.getConnection();
+    try {
+      await c.query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED");
+      await c.beginTransaction();
+      const out = await fn(c);
+      await c.commit();
+      return out;
+    } catch (e) {
+      try { await c.rollback(); } catch {}
+      if (!isDeadlock(e) || i >= tries) throw e;
+    } finally {
+      c.release();
+    }
+    await new Promise((r) => setTimeout(r, 5 + Math.random() * 25 * i));
+  }
+}
+
 export const isDup = (e) => e?.code === "ER_DUP_ENTRY" || e?.errno === 1062;
 
 const SCHEMA = [
