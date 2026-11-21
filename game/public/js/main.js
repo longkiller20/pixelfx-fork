@@ -920,9 +920,8 @@ async function charPanel(startTab = "all") {
   wrap.innerHTML = `
     <section class="cleft">
       <div class="stage">
-        <div class="slots l"></div>
         <div class="fig"><canvas width="128" height="116"></canvas><div class="plinth"></div></div>
-        <div class="slots r"></div>
+        <button type="button" class="eqbtn" title="Xem các món đang mặc"><b>👘</b><span>Trang bị</span></button>
       </div>
       <div class="ident"><b class="nm"></b><span class="realm"></span></div>
       <div class="cstats"></div>
@@ -941,21 +940,7 @@ async function charPanel(startTab = "all") {
     const m = game.me() ?? {};
     $$(".nm").textContent = ch().name;
     $$(".realm").textContent = realmName(m.lv ?? ch().level ?? levelFromExp(ch().exp));
-    for (const [side, kinds] of [["l", ["toc", "ao", "quan", "mat", "khuonmat", "kinh", "matna"]], ["r", ["non", "canh", "haoquang", "docamtay", "thucung", "sword"]]]) {
-      const box = $$(`.slots.${side}`);
-      box.replaceChildren();
-      for (const k of kinds) {
-        const it = w.items.find((x) => x.kind === k && (x.g === g || x.g === "a") && x.idx === ch().look[k]);
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "eslot";
-        b.title = `${KIND_NAME[k]}: ${it?.name ?? "—"} (bấm để đổi)`;
-        if (it) b.append(partCanvas(k, it.g, it.idx));
-        b.append(Object.assign(document.createElement("small"), { textContent: KIND_NAME[k] }));
-        b.addEventListener("click", () => ((tab = "equip"), (kind = k), (page = 0), (sel = it ?? null), drawRight()));
-        box.append(b);
-      }
-    }
+    if (eqOpen) drawWorn();
     // sinh lực on a row of its own with its bar; the rest as tiles, the name over the value, so nothing runs into anything
     const fmtN = (n) => Number(n ?? 0).toLocaleString("vi-VN");
     const hp = document.createElement("div");
@@ -978,6 +963,48 @@ async function charPanel(startTab = "all") {
     });
     $$(".cstats").replaceChildren(hp, ...tiles);
   }
+
+  // ---- what is worn: a small button by the figure opens its own box, every slot with its item; a slot picks that kind
+  let eqOpen = false;
+  const SLOTS = ["toc", "ao", "quan", "mat", "khuonmat", "kinh", "matna", "non", "canh", "haoquang", "docamtay", "thucung", "sword"];
+  function drawWorn() {
+    let box = $$(".eqpop");
+    if (!box) {
+      box = document.createElement("div");
+      box.className = "eqpop";
+      box.innerHTML = `<div class="eqbox" role="dialog" aria-label="Trang bị đang mặc"><header><b>Trang bị đang mặc</b><button type="button" class="x" aria-label="Đóng">✕</button></header><div class="eqgrid"></div><p class="hint">Bấm một ô để chọn món khác cùng loại.</p></div>`;
+      box.addEventListener("click", (e) => e.target === box && closeWorn());
+      box.querySelector(".x").addEventListener("click", closeWorn);
+      wrap.append(box);
+    }
+    const grid = box.querySelector(".eqgrid");
+    grid.replaceChildren();
+    for (const k of SLOTS) {
+      const it = w.items.find((x) => x.kind === k && (x.g === g || x.g === "a") && x.idx === ch().look[k]);
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "eslot";
+      b.title = `${KIND_NAME[k]}: ${it?.name ?? (isBase(k) ? "mặc định" : "chưa mặc")} (bấm để đổi)`;
+      // nothing bought: the figure's own (hair, shirt... ) still shows; the rest stays empty
+      if (it) b.append(partCanvas(k, it.g, it.idx));
+      else if (isBase(k)) b.append(partCanvas(k, g, 0));
+      b.append(Object.assign(document.createElement("small"), { textContent: KIND_NAME[k] }));
+      b.addEventListener("click", () => {
+        tab = "equip";
+        kind = k;
+        page = 0;
+        sel = it ? { t: "eq", it } : null;
+        closeWorn();
+        drawRight();
+      });
+      grid.append(b);
+    }
+  }
+  function closeWorn() {
+    eqOpen = false;
+    $$(".eqpop")?.replaceWith();
+  }
+  $$(".eqbtn").addEventListener("click", () => ((eqOpen = true), drawWorn()));
 
   // ---- right: tabs, filters, the grid of slots, the pager, the picked thing
   const entries = () => {
