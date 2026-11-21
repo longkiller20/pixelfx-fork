@@ -1158,9 +1158,9 @@ export class Universe {
    * wedding, after its transaction committed; n numbers them in the order they were announced (one process, one
    * thread: no two get the same), so browsers can queue them and show every couple, each once, in turn.
    */
-  celebrate(a, b, ring) {
+  celebrate(a, b, ring, look = null) {
     this.weddings = (this.weddings ?? 0) + 1;
-    this.broadcast({ t: "celebrate", n: this.weddings, a, b, ring });
+    this.broadcast({ t: "celebrate", n: this.weddings, a, b, ring, look });
   }
 
   attach(ws) {

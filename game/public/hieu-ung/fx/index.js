@@ -53,6 +53,7 @@ import * as impacts_ground_slam from "./impacts/ground-slam.js";
 import * as impacts_hit_spark from "./impacts/hit-spark.js";
 import * as lightning_charge_up from "./lightning/charge-up.js";
 import * as lightning_lightning_strike from "./lightning/lightning-strike.js";
+import * as love_heart_beat from "./love/heart-beat.js";
 import * as love_heart_fall from "./love/heart-fall.js";
 import * as love_hearts from "./love/hearts.js";
 import * as love_ring from "./love/ring.js";
@@ -133,6 +134,7 @@ export const effects = {
   "impacts/hit-spark": impacts_hit_spark,
   "lightning/charge-up": lightning_charge_up,
   "lightning/lightning-strike": lightning_lightning_strike,
+  "love/heart-beat": love_heart_beat,
   "love/heart-fall": love_heart_fall,
   "love/hearts": love_hearts,
   "love/ring": love_ring,
