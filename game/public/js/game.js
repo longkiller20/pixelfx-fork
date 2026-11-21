@@ -20,7 +20,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap, onFish, onFrame }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap, onFish, onFrame, onDaolu }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -191,6 +191,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "unread":
         social?.onUnread(m.n);
         break;
+      case "daolu":
+        // Đạo Lữ: a rose, a proposal, a wedding, a divorce (the note in the log too); an open Đạo Lữ panel reads it again
+        if (m.note) logLine(null, m.note, "ch-pm");
+        onDaolu?.(m);
+        break;
       case "sect":
         // something in the sect changed (a member, a rank, the treasury...): an open sect panel reads it again
         onSect?.();
@@ -352,6 +357,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "item": {
         const t = posOf(e.id, s);
         if (t) addFx("holy/heal", t.x, t.y, {}, e.id);
+        break;
+      }
+      case "love": {
+        // Đạo Lữ: hearts rising over who gave and got roses; the wedding over a new couple
+        const t = posOf(e.id, s);
+        if (t) addFx(e.k === "wedding" ? "love/wedding" : "love/hearts", t.x, t.y, {}, e.id, 0, e.k === "wedding" ? 1.2 : 1);
         break;
       }
       case "fx":
@@ -722,6 +733,14 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       img.src = `/xianxia/ui/ui_xianxia_${BUFF_ICON[b.stat] ?? "status_seal"}.png`;
       img.alt = "";
       s.append(img, `${b.pct > 0 ? "+" : ""}${b.pct}%${left(b.left)}`);
+      line.append(s);
+    }
+    // a dao lu's wedding ring: a pink heart with its buff (hp), the whole buff in its title
+    if (me.daolu?.buff) {
+      const s = document.createElement("span"), B = me.daolu.buff;
+      s.className = "buff ring";
+      s.title = `Nhẫn cưới · Đạo Lữ ${me.daolu.name}: +${B.hp}% sinh lực, +${B.atk}% công, +${B.def}% thủ, +${B.spd}% tốc độ`;
+      s.textContent = `♥ +${B.hp}%`;
       line.append(s);
     }
     showCooldowns();
@@ -1195,7 +1214,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     for (const e of list) {
       if (e.dead) continue;
       const x = (e.x - camX) * k;
-      let top, name, color, hp = e.hp, sect = null;
+      let top, name, color, hp = e.hp, sect = null, dl = null;
       if (e.kind === "p") {
         const info = infos.get(e.id);
         if (!info) continue;
@@ -1203,6 +1222,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         name = `${info.name} · ${realmName(info.lv)}`;
         color = e.id === myId ? "#fff6c8" : info.look?.g === "f" ? "#ffb8d8" : "#a8e0ff";
         sect = info.sect;
+        dl = info.dl;
       } else {
         const md = MONSTERS[e.type];
         if (!md) continue;
@@ -1225,6 +1245,15 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         c.strokeText(st, x, top - fs * 1.55);
         c.fillStyle = sect.r === 1 ? "#ffd86a" : "#e8c070";
         c.fillText(st, x, top - fs * 1.55);
+      }
+      // a dao lu: their partner's name in pink with a heart, over the sect (or over the name)
+      if (dl) {
+        const df = Math.max(9, Math.round(fs * 0.8)), dt = `♥ ${dl}`, dy = top - fs * (sect ? 2.5 : 1.55);
+        c.font = `700 ${df}px system-ui, sans-serif`;
+        c.lineWidth = Math.max(2, df / 4);
+        c.strokeText(dt, x, dy);
+        c.fillStyle = "#ff9ac0";
+        c.fillText(dt, x, dy);
       }
       const w = 22 * k, h = Math.max(3, 1.6 * k);
       c.fillStyle = "rgba(0,0,0,.7)";

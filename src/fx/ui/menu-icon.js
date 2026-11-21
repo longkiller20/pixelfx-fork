@@ -16,7 +16,7 @@ export const meta = {
 };
 
 /** The icons, by name: what each draws (on a 20 x 20 grid, -10..9 each way). */
-export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more", "fish"];
+export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more", "fish", "love"];
 
 const H = (a) => a.map(hex);
 const SKIN = H(["#8a4a3a", "#d8996e", "#f6cfa8", "#ffe6cc", "#fff4e8"]);
@@ -178,6 +178,21 @@ const DRAW = {
     g.ellipse(6.5, -6, 2.2, 2.4, (nx, ny) => (ny < 0 ? RED[2] : PAPER[3]));
     g.line(6.5, -9.5, 6.5, -8.5, RED[3]);
     g.line(4, 7.5, 9, 7.5, SKY[3]);
+  },
+  // two hearts, a big red one and a small pink one overlapping, and a gold ring: Đạo Lữ
+  love(g) {
+    const heart = (cx, cy, r, C) => {
+      g.ellipse(cx - r * 0.5, cy - r * 0.25, r * 0.6, r * 0.6, ell(C));
+      g.ellipse(cx + r * 0.5, cy - r * 0.25, r * 0.6, r * 0.6, ell(C));
+      g.poly([[cx - r * 1.05, cy], [cx + r * 1.05, cy], [cx, cy + r * 1.05]], (x, y) => (x < cx ? C[2] : C[1]));
+    };
+    heart(4, -3.5, 5, PINK);
+    heart(-2.5, 1, 7.5, RED);
+    g.set(-6, -3, RED[4]), g.set(-5, -4, RED[4]), g.set(1.5, -6, PINK[4]);
+    g.shade(0, 4, 9, 10, (x, y) => {
+      const d = Math.hypot((x - 5) / 4, (y - 7.5) / 2.6);
+      return d < 1 && d > 0.55 ? (y < 7.5 ? GOLD[3] : GOLD[2]) : 0;
+    });
   },
   // four gold tiles: more of the menu
   more(g) {

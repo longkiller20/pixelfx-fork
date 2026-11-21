@@ -11,7 +11,7 @@ import { ROOT, config } from "./config.js";
 import { assetsJson, hasPart, hasFx, PART_DIRS, ART_DIR } from "./assets.js";
 import { hashPassword, verifyPassword, dummyVerify, rateLimit } from "./auth.js";
 import { readConfig, loadConfig } from "./gameconfig.js";
-import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS, HOME } from "../shared/balance.js";
+import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS, HOME, DAOLU } from "../shared/balance.js";
 import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem, adminArt, loadCharacter, grantArtMany } from "./store.js";
 import { userLock } from "./lock.js";
 import { MAPS as MAP_DEFS, mapInfo } from "../shared/maps/index.js";
@@ -19,6 +19,8 @@ import { CONG_PHAP } from "../shared/cong-phap.js";
 import * as sects from "./tong-mon.js";
 import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
+import * as dl from "./dao-lu.js";
+import { RINGS, RING_BUFF, ROSE, NEED } from "../shared/dao-lu.js";
 import { RODS, BAITS, FISH, RARITY, RATES, CHEST, odds } from "../shared/cau-ca.js";
 import { ITEMS } from "../shared/balance.js";
 import { HOUSES, DEFAULT_HOUSE, housePrice, houseName } from "../shared/gia-vien.js";
@@ -75,7 +77,7 @@ const T = {
   realms: { pk: "id", order: "sort, id", config: true, add: true, del: true, cols: { name: "str:32", stages: "uint", sort: "int" } },
   items: {
     pk: "item_key", pkType: "key", order: "sort, item_key", config: true, add: true, del: true,
-    cols: { name: "str:40", kind: "enum:pill|book|material|rod|bait|fish", description: "str:200", price: "uint", heal: "num", exp_base: "uint", exp_per_level: "uint", cooldown: "num", on_sale: "bool", sort: "int" },
+    cols: { name: "str:40", kind: "enum:pill|book|material|rod|bait|fish|gift|ring", description: "str:200", price: "uint", heal: "num", exp_base: "uint", exp_per_level: "uint", cooldown: "num", on_sale: "bool", sort: "int" },
   },
   monsters: {
     pk: "type", pkType: "key", order: "type", config: true, add: true, del: true,
@@ -97,6 +99,8 @@ const T = {
   houses: { pk: "house_key", pkType: "key", order: "sort, house_key", config: true, cols: { name: "str:40", price: "uint", sort: "int" } },
   // Câu Cá: how often each catch bites, against the others' rates (the catches are designed in shared/cau-ca.js)
   fish_rates: { pk: "fish_key", pkType: "key", order: "fish_key", config: true, cols: { rate: "num", stones_min: "uint", stones_max: "uint" } },
+  // Đạo Lữ: each wedding ring's buff in % (the rings are designed in shared/dao-lu.js; names and prices are in items)
+  ring_buffs: { pk: "ring_key", pkType: "key", order: "ring_key", config: true, cols: { hp: "num", atk: "num", def: "num", spd: "num" } },
   // the sect treasure house (Tông Môn Bảo Khố): what members buy with cống hiến
   sect_shop: { pk: "item_key", pkType: "key", order: "sort, item_key", add: true, del: true, cols: { cost: "uint", min_level: "uint", daily_limit: "uint", on_sale: "bool", sort: "int" } },
   cosmetics: {
@@ -210,6 +214,32 @@ export function adminApp(world) {
       fish: Object.entries(FISH).map(([k, d]) => ({ ...it(k, d), rate: RATES[k], rarity: d.rarity, rarityName: RARITY[d.rarity].name, color: RARITY[d.rarity].color, kg: d.kg, stones: CHEST[k] ?? null, stones_min: CHEST[k]?.[0], stones_max: CHEST[k]?.[1] })),
       odds: { bare: asMap(null, null), low: asMap("cc_can_truc", "cc_moi_giun"), high: asMap("cc_can_long", "cc_moi_tien") },
     });
+  }));
+
+  // ---- Đạo Lữ: the rose and the three rings with their names, prices and buffs as set now, the rules (settings
+  // daolu.*), every couple now. Names and prices are edited through /t/items, buffs through /t/ring_buffs, the rules through
+  // /t/settings (all checked as the whole config, applied at once); a couple can be parted, a pair's affinity set.
+  r.get("/daolu", wrap(async (req, res) => {
+    const it = (k, d) => ({ key: k, name: ITEMS[k]?.name ?? d.name, price: ITEMS[k]?.price ?? d.price, desc: ITEMS[k]?.desc ?? d.desc });
+    res.json({
+      rose: it(ROSE, { name: "Hoa Hồng", price: 0, desc: "" }),
+      rings: Object.entries(RINGS).map(([k, d]) => ({ ...it(k, d), tier: d.tier, look: d.look, buff: { ...RING_BUFF[k] } })),
+      rules: { need: NEED, ...DAOLU },
+      ...(await dl.marriages()),
+    });
+  }));
+  r.post("/daolu/divorce", wrap(async (req, res) => {
+    const uid = Number(req.body?.uid);
+    const out = await dl.divorce(uid, null);
+    await log(req.admin, "daolu.divorce", `${out.me} & ${out.name}`, null);
+    await world.syncDaolu([uid, out.uid], { [uid]: `Ban quản trị đã giải trừ Đạo Lữ với ${out.name}.`, [out.uid]: `Ban quản trị đã giải trừ Đạo Lữ với ${out.me}.` });
+    res.json({ ok: true });
+  }));
+  r.post("/daolu/affinity", wrap(async (req, res) => {
+    await dl.adminAffinity(req.body?.a, req.body?.b, req.body?.points);
+    await log(req.admin, "daolu.affinity", `${req.body?.a} & ${req.body?.b}`, { points: req.body?.points });
+    await world.syncDaolu([Number(req.body?.a), Number(req.body?.b)]);
+    res.json({ ok: true });
   }));
 
   // ---- admin accounts
@@ -422,6 +452,7 @@ export function adminApp(world) {
       // Gia Viên: unlocked or not, the house lived in, the houses had; and every house there is, to give
       // Câu Cá: the rod and bait in hand, the tallies, the Ngư Lục (rods and baits themselves are items: the bag above)
       fishing: await cc.adminView(id),
+      daolu: await dl.adminView(id),
       home: { ...(await gv.adminView(id)), catalog: Object.keys(HOUSES).filter((k) => k !== DEFAULT_HOUSE).map((k) => ({ id: k, name: houseName(k, HOME.houses), price: housePrice(k, HOME.houses) })), defaultHouse: houseName(DEFAULT_HOUSE, HOME.houses) },
     };
   }

@@ -11,6 +11,8 @@ import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
 import { CAST, stepReturning } from "./cong-phap.js";
 import * as store from "./store.js";
 import { sectOf } from "./tong-mon.js";
+import * as daolu from "./dao-lu.js";
+import { ringPct, RING_BUFF } from "../shared/dao-lu.js";
 import * as dao from "./dao-huu.js";
 import * as gv from "./gia-vien.js";
 import { HomeGrid, HOME_MAP, houseCells } from "../shared/gia-vien.js";
@@ -69,7 +71,7 @@ export class World {
 
   // ---------------------------------------------------------------- arriving and leaving
   /** A player logging in onto this map (the Universe has checked the token and loaded the character). */
-  admit(ws, ch, inv, buffs, sect = null, social = null) {
+  admit(ws, ch, inv, buffs, sect = null, social = null, spouse = null) {
     const p = {
       id: nextId(), kind: "p", userId: ch.userId, ws, name: ch.name, cls: ch.cls, look: ch.look,
       ...this.spawnPoint(), face: 1, in: { dx: 0, dy: 0, jump: false, down: false }, flying: false, jumpUntil: 0, moving: false, portalAt: 0, vx: 0, vy: 0, ground: false, dropUntil: 0,
@@ -80,6 +82,8 @@ export class World {
       sect,
       // Đạo Hữu and who they blocked (server/dao-huu.js socialOf): Truyền Âm goes only to friends, nothing from the blocked arrives
       friends: social?.friends ?? new Set(), blocked: social?.blocked ?? new Set(), worldAt: 0, pmAt: 0, lastLine: null,
+      // their Đạo Lữ (server/dao-lu.js spouseOf): { uid, name, ring }; the ring's buff counts in stats(), the name shows by theirs
+      daolu: spouse,
     };
     this.applyBase(p, ch, true);
     ws.player = p;
@@ -316,7 +320,10 @@ export class World {
       if (this.map.pvp || !e.sect || stat === "spd") return 0;
       return (sectBonus(e.sect.level, SECT) + (stat === "atk" && e.sect.arrayUntil > Date.now() ? SECT.arrayAtk : 0)) / 100;
     };
-    const b = (stat) => Math.max(0.1, (this.map.pvp ? 1 : 1 + this.buff(e, stat) / 100) + tb(stat) + sb(stat));
+    // and the wedding ring a dao lu wears (Đạo Lữ): its buff for good while they are married, in the open world (the arena
+    // puts everyone on the same numbers)
+    const rb = (stat) => (this.map.pvp || !e.daolu ? 0 : ringPct(e.daolu.ring, stat) / 100);
+    const b = (stat) => Math.max(0.1, (this.map.pvp ? 1 : 1 + this.buff(e, stat) / 100) + tb(stat) + sb(stat) + rb(stat));
     return {
       maxHp: Math.round(c.hp * m * b("hp")), atk: c.atk * m * b("atk"), def: c.def * m * b("def"),
       spd: c.spd * b("spd") * (e.slowUntil > this.t ? 0.5 : 1) * (e.busyUntil > this.t ? 0.45 : 1),
@@ -342,6 +349,7 @@ export class World {
       cd: this.cooldowns(p),
       sect: p.sect ? { id: p.sect.id, name: p.sect.name, rank: p.sect.rank, level: p.sect.level, bonus: this.map.pvp ? 0 : sectBonus(p.sect.level, SECT), array: Math.max(0, Math.round((p.sect.arrayUntil - Date.now()) / 1000)) } : null,
       respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
+      daolu: p.daolu ? { uid: p.daolu.uid, name: p.daolu.name, ring: p.daolu.ring, buff: this.map.pvp ? null : { ...RING_BUFF[p.daolu.ring] } } : null,
       buffs: (p.buffs ?? []).filter((x) => x.until === null || x.until > Date.now()).map((x) => ({ stat: x.stat, pct: x.pct, left: x.until === null ? null : Math.round((x.until - Date.now()) / 1000) })),
     });
   }
@@ -1097,7 +1105,7 @@ export class World {
 const zero = () => ({ exp: 0, stones: 0, rank: 0, kills: 0, deaths: 0, med: 0 });
 const FSTATE = { wait: 1, biting: 1, bite: 2, reel: 3, landing: 3 };
 const rnd = (a, b) => a + Math.random() * (b - a);
-const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level, sect: p.sect ? { n: p.sect.name, e: p.sect.emblem, r: p.sect.rank } : null });
+const info = (p) => ({ id: p.id, name: p.name, look: p.look, lv: p.level, sect: p.sect ? { n: p.sect.name, e: p.sect.emblem, r: p.sect.rank } : null, dl: p.daolu?.name ?? null });
 // a client that can't keep up (more than 1 MB queued) skips snapshots instead of growing the server's memory
 function sendRaw(ws, msg) {
   if (ws && ws.readyState === WebSocket.OPEN && ws.bufferedAmount < 1 << 20) ws.send(msg);
@@ -1214,11 +1222,12 @@ export class Universe {
       const buffs = await store.activeBuffs(uid);
       const sect = await sectOf(uid);
       const social = await dao.socialOf(uid);
+      const spouse = await daolu.spouseOf(uid);
       const unread = await dao.unreadCount(uid);
       const mute = (await store.chatMute(uid)) ?? 0;
       if (ws.readyState !== WebSocket.OPEN) return;
       // back on the map they were last on (at its arrival point), or the starter town
-      (this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect, social);
+      (this.worlds.get(ch.mapId) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect, social, spouse);
       const me = ws.player;
       if (me) {
         me.chatMuted = mute;
@@ -1482,6 +1491,27 @@ export class Universe {
       if (JSON.stringify(info(p)) !== shown) p.world.broadcast({ t: "pi", ...info(p) });
       p.world.sendMe(p);
       send(p.ws, { t: "sect" });
+    }));
+  }
+  // ---- Đạo Lữ: the API changed someone's roses, proposals or marriage; the world takes it for whoever is online
+  /**
+   * Read these players' dao lu again (married, divorced): the ring's buff, the name by theirs, their panel. note: a toast
+   * for some ({ uid: text }); fx: an effect over some ({ uid: "hearts" | "wedding" }, seen by everyone on their map).
+   */
+  async syncDaolu(uids, note = null, fx = null) {
+    const all = this.players;
+    await Promise.all([...new Set(uids)].map(async (uid) => {
+      const p = all.get(uid);
+      if (!p) return;
+      const s = await daolu.spouseOf(uid);
+      if (p.gone) return;
+      const shown = JSON.stringify(info(p));
+      p.daolu = s;
+      if (JSON.stringify(info(p)) !== shown) p.world.broadcast({ t: "pi", ...info(p) });
+      // the most hp follows the ring: the same share of it as before
+      p.world.sendMe(p);
+      if (fx?.[uid]) p.world.ev({ e: "love", id: p.id, k: fx[uid] });
+      send(p.ws, { t: "daolu", ...(note?.[uid] ? { note: note[uid] } : {}) });
     }));
   }
   /** Tell members online that their sect changed (their panel reloads), but not `except`. */

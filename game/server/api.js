@@ -9,6 +9,7 @@ import * as sect from "./tong-mon.js";
 import * as dao from "./dao-huu.js";
 import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
+import * as dl from "./dao-lu.js";
 import { khuOf, KHU_CAP } from "../shared/cau-ca.js";
 import { RANKS } from "../shared/tong-mon.js";
 import { USER_RE } from "../shared/balance.js";
@@ -251,6 +252,75 @@ export function api(world) {
   socRoute("/unblock", async (req) => {
     await dao.unblock(req.userId, req.body?.uid);
     await world.syncSocial([req.userId]);
+  });
+
+  // ---------------------------------------------------------------- Đạo Lữ (server/dao-lu.js decides everything)
+  // What a change touches is told to the world at once: both people's stones and bags, their dao lu (the ring's buff, the
+  // name by theirs), a toast and an effect over them (hearts for roses, the wedding), and a line in the feed for a wedding.
+  const dlRead = rateLimit({ windowMs: 10_000, max: 30, key: (req) => `dr${req.userId}` });
+  const dlWrite = rateLimit({ windowMs: 10_000, max: 15, key: (req) => `dw${req.userId}`, message: "Thao tác quá nhanh, hãy chậm lại." });
+  // stones held by the world but not yet written go to the database first (for whoever may pay), then everyone touched
+  // is read again: their stones, their bag
+  const touch = async (uids) => {
+    for (const uid of new Set(uids)) {
+      if (!uid) continue;
+      const ch = await store.loadCharacter(uid);
+      if (ch) world.refresh(uid, ch);
+      await world.sendInv(uid);
+    }
+  };
+  const dlRoute = (path, fn) => r.post(`/daolu${path}`, requireAuth, writeLimit, dlWrite, wrap(async (req, res) => {
+    const out = (await fn(req)) ?? {};
+    res.json({ ok: true, ...out, view: await dl.view(req.userId) });
+  }));
+  r.get("/daolu", requireAuth, dlRead, wrap(async (req, res) => res.json(await dl.view(req.userId))));
+  dlRoute("/buy", async (req) => {
+    await world.flushUser(req.userId);
+    const out = await dl.buyRoses(req.userId, req.body?.qty, req.body?.requestId);
+    await touch([req.userId]);
+    return { qty: out.qty ?? 0, repeat: !!out.repeat };
+  });
+  dlRoute("/gift", async (req) => {
+    const out = await dl.gift(req.userId, req.body?.uid, req.body?.qty, req.body?.requestId);
+    if (out.repeat) return { repeat: true };
+    await touch([req.userId]);
+    const msg = out.spouse ? `${out.from} tặng Đạo Lữ ${out.used} bông Hoa Hồng.`
+      : `${out.from} tặng đạo hữu ${out.used} bông Hoa Hồng. Hảo cảm ${out.points}/100${out.points >= 100 ? ": đã đủ để kết Đạo Lữ!" : "."}`;
+    await world.syncDaolu([req.userId, out.uid], { [out.uid]: msg }, { [req.userId]: "hearts", [out.uid]: "hearts" });
+    return { used: out.used, points: out.points, name: out.name, today: out.today };
+  });
+  dlRoute("/propose", async (req) => {
+    await world.flushUser(req.userId);
+    const out = await dl.propose(req.userId, req.body?.uid, req.body?.ring);
+    await world.syncDaolu([req.userId, out.uid], { [out.uid]: `💍 ${out.from} cầu hôn đạo hữu với ${out.ringName}! Mở Đạo Lữ để trả lời.` });
+    return { name: out.name };
+  });
+  dlRoute("/cancel", async (req) => {
+    const out = await dl.cancel(req.userId);
+    await world.syncDaolu([req.userId, out.uid]);
+    return { name: out.name };
+  });
+  dlRoute("/answer", async (req) => {
+    const from = Number(req.body?.uid);
+    // the one who proposed pays: whatever the world holds for them is written first
+    if (Number.isInteger(from)) await world.flushUser(from);
+    await world.flushUser(req.userId);
+    const out = await dl.answer(req.userId, from, req.body?.accept === true, req.body?.requestId);
+    if (out.repeat) return { repeat: true };
+    if (!out.accepted) {
+      await world.syncDaolu([req.userId, out.uid], { [out.uid]: `${out.me} đã từ chối lời cầu hôn.` });
+      return { accepted: false };
+    }
+    await touch([out.uid, req.userId]);
+    const note = `💍 ${out.me} và ${out.name} đã kết thành Đạo Lữ với ${out.ringName}!`;
+    await world.syncDaolu([req.userId, out.uid], { [out.uid]: `💍 ${out.me} đã nhận lời! Hai người đã kết thành Đạo Lữ.`, [req.userId]: note }, { [req.userId]: "wedding", [out.uid]: "wedding" });
+    world.feed(note);
+    return { accepted: true, name: out.name, ring: out.ring };
+  });
+  dlRoute("/divorce", async (req) => {
+    const out = await dl.divorce(req.userId);
+    await world.syncDaolu([req.userId, out.uid], { [out.uid]: `${out.me} đã ly hôn. ${out.ringName} không còn, buff của nhẫn cũng mất.` });
+    return { name: out.name };
   });
 
   // ---------------------------------------------------------------- Tông Môn (server/tong-mon.js decides everything)

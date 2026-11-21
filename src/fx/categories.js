@@ -25,4 +25,5 @@ export const categories = [
   { id: "farm", name: "farm", blurb: "hens, ducks, pigs, cows, herbs growing, fences and plots" },
   { id: "home", name: "home", blurb: "doors, windows, tables, beds, lanterns, an alchemy furnace" },
   { id: "fishing", name: "fishing", blurb: "fish, rods, bait, a float, a fishmonger's stall, a dock" },
+  { id: "love", name: "love", blurb: "a rose, wedding rings, hearts rising, a wedding of light and petals" },
 ];
