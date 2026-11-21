@@ -21,6 +21,7 @@ import * as gv from "./gia-vien.js";
 import * as cc from "./cau-ca.js";
 import * as dl from "./dao-lu.js";
 import * as ct from "./chinh-ta.js";
+import { BOSSES, BOSS, bossMaps } from "../shared/boss.js";
 import { KIND_KEYS, KIND_NAME, SKIN } from "../shared/nhan-vat.js";
 import { RINGS, RING_BUFF, ROSE, NEED } from "../shared/dao-lu.js";
 import { RODS, BAITS, FISH, RARITY, RATES, CHEST, odds } from "../shared/cau-ca.js";
@@ -242,6 +243,35 @@ export function adminApp(world) {
     await dl.adminAffinity(req.body?.a, req.body?.b, req.body?.points);
     await log(req.admin, "daolu.affinity", `${req.body?.a} & ${req.body?.b}`, { points: req.body?.points });
     await world.syncDaolu([Number(req.body?.a), Number(req.body?.b)]);
+    res.json({ ok: true });
+  }));
+
+  // ---- Boss Thế Giới (server/boss.js): the one up now (its life, its pools, the top ten), where it may be called, the
+  // last ones and how each was shared out; and the buttons: call one onto a map, take it back (nobody gets anything).
+  r.get("/boss", wrap(async (req, res) => res.json({
+    now: world.boss.alive || world.boss.b?.state === "dying" ? world.boss.view() : null,
+    bosses: Object.values(BOSSES).map((b) => ({ key: b.key, name: b.name, title: b.title, fx: b.fx })),
+    maps: bossMaps().map((id) => ({ id, name: MAP_DEFS[id].name, w: mapInfo(id).w })),
+    defaults: { hp: BOSS.hp, stones: BOSS.stones, exp: BOSS.exp, killBonus: BOSS.killBonus, minutes: BOSS.minutes },
+    history: await world.boss.history(20),
+  })));
+  r.get("/boss/:id/rewards", wrap(async (req, res) => res.json(await world.boss.rewards(Number(req.params.id)))));
+  r.post("/boss/spawn", wrap(async (req, res) => {
+    const b = req.body ?? {};
+    let out;
+    try {
+      out = await world.boss.spawn({ key: String(b.key ?? "nguuma"), map: String(b.map ?? ""), x: b.x, hp: b.hp, stones: b.stones, exp: b.exp, killBonus: b.killBonus, minutes: b.minutes, by: req.admin.name });
+    } catch (e) {
+      if (e.status) throw bad(e.message, e.status);
+      throw e;
+    }
+    await log(req.admin, "boss.spawn", out.map, { id: out.id, hp: out.max, stones: out.stones, exp: out.exp });
+    res.json({ ok: true, boss: out });
+  }));
+  r.post("/boss/despawn", wrap(async (req, res) => {
+    const id = world.boss.b?.id;
+    if (!(await world.boss.leave("admin"))) throw bad("Không có boss nào đang ở ngoài.");
+    await log(req.admin, "boss.despawn", String(id), null);
     res.json({ ok: true });
   }));
 

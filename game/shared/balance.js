@@ -16,6 +16,7 @@ import { CONG_PHAP_BY_KEY } from "./cong-phap.js";
 import { FISH, setRates } from "./cau-ca.js";
 import { RINGS, STATS as DL_STATS, setRingBuffs } from "./dao-lu.js";
 import { CT, slotOk, hhmm } from "./chinh-ta.js";
+import { BOSS } from "./boss.js";
 
 export const TICK_HZ = 20;
 // Maps (size, walls, spawn, the spirit vein, the ways out) live in shared/maps/.
@@ -184,6 +185,23 @@ export const DEFAULTS = {
     "chinhta.away": [60, "Mất kết nối quá bấy nhiêu giây thì chỗ được nhường cho dự bị"],
     "chinhta.change_cost": [5000, "Linh thạch để đổi phe"],
     "chinhta.change_days": [7, "Đổi phe xong phải chờ bấy nhiêu ngày mới đổi lại được"],
+    // Boss Thế Giới (shared/boss.js, server/boss.js): admin gọi ra ở một map; chung một thanh máu ở mọi khu
+    "boss.hp": [2000000, "Máu mặc định của Boss Thế Giới (admin đổi được khi gọi boss)"],
+    "boss.atk": [120, "Công của boss (cú đập búa tính theo đây)"],
+    "boss.def": [120, "Thủ của boss (giảm sát thương người chơi gây ra)"],
+    "boss.spd": [40, "Tốc độ đi của boss (điểm ảnh/giây)"],
+    "boss.slam_cd": [3.5, "Giây giữa hai cú đập búa"],
+    "boss.slam_mult": [2, "Hệ số sát thương của cú đập búa"],
+    "boss.slam_reach": [150, "Tầm cú đập búa phía trước boss (điểm ảnh)"],
+    "boss.aggro": [420, "Boss để ý người chơi trong tầm này (điểm ảnh)"],
+    "boss.leash": [260, "Boss đi xa chỗ xuất hiện tối đa bấy nhiêu (điểm ảnh)"],
+    "boss.roar_every": [25, "Cứ bấy nhiêu giây boss gầm phản kích, đánh mọi người chơi trên map ở mọi khu"],
+    "boss.roar_pct": [18, "Phản kích lấy bấy nhiêu % máu tối đa của mỗi người chơi"],
+    "boss.thorns_pct": [6, "Phản đòn: mỗi đòn đánh vào boss dội lại bấy nhiêu % sát thương lên người đánh"],
+    "boss.stones": [60000, "Tổng linh thạch chia cho người gây sát thương khi boss tử trận (admin đổi được khi gọi)"],
+    "boss.exp": [120000, "Tổng tu vi chia cho người gây sát thương (admin đổi được khi gọi)"],
+    "boss.kill_bonus": [20, "Người kết liễu nhận thêm bấy nhiêu % tổng thưởng"],
+    "boss.minutes": [60, "Boss tự rời đi sau bấy nhiêu phút nếu chưa bị hạ (admin đổi được khi gọi)"],
   },
 };
 
@@ -427,6 +445,12 @@ export function applyConfig(c) {
       times: slots.map(hhmm),
     });
   }
+  Object.assign(BOSS, {
+    hp: Math.max(1, S["boss.hp"] | 0), atk: S["boss.atk"], def: S["boss.def"], spd: S["boss.spd"], slamCd: Math.max(0.5, S["boss.slam_cd"]),
+    slamMult: S["boss.slam_mult"], slamReach: S["boss.slam_reach"], aggro: S["boss.aggro"], leash: S["boss.leash"],
+    roarEvery: Math.max(3, S["boss.roar_every"]), roarPct: Math.min(100, S["boss.roar_pct"]), thornsPct: Math.min(100, S["boss.thorns_pct"]),
+    stones: S["boss.stones"] | 0, exp: S["boss.exp"] | 0, killBonus: Math.min(500, S["boss.kill_bonus"]), minutes: Math.max(1, S["boss.minutes"]),
+  });
   Object.assign(PK, {
     level: Math.max(1, S["pk.level"] | 0), offDelay: Math.max(0, S["pk.off_delay"]), decayMinutes: Math.max(1, S["pk.decay_minutes"]),
     bounty: Math.max(0, S["pk.bounty"] | 0), max: Math.max(1, S["pk.max"] | 0),
