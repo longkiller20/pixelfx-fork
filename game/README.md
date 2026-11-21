@@ -18,6 +18,51 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
   - **Luôn hiện:** Nhân vật, Công Pháp, Gia Viên, Tông Môn, Đạo Hữu, Đàm Đạo, Quà mỗi ngày.
   - **Nút ▦ Thêm** mở khung xổ xuống gồm Câu Cá, Đan Các, Y Các, Phong Thần, Hướng dẫn, Toàn màn hình, Cài đặt (icon kèm tên).
     Chọn một mục, bấm ra ngoài hoặc Esc thì khung đóng lại.
+- **Đạo Lữ (trong nút ▦ Thêm):** hai người khác giới kết thành Đạo Lữ (`shared/dao-lu.js`, `server/dao-lu.js`,
+  `public/js/dao-lu.js`). Hình vẽ bằng pixelfx (`src/fx/love`): hoa hồng, ba nhẫn cưới có animation, tim bay lên khi tặng
+  hoa, lễ cưới (hai luồng sáng xoắn lên thành trái tim vàng, vòng sáng đỏ, mưa cánh hoa), icon menu hai trái tim.
+  - **Hảo cảm 0-100**, một con số chung cho mỗi cặp. Chỉ tăng bằng cách **tặng Hoa Hồng cho Đạo Hữu khác giới** (bắt
+    buộc là bạn bè): ở tab Hảo cảm của bảng Đạo Lữ, hoặc nút 🌹 trong cuộc Truyền Âm. Mỗi bông +`daolu.rose_points`
+    (mặc định 10), tối đa `daolu.rose_daily` bông mỗi ngày từ một người cho một người. Hảo cảm không vượt 100, hoa tặng
+    dư không bị trừ. Hoa Hồng mua ở bảng Đạo Lữ (giá ở bảng `items`, mặc định 50 linh thạch).
+  - **Cầu hôn** khi hảo cảm đủ 100/100 và cả hai chưa có Đạo Lữ, không trong thời gian chờ sau ly hôn: chọn một trong ba
+    nhẫn. Mỗi người chỉ có một lời cầu hôn đang chờ; hết hạn sau `daolu.propose_hours` giờ; rút lại được.
+  - **Đồng ý** thì người cầu hôn trả giá nhẫn (một đôi) bằng linh thạch, cả hai đeo nhẫn. Lúc đó mọi điều kiện được kiểm
+    tra lại: không đủ linh thạch thì không có gì xảy ra, lời cầu hôn vẫn chờ. Cả thế giới thấy dòng thông báo, hai người
+    thấy hiệu ứng lễ cưới.
+  - **Ba nhẫn** (giá và buff mặc định, admin đổi được):
+
+    | Nhẫn | Giá một đôi | Sinh lực | Công | Thủ | Tốc độ |
+    |---|---|---|---|---|---|
+    | Đồng Tâm Giới (bạc, ngọc bích) | 5.000 | +3% | +3% | +3% | 0 |
+    | Uyên Ương Giới (hai vòng vàng, hồng ngọc trái tim) | 30.000 | +6% | +6% | +6% | +2% |
+    | Thiên Duyên Giới (vàng hồng, kim cương, sao xoay quanh) | 120.000 | +10% | +10% | +10% | +5% |
+
+    Buff vĩnh viễn khi còn là Đạo Lữ, cho cả hai, ngoài thế giới (đấu trường cho mọi người cùng chỉ số). Tên Đạo Lữ hiện
+    màu hồng "♥ tên" trên đầu nhân vật; buff nhẫn hiện ở dòng chỉ số.
+  - **Ly hôn** (một trong hai người): cả hai mất nhẫn, mất buff, hảo cảm về 0, chờ `daolu.remarry_hours` giờ mới kết lại
+    được. Không hoàn linh thạch.
+  - **An toàn khi bấm nhiều lần cùng lúc**: mọi việc giữa hai người chạy trong một giao dịch, khoá hai người theo thứ tự id.
+    Linh thạch và hoa chỉ trừ bằng câu lệnh có điều kiện. Mua, tặng, trả lời đều có mã giao dịch: gửi hai lần chỉ tính một.
+    Bảng `dl_spouses` có khoá chính `user_id` và `partner_id` duy nhất, nên một người không thể có hai Đạo Lữ dù hai lời
+    đồng ý đến cùng lúc.
+  - **Admin (tab Đạo Lữ):** đổi tên và giá Hoa Hồng và từng nhẫn, buff % của từng nhẫn (bảng `ring_buffs`, 0-100), các
+    luật `daolu.*`. Xem các cặp và giải trừ một cặp, đặt hảo cảm cho một cặp. Trang người chơi có mục Đạo Lữ (đạo lữ hiện
+    tại, lịch sử, hảo cảm cao nhất, lời cầu hôn đang chờ).
+  - **Kiểm thử:** `node test/dao-lu.mjs` (máy chủ game và trang admin đang chạy). Các trường hợp được thử:
+    - mua hoa gửi trùng mã chỉ tính một lần;
+    - chỉ tặng được cho bạn khác giới;
+    - năm lần tặng cùng lúc không vượt 100, chỉ trừ đúng số hoa cần;
+    - giới hạn số hoa mỗi ngày;
+    - năm lời đồng ý cùng lúc chỉ ra một cặp, nhẫn trả một lần;
+    - buff vào chỉ số, tên Đạo Lữ hiện trên đầu, hiệu ứng lễ cưới;
+    - hai bên ly hôn cùng lúc;
+    - đồng ý khi người cầu hôn hết tiền;
+    - hai lời cầu hôn được đồng ý cùng lúc;
+    - các chức năng admin.
+
+    `node test/ui-daolu.mjs` thử trong trình duyệt thật, trên máy tính và điện thoại: mua hoa, tặng tới 100, chọn nhẫn,
+    cầu hôn, thẻ Đạo Lữ có nhẫn chuyển động, nút 🌹 trong Truyền Âm, ly hôn.
 - **Câu Cá (trong nút ▦ Thêm):** bản đồ riêng **Vọng Nguyệt Hồ**, hồ câu dưới trăng, không có yêu thú. Bấm Câu Cá ở bất
   cứ đâu là dịch chuyển tới hồ; lối ra ở bờ tây đưa về đúng chỗ vừa đi. Đang ở hồ thì nút Câu Cá mở quầy Ngư Cụ.
   - **Ở hồ không đánh, không dùng công pháp, không ngự kiếm** (bản đồ `peaceful: true`; máy chủ bỏ qua lệnh đánh/chiêu và

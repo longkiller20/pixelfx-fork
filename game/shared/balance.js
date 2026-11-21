@@ -14,6 +14,7 @@
 //  - Rewards for killing the same player again are cut off for a while, so friends can't farm each other.
 import { CONG_PHAP_BY_KEY } from "./cong-phap.js";
 import { FISH, setRates } from "./cau-ca.js";
+import { RINGS, STATS as DL_STATS, setRingBuffs } from "./dao-lu.js";
 
 export const TICK_HZ = 20;
 // Maps (size, walls, spawn, the spirit vein, the ways out) live in shared/maps/.
@@ -50,7 +51,7 @@ export const SKILL_PARAMS = { melee: ["range", "arc"], bolt: ["range", "speed", 
 // Công pháp (arts): each designed in code (shared/cong-phap.js); up to ART_SLOTS of them on the bar at once.
 export const ART_SLOTS = 5;
 // pill (used from the bar), book and material (spent on arts); rod, bait, fish: Câu Cá's (shared/cau-ca.js)
-export const ITEM_KINDS = ["pill", "book", "material", "rod", "bait", "fish"];
+export const ITEM_KINDS = ["pill", "book", "material", "rod", "bait", "fish", "gift", "ring"];
 // Monsters: any type an admin adds, drawn with a pixelfx effect (`fx`, the critters), or as a straw dummy. The maps place
 // them by type, so the types a map uses must exist. style: melee (rushes in and strikes at `reach`), ranged (keeps its
 // distance and shoots `shotFx` within `range`), none (stands, like the dummies). fly: hovers and goes where it likes;
@@ -148,6 +149,12 @@ export const DEFAULTS = {
     "sect.array_cost": [3000, "Linh thạch trong ngân khố để khai mở Hộ Sơn Đại Trận"],
     "sect.array_minutes": [60, "Hộ Sơn Đại Trận kéo dài bấy nhiêu phút"],
     "sect.array_atk": [10, "Hộ Sơn Đại Trận: thành viên tăng bấy nhiêu % công (ngoài thế giới)"],
+    // Đạo Lữ (shared/dao-lu.js, server/dao-lu.js)
+    "daolu.rose_points": [10, "Mỗi bông Hoa Hồng tặng Đạo Hữu khác giới thêm bấy nhiêu điểm hảo cảm (đủ 100 thì cầu hôn được)"],
+    "daolu.rose_daily": [20, "Mỗi ngày một người tặng một người tối đa bấy nhiêu bông Hoa Hồng"],
+    "daolu.rose_buy_max": [99, "Mỗi lần mua tối đa bấy nhiêu bông Hoa Hồng"],
+    "daolu.propose_hours": [72, "Lời cầu hôn hết hạn sau bấy nhiêu giờ"],
+    "daolu.remarry_hours": [24, "Ly hôn xong phải chờ bấy nhiêu giờ mới kết Đạo Lữ lại được"],
   },
 };
 
@@ -171,6 +178,8 @@ export const SECT = {};
 export const HOME = {};
 // chat, Đạo Hữu and Truyền Âm's numbers (settings chat.*, social.*, pm.*)
 export const SOCIAL = {};
+// Đạo Lữ's numbers (settings daolu.*)
+export const DAOLU = {};
 // ngự kiếm phi hành: unlocked at level FLY.level (the first stage of realm FLY.realm), flying at FLY.speed × walking
 export const FLY = { realm: 2, level: 6, speed: 1.35, arena: false };
 export let RESPAWN_WORLD = 4, DAILY_STONES = 30, BUY_MAX = 10;
@@ -289,7 +298,13 @@ export function checkConfig(c) {
     }
   }
   if ((c.fishRates ?? []).length && !Object.values(fishRates).some((v) => v > 0)) throw new Error("Câu cá: cần ít nhất một loại có tỉ lệ lớn hơn 0");
-  return { realms, skills, items, monsters, settings: S, arts, drops, fishRates, chest };
+  // Đạo Lữ: each wedding ring's buff, % of hp, atk, def, spd (the ring_buffs table): 0..100 each
+  const ringBuffs = [];
+  for (const r of c.ringBuffs ?? []) {
+    if (!RINGS[r.key]) continue;
+    ringBuffs.push({ key: r.key, ...Object.fromEntries(DL_STATS.map((s) => [s, num(r[s], `buff ${s} của ${RINGS[r.key].name}`, 0, 100)])) });
+  }
+  return { realms, skills, items, monsters, settings: S, arts, drops, fishRates, chest, ringBuffs };
 }
 
 /** Make c the live numbers (checks it first; on error nothing changes and the error is thrown). Returns the checked c. */
@@ -297,6 +312,7 @@ export function applyConfig(c) {
   const k = checkConfig(c), S = k.settings;
   SET = S;
   setRates(k.fishRates, k.chest);
+  setRingBuffs(k.ringBuffs);
   REALMS.splice(0, REALMS.length, ...k.realms);
   LEVELS = [[0, 1]];
   k.realms.forEach((r, i) => {
@@ -351,6 +367,10 @@ export function applyConfig(c) {
   Object.assign(SOCIAL, {
     worldCooldown: Math.max(1, S["chat.world_cooldown"]), friendsMax: Math.max(1, S["social.friends_max"] | 0), requestsMax: Math.max(1, S["social.requests_max"] | 0),
     blocksMax: Math.max(1, S["social.blocks_max"] | 0), keepDays: Math.max(1, S["pm.keep_days"]),
+  });
+  Object.assign(DAOLU, {
+    rosePoints: Math.max(1, S["daolu.rose_points"] | 0), roseDaily: Math.max(1, S["daolu.rose_daily"] | 0), roseBuyMax: Math.max(1, S["daolu.rose_buy_max"] | 0),
+    proposeHours: Math.max(1, S["daolu.propose_hours"]), remarryHours: Math.max(0, S["daolu.remarry_hours"]),
   });
   DAILY_STONES = S["daily.stones"] | 0;
   BUY_MAX = Math.max(1, S["shop.buy_max"] | 0);

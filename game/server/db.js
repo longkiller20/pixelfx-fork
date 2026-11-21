@@ -357,6 +357,76 @@ const SCHEMA = [
     PRIMARY KEY (user_id, request_id),
     CONSTRAINT fk_fishreq_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
+  // ---- Đạo Lữ (server/dao-lu.js). Hảo cảm: one row per pair (lo < hi), raised by roses; how many roses each gave each
+  // today; proposals (one each may have sent, its key); the dao lu now (a row per person: its key makes "married to one"
+  // a rule of the database, partner_id unique too); every marriage ever (history, for the admin); the wait after a
+  // divorce; request ids, so a buy, a gift or an answer sent twice counts once
+  `CREATE TABLE IF NOT EXISTS dl_affinity (
+    lo INT UNSIGNED NOT NULL,
+    hi INT UNSIGNED NOT NULL,
+    points SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    roses INT UNSIGNED NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (lo, hi),
+    KEY k_dla_hi (hi),
+    CONSTRAINT fk_dla_lo FOREIGN KEY (lo) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_dla_hi FOREIGN KEY (hi) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS dl_rose_daily (
+    giver INT UNSIGNED NOT NULL,
+    receiver INT UNSIGNED NOT NULL,
+    day DATE NOT NULL,
+    n INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (giver, receiver, day),
+    CONSTRAINT fk_dlrd_giver FOREIGN KEY (giver) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_dlrd_receiver FOREIGN KEY (receiver) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS dl_proposals (
+    from_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    to_id INT UNSIGNED NOT NULL,
+    ring VARCHAR(32) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY k_dlp_to (to_id),
+    CONSTRAINT fk_dlp_from FOREIGN KEY (from_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_dlp_to FOREIGN KEY (to_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS dl_marriages (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    a_id INT UNSIGNED NOT NULL,
+    b_id INT UNSIGNED NOT NULL,
+    ring VARCHAR(32) NOT NULL,
+    paid_by INT UNSIGNED NOT NULL,
+    price INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at DATETIME NULL,
+    ended_by INT UNSIGNED NULL,
+    KEY k_dlm_a (a_id),
+    KEY k_dlm_b (b_id),
+    CONSTRAINT fk_dlm_a FOREIGN KEY (a_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_dlm_b FOREIGN KEY (b_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS dl_spouses (
+    user_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    partner_id INT UNSIGNED NOT NULL,
+    marriage_id INT UNSIGNED NOT NULL,
+    ring VARCHAR(32) NOT NULL,
+    UNIQUE KEY uq_dls_partner (partner_id),
+    CONSTRAINT fk_dls_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_dls_partner FOREIGN KEY (partner_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_dls_marriage FOREIGN KEY (marriage_id) REFERENCES dl_marriages(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS dl_cooldown (
+    user_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    until DATETIME NOT NULL,
+    CONSTRAINT fk_dlc_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS dl_requests (
+    user_id INT UNSIGNED NOT NULL,
+    request_id CHAR(36) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, request_id),
+    CONSTRAINT fk_dlreq_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,

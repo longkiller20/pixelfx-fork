@@ -9,6 +9,7 @@ import { initSect } from "./tong-mon.js";
 import { initSocial } from "./dao-huu.js";
 import { initHomeUI } from "./gia-vien.js";
 import { initFishUI, fishIconUrl } from "./cau-ca.js";
+import { initDaoLu, roseIconUrl } from "./dao-lu.js";
 import { initMenu } from "./menu.js";
 import { startMusic, setMusicOn, setMusicVolume, musicState, onMusicChange } from "./music.js";
 
@@ -237,6 +238,8 @@ function play() {
     // Câu Cá: the bar follows the cast; each frame the reeling game is drawn
     onFish: (m) => (fishUI.paint(), m.t === "fish" && m.s === "end" && m.why === "land" && fishUI.onLand(m)),
     onFrame: (dt) => fishUI.frame(dt),
+    // Đạo Lữ: something changed (a rose, a proposal, a wedding, a divorce): the panel, if open, reads it again
+    onDaolu: (m) => daoLu.onMsg(m),
     onFatal: (msg, relog) => {
       game = null;
       $("fatalMsg").textContent = msg;
@@ -677,6 +680,7 @@ $("helpBtn").addEventListener("click", () => {
   <p><b>Điện thoại:</b> đặt ngón tay ở nửa trái màn hình là hiện cần analog tròn: gạt trái/phải để đi, gạt lên để nhảy, gạt xuống để rơi xuyên ván gỗ hoặc đài mây; góc phải là cụm nút kiểu MOBA: nút to ở góc là Kiếm Khí Trảm (đánh thường), 5 công pháp xếp thành một vòng cung quanh nó, bên trái là 2 đan dược, phía trên là nút phi kiếm (mở khoá từ cảnh giới admin đặt): chạm để ngự kiếm, khi bay gạt cần analog theo mọi hướng. Chiêu vùng (như Tiểu Bạo Phù, Lưu Tinh Hỏa Vũ) kéo được: giữ nút chiêu rồi kéo ngón tay theo hướng muốn ném, vòng xanh là tầm tối đa, vòng vàng là chỗ chiêu sẽ nổ, thả tay để tung chiêu; chạm nhanh thì chiêu tự rơi vào kẻ địch gần nhất. Trên máy tính, chiêu vùng nổ ở chỗ con trỏ chuột. Ô trống có dấu +: chạm vào để gán công pháp.</p>
   <p><b>Công Pháp (nút cuộn trục trên menu):</b> hơn 200 công pháp, mỗi môn cần bí kíp riêng và tinh thạch theo hệ (môn cao cần thêm Linh Tủy), đều rơi ngẫu nhiên khi hạ yêu thú. Đủ vật phẩm thì bấm Lĩnh ngộ; gán tối đa 5 môn lên thanh, đổi lúc nào cũng được.  chiêu tự nhắm kẻ địch gần nhất.</p>
   <p><b>Y Các (trong nút Thêm, góc phải trên):</b> thử và mua kiểu tóc, y phục mới bằng linh thạch; đồ đã mua mặc lại lúc nào cũng được.</p>
+  <p><b>Đạo Lữ (trong nút Thêm):</b> kết làm Đạo Lữ với một Đạo Hữu khác giới. Mua Hoa Hồng ở bảng Đạo Lữ, tặng ở tab Hảo cảm hoặc nút 🌹 trong cuộc Truyền Âm (chỉ tặng được cho Đạo Hữu khác giới): mỗi bông thêm hảo cảm. Đủ 100/100 thì cầu hôn, chọn một trong ba nhẫn cưới (Đồng Tâm, Uyên Ương, Thiên Duyên). Người kia đồng ý thì người cầu hôn trả linh thạch mua nhẫn, cả hai đeo nhẫn và được buff sinh lực, công, thủ, tốc độ vĩnh viễn khi còn là Đạo Lữ (ngoài đấu trường). Ly hôn thì mất nhẫn và mất buff, hảo cảm về 0.</p>
   <p><b>Câu Cá (trong nút Thêm):</b> tới Vọng Nguyệt Hồ. Mua cần và mồi ở quầy Ngư Cụ (bờ tây), ra cầu câu bấm Thả câu (phím E): ngồi vào chỗ trống gần nhất trong 8 chỗ, mỗi chỗ một người. Hồ có 30 khu, mỗi khu tối đa 20 người; vào hồ là tự vào khu còn chỗ, bấm nút Khu câu để xem độ đông (chấm xanh, vàng, đỏ) và sang khu khác. Phao rỉa nhẹ thì chưa giật; phao chìm hẳn (nút đỏ GIẬT!) thì giật ngay. Kéo: giữ nút để vùng xanh nổi lên, thả để chìm, giữ cá trong vùng xanh tới khi đầy thanh. Bán cá và xem Ngư Lục ở quầy Ngư Cụ.</p>
   <p><b>Tu luyện:</b> đứng yên trên Thái Cực Đài (bệ đá dưới đĩa âm dương xoay, trước điện thờ) để tăng tu vi, tối đa mỗi ngày có hạn.</p>
   <p><b>Tân Thủ Thôn:</b> thôn khởi đầu, an toàn, không có yêu thú. Dưới gốc đào tiên có 2 bù nhìn rơm để thử chiêu: số sát thương hiện trên đầu, bù nhìn tự hồi máu khi để yên. Đi sang phải qua vườn đào, lên đồi; mũi tên vàng dưới chân bậc thang đá ở cuối thôn phía đông là lối ra (bản đồ mới sẽ mở sau).</p>
@@ -803,10 +807,12 @@ if (token) {
 // things, in tabs (all, equipment, items), as a grid of slots a page at a time; picking one shows it below with what can
 // be done with it: wear it (anything you own), use it (a pill). Buying happens at the Y Các; wearing happens here.
 const KIND_NAME = { hair: "Tóc", robe: "Y phục", weapon: "Vũ khí", sword: "Phi kiếm" };
-const ITEM_KIND_NAME = { pill: "Đan dược", book: "Bí kíp", material: "Nguyên liệu", rod: "Cần câu", bait: "Mồi câu", fish: "Cá" };
+const ITEM_KIND_NAME = { pill: "Đan dược", book: "Bí kíp", material: "Nguyên liệu", rod: "Cần câu", bait: "Mồi câu", fish: "Cá", gift: "Quà tặng", ring: "Nhẫn cưới" };
 const itemIcon = (id) => {
   // Câu Cá's rods, baits and fish: their own pixelfx pictures
   if (id.startsWith("cc_")) return fishIconUrl(id);
+  // Đạo Lữ's rose: its own pixelfx picture
+  if (id === "dl_hoa_hong") return roseIconUrl();
   const it = ITEMS[id];
   // the Gia Viên's goods: eggs, milk and fat in a gourd, herbs as a lingzhi
   const gv = id.startsWith("gv_") ? (/trung|sua|mo_/.test(id) ? "gourd" : "lingzhi") : null;
@@ -828,8 +834,13 @@ $("homeBtn").addEventListener("click", () => homeUI.open());
 const fishUI = initFishUI({ call, uuid, panel, flash, game: () => game });
 $("fishBtn").addEventListener("click", () => fishUI.menu());
 
+// ---------------------------------------------------------------- Đạo Lữ (▦ Thêm → Đạo Lữ): public/js/dao-lu.js
+const daoLu = initDaoLu({ call, uuid, panel, flash, game: () => game });
+$("loveBtn").addEventListener("click", () => daoLu.open());
+
 // ---------------------------------------------------------------- Đàm Đạo (💬) and Đạo Hữu (🤝, H): public/js/dao-huu.js
-const social = initSocial({ call, panel, flash, game: () => game, openSect: () => sect.open() });
+// a Đạo Hữu of the other gender gets a 🌹 in their conversation: roses for Đạo Lữ
+const social = initSocial({ call, panel, flash, game: () => game, openSect: () => sect.open(), giftRose: (uid, name) => daoLu.giftTo(uid, name), myGender: () => state.character?.look?.g });
 $("chatBtn").addEventListener("click", () => social.openChat());
 $("friendBtn").addEventListener("click", () => social.openFriends());
 addEventListener("keydown", (e) => {

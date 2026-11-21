@@ -28,7 +28,7 @@ function screenFit() {
   return { H, W, short, narrow: W < 700 };
 }
 
-export function initSocial({ call, panel, flash, game, openSect }) {
+export function initSocial({ call, panel, flash, game, openSect, giftRose, myGender }) {
   // ---- what the panels show, kept between openings
   const lines = { w: [], k: [], s: [] }, asked = new Set();
   let chatTab = "w", view = null, ftab = "friends", openUid = null, convo = null, unread = 0, pending = 0;
@@ -309,6 +309,8 @@ export function initSocial({ call, panel, flash, game, openSect }) {
       h("div.who", {}, avatar(f.name, f.online),
         h("div.fmain", {}, h("b", { text: f.name }),
           h("small", { className: f.online ? "on" : "", text: f.online ? `Đang trực tuyến · ${f.map}` : "Ngoại tuyến · sẽ thấy tin khi vào game" }))),
+      // Đạo Lữ: roses for a Đạo Hữu of the other gender (the server checks it again)
+      giftRose && f.g && myGender?.() && f.g !== myGender() ? h("button.roseb", { type: "button", title: `Tặng Hoa Hồng cho ${f.name} (tăng hảo cảm, Đạo Lữ)`, "aria-label": "Tặng Hoa Hồng", onclick: () => giftRose(f.uid, f.name) }, h("span", { text: "🌹" })) : null,
       h("button.moreb", { type: "button", title: "Tuỳ chọn", "aria-label": "Tuỳ chọn", onclick: (e) => (e.stopPropagation(), (menu.hidden = !menu.hidden)) }, icon("more")),
       menu);
     const chips = h("div.tchips", {}, h("span.chip", { text: realmName(f.level) }), f.sect ? h("span.chip.gold", { text: `〔${f.sect}〕` }) : null,

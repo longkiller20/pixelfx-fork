@@ -51,6 +51,10 @@ import * as impacts_ground_slam from "./impacts/ground-slam.js";
 import * as impacts_hit_spark from "./impacts/hit-spark.js";
 import * as lightning_charge_up from "./lightning/charge-up.js";
 import * as lightning_lightning_strike from "./lightning/lightning-strike.js";
+import * as love_hearts from "./love/hearts.js";
+import * as love_ring from "./love/ring.js";
+import * as love_rose from "./love/rose.js";
+import * as love_wedding from "./love/wedding.js";
 import * as melee_double_slash from "./melee/double-slash.js";
 import * as melee_heavy_cleave from "./melee/heavy-cleave.js";
 import * as melee_sword_slash from "./melee/sword-slash.js";
@@ -124,6 +128,10 @@ export const effects = {
   "impacts/hit-spark": impacts_hit_spark,
   "lightning/charge-up": lightning_charge_up,
   "lightning/lightning-strike": lightning_lightning_strike,
+  "love/hearts": love_hearts,
+  "love/ring": love_ring,
+  "love/rose": love_rose,
+  "love/wedding": love_wedding,
   "melee/double-slash": melee_double_slash,
   "melee/heavy-cleave": melee_heavy_cleave,
   "melee/sword-slash": melee_sword_slash,

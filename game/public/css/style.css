@@ -1569,3 +1569,72 @@ body.rotated #fishbar { transform: scale(0.82); }
 #fishbar .fact.hold .fface { filter: drop-shadow(0 2px 3px #000a) brightness(1.2); }
 #fishbar .fact kbd { top: 2px; bottom: auto; }
 #fishbar .fsmall small { top: calc(100% - 3px); border: 1px solid #c99a3a66; }
+
+/* ---------------------------------------------------------------- Đạo Lữ (public/js/dao-lu.js): roses, affinity, rings, the couple */
+.dlpic { image-rendering: pixelated; flex: none; display: block; }
+.friendp .roseb { flex: none; width: 34px; height: 34px; border-radius: 10px; border: 1px solid #ff8ab055; background: #ff4a7a14; display: grid; place-items: center; cursor: pointer; font-size: 17px; }
+.friendp .roseb:hover { border-color: #ff8ab0aa; background: #ff4a7a26; }
+.friendp.short .roseb { width: 30px; height: 30px; }
+.dlp { display: flex; flex-direction: column; gap: 10px; width: min(520px, 80vw); max-width: 100%; box-sizing: border-box; }
+.dlp .ctabs { flex-wrap: wrap; }
+.dlp .chip.pink { background: #ff4a7a26; color: #ffb0c8; border-color: #ff8ab055; }
+.dlhome { display: flex; flex-direction: column; gap: 10px; }
+.dlintro { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #0b0814; border: 1px solid #ff8ab033; }
+.dlintro div { display: flex; flex-direction: column; gap: 3px; }
+.dlintro b { color: #ffb0c8; }
+.dlintro small { color: var(--dim); line-height: 1.4; }
+.dlcouple { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 12px; border-radius: 16px; text-align: center;
+  background: radial-gradient(circle at 50% 30%, #3a1430, #140a1c 70%); border: 1px solid #ff8ab055; box-shadow: inset 0 0 30px #ff4a7a22; }
+.dlnames { display: flex; align-items: center; gap: 10px; font-size: 17px; }
+.dlnames b { color: #fff0f6; }
+.dlheart { color: #ff5a88; font-size: 20px; animation: dlbeat 1.2s ease-in-out infinite; }
+@keyframes dlbeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.25); } 30% { transform: scale(1); } 45% { transform: scale(1.15); } }
+.dlringbig { padding: 4px; filter: drop-shadow(0 0 12px #ff8ab044); }
+.dlrn { color: var(--gold2); font-size: 15px; }
+.dlcouple small { color: #d8c8e0; }
+.dlbuff { display: flex; flex-direction: column; gap: 2px; margin: 6px 0 2px; padding: 6px 12px; border-radius: 10px; background: #0b0814aa; border: 1px dashed #f0c05055; }
+.dlbuff b { color: #8affb8; }
+.dlcouple .cbtns { margin-top: 6px; }
+.dlp button.danger, .dlbox button.danger { color: #ff9a9a; border-color: #ff6a6a55; }
+.dlprop { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: linear-gradient(180deg, #3a1430, #1c0e24); border: 1px solid #ffd06088; }
+.dlprop.out { background: #0b0814; border-color: #ffffff1c; }
+.dlpmain { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dlpmain b { color: #ffe8a0; }
+.dlpmain small { color: #d8c8e0; line-height: 1.35; }
+.dlpbtn { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.dlroses { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 12px; background: #0b0814; border: 1px solid #ffffff14; }
+.dlroses b { color: #ff9ac0; }
+.dlroses small { color: var(--dim); flex: 1; }
+.dllist { display: flex; flex-direction: column; gap: 6px; }
+.dlrow { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: #0b0814; border: 1px solid #ffffff14; }
+.dlrow.mine { border-color: #ff8ab088; box-shadow: 0 0 12px #ff4a7a22; }
+.dlrmain { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dlrname { display: flex; align-items: center; gap: 6px; }
+.dlrname b { color: var(--gold2); }
+.dlrmain small { color: var(--dim); font-size: 11.5px; }
+.dlbar { position: relative; height: 14px; border-radius: 7px; background: #2a1424; border: 1px solid #ff8ab044; overflow: hidden; }
+.dlbar i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #a8285a, #ff5a88 70%, #ffb0c8); }
+.dlbar span { position: relative; display: block; text-align: center; font-size: 10.5px; line-height: 13px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px #000; }
+.dlrbtn { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; max-width: 170px; }
+.dlrbtn button, .dlpbtn button, .dlroses button { padding: 4px 9px; font-size: 12.5px; white-space: nowrap; }
+.dlrings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dlring { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 6px; border-radius: 12px; background: #0b0814; border: 1px solid #f0c05033; color: #e8e0ff; text-align: center; }
+button.dlring { cursor: pointer; }
+button.dlring:hover:not(:disabled) { border-color: #ffd060; box-shadow: 0 0 14px #ffd06033; }
+button.dlring:disabled { opacity: .45; cursor: not-allowed; }
+.dlring b { color: var(--gold2); font-size: 13.5px; }
+.dlring small { font-size: 11px; line-height: 1.3; color: #8affb8; }
+.dlring small.gold { color: #ffd860; }
+.dlring small.dim { color: var(--dim); }
+.dlrings .full { grid-column: 1 / -1; margin: 2px 0 0; font-size: 12px; }
+.dlbox .dlrings { margin: 6px 0; }
+@media (max-height: 520px), (max-width: 560px) {
+  .dlp { min-width: 0; gap: 8px; }
+  .dlrow { padding: 6px 8px; gap: 8px; }
+  .dlrbtn { max-width: 120px; }
+  .dlrings { gap: 6px; }
+  .dlring { padding: 6px 4px; }
+  .dlcouple { padding: 10px 8px; }
+  .dlringbig canvas { width: 80px !important; height: 80px !important; }
+}
+#statLine .buff.ring { color: #ff9ac0; }

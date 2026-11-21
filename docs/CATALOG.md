@@ -1,6 +1,6 @@
 # Catalog
 
-269 effects in 24 categories. Every one is a file in
+273 effects in 25 categories. Every one is a file in
 `src/fx/<category>/<name>.js`; render any of them with `node tools/render.mjs <id> --gif`.
 
 ## moves
@@ -439,3 +439,14 @@ fish, rods, bait, a float, a fishmonger's stall, a dock.
 | Fishing gear | `fishing/gear` | loop 1.6s | 32×32 | Icons for a fishing game's rods and baits, 28 px, shaded and outlined: bamboo, bronze, jade and golden dragon rods; earthworms, shrimp, spirit-rice balls, peach blossom. |
 | Lake props | `fishing/props` | loop 2.4s | 96×96 | A fishing lake's pieces on y = 0: pier stilt, a numbered fishing seat (straw or jade), reeds, lily pads with lotus, a moored boat, a buoy, a spirit spring's mist. |
 | Fishmonger's stall | `fishing/stall` | loop 3.2s | 176×128 | A lakeside tackle stall: thatched roof, an old fisherman in a conical hat puffing a long pipe behind the counter, baskets, rods on a rack, dried fish swaying, a net, a lantern. |
+
+## love
+
+a rose, wedding rings, hearts rising, a wedding of light and petals.
+
+| effect | id | | size | what it does |
+|---|---|---|---|---|
+| Hearts rising | `love/hearts` | one-shot 1.8s | 96×96 | A rose given: a pop of pink light, little pixel hearts rising and swaying as they fade, red petals drifting down. |
+| Wedding ring | `love/ring` | loop 2.4s | 32×32 | Three wedding rings, a glint sweeping round the band, the stone sparkling: silver and jade, twin gold bands and a ruby, rose gold and a star diamond. |
+| Rose | `love/rose` | loop 2s | 32×32 | A single red rose as a gift icon: layered petals curling round a dark heart, a thorned stem with two leaves, swaying, a dewdrop that glints. |
+| Wedding | `love/wedding` | one-shot 3.2s | 180×200 | Two become dao lu: two lights spiral up and meet as a heart of gold, a ring of red light opens, rose petals rain, gold sparks fall. |

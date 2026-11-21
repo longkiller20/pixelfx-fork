@@ -283,7 +283,7 @@ const SKILL_TYPE = [["melee", "Cận chiến"], ["bolt", "Phóng (đạn bay)"],
 // công pháp
 const ELEMENTS = [["kim", "Kim"], ["hoa", "Hỏa"], ["thuy", "Thủy"], ["bang", "Băng"], ["loi", "Lôi"], ["moc", "Mộc"], ["tho", "Thổ"], ["quang", "Quang"], ["am", "Ám"], ["huyen", "Huyền"], ["phong", "Phong"], ["di", "Dị Giới"], ["bao", "Bạo"], ["thu", "Ngự Thú"]];
 const MON_STYLE = [["melee", "Đánh gần (lao tới)"], ["ranged", "Đánh xa (bắn)"], ["none", "Đứng yên (bù nhìn)"]];
-const ITEM_KIND = [["pill", "Đan dược (dùng được)"], ["book", "Bí kíp"], ["material", "Nguyên liệu"], ["rod", "Cần câu (giá: Ngư Cụ bán)"], ["bait", "Mồi câu (giá: Ngư Cụ bán)"], ["fish", "Cá (giá: Ngư Cụ mua)"]];
+const ITEM_KIND = [["pill", "Đan dược (dùng được)"], ["book", "Bí kíp"], ["material", "Nguyên liệu"], ["rod", "Cần câu (giá: Ngư Cụ bán)"], ["bait", "Mồi câu (giá: Ngư Cụ bán)"], ["fish", "Cá (giá: Ngư Cụ mua)"], ["gift", "Quà tặng (Hoa Hồng)"], ["ring", "Nhẫn cưới (giá một đôi)"]];
 /**
  * A long list 10 at a time, with page buttons under it. key: the filters the list was made with; the page is remembered
  * for the same tab and filters, so saving something on page 4 brings you back to page 4, while a new search starts at 1.
@@ -423,6 +423,52 @@ const VIEWS = {
         onSave: saveRate,
       }));
     }
+    return out;
+  },
+
+  // Đạo Lữ: the rose (name, price), the three wedding rings (name, price, buff %), the rules (settings daolu.*), every
+  // couple now (parting one), and a pair's affinity set by hand
+  async daolu() {
+    const d = await api("/daolu"), out = el("div");
+    const saveItem = (k) => async (c) => (await guard(() => api(`/t/items/${k}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload();
+    const R = d.rules;
+    out.append(el("h2", {}, "Đạo Lữ"),
+      el("p", { class: "dim" }, `Tặng Hoa Hồng cho Đạo Hữu khác giới để tăng hảo cảm; đủ ${R.need}/${R.need} thì cầu hôn được, chọn một trong ba nhẫn cưới. Khi được đồng ý, người cầu hôn trả giá nhẫn, cả hai đeo nhẫn và nhận buff vĩnh viễn (ngoài đấu trường) khi còn là Đạo Lữ. Ly hôn: mất nhẫn và buff, hảo cảm về 0. Lưu là có hiệu lực ngay (buff của các cặp đang có đổi theo luôn).`),
+      el("h3", {}, "Hoa Hồng"));
+    out.append(record({ title: d.rose.name, sub: `${d.rose.key} · ${d.rose.price ? fmt(d.rose.price) + " linh thạch/bông" : "không bán"} · mỗi bông +${R.rosePoints} hảo cảm`, row: d.rose,
+      fields: [{ k: "name", label: "Tên" }, { k: "price", label: "Giá một bông (0 = không bán)", type: "number", step: 1 }], onSave: saveItem(d.rose.key) }));
+    out.append(el("h3", {}, "Nhẫn cưới"), el("p", { class: "dim" }, "Giá là giá một đôi, người cầu hôn trả khi được đồng ý. Buff tính theo % (0-100) sinh lực, công, thủ, tốc độ cho cả hai người."));
+    for (const r of d.rings) {
+      const save = async (c) => {
+        const { hp, atk, def, spd, ...rest } = c, b = Object.fromEntries(Object.entries({ hp, atk, def, spd }).filter(([, v]) => v !== undefined));
+        if (Object.keys(rest).length && !(await guard(() => api(`/t/items/${r.key}`, { method: "PATCH", body: rest }), "Đã lưu."))) return;
+        if (Object.keys(b).length && !(await guard(() => api(`/t/ring_buffs/${r.key}`, { method: "PATCH", body: b }), "Đã lưu buff."))) return;
+        reload();
+      };
+      out.append(record({
+        title: r.name, sub: `${r.key} · bậc ${r.tier} · ${r.price ? fmt(r.price) + " linh thạch" : "không bán"} · +${r.buff.hp}% sinh lực · +${r.buff.atk}% công · +${r.buff.def}% thủ · +${r.buff.spd}% tốc độ`,
+        row: { name: r.name, price: r.price, ...r.buff },
+        fields: [{ k: "name", label: "Tên nhẫn" }, { k: "price", label: "Giá một đôi (0 = không bán)", type: "number", step: 1 },
+          { k: "hp", label: "+% Sinh lực", type: "number", step: "any" }, { k: "atk", label: "+% Công", type: "number", step: "any" },
+          { k: "def", label: "+% Thủ", type: "number", step: "any" }, { k: "spd", label: "+% Tốc độ", type: "number", step: "any" }],
+        onSave: save,
+      }));
+    }
+    out.append(el("h3", {}, "Luật"), el("p", { class: "dim" }, "Các số này cũng có ở tab Cài đặt (daolu.*)."));
+    const rule = (k, label, v) => record({ title: label, sub: `${k} = ${v}`, row: { v }, fields: [{ k: "v", label: "Giá trị", type: "number", step: "any" }],
+      onSave: async (c) => (await guard(() => api(`/t/settings/${k}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload() });
+    out.append(rule("daolu.rose_points", "Hảo cảm mỗi bông", R.rosePoints), rule("daolu.rose_daily", "Số bông tối đa một người tặng một người mỗi ngày", R.roseDaily),
+      rule("daolu.rose_buy_max", "Mỗi lần mua tối đa (bông)", R.roseBuyMax), rule("daolu.propose_hours", "Lời cầu hôn hết hạn sau (giờ)", R.proposeHours),
+      rule("daolu.remarry_hours", "Ly hôn xong chờ (giờ) mới kết lại được", R.remarryHours));
+    out.append(el("h3", {}, `Các cặp Đạo Lữ (${d.now.length}) · đã ly hôn ${fmt(d.divorced)} lần`));
+    const tbl = el("table", { class: "ftbl" }, el("tr", {}, ...["Đạo Lữ", "Nhẫn", "Người trả", "Từ ngày", ""].map((t) => el("th", {}, t))),
+      ...d.now.map((m) => el("tr", {}, el("td", {}, `${m.a_name} ♥ ${m.b_name}`), el("td", {}, `${m.ringName} (${fmt(m.price)})`), el("td", {}, m.payer), el("td", {}, when(m.created_at)),
+        el("td", {}, el("button", { class: "small danger", onclick: async () => confirm(`Giải trừ Đạo Lữ ${m.a_name} và ${m.b_name}? Cả hai mất nhẫn và buff.`) &&
+          (await guard(() => api("/daolu/divorce", { method: "POST", body: { uid: m.a_id } }), "Đã giải trừ.")) && reload() }, "Giải trừ")))));
+    out.append(d.now.length ? el("div", { class: "fwrap" }, tbl) : el("p", { class: "dim" }, "Chưa có cặp nào."));
+    out.append(el("h3", {}, "Đặt hảo cảm cho một cặp"));
+    const a = el("input", { placeholder: "ID người thứ nhất", type: "number" }), b = el("input", { placeholder: "ID người thứ hai", type: "number" }), pts = el("input", { placeholder: `Hảo cảm 0-${R.need}`, type: "number" });
+    out.append(el("div", { class: "bar" }, a, b, pts, el("button", { class: "small", onclick: async () => (await guard(() => api("/daolu/affinity", { method: "POST", body: { a: Number(a.value), b: Number(b.value), points: Number(pts.value) } }), "Đã đặt hảo cảm.")) && reload() }, "Đặt")));
     return out;
   },
 
@@ -1160,6 +1206,19 @@ async function playerView(id) {
         el("p", { class: "dim" }, `Đang dùng: ${F.rod ?? "chưa có cần"} · ${F.bait ?? "chưa có mồi"}. Lần cá cắn: ${fmt(F.casts)}. Đã bán cá được ${fmt(F.sold)} linh thạch. Cần và mồi là vật phẩm (loại Cần câu, Mồi câu): tặng hay lấy lại ở mục túi đồ; giá ở tab Vật phẩm.`),
         el("div", { class: "chips" }, log.length ? log.map(([k, l]) => el("span", { class: "chip" }, el("span", {}, k, el("small", { class: "dim" }, ` · ${fmt(l.n)} con · nặng nhất ${(l.best / 1000).toFixed(2)} cân`))))
           : el("span", { class: "dim" }, "Chưa câu được con nào."))));
+    }
+
+    // ---- Đạo Lữ: their dao lu and ring now (part them), the marriages they had, their highest affinities, proposals
+    if (p.daolu) {
+      const D = p.daolu;
+      parts.push(section("Đạo Lữ", D.spouse ? `♥ ${D.spouse.name} · ${D.spouse.ringName}` : "chưa có",
+        D.spouse ? el("div", { class: "bar" }, el("span", {}, `Đạo Lữ: ${D.spouse.name} (ID ${D.spouse.uid}) · ${D.spouse.ringName} · +${D.spouse.buff.hp}% sinh lực, +${D.spouse.buff.atk}% công, +${D.spouse.buff.def}% thủ, +${D.spouse.buff.spd}% tốc độ`),
+          el("button", { class: "small danger", onclick: () => confirm(`Giải trừ Đạo Lữ với ${D.spouse.name}? Cả hai mất nhẫn và buff.`) && act(() => api("/daolu/divorce", { method: "POST", body: { uid: p.id } }), "Đã giải trừ.") }, "Giải trừ")) : null,
+        el("p", { class: "dim" }, "Hảo cảm cao nhất:"),
+        el("div", { class: "chips" }, D.affinity.length ? D.affinity.map((x) => el("span", { class: "chip" }, el("span", {}, x.name, el("small", { class: "dim" }, ` · ♥ ${x.points}/100 · ${fmt(x.roses)} bông`)))) : el("span", { class: "dim" }, "Chưa tặng hay nhận hoa.")),
+        D.proposals.length ? el("p", { class: "dim" }, `Cầu hôn đang chờ: ${D.proposals.map((x) => `${x.from} → ${x.to} (${x.ring})`).join("; ")}`) : null,
+        el("p", { class: "dim" }, "Lịch sử:"),
+        el("div", { class: "chips" }, D.history.length ? D.history.map((m) => el("span", { class: "chip" }, el("span", {}, `${m.partner} · ${m.ringName}`, el("small", { class: "dim" }, ` · ${when(m.created_at)}${m.ended_at ? ` → ${when(m.ended_at)}` : " → nay"}`)))) : el("span", { class: "dim" }, "Chưa kết Đạo Lữ lần nào."))));
     }
 
     // ---- chat: barred for a while (every channel and Truyền Âm)
