@@ -9,6 +9,8 @@ import {
 import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
 import { isTele, teleAt, TELE_MAPS } from "../shared/truyen-tong.js";
 import { ZONE_COUNT, ZONE_CAP, isField, zoneKey, zoneOf } from "../shared/khu.js";
+import { BOSS, bossType, SLAM_HIT, ROAR_HIT } from "../shared/boss.js";
+import { BossFight } from "./boss.js";
 import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
 import { CAST, stepReturning } from "./cong-phap.js";
 import * as store from "./store.js";
@@ -135,6 +137,8 @@ export class World {
     this.sendArts(p);
     this.sendMe(p);
     this.war?.onEnter(p);
+    // Boss Thế Giới: whether one is up and where (and, on its map, its bar at the next second)
+    if (this.u?.boss) send(p.ws, this.u.boss.infoMsg());
   }
   /** Take a player off this map without saving or ending anything: they are walking to another map. */
   leave(p) {
@@ -525,8 +529,20 @@ export class World {
   }
   targetsOf(att) {
     const out = [];
-    for (const e of this.ents.values()) if (this.hostile(att, e)) out.push(e);
+    for (const e of this.ents.values()) if (this.hostile(att, e)) out.push(e.boss ? this.bossPoint(e, att) : e);
     return out;
+  }
+  /**
+   * A world boss is big: for every hit test it stands where its body is nearest the attacker (within its width and
+   * height), not at its feet. The same stand-in each time for the same attacker, so a bolt that hits once doesn't
+   * hit it again every tick.
+   */
+  bossPoint(e, att) {
+    let pt = e.proxies.get(att.id);
+    if (!pt) e.proxies.set(att.id, (pt = Object.assign(Object.create(e), { real: e })));
+    pt.x = Math.max(e.x - e.half, Math.min(e.x + e.half, att.x));
+    pt.y = Math.max(e.y - e.tall, Math.min(e.y, att.y));
+    return pt;
   }
   /** Hit every enemy of att in a cone from (x, y) along (ax, ay). */
   cone(att, x, y, ax, ay, range, arc, atk, mult) {
@@ -540,6 +556,7 @@ export class World {
   }
   damage(att, atk, e, mult) {
     if (e.dead) return 0;
+    if (e.boss) return this.hitBoss(att, atk, e.real ?? e, mult);
     const st = this.stats(e);
     const dmg = Math.max(1, Math.round(atk * mult * mitigate(st.def) * (0.95 + Math.random() * 0.1)));
     e.hpFrac -= dmg / st.maxHp;
@@ -1124,6 +1141,137 @@ export class World {
     } else p.medAcc = 0;
   }
 
+  // ---------------------------------------------------------------- Boss Thế Giới (server/boss.js): this Khu's copy
+  /** The boss b (server/boss.js) stands in this Khu too: its copy, whose life is b's. */
+  addBoss(b) {
+    const d = b.def, m = {
+      id: nextId(), kind: "m", type: bossType(b.key), boss: true, bid: b.id, def: { name: d.name, style: "boss", respawn: 1e9, stones: 0, dropRate: 0, exp: () => 0 },
+      x: b.x, y: b.y, home: { x: b.x, y: b.y }, face: -1, hpFrac: b.hp / b.maxHp, dead: false, respawnAt: 0, slowUntil: 0, lastHurt: -99,
+      half: d.half, tall: d.tall, slamAt: -99, roarAt: -99, nextSlam: this.t + 2, target: null, atkAnim: 0, proxies: new Map(), moving: false,
+      st: { maxHp: b.maxHp, atk: BOSS.atk, def: BOSS.def, spd: BOSS.spd },
+    };
+    this.ents.set(m.id, m);
+    this.bossEnt = m;
+    this.ev({ e: "spawn", id: m.id });
+    this.ev({ e: "boss", id: m.id, a: "rise" });
+    return m;
+  }
+  /**
+   * A blow on the boss: worked out as on anything (its defence counts), taken from its one shared life; a player's
+   * blow is written against them, and part of it is thrown back at them (phản đòn).
+   */
+  hitBoss(att, atk, m, mult) {
+    if (m.dead || att.kind !== "p" || att.dead) return 0;
+    const dmg = Math.max(1, Math.round(atk * mult * mitigate(m.st.def) * (0.95 + Math.random() * 0.1)));
+    const took = this.u?.boss.hit(att, dmg) ?? 0;
+    if (!took) return 0;
+    m.lastHurt = this.t;
+    m.lastHitBy = att;
+    this.ev({ e: "hit", id: m.id, d: took, by: att.id });
+    // phản đòn: a share of it back at the striker (it never kills: it leaves them at 1 hp at worst)
+    const back = Math.round((took * BOSS.thornsPct) / 100);
+    if (back > 0 && !att.dead && att.protectUntil <= this.t) {
+      const st = this.stats(att), hp = att.hpFrac * st.maxHp, lose = Math.min(back, Math.max(0, hp - 1));
+      if (lose > 0) {
+        att.hpFrac -= lose / st.maxHp;
+        att.lastHurt = this.t;
+        this.ev({ e: "hit", id: att.id, d: Math.round(lose), by: m.id, th: 1 });
+      }
+    }
+    return took;
+  }
+  /**
+   * The boss in this Khu: it keeps its life in step with the shared one, turns to the nearest player within aggro,
+   * walks at them (not far from where it stood), and slams its mace on those in front of it.
+   */
+  stepBoss(m) {
+    const t = this.t;
+    if (m.dead) return;
+    m.hpFrac = this.u?.boss.b ? this.u.boss.b.hp / this.u.boss.b.maxHp : m.hpFrac;
+    const ok = (p) => p && !p.gone && !p.dead && p.protectUntil <= t && Math.abs(p.x - m.home.x) < BOSS.aggro + BOSS.leash && Math.abs(p.y - m.y) < 220;
+    if (!ok(m.target) || Math.abs(m.target.x - m.x) > BOSS.aggro * 1.4) {
+      m.target = null;
+      let bd = BOSS.aggro;
+      for (const p of this.players.values())
+        if (ok(p)) {
+          const dd = Math.abs(p.x - m.x);
+          if (dd < bd) (bd = dd), (m.target = p);
+        }
+      if (!m.target && ok(m.lastHitBy) && t - m.lastHurt < 4) m.target = m.lastHitBy;
+    }
+    const busy = t - m.slamAt < 1.45 || t - m.roarAt < 1.8;
+    m.moving = false;
+    if (!m.target || busy) return;
+    const p = m.target, dx = p.x - m.x;
+    m.face = dx > 0 ? 1 : -1;
+    const reach = BOSS.slamReach;
+    if (Math.abs(dx) <= reach + m.half * 0.4 && Math.abs(p.y - m.y) < 160) {
+      if (t >= m.nextSlam) {
+        // the slam: raised, brought down at SLAM_HIT, hitting everyone in front within reach
+        m.nextSlam = t + BOSS.slamCd;
+        m.slamAt = t;
+        m.atkAnim = t + 1.45;
+        const face = m.face;
+        this.ev({ e: "boss", id: m.id, a: "slam", f: face });
+        this.at(t + SLAM_HIT, () => {
+          if (m.dead || !this.ents.has(m.id)) return;
+          const fx = m.x + face * 96;
+          this.ev({ e: "fx", k: "bossslam", x: Math.round(fx), y: Math.round(m.y) });
+          for (const q of this.players.values()) {
+            if (q.dead || q.gone || q.protectUntil > this.t) continue;
+            const qx = (q.x - m.x) * face;
+            if (qx >= -30 && qx <= reach + 20 && Math.abs(q.y - m.y) < 140) this.damage(m, BOSS.atk, q, BOSS.slamMult);
+          }
+        });
+      }
+      return;
+    }
+    // walk at them, never more than leash from where it stood, on ground it fits on
+    const nx = m.x + Math.sign(dx) * BOSS.spd * DT;
+    if (Math.abs(nx - m.home.x) <= BOSS.leash && fits(nx, m.y, this.map) && (this.map.solid(Math.floor(nx / this.map.T), Math.floor((m.y + 2) / this.map.T)) || this.map.plank(Math.floor(nx / this.map.T), Math.floor((m.y + 2) / this.map.T)))) {
+      m.x = nx;
+      m.moving = true;
+    }
+  }
+  /** The roar: its counter-blow on every player in this Khu (the BossFight calls it in every Khu at once). */
+  bossRoar(m) {
+    if (!m || m.dead) return;
+    const t = this.t;
+    m.roarAt = t;
+    m.atkAnim = t + 1.8;
+    this.ev({ e: "boss", id: m.id, a: "roar" });
+    this.at(t + ROAR_HIT, () => {
+      if (m.dead || !this.ents.has(m.id)) return;
+      this.ev({ e: "fx", k: "bossroar", x: Math.round(m.x), y: Math.round(m.y) });
+      for (const p of this.players.values()) {
+        if (p.dead || p.gone || p.protectUntil > this.t) continue;
+        const st = this.stats(p), dmg = Math.max(1, Math.round((st.maxHp * BOSS.roarPct) / 100));
+        p.hpFrac -= dmg / st.maxHp;
+        p.lastHurt = this.t;
+        this.ev({ e: "hit", id: p.id, d: dmg, by: m.id, roar: 1 });
+        if (p.hpFrac <= 0) this.kill(p, m);
+      }
+    });
+  }
+  /** Brought down: it sinks where it stands, and is gone a few seconds later. */
+  bossDie(m) {
+    if (!m || m.dead) return;
+    m.dead = true;
+    m.hpFrac = 0;
+    this.ev({ e: "boss", id: m.id, a: "dead" });
+    this.at(this.t + 8, () => {
+      this.ents.delete(m.id);
+      if (this.bossEnt === m) this.bossEnt = null;
+    });
+  }
+  /** Gone without being brought down (its time is up, or the admin took it back). */
+  bossLeave(m) {
+    if (!m) return;
+    this.ev({ e: "boss", id: m.id, a: "leave" });
+    this.ents.delete(m.id);
+    if (this.bossEnt === m) this.bossEnt = null;
+  }
+
   /** A monster at (x, y): from the map, or (temp) one an admin dropped by a player to try, which never comes back. */
   addMonster(type, x, y, temp = false) {
     const d = MONSTERS[type];
@@ -1152,6 +1300,7 @@ export class World {
   }
 
   stepMonster(m) {
+    if (m.boss) return this.stepBoss(m);
     const t = this.t, d = m.def;
     if (m.dead) {
       if (m.temp) {
@@ -1320,7 +1469,7 @@ export class Universe {
     // one tick for every map, so all their clocks stay equal
     this.timer = setInterval(() => {
       for (const w of this.worlds.values()) w.step();
-      if (++this.ticks % TICK_HZ === 0) (this.pushKhu(), this.pushZones());
+      if (++this.ticks % TICK_HZ === 0) (this.pushKhu(), this.pushZones(), this.boss?.tick());
     }, 1000 / TICK_HZ);
     this.ticks = 0;
     // Truyền Âm older than pm.keep_days goes, once an hour
@@ -1331,6 +1480,9 @@ export class Universe {
     }, 5000);
     // Chính Tà Phân Tranh: the schedule and the battle now (server/chinh-ta.js); its field is a world made per battle
     this.war = new War(this, () => new World(WAR_MAP, this, { war: true }));
+    // Boss Thế Giới (server/boss.js): the one up (brought back after a restart), stepped once a second
+    this.boss = new BossFight(this);
+    this.boss.load().catch((e) => console.error("boss load", e));
   }
   /** userId -> player, every map (a fresh Map each time: for lookups, not for keeping). */
   get players() {
@@ -1587,6 +1739,8 @@ export class Universe {
     const z = zoneOf(key);
     if (!z) return null;
     this.worlds.set(key, (w = new World(z.map, this, { key, zone: z.n })));
+    // a Khu of the boss's map made now: the boss is in it too
+    this.boss?.attach(w);
     return w;
   }
   /** Whether a world can be gone to: one that is up, or any Khu of a map of the road (made when they arrive). */

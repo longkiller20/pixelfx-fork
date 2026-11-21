@@ -519,6 +519,52 @@ const SCHEMA = [
     PRIMARY KEY (user_id, request_id),
     CONSTRAINT fk_ctreq_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
+  // Boss Thế Giới (server/boss.js): each boss an admin called, its shared life (saved every few seconds, so a restart
+  // brings it back as it was), its pools, how it ended. alive is 1 while it stands, NULL after: one boss at a time.
+  `CREATE TABLE IF NOT EXISTS world_bosses (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    boss_key VARCHAR(16) NOT NULL,
+    map_id VARCHAR(16) NOT NULL,
+    x INT NOT NULL,
+    y INT NOT NULL,
+    max_hp BIGINT UNSIGNED NOT NULL,
+    hp BIGINT UNSIGNED NOT NULL,
+    pool_stones INT UNSIGNED NOT NULL,
+    pool_exp INT UNSIGNED NOT NULL,
+    kill_bonus SMALLINT UNSIGNED NOT NULL,
+    state VARCHAR(8) NOT NULL DEFAULT 'alive',
+    alive TINYINT NULL DEFAULT 1,
+    spawned_by VARCHAR(32) NULL,
+    spawned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ends_at DATETIME NOT NULL,
+    ended_at DATETIME NULL,
+    killer_id INT UNSIGNED NULL,
+    killer_name VARCHAR(32) NULL,
+    UNIQUE KEY uq_alive (alive)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // how much each player took from a boss (summed; saved with its life)
+  `CREATE TABLE IF NOT EXISTS boss_damage (
+    boss_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    dmg BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    hits INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (boss_id, user_id),
+    CONSTRAINT fk_bdmg_boss FOREIGN KEY (boss_id) REFERENCES world_bosses(id) ON DELETE CASCADE,
+    CONSTRAINT fk_bdmg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  // what each one was given when it fell: one row per (boss, player), so it is given once whatever happens
+  `CREATE TABLE IF NOT EXISTS boss_rewards (
+    boss_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    dmg BIGINT UNSIGNED NOT NULL,
+    stones INT UNSIGNED NOT NULL,
+    exp BIGINT UNSIGNED NOT NULL,
+    killer TINYINT(1) NOT NULL DEFAULT 0,
+    at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (boss_id, user_id),
+    CONSTRAINT fk_brew_boss FOREIGN KEY (boss_id) REFERENCES world_bosses(id) ON DELETE CASCADE,
+    CONSTRAINT fk_brew_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,

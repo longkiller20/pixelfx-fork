@@ -828,6 +828,64 @@ Người chơi tự bật chế độ **Đồ Sát** (`server/world.js`, setting
 
 **Kiểm tra:** `node test/do-sat.mjs`.
 
+## Boss Thế Giới (admin gọi ra)
+
+Admin gọi một Boss Thế Giới ra một map có yêu thú (tab **👹 Boss Thế Giới** trong trang admin). Boss đầu tiên là
+**Hỏa Ngưu Ma Vương**: ma vương đầu bò, giáp đen viền vàng, bờm đỏ, áo choàng đỏ hoa văn lửa, vác chùy gai nứt dung nham.
+
+**Một boss ở mọi khu, chung một thanh máu** (`shared/boss.js`, `server/boss.js`):
+- Boss có mặt ở cả 30 khu của map, kể cả khu mở sau khi boss xuất hiện.
+- Ai đánh ở khu nào cũng trừ vào **cùng một thanh máu**; thanh máu ở mọi khu luôn bằng nhau.
+- Sát thương của mỗi người được cộng dồn (bảng xếp hạng chung cho cả map).
+- Mỗi lần chỉ có một boss (khóa duy nhất trong database: không gọi được con thứ hai khi con đầu còn sống).
+- Không gọi được ở Tân Thủ Thôn, Gia Viên, hồ câu hay chiến trường.
+
+**Boss đánh thế nào:**
+- **Đập chùy:** boss đi tới người gần nhất (không xa chỗ xuất hiện quá `boss.leash`), giơ chùy ra sau rồi đập xuống,
+  trúng mọi người trước mặt trong `boss.slam_reach`. Mặt đất nứt, sóng chấn động (`impacts/ground-slam`), màn hình rung.
+- **Gầm phản kích:** cứ `boss.roar_every` giây, boss ngửa đầu gầm, đánh **mọi người chơi trên map ở mọi khu cùng lúc**,
+  mỗi người mất `boss.roar_pct` % máu tối đa. Ba vòng lửa lan ra (`boss/roar-wave`), mỗi người trúng có tia lửa.
+- **Phản đòn:** mỗi đòn đánh vào boss dội lại `boss.thorns_pct` % sát thương lên người đánh (không bao giờ làm chết, tối
+  đa còn 1 máu).
+- Boss to, nên đòn đánh tính trúng theo điểm gần nhất trên thân boss, không phải chỗ chân.
+
+**Thưởng khi boss tử trận:**
+- Tổng linh thạch và tổng tu vi (đặt lúc gọi, mặc định `boss.stones`, `boss.exp`) **chia theo sát thương**: mỗi người
+  nhận tổng × (sát thương của mình / tổng sát thương).
+- **Người kết liễu** nhận thêm `boss.kill_bonus` % của mỗi tổng (mặc định 20%).
+- Mỗi người một dòng trong `boss_rewards` (khóa chính boss + người chơi), cộng thẳng vào database dưới khóa của người
+  chơi: được thưởng đúng một lần, kể cả khi máy chủ khởi động lại giữa lúc chia.
+- Ai đã đánh đều thấy bảng kết quả: người kết liễu, top 5, phần của mình (★ nếu có thưởng kết liễu). Cả server được báo.
+- Hết `boss.minutes` phút (đặt lúc gọi) mà chưa ai hạ được thì boss rời đi, không ai được thưởng. Admin cũng thu hồi được.
+
+**Trong game:**
+- Trên map có boss: thanh máu ở trên cùng (tên, máu, %, giây tới lần phản kích, thời gian còn lại, hạng và sát thương
+  của mình), nút 🏆 mở bảng top 5. Trên điện thoại nằm ngang, thanh dời sang phải để không che nút Khu.
+- Ở map khác: một dòng nhấp nháy "👹 Hỏa Ngưu Ma Vương · Linh Thủy Đàm · 73%". Đến đó bằng Truyền Tống Trận.
+- Lúc boss xuất hiện, cả server nhận thông báo lớn.
+
+**Hình và hoạt ảnh bằng pixelfx** (`src/fx/boss/`):
+- `nguu-ma-vuong.js`: boss vẽ lại từ ảnh của chủ game, khoảng 220 × 157 điểm ảnh. Mỗi điểm ảnh gắn với một phần thân:
+  chùy và tay cầm chùy, đầu và sừng, bờm, áo choàng, hai chân, thân.
+- `_rig.js`: thở; áo choàng và bờm bay; bước nặng nề; giơ chùy ra sau rồi đập xuống (chùy xoay quanh vai, không thủng
+  hình); ngửa đầu gầm và rung người; khuỵu xuống khi chết. Xem thử:
+  `node tools/render.mjs boss/nguu-ma-vuong --opts '{"anim":"slam"}'` (idle, walk, slam, roar, dead).
+- `roar-wave.js`: hiệu ứng tiếng gầm.
+
+**Trang admin, tab 👹 Boss Thế Giới:**
+- Boss đang ở ngoài: máu, số người đã đánh, thời gian còn lại, top 10, nút **Thu hồi** (không thưởng).
+- Gọi boss: chọn boss, map, vị trí x (trống = giữa map), máu, tổng linh thạch, tổng tu vi, % thưởng kết liễu, số phút.
+- Các lần trước: trạng thái, người kết liễu, số người nhận, nút **Xem** bảng chia thưởng từng người.
+- Các thông số `boss.*` (cũng có ở tab Cài đặt): công, thủ, tốc độ, nhịp và sức đập chùy, tầm, nhịp và % phản kích, %
+  phản đòn, thưởng mặc định.
+
+**Lưu trữ:**
+- `world_bosses`: mỗi lần gọi một dòng.
+  - Máu được lưu mỗi 5 giây, nên khởi động lại máy chủ thì boss trở lại đúng như trước.
+  - `alive` = 1 khi còn sống, NULL khi đã kết thúc.
+- `boss_damage`: sát thương từng người.
+- `boss_rewards`: phần thưởng từng người.
+
 ## Chính Tà Phân Tranh (nút ▦ Thêm → Chính Tà)
 
 Chính Phái đối đầu Tà Phái, mỗi phe tối đa 30 người, trên bản đồ riêng **Chính Tà Chiến Trường**
