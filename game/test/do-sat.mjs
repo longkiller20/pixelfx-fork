@@ -110,7 +110,8 @@ try {
 
   // ---- A brings B down: sát khí; switching off waits
   await near(A, B);
-  await swing(A, B, 4000);
+  // swing until B falls once (no more: risen beside A, B would fall again)
+  for (let i = 0; i < 40 && !(A.me?.pk?.sk >= 1); i++) await swing(A, B, 200);
   assert.ok(await until(() => A.me?.pk?.sk === 1, 8000), "a point of sát khí: " + JSON.stringify(A.me?.pk));
   assert.equal(Number((await q("SELECT sat_khi FROM characters WHERE user_id = ?", [A.P.id]))[0].sat_khi), 1, "written");
   assert.ok(A.msgs.some((m) => m.t === "feed" && /Sát khí/.test(m.m)), "the server hears of it");

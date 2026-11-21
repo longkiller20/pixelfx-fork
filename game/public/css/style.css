@@ -1825,13 +1825,34 @@ body.war .hudl .top { display: none; }
 .ctp.short .ctnote p { font-size: 11.5px; }
 .ctp.short .cthrow, .ctp.short .ctitem { padding: 4px 6px; }
 
-/* Đồ Sát: the button by the flying sword (blood red; lit while on; dim on a safe map), and its line under the stats */
-.skills .pk { --dx: 210px; --dy: 28px; --s: 42px; border-color: #a83a3a; background: radial-gradient(#3a1010, #120406 75%); }
-.skills .pk .ic canvas { width: 30px; height: 30px; image-rendering: pixelated; }
-.skills .pk.on { border-color: #ff4a3a; box-shadow: 0 0 16px #ff3a2a, 0 0 6px #ff8a6a inset; animation: pkpulse 1.2s ease-in-out infinite; }
-.skills .pk.safe { filter: grayscale(0.6) brightness(0.8); }
-.skills .pk[hidden] { display: none; }
-@keyframes pkpulse { 50% { box-shadow: 0 0 6px #ff3a2a, 0 0 2px #ff8a6a inset; } }
-body.war .skills .pk { display: none; }
+/* Đồ Sát: the button right of the character panel (top left); blood red, pulsing while on, dim on a safe map */
+.pkbtn { position: absolute; top: 10px; left: calc(10px + min(260px, 34vw) + 8px); z-index: 3; display: flex; align-items: center; gap: 4px;
+  padding: 3px 10px 3px 4px; border-radius: 22px; border: 2px solid #8a2a2a; background: radial-gradient(circle at 30% 50%, #3a1010, #120406 80%);
+  color: #ffb0a0; font-size: 12px; font-weight: 800; box-shadow: 0 0 0 2px #1a0606, 0 4px 10px #000a; cursor: pointer; white-space: nowrap; }
+.pkbtn .ic canvas { width: 28px; height: 28px; image-rendering: pixelated; display: block; }
+.pkbtn.on { border-color: #ff4a3a; color: #fff0e0; animation: pkpulse 1.2s ease-in-out infinite; }
+.pkbtn.safe { filter: grayscale(0.6) brightness(0.8); }
+.pkbtn[hidden] { display: none; }
+.pkbtn:active { transform: scale(0.94); }
+@keyframes pkpulse { 0%, 100% { box-shadow: 0 0 0 2px #1a0606, 0 0 16px #ff3a2a; } 50% { box-shadow: 0 0 0 2px #1a0606, 0 0 4px #ff3a2a; } }
+.pkpic { display: flex; align-items: center; gap: 10px; text-align: left; }
+.pkpic canvas { width: 64px; height: 64px; image-rendering: pixelated; flex: none; }
+.pkpic ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: #f0e0e0; }
+.pkpic li:nth-child(2) { color: #ff9a8a; font-weight: 700; }
+.cbox:has(.pkpic) { max-width: min(560px, 94vw); }
+.cbox:has(.pkpic) > p { margin: 6px 0; }
+@media (max-height: 420px) {
+  .pkpic canvas { width: 40px; height: 40px; }
+  .pkpic ul { font-size: 11.5px; gap: 1px; }
+  .cbox:has(.pkpic) { padding: 10px 14px; }
+  .cbox:has(.pkpic) h4 { margin: 0 0 4px; }
+}
+body.rotated .pkpic canvas { width: 40px; height: 40px; }
+body.rotated .pkpic ul { font-size: 11.5px; gap: 1px; }
+/* phones (the left column): beside the character panel all the same */
+@media (max-height: 420px) { .hudl .pkbtn { position: absolute; top: 0; left: 198px; } }
+body.rotated .hudl .pkbtn { position: absolute; top: 0; left: 198px; }
+body.war .pkbtn { display: none; }
+
 #statLine .pkon { color: #ff7a6a; font-weight: 700; }
 #statLine .sk { color: #ff9a8a; }

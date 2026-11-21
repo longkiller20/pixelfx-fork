@@ -363,7 +363,8 @@ export class World {
       sect: p.sect ? { id: p.sect.id, name: p.sect.name, rank: p.sect.rank, level: p.sect.level, bonus: this.map.pvp ? 0 : sectBonus(p.sect.level, SECT), array: Math.max(0, Math.round((p.sect.arrayUntil - Date.now()) / 1000)) } : null,
       respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
       // Đồ Sát: on or off, whether it works here, how long before it may be switched off, the sát khí now
-      pk: { on: p.pk, here: !(this.map.def.nopk || this.map.def.peaceful || this.map.pvp), offIn: p.pk ? this.pkOffIn(p) : 0, sk: satKhiNow(p.satKhi, p.satKhiAt), level: PK.level },
+      pk: { on: p.pk, here: !(this.map.def.nopk || this.map.def.peaceful || this.map.pvp), offIn: p.pk ? this.pkOffIn(p) : 0, sk: satKhiNow(p.satKhi, p.satKhiAt), level: PK.level,
+        offDelay: PK.offDelay, bounty: PK.bounty, decay: PK.decayMinutes },
       daolu: p.daolu ? { uid: p.daolu.uid, name: p.daolu.name, ring: p.daolu.ring, buff: this.map.pvp ? null : { ...RING_BUFF[p.daolu.ring] } } : null,
       buffs: (p.buffs ?? []).filter((x) => x.until === null || x.until > Date.now()).map((x) => ({ stat: x.stat, pct: x.pct, left: x.until === null ? null : Math.round((x.until - Date.now()) / 1000) })),
     });

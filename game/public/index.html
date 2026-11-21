@@ -74,6 +74,8 @@
         <div class="bar exp"><i id="expFill"></i><span id="expText"></span></div>
         <div class="small" id="statLine"></div>
       </div>
+      <!-- Đồ Sát, right of the character panel: on, they may hit other players (and be hit by anyone) -->
+      <button id="pkBtn" class="pkbtn" type="button" title="Đồ Sát (P)" hidden><span class="ic"></span><span class="lbl">Đồ Sát</span></button>
       <div class="top">
         <span title="Linh thạch"><img class="ico" src="/xianxia/ui/ui_xianxia_item_spirit_stone.png" alt=""> <b id="stones">0</b></span>
         <span title="Điểm đấu trường"><img class="ico" src="/xianxia/ui/ui_xianxia_item_token.png" alt=""> <b id="rank">0</b></span>
@@ -141,8 +143,6 @@
         <button data-item="hoixuan" class="item i1" title="Hồi Xuân Đan (Z)"><span class="ic"><img src="/xianxia/ui/ui_xianxia_item_pill_bottle.png" alt="Hồi Xuân Đan"></span><span class="qty">0</span><kbd>Z</kbd></button>
         <!-- ngự kiếm phi hành: shown once the realm for it is reached -->
         <button id="flyBtn" class="item fly" title="Ngự kiếm phi hành (F)" hidden><span class="ic"><img src="/xianxia/ui/fly_sword.png" alt="Phi kiếm"></span><kbd>F</kbd></button>
-        <!-- Đồ Sát: on, they may hit other players (and be hit by anyone); off, only those on it can hit them -->
-        <button id="pkBtn" class="item pk" title="Đồ Sát (P)" hidden><span class="ic"></span><kbd>P</kbd></button>
         <button data-item="tukhi" class="item i2" title="Tụ Khí Đan (X)"><span class="ic"><img src="/xianxia/ui/ui_xianxia_item_furnace.png" alt="Tụ Khí Đan"></span><span class="qty">0</span><kbd>X</kbd></button>
       </div>
       <div id="respawn" hidden>Đạo hữu đã tử trận. Hồi sinh sau <b id="respawnT">0</b>s</div>

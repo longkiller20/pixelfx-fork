@@ -793,7 +793,9 @@ Người chơi tự bật chế độ **Đồ Sát** (`server/world.js`, setting
 - Cả server được thông báo mỗi lượt hạ.
 
 **Hiển thị**
-- Tên người đang Đồ Sát màu đỏ, có ⚔ phía trước và ☠ kèm Sát khí phía sau.
+- Bật cần xác nhận: một bảng liệt kê rõ hậu quả. Tắt thì không cần.
+- Nút nằm ở góc trên bên trái, cạnh phải bảng nhân vật (cả trên điện thoại), có chữ và đếm ngược.
+- Trên đầu người đang Đồ Sát nhấp nháy chữ "⚔ ĐỒ SÁT ⚔" đỏ và vàng cho mọi người thấy. Tên màu đỏ, kèm ☠ Sát khí.
 - Biểu tượng nút là pixelfx `ui/menu-icon` (`pk`).
 
 **Chống gian lận:** mọi kiểm tra chạy trên máy chủ, trong vòng lặp của thế giới (một luồng, không race). Linh thạch thưởng chuyển qua phần "chưa ghi" của cả hai người và ghi vào cơ sở dữ liệu như mọi thu nhập khác.
