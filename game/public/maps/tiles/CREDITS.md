@@ -17,9 +17,12 @@ Also used, from `public/xianxia/` (licence text in `public/xianxia/LICENSE.txt`)
 |---|---|---|---|
 | `xianxia/terrain.png` | Bamboo-forest earth, blue stone, cloud platforms (32 px tiles) | *Xianxia Pixel Pack v2.1* | CC0 |
 | `xianxia/bg/*` | Golden palace, pagoda, palaces and isles on the clouds | *Xianxia Pixel Pack v2.1* | CC0 |
-| `vu-khi/60-truongkiem/` | The long sword everyone starts with, scaled to 45% | *Xianxia Pixel Pack v2.1* | CC0 |
 | `xianxia/ui/*` | Panels, buttons, bars, item and status icons, sword cursor | *Xianxia Pixel Pack v2.1* | CC0 |
 | `xianxia/ui/ring_*.png` | Round frames of the action buttons, drawn for this game in the pack's style by `tools/xianxia/rings.py` | this project | CC0 |
 
 Everything else in the town (walls, doors, windows, pillars, the gate, lanterns, cherry trees, bamboo, water, sky and the
 floating isles) is drawn in code in `public/js/scenery.js`.
+
+The characters' fashion (`thoi-trang/`: the chibi figure and its 812 items, hair, shirts, trousers, hats, glasses, masks,
+eyes, faces, wings, halos, things in hand, pets) comes from the owner's earlier game (its `images/*-rip/` folders), copied
+as they were; the owner is responsible for the right to use them.

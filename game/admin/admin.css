@@ -398,3 +398,8 @@ body.noscroll { overflow: hidden; }
 .ftbl { border-collapse: collapse; font-size: 13px; min-width: 520px; }
 .ftbl th, .ftbl td { padding: 4px 10px; border-bottom: 1px solid #ffffff14; text-align: left; white-space: nowrap; }
 .ftbl th { color: var(--dim, #9a90b0); font-weight: 600; }
+/* a player's look: one picker per fashion layer, its picture beside it */
+.lookgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 8px 0; }
+.lookpick { display: grid; grid-template-columns: 48px 1fr; grid-template-rows: auto auto; gap: 2px 8px; align-items: center; padding: 6px; border: 1px solid var(--line, #3a2f52); border-radius: 8px; }
+.lookpick b { grid-column: 1 / -1; font-size: 12px; }
+.lookpick .lpic canvas { width: 48px; height: 48px; image-rendering: pixelated; }

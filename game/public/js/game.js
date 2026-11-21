@@ -7,7 +7,7 @@ import { ART_FX } from "./cong-phap.js";
 import { setMapMusic } from "./music.js";
 import { mapInfo } from "/shared/maps/index.js";
 import { drawDummy } from "./art.js";
-import { drawAvatar, avatarTop, loadAvatars, drawWeapon } from "./avatar.js";
+import { drawAvatar, avatarTop, loadAvatars } from "./avatar.js";
 import { buildScene } from "./scenery.js";
 import { stepBody, PHYS, zoneLanding } from "/shared/physics.js";
 import { createHomeLayer, confirmBox } from "./gia-vien.js";
@@ -1382,13 +1382,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   }
 
   function drawBolt(p, b, now) {
-    // a flying sword: the thrower's own weapon, point first, a fading trail of qi behind it
+    // a flying sword of qi, point first, a fading trail behind it
     const [, owner, x, y, vx, vy] = b, sx = x - camX, sy = y - camY - 30, a = Math.atan2(vy, vx), cx = Math.cos(a), cy = Math.sin(a);
     p.place(sx, sy, false);
     for (let i = 6; i < 26; i++) p.dot(-cx * i * 1.2, -cy * i * 1.2, hex(JADE[i < 12 ? 4 : 2]), 1 - i / 26);
-    const w = infos.get(owner)?.look?.weapon;
-    if (w !== undefined) drawWeapon(p, w, 0, 0, a);
-    else for (let i = -6; i <= 6; i++) p.px(cx * i, cy * i, i > 3 ? WHITE : hex("#d8f0ff"));
+    for (let i = -6; i <= 6; i++) p.px(cx * i, cy * i, i > 3 ? WHITE : hex("#d8f0ff"));
     p.glow(0, 0, 12, hex(JADE[4]), 0.5);
   }
 

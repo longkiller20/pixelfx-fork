@@ -24,12 +24,10 @@ export const PLAYER_R = 14; // body radius on the ground plane
 export const NAME_RE = /^[\p{L}\p{N}_ ]{3,16}$/u;
 export const USER_RE = /^[a-zA-Z0-9_]{3,16}$/;
 
-// A character's look: a gender, a hair style and a robe. Which styles exist, what they cost and which are free at
-// creation lives in the cosmetics table; idx is the number of the part's folder, public/toc-nam/<idx>-<name>/ and so on.
+// A character's look: a gender and what is worn in each fashion layer (shared/thoi-trang.js). Which items exist, what they
+// cost and which are free at creation lives in the cosmetics table; idx is the number of the picture,
+// public/thoi-trang/<kind>/<idx>.png.
 export const GENDERS = ["m", "f"];
-export const COSMETIC_KINDS = ["hair", "robe"];
-const idxOk = (v) => Number.isInteger(v) && v >= 0 && v < 1000;
-export const validLook = (g, hair, robe) => GENDERS.includes(g) && idxOk(hair) && idxOk(robe);
 
 // Buffs an admin can give one player, per stat, in percent (+20 = 20% more), with the range each allows.
 export const BUFF_STATS = {

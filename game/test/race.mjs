@@ -17,7 +17,7 @@ async function call(path, { token, method = "GET", body } = {}) {
   });
   return { status: r.status, data: await r.json().catch(() => ({})) };
 }
-async function player(look = { g: "m", hair: 8, robe: 16 }) {
+async function player(look = { g: "m" }) {
   const u = "t_" + uid();
   // sign-ups are limited per address (12 a minute): wait out the window when the suite runs into it
   let r = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
@@ -72,10 +72,10 @@ const SHOP_TEST = "Hàng thử nghiệm";
 {
   const { q } = await import("../server/db.js");
   await q("DELETE FROM cosmetics WHERE name LIKE ?", [SHOP_TEST + "%"]);
-  for (const [kind, g, idx, price] of [["hair", "m", 0, 150], ["robe", "m", 0, 300], ["hair", "f", 0, 150], ["sword", "a", 1, 600]])
+  for (const [kind, g, idx, price] of [["toc", "m", 1, 150], ["ao", "m", 1, 300], ["toc", "f", 1, 150], ["sword", "a", 1, 600]])
     await q("INSERT INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, ?, ?, ?, ?, 0, 1, 0, 0)", [kind, g, idx, `${SHOP_TEST} ${kind} ${g}`, price]);
-  // and two bảo vật, never sold: a weapon and a flying sword
-  for (const [kind, idx] of [["weapon", 90], ["sword", 3]])
+  // and two bảo vật, never sold: wings and a flying sword
+  for (const [kind, idx] of [["canh", 9001], ["sword", 3]])
     await q("INSERT INTO cosmetics (kind, gender, idx, name, price, starter, on_sale, special, sort) VALUES (?, 'a', ?, ?, 0, 0, 0, 1, 0)", [kind, idx, `${SHOP_TEST} bảo vật ${kind}`]);
 }
 
@@ -83,17 +83,23 @@ const SHOP_TEST = "Hàng thử nghiệm";
   // the look is checked: bad genders and out-of-range parts are refused
   const u = "t_" + uid();
   const { data } = await call("/register", { method: "POST", body: { username: u, password: "secret123" } });
-  // junk, a shop item (hair 0 is sold, not free), and a man's starter hair on a woman
-  for (const look of [{ g: "x", hair: 8, robe: 16 }, { g: "m", hair: 1.5, robe: 16 }, { g: "f", hair: 24, robe: -1 }, null, { g: "m", hair: 0, robe: 16 }, { g: "f", hair: 8, robe: 2 }])
+  // junk, a sold (not free) hair style, a hat (not picked at creation), a fraction, a negative
+  const w0 = (await call("/cosmetics", { token: data.token })).data;
+  const free = (k) => w0.items.filter((i) => i.kind === k && i.starter).map((i) => i.idx);
+  const paid = w0.items.find((i) => i.kind === "toc" && !i.starter && i.g === "a").idx;
+  for (const look of [{ g: "x" }, { g: "m", toc: 1.5 }, { g: "f", ao: -1 }, null, { g: "m", toc: paid }, { g: "m", non: 10 }])
     assert.equal((await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look, faction: "c" } })).status, 400, JSON.stringify(look));
-  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: { g: "f", hair: 34, robe: 21 }, faction: "t" } });
-  assert.deepEqual({ ...c.data.character.look, weapon: undefined, sword: undefined }, { g: "f", hair: 34, robe: 21, weapon: undefined, sword: undefined });
+  const pick = { g: "f", toc: free("toc")[1], ao: free("ao")[2], quan: free("quan")[0], mat: free("mat")[3] };
+  const c = await call("/character", { token: data.token, method: "POST", body: { name: "T " + u.slice(2), look: pick, faction: "t" } });
+  assert.equal(c.status, 200, JSON.stringify(c.data));
+  for (const [k, v] of Object.entries(pick)) assert.equal(c.data.character.look[k], v, `${k} saved`);
+  assert.equal(c.data.character.look.khuonmat, 0, "the rest the figure's own");
+  assert.equal(c.data.character.look.non, 0);
   assert.equal(c.data.character.look.sword, 0, "and the basic flying sword, for when flight opens");
-  assert.ok(Number.isInteger(c.data.character.look.weapon), "and a weapon in hand");
-  const w = (await call("/cosmetics", { token: data.token })).data;
-  for (const [k, g] of [["hair", "m"], ["hair", "f"], ["robe", "m"], ["robe", "f"]])
-    assert.equal(w.items.filter((i) => i.kind === k && i.g === g && i.starter).length, 5, `5 free ${k} for ${g}`);
-  ok("creating a character: only one of the 5 free hair styles and robes of that gender, and it's saved");
+  for (const [k, n] of [["toc", 10], ["ao", 8], ["quan", 8], ["mat", 8], ["khuonmat", 4]])
+    assert.equal(free(k).length, n, `${n} free ${k}`);
+  assert.ok(w0.items.filter((i) => !i.starter && i.g === "a").length > 700, "the old game's fashion in the Y Các");
+  ok("creating a character: only the free hair, shirts, trousers, eyes and faces, and it's saved; 800 more in the Y Các");
 }
 
 {
@@ -116,9 +122,13 @@ const SHOP_TEST = "Hàng thử nghiệm";
   assert.equal(m.character.stones, 5);
   assert.equal(m.character.look[cheap.kind], cheap.idx, "worn after buying");
   // and back to a free one
-  const free = items.find((i) => i.g === "m" && i.starter && i.kind === cheap.kind && i.idx !== cheap.idx);
+  const free = items.find((i) => (i.g === "m" || i.g === "a") && i.starter && i.kind === cheap.kind && i.idx !== cheap.idx);
   assert.equal((await call("/cosmetics/wear", { token: p.token, method: "POST", body: { id: free.id } })).status, 200);
   assert.equal((await me(p.token)).character.look[free.kind], free.idx);
+  // taken off: back to the figure's own
+  assert.equal((await call("/cosmetics/unwear", { token: p.token, method: "POST", body: { kind: free.kind } })).status, 200);
+  assert.equal((await me(p.token)).character.look[free.kind], 0, "taken off");
+  assert.equal((await call("/cosmetics/unwear", { token: p.token, method: "POST", body: { kind: "hair" } })).status, 400, "no such layer");
   ok("Y Các: 10 buys at once charge once and wear it; can't wear unbought, other-gender or unaffordable items");
 }
 
@@ -322,8 +332,8 @@ const SHOP_TEST = "Hàng thử nghiệm";
     c2.ws.close();
 
     // bảo vật: not in the wardrobe, can't be bought or worn; given by an admin, it shows up and is worn
-    const gem = (await adm("/t/cosmetics", { token })).data.find((c) => c.special && c.kind === "weapon" && c.idx === 90);
-    assert.ok(gem, "the test bảo vật weapon is there");
+    const gem = (await adm("/t/cosmetics", { token })).data.find((c) => c.special && c.kind === "canh" && c.idx === 9001);
+    assert.ok(gem, "the test bảo vật wings are there");
     const before = (await call("/cosmetics", { token: q2.token })).data;
     assert.ok(!before.items.some((it) => it.id === gem.id), "a bảo vật nobody gave you isn't on the shelf");
     assert.equal((await call("/cosmetics/buy", { token: q2.token, method: "POST", body: { id: gem.id } })).status, 403, "and can't be bought");
@@ -332,7 +342,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
     const after = (await call("/cosmetics", { token: q2.token })).data;
     const mineGem = after.items.find((it) => it.id === gem.id);
     assert.ok(mineGem?.special && !mineGem.onSale && after.owned.includes(gem.id), "given: it is theirs, marked special");
-    assert.equal((await call("/cosmetics/wear", { token: q2.token, method: "POST", body: { id: gem.id } })).data.character.look.weapon, 90, "and in their hand");
+    assert.equal((await call("/cosmetics/wear", { token: q2.token, method: "POST", body: { id: gem.id } })).data.character.look.canh, 9001, "and on their back");
 
     // công pháp: learning spends every required item exactly once, even when the same learn (or two arts that need the
     // same essence) arrive together; the bar holds only known arts, none twice; a monster's drop lands in the bag
@@ -543,7 +553,7 @@ const SHOP_TEST = "Hàng thử nghiệm";
   // the starter town, side view: walls hold, jumps clear them, and the way out at the foot of the east stairs answers
   const { mapInfo, START_MAP } = await import("../shared/maps/index.js");
   const { fits } = await import("../shared/physics.js");
-  const M = mapInfo(START_MAP), P = await player({ g: "f", hair: 24, robe: 2 }), c = await connect(P.token);
+  const M = mapInfo(START_MAP), P = await player({ g: "f" }), c = await connect(P.token);
   const at = () => c.snap?.P.find((q) => q[0] === c.id);
   await sleep(300);
   const start = at();

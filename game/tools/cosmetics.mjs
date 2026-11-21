@@ -1,20 +1,20 @@
 // Admin tool for the wardrobe (the cosmetics table). Uses the same .env as the server; safe while the game runs, since the
 // game reads the table on every request.
 //
-//   npm run cosmetics -- list [hair|robe] [m|f]
-//   npm run cosmetics -- add <hair|robe> <m|f> <idx> <price> "<name>" [--starter]
+//   npm run cosmetics -- list [toc|ao|quan|non|...|sword] [m|f|a]
+//   npm run cosmetics -- add <kind> <m|f|a> <idx> <price> "<name>" [--starter]     (kinds: shared/thoi-trang.js, and sword)
 //   npm run cosmetics -- price <id> <price>
 //   npm run cosmetics -- rename <id> "<name>"
 //   npm run cosmetics -- sale <id> on|off          take off sale (owners keep it) or put back
 //   npm run cosmetics -- starter <id> on|off       free at creation, or not
 //   npm run cosmetics -- give <username> <id>      hand an item to a player (an event prize, a refund)
 //
-// idx is the number of the part's folder: public/toc-nam/<idx>-<name>/hinh.png (toc-nu, y-phuc-nam, y-phuc-nu, vu-khi, phi-kiem). To add
+// idx is the number of the picture: public/thoi-trang/<kind>/<idx>.png (a flying sword: public/phi-kiem/<idx>-<name>/hinh.png). To add
 // a new style, put its folder there (hinh.png + thong-tin.json, see the README), then add it here.
 import { pool, migrate } from "../server/db.js";
 
 const [cmd, ...a] = process.argv.slice(2);
-const KINDS = ["hair", "robe"], GENDERS = ["m", "f"];
+const KINDS = ["toc", "ao", "quan", "non", "kinh", "matna", "mat", "khuonmat", "canh", "haoquang", "docamtay", "thucung", "sword"], GENDERS = ["m", "f", "a"];
 const die = (m) => {
   console.error(m);
   process.exitCode = 1;
@@ -46,7 +46,7 @@ try {
     }
     case "add": {
       const [kind, g, idx, price, name] = a;
-      if (!KINDS.includes(kind) || !GENDERS.includes(g) || !name) throw new Error('add <hair|robe> <m|f> <idx> <price> "<name>" [--starter]');
+      if (!KINDS.includes(kind) || !GENDERS.includes(g) || !name) throw new Error(`add <${KINDS.join("|")}> <m|f|a> <idx> <price> "<name>" [--starter]`);
       const r = await pool.query("INSERT INTO cosmetics (kind, gender, idx, name, price, starter, sort) VALUES (?, ?, ?, ?, ?, ?, ?)", [
         kind, g, int(idx, "idx"), name.slice(0, 40), int(price, "giá"), a.includes("--starter") ? 1 : 0, int(idx, "idx"),
       ]);

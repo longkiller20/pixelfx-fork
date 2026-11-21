@@ -1,5 +1,6 @@
-// The pictures of things in the game, one folder per thing, in public/:
-//   toc-nam/ toc-nu/ y-phuc-nam/ y-phuc-nu/ vu-khi/ phi-kiem/   <idx>-<name>/hinh.png + thong-tin.json
+// The pictures of things in the game, in public/:
+//   thoi-trang/<kind>/<idx>.png (+ load/<idx>.png)                 the fashion items (shared/thoi-trang.js)
+//   phi-kiem/                                                     <idx>-<name>/hinh.png + thong-tin.json
 //   cong-phap/                                                    <n>-<name>/icon.png + thong-tin.json ({ key })
 // (only the free parts are there now; tools/arts/icons.mjs makes the art icons, an artist the rest.) The
 // folders are listed here, so a new hair style or weapon is just a new folder: its number is the idx the database uses
@@ -9,7 +10,10 @@ import { join } from "node:path";
 import { ROOT } from "./config.js";
 
 /** folder -> [kind, gender] as the game names them ("a": for everyone) */
-export const PART_DIRS = { "toc-nam": ["hair", "m"], "toc-nu": ["hair", "f"], "y-phuc-nam": ["robe", "m"], "y-phuc-nu": ["robe", "f"], "vu-khi": ["weapon", "a"], "phi-kiem": ["sword", "a"] };
+export const PART_DIRS = { "phi-kiem": ["sword", "a"] };
+// the fashion items (shared/thoi-trang.js): public/thoi-trang/<kind>/<idx>.png, a second frame in load/<idx>.png
+import { KIND_KEYS } from "../shared/thoi-trang.js";
+const FASHION = "thoi-trang";
 export const ART_DIR = "cong-phap";
 const ITEM = /^(\d+)-[a-z0-9]*$/;
 const PUB = join(ROOT, "public");
@@ -25,7 +29,17 @@ function readInfo(dir) {
 }
 
 function scan() {
-  const out = { parts: {}, arts: {} };
+  const out = { parts: {}, arts: {}, fashion: {} };
+  // each kind: idx -> 1 (one picture) or 2 (a second frame too)
+  for (const k of KIND_KEYS) {
+    const list = (out.fashion[k] = {}), d = join(PUB, FASHION, k);
+    if (!existsSync(d)) continue;
+    const two = existsSync(join(d, "load")) ? new Set(readdirSync(join(d, "load"))) : new Set();
+    for (const f of readdirSync(d)) {
+      const m = /^(\d+)\.png$/.exec(f);
+      if (m) list[Number(m[1])] = two.has(f) ? 2 : 1;
+    }
+  }
   for (const [folder, [kind, g]] of Object.entries(PART_DIRS)) {
     const list = (out.parts[`${kind}_${g}`] = {});
     const base = join(PUB, folder);
@@ -58,8 +72,8 @@ export function assets() {
 }
 export const assetsJson = () => (assets(), json);
 
-/** Whether a part exists: kind hair|robe|weapon|sword, g m|f|a. */
-export const hasPart = (kind, g, idx) => !!assets().parts[`${kind}_${g}`]?.[idx];
+/** Whether a part exists: a fashion kind (g ignored) or sword (g a). */
+export const hasPart = (kind, g, idx) => (KIND_KEYS.includes(kind) ? !!assets().fashion[kind]?.[idx] : !!assets().parts[`${kind}_${g}`]?.[idx]);
 /** The idx numbers there are for a kind, in order. */
 export const partIdx = (kind, g) => Object.keys(assets().parts[`${kind}_${g}`] ?? {}).map(Number).sort((a, b) => a - b);
 

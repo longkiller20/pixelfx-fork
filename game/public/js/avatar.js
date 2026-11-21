@@ -1,83 +1,34 @@
-// The players' look: one base figure (public/nhan-vat/than-goc.png) dressed in a hair style and a robe, a weapon in hand and
-// a flying sword to ride. Every part is its own picture in its own folder, public/<kind>/<idx>-<name>/hinh.png, with
-// thong-tin.json saying where it goes (server/assets.js lists them at /assets.json); a part's picture is fetched the first
-// time someone wears it. Hair and robes are split into a rig and moved:
-//   back hair → robe (torso, the front sleeve, skirt, two boots) → head → front hair → face
-// Every part is a list of pixels in the base figure's own grid (29 x 63, feet at the bottom middle), so a pose is just
-// offsets: the upper body breathes and bobs, the front sleeve turns about its shoulder when casting, the skirt and the hair sway, the boots
-// step. Nothing here is a canned frame: it all follows the character's state.
+// The players' look: the old game's chibi figure (shared/thoi-trang.js), 45 x 48 pixels, drawn twice the size. It is a
+// stack of whole pictures, back to front: wings, halo, trousers, shirt, face, eyes, hair, glasses, mask, hat, the thing in
+// hand, the pet; each one public/thoi-trang/<kind>/<idx>.png, or the figure's own (public/thoi-trang/goc/) where nothing
+// is bought. The flying sword (public/phi-kiem/) lies under the feet when flying.
+// The rig is the old game's, brought to life: its two frames (the second either the item's own load/<idx>.png, or the
+// picture a pixel lower for what moves with the chest), alternating as it breathes, faster as it walks; on top of that
+// a walk that bounces and steps the legs apart, a blink now and then, a lean forward and the thing in hand thrust out when
+// it strikes, the legs tucked in the air. The pictures face right; the painter mirrors them to face left.
 import { WHITE, mix, hex } from "/hieu-ung/core/index.js";
+import { KINDS, KIND } from "/shared/thoi-trang.js";
 
 export const GENDERS = ["m", "f"];
-const BW = 29, BH = 63, OX = 15; // the base grid, and the x of the line between the feet
-// where the body is cut: shoulders (sleeve pivots), the waist, the boots
-// the front hand, from the shoulder with the arm hanging; and how a weapon sits in it at rest: pointing forward and down
-const HAND = [2, 15], WEAPON_REST = 0.38, WEAPON_REST_LONG = -1.3;
-const SH_F = [22, 27], ARM_Y0 = 24, ARM_Y1 = 43, SKIRT_Y = 44, FEET_Y = 57, BACK_HAIR_Y = 22;
-// parts: 0 torso, 1 front sleeve, 3 skirt (the back sleeve stays with the torso: on most robes it is the cape or the back hem), 4 front boot, 5 back boot
-const TORSO = 0, ARM_F = 1, SKIRT = 3, FOOT_F = 4, FOOT_B = 5;
+// drawn at S times; the feet's middle (x) and the line they stand on (y) in the 45 x 48 grid; where the legs start
+const S = 2, FX = 23, FY = 40, LEGS = 35, GH = 48;
+const GOC = "/thoi-trang/goc";
 
-let meta = null, base = null, ready = null;
-const cache = new Map();
+let meta = null, ready = null;
+const pics = new Map(); // url -> picture | promise | null (missing)
 
-/** Load the list of parts and the base figure once; resolves when characters can be drawn (their parts follow). */
+/** Load the list of pictures and the figure's own once; resolves when characters can be drawn (items follow when worn). */
 export function loadAvatars() {
   ready ??= (async () => {
-    const [list, b] = await Promise.all([fetch("/assets.json").then((r) => r.json()), pixels("/nhan-vat/than-goc.png")]);
-    base = b;
-    meta = list.parts;
+    meta = await fetch("/assets.json").then((r) => r.json());
+    await Promise.all(["ao", "quan", "khuonmat", "mat", "mat-load", "toc-m", "toc-f"].map((n) => load(`${GOC}/${n}.png`)));
   })();
   return ready;
 }
 export const avatarsReady = () => !!meta;
 
-// ---- the parts, each fetched once when first needed: key "hair_m", "robe_f", "weapon_a", "sword_a"
-const parts = new Map(); // `${key}:${idx}` -> { s: pixels, m: [x, y, w, h, ...] } | LOADING | MISSING
-const LOADING = 1, MISSING = 2;
-// [0, 0, w, h, then what places it]: hair and robes their offset on the base (dx, dy); weapons the grip (gx, gy) and
-// whether it is held upright at rest (long arms); flying swords the row the feet stand on
-const placeOf = (key, e, s) =>
-  key.startsWith("weapon") ? [0, 0, s.w, s.h, e.gx ?? 0, e.gy ?? 0, e.dai ?? s.w > 62]
-  : key.startsWith("sword") ? [0, 0, s.w, s.h, e.by ?? s.h >> 1]
-  : [0, 0, s.w, s.h, e.dx ?? 0, e.dy ?? 0];
-/** The number to draw for a part: itself if there is a picture of it, else the first there is (a part since removed). */
-function idxOf(key, i) {
-  const list = meta?.[key];
-  if (!list) return null;
-  if (list[i]) return i;
-  const first = Object.keys(list)[0];
-  return first === undefined ? null : Number(first);
-}
-/** Fetch a part's picture (once); resolves to { s, m } or null. */
-export function loadPart(key, i) {
-  i = idxOf(key, i);
-  if (i === null) return Promise.resolve(null);
-  const id = `${key}:${i}`, have = parts.get(id);
-  // still on its way: the same promise (a pending promise is an object too, so this comes first)
-  if (have?.then) return have;
-  if (have) return Promise.resolve(have.s ? have : null);
-  const e = meta[key][i];
-  const pr = pixels(`/${e.dir}/hinh.png`)
-    .then((s) => {
-      const v = { s, m: placeOf(key, e, s) };
-      parts.set(id, v);
-      return v;
-    })
-    .catch(() => (parts.set(id, { s: null }), null));
-  parts.set(id, pr);
-  return pr;
-}
-/** A part if its picture is here already; otherwise null, and it is fetched (the character shows it a moment later). */
-function part(key, i) {
-  const j = idxOf(key, i);
-  if (j === null) return null;
-  const have = parts.get(`${key}:${j}`);
-  if (have && typeof have === "object" && !have.then) return have.s ? have : null;
-  if (!have) loadPart(key, j);
-  return null;
-}
-
-async function pixels(url) {
+/** A picture's opaque pixels [x, y, color] (colors as the painter wants them), its size and its first and last rows. */
+async function read(url) {
   const img = new Image();
   img.src = url;
   await img.decode();
@@ -86,281 +37,192 @@ async function pixels(url) {
   c.height = img.height;
   const g = c.getContext("2d");
   g.drawImage(img, 0, 0);
-  // RGBA bytes read as little-endian words are exactly the painter's ABGR colors
-  return { w: img.width, h: img.height, px: new Uint32Array(g.getImageData(0, 0, img.width, img.height).data.buffer) };
-}
-
-/** Cut a w x h block at (sx, sy) of a sheet into [x, y, color] with x, y in the base grid, shifted by (dx, dy). */
-function cut(sheet, sx, sy, w, h, dx, dy) {
-  const out = [];
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++) {
-      const c = sheet.px[(sy + y) * sheet.w + sx + x];
-      if (c >>> 24 > 128) out.push([x + dx, y + dy, (c | 0xff000000) >>> 0]);
-    }
-  return out;
-}
-const shade = (c, k) => ((255 << 24) | ((((c >>> 16) & 255) * k) << 16) | ((((c >>> 8) & 255) * k) << 8) | ((c & 255) * k)) >>> 0;
-
-function rigFor(g, hair, robe) {
-  const H = part(`hair_${g}`, hair), Rb = part(`robe_${g}`, robe);
-  if (!H || !Rb) return null;
-  const key = `${g}${hair}.${robe}`;
-  let r = cache.get(key);
-  if (r) return r;
-  const baseFig = cut(base, 0, 0, BW, BH, 0, 0);
-  const [hx, hy, hw, hh, hdx, hdy] = H.m;
-  const [rx, ry, rw, rh, rdx, rdy] = Rb.m;
-  const hairPx = cut(H.s, hx, hy, hw, hh, hdx, hdy);
-  const robePx = cut(Rb.s, rx, ry, rw, rh, rdx, rdy);
-  r = {
-    // the long ends behind the shoulders hang behind the robe; the rest sits on the head
-    hairBack: hairPx.filter(([x, y]) => y >= BACK_HAIR_Y && x < 14),
-    hairFront: hairPx.filter(([x, y]) => !(y >= BACK_HAIR_Y && x < 14)),
-    head: baseFig.filter(([, y]) => y <= 22),
-    // the eyes, nose and mouth stay in front of any fringe
-    face: baseFig.filter(([x, y]) => y >= 12 && y <= 21 && x >= 12),
-    robe: robePx.map(([x, y, c]) => {
-      let part = TORSO;
-      if (y >= FEET_Y) part = x < OX ? FOOT_B : FOOT_F;
-      else if (y >= ARM_Y0 && y <= ARM_Y1 && x >= 21) part = ARM_F;
-      else if (y >= SKIRT_Y) part = SKIRT;
-      return [x, y, c, part];
-    }),
-  };
-  r.at = new Map(r.robe.map(([x, y, c]) => [y * 256 + x, c]));
-  // the hem's right edge at the waist line, where the robe's body under the sleeve ends
-  r.hemR = Math.max(21, ...r.robe.filter(([, y, , part]) => y === SKIRT_Y && part === SKIRT).map(([x]) => x));
-  // the torso under the front sleeve, which the artist never drew: rebuilt so a raised arm leaves the robe whole. Row by
-  // row, the body's edge runs from the shoulder's width down to the hem's, inside the sleeve's own outline only; it is
-  // filled with the cloth just inside it (repeating its last few columns), with a dark outline on the new edge.
-  {
-    const robeAt = new Map(r.robe.filter((q) => q[3] !== ARM_F).map(([x, y, c]) => [y * 256 + x, c]));
-    const arm = new Set(r.robe.filter((q) => q[3] === ARM_F).map(([x, y]) => y * 256 + x));
-    const rowMax = (y) => Math.max(-1, ...r.robe.filter((q) => q[1] === y && q[3] !== ARM_F).map((q) => q[0]));
-    const top = Math.min(26, Math.max(21, rowMax(ARM_Y0 - 1))), bottom = Math.min(27, r.hemR);
-    r.under = [];
-    for (let y = ARM_Y0; y <= ARM_Y1; y++) {
-      const edge = Math.round(top + ((bottom - top) * (y - ARM_Y0)) / (ARM_Y1 - ARM_Y0));
-      let last = 20;
-      while (last > 8 && !robeAt.has(y * 256 + last)) last--;
-      for (let x = last + 1; x <= edge; x++) {
-        if (!arm.has(y * 256 + x)) continue;
-        const src = robeAt.get(y * 256 + (last - ((x - last - 1) % 3))) ?? robeAt.get(y * 256 + last);
-        if (src) r.under.push([x, y, x === edge ? shade(src, 0.35) : shade(src, 0.9)]);
+  const px = new Uint32Array(g.getImageData(0, 0, img.width, img.height).data.buffer), pts = [];
+  let top = img.height, bottom = -1;
+  for (let y = 0; y < img.height; y++)
+    for (let x = 0; x < img.width; x++) {
+      const v = px[y * img.width + x];
+      if (v >>> 24 > 100) {
+        pts.push([x, y, (v | 0xff000000) >>> 0]);
+        top = Math.min(top, y);
+        bottom = y;
       }
     }
+  return { w: img.width, h: img.height, pts, top, bottom, px };
+}
+function load(url) {
+  const have = pics.get(url);
+  if (have !== undefined) return have?.then ? have : Promise.resolve(have);
+  const pr = read(url).then((v) => (pics.set(url, v), v), () => (pics.set(url, null), null));
+  pics.set(url, pr);
+  return pr;
+}
+/** A picture if it is here; otherwise null, and it is fetched (the character shows it a moment later). */
+function pic(url) {
+  const have = pics.get(url);
+  if (have === undefined) load(url);
+  return have && !have.then ? have : null;
+}
+
+/**
+ * The layers a look wears, back to front: [kind, picture url, second-frame url (or null: the same a pixel lower, or not
+ * moving, as the kind says)]. look: { g, <kind>: idx (0: the figure's own / nothing) }.
+ */
+function layers(look) {
+  const out = [];
+  for (const K of KINDS) {
+    const i = look?.[K.key] | 0, have = meta?.fashion?.[K.key]?.[i];
+    if (i > 0 && have) out.push([K, `/thoi-trang/${K.key}/${i}.png`, have === 2 ? `/thoi-trang/${K.key}/load/${i}.png` : null]);
+    else if (K.base) out.push([K, K.key === "toc" ? `${GOC}/toc-${look?.g === "f" ? "f" : "m"}.png` : `${GOC}/${K.key}.png`, null]);
   }
-  // the sleeves as lookup grids, for drawing them turned
-  // where this robe's front fist is: its skin-coloured pixels low on the front sleeve (the weapon is held there)
-  {
-    let sx = 0, sy = 0, n = 0;
-    for (const [x, y, c, part] of r.robe) {
-      if (part !== ARM_F || y < 33) continue;
-      const R = c & 255, G = (c >>> 8) & 255, B = (c >>> 16) & 255;
-      if (R > 170 && R - B > 45 && G > 110 && G < R && B < G + 10 && B > 60) (sx += x), (sy += y), n++;
-    }
-    r.hand = n >= 3 ? [sx / n - SH_F[0], sy / n - SH_F[1]] : HAND;
-  }
-  for (const [name, part, piv] of [["armF", ARM_F, SH_F]]) {
-    const px = r.robe.filter((p) => p[3] === part);
-    const m = new Map(px.map(([x, y, c]) => [y * 256 + x, c]));
-    let R = 0;
-    for (const [x, y] of px) R = Math.max(R, Math.hypot(x - piv[0], y - piv[1]));
-    r[name] = { m, piv, R: Math.ceil(R) + 1 };
-  }
-  cache.set(key, r);
-  if (cache.size > 200) cache.delete(cache.keys().next().value);
-  return r;
+  return out;
 }
 
 const SLOW = hex("#a060ff");
-const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const ease = (u) => (u < 0 ? 0 : u > 1 ? 1 : u * u * (3 - 2 * u));
 
 /**
- * Work out the pose from the character's state. st: { t, moving, air, cast: { type, age } | null, busy, meditating }.
- * Arm angles are radians, positive turning the hand back and down (screen space, facing right).
+ * The pose from the character's state. st: { t, moving, air, fly, meditating, cast: { type, age } | null, busy }.
+ * frame: the old game's second frame; up: the whole body raised; lean: the upper body forward; hand: the thing in hand
+ * further out; legs: the legs stepped apart (one each way); tuck: the legs drawn up; blink: the eyes shut.
  */
 export function poseOf(st) {
-  // every offset here is either a rigid shift of a whole part or a shear that grows steadily along the body, so neighbouring
-  // rows never move apart by more than a pixel: the cloth bends but never tears
-  const t = st.t, P = { bob: 0, lean: 0, armF: 0, swingF: 0, skirt: 0, sway: 0, wind: 0, lift: 0, footF: [0, 0], footB: [0, 0] };
-  if (st.air) {
-    P.lift = 2;
-    P.wind = 0.5;
-    P.skirt = -1;
-    P.footF = [1, -1];
-    P.footB = [0, -2];
+  const t = st.t ?? 0, P = { frame: 0, up: 0, lean: 0, hand: 0, legs: 0, tuck: 0, blink: false };
+  if (st.air && !st.fly) {
+    P.tuck = 1;
+    P.up = 1;
   } else if (st.moving) {
-    // a step every 0.19 s: boots swap, the body dips as each lands, sleeves and skirt swing against the legs
-    const ph = t * 16.5, s = Math.sin(ph), c = Math.cos(ph);
-    P.footF = [Math.round(s), c > 0.3 ? -1 : 0];
-    P.footB = [-Math.round(s), c < -0.3 ? -1 : 0];
-    P.bob = Math.abs(c) < 0.5 ? 1 : 0;
+    // a step every 0.14 s: the second frame, the body bouncing up, the legs apart
+    P.frame = Math.floor(t / 0.14) & 1;
+    P.up = P.frame;
+    P.legs = P.frame;
     P.lean = 1;
-    P.skirt = -s * 1.2;
-    P.sway = Math.sin(ph * 0.5) * 0.6;
-    P.wind = 1.4;
-  } else {
-    // breathing: the chest settles a pixel, the hair and hem drift
-    P.bob = Math.sin(t * 2.4) > 0.3 ? 1 : 0;
-    P.sway = Math.sin(t * 1.7) * 0.8;
-    P.skirt = Math.sin(t * 1.3) * 0.6;
-  }
+  } else P.frame = Math.floor(t / (st.meditating ? 0.8 : 0.45)) & 1;
+  // a blink every few seconds (each character on its own beat: t carries their id)
+  P.blink = t % 3.3 < 0.13;
   const c = st.cast;
-  // a long weapon has its own angle (null: upright at rest): turning it with the arm would sweep it across the face
-  P.longW = null;
-  if (st.busy) P.armF = -1.5;
-  else if (c && c.age < 0.5) {
-    const u = c.age / 0.5;
-    if (c.type === "melee") {
-      // raise the sword arm high in front, cut down through the target, let it fall back
-      P.armF = u < 0.2 ? -2.6 * (u / 0.2) : u < 0.45 ? -2.6 + 2.1 * ((u - 0.2) / 0.25) : -0.5 * (1 - (u - 0.45) / 0.55);
-      P.lean = u > 0.2 && u < 0.7 ? 2 : 1;
-      // a polearm: drawn back over the shoulder, then brought down in a chop in front
-      P.longW = u < 0.2 ? -1.3 - 0.7 * (u / 0.2) : u < 0.45 ? -2.0 + 2.3 * ((u - 0.2) / 0.25) : 0.3 - 1.6 * ((u - 0.45) / 0.55);
-    } else {
-      // a palm thrust straight ahead, held, then lowered
-      const k = u < 0.15 ? u / 0.15 : u > 0.7 ? 1 - (u - 0.7) / 0.3 : 1;
-      P.armF = -1.45 * k;
-      // a polearm: levelled and thrust straight ahead
-      P.longW = -1.3 * (1 - k);
-      P.lean = u < 0.3 ? -1 : 1;
-    }
-    P.wind += 0.6;
+  if (st.busy) P.lean = 1;
+  if (c && c.age < 0.5) {
+    // into the strike and back: the upper body leans in, the thing in hand goes further
+    const u = c.age / 0.5, k = u < 0.25 ? ease(u / 0.25) : 1 - ease((u - 0.25) / 0.75);
+    P.lean = Math.round(2 * k);
+    P.hand = Math.round(3 * k);
   }
   return P;
 }
 
 /**
- * Draw a character with its feet at the painter's origin (place it first; it mirrors for facing left). look: { g, hair,
- * robe }; st: the state poseOf reads, plus flash and slow for tints.
+ * Draw a character with its feet at the painter's origin (place it first; it mirrors for facing left). look: as above,
+ * with sword (the flying sword's idx); st: the state poseOf reads, plus fly, flash and slow.
  */
 export function drawAvatar(p, look, st) {
   if (!meta) return false;
-  const g = GENDERS.includes(look.g) ? look.g : "m";
-  // the parts' pictures are fetched the first time they are worn: until they are here, nothing is drawn
-  const r = rigFor(g, look.hair | 0, look.robe | 0);
-  if (!r) return false;
   const P = poseOf(st);
   const tint = (c) => (st.flash ? WHITE : st.slow ? mix(c, SLOW, 0.35) : c);
-  const X = (x) => x - OX, Y = (y) => y - BH;
-  // riding a flying sword: it lies under the feet
-  const fly = st.fly && look.sword !== undefined && look.sword !== null;
-  // one lean for the whole body, strongest at the head, nothing at the feet; the bob moves everything above the boots down
-  // (only ever down: overlapping rows hide each other, a gap would show)
-  const lean = (y) => Math.round(P.lean * clamp01((FEET_Y - y) / FEET_Y));
-  const bob = (y) => (y < FEET_Y ? P.bob : 0);
-  // the skirt swings from the waist: 0 at the waist, full at the hem
-  const hem = (y) => Math.round(P.skirt * clamp01((y - SKIRT_Y) / (FEET_Y - SKIRT_Y)));
-  // hair hangs from the crown and sways as one piece, streaming back in the wind
-  const hairDX = (y) => {
-    const w = clamp01((y - 8) / 30);
-    return Math.round(w * P.sway - w * w * P.wind * 2.2) + lean(y);
-  };
-  const hairDY = (y) => -Math.round(clamp01((y - 8) / 30) * P.lift) + bob(y);
-  // first, so the boots stand on the blade and the body hides the ornament round the guard
-  if (fly) drawFlySword(p, look.sword, 0, 1, tint);
-  for (const [x, y, c] of r.hairBack) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(shade(c, 0.85)));
-  // robe: torso and skirt, then the boots; the sleeves are drawn on their own (nothing left behind where they were)
-  for (const [x, y, c, part] of r.robe) {
-    if (part === ARM_F) continue;
-    let dx = lean(y), dy = bob(y);
-    if (part === SKIRT) dx += hem(y);
-    else if (part === FOOT_F) [dx, dy] = P.footF;
-    else if (part === FOOT_B) [dx, dy] = P.footB;
-    p.px(X(x + dx), Y(y + dy), tint(c));
+  if (st.fly && look.sword !== undefined && look.sword !== null) drawFlySword(p, look.sword, 0, 1, tint);
+  for (const [K, a, b] of layers(look)) {
+    const second = P.frame === 1;
+    let url = second && b ? b : a;
+    // the eyes shut for a blink
+    if (K.key === "mat" && P.blink) url = `${GOC}/mat-load.png`;
+    const L = pic(url);
+    if (!L) continue;
+    // the second frame: the item's own picture where it has one (a hat's still a pixel lower), else the same a pixel
+    // lower for what moves with the chest
+    const dy0 = second ? (b ? (K.key === "non" ? 1 : 0) : K.bob) : 0;
+    const upper = K.key !== "quan" && K.key !== "haoquang" && K.key !== "thucung";
+    const dx0 = (upper ? P.lean : 0) + (K.key === "docamtay" ? P.hand : 0) - (K.back ?? 0);
+    const y0 = GH - L.h - (K.lift ?? 0) - P.up;
+    for (const [x, y, c] of L.pts) {
+      let gx = x + dx0, gy = y0 + y + dy0;
+      // the legs: stepped apart when walking, drawn up in the air
+      if (K.key === "quan" && y + (GH - L.h) >= LEGS) {
+        if (P.legs) gx += x < FX ? -1 : 1;
+        if (P.tuck) gy -= 1;
+      }
+      const X = (gx - FX) * S, Y = (gy - FY) * S, col = tint(c);
+      p.px(X, Y, col);
+      p.px(X + 1, Y, col);
+      p.px(X, Y + 1, col);
+      p.px(X + 1, Y + 1, col);
+    }
   }
-  for (const [x, y, c] of r.under) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
-  for (const [x, y, c] of r.head) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
-  for (const [x, y, c] of r.hairFront) p.px(X(x + hairDX(y)), Y(y + hairDY(y)), tint(c));
-  for (const [x, y, c] of r.face) p.px(X(x + lean(y)), Y(y + bob(y)), tint(c));
-  // the weapon, in the front hand: it turns with the arm about the shoulder, the fist drawn over its grip
-  if (look.weapon !== undefined && look.weapon !== null) {
-    const a = P.armF, [sx, sy] = SH_F, [hx, hy] = r.hand;
-    const handX = sx + hx * Math.cos(a) - hy * Math.sin(a), handY = sy + hx * Math.sin(a) + hy * Math.cos(a);
-    // long arms (spears, halberds, staves) stand upright at rest; swords and the like point forward, clear of the ground
-    const long = !!part("weapon_a", look.weapon)?.m[6];
-    drawWeapon(p, look.weapon, X(Math.round(handX) + lean(sy)) + 0.5, Y(Math.round(handY) + bob(sy)) + 0.5, long ? P.longW ?? WEAPON_REST_LONG : WEAPON_REST + a, tint, true);
-  }
-  drawArm(p, r.armF, P.armF, P.swingF, lean, bob, tint, X, Y);
   return true;
 }
 
-// A sleeve. Small swings (walking) are a shear: the cuff moves, the shoulder stays, every row whole and crisp. Big moves
-// (casting, a jump) turn it about the shoulder, every target pixel looking up where it came from so no holes open up.
-function drawArm(p, arm, a, swing, lean, bob, tint, X, Y) {
-  const [px0, py0] = arm.piv;
-  if (Math.abs(a) < 0.05) {
-    const len = Math.max(1, arm.R - 1);
-    for (const [k, c] of arm.m) {
-      const x = k & 255, y = k >> 8;
-      p.px(X(x + lean(y) + Math.round(swing * clamp01((y - py0) / len))), Y(y + bob(y)), tint(c));
-    }
-    return;
-  }
-  const R = arm.R, cs = Math.cos(a), sn = Math.sin(a), ox = lean(py0), oy = bob(py0);
-  for (let ty = -R; ty <= R; ty++)
-    for (let tx = -R; tx <= R; tx++) {
-      // rotate back by -a
-      const sx = Math.round(px0 + tx * cs + ty * sn), sy = Math.round(py0 - tx * sn + ty * cs);
-      const c = arm.m.get(sy * 256 + sx);
-      if (c) p.px(X(px0 + tx + ox), Y(py0 + ty + oy), tint(c));
-    }
-}
-
-/**
- * One weapon from the atlas, turned by `angle` (radians, 0 = pointing right, growing clockwise on screen) about its grip,
- * the grip at (x, y) in the painter's space; or about its middle when grip is false (a flying sword).
- */
-export function drawWeapon(p, i, x, y, angle, tint = (c) => c, grip = false) {
-  const W = part("weapon_a", i);
-  if (!W) return;
-  const [wx, wy, w, h, gx, gy] = W.m, sh = W.s, ax = grip ? gx : w / 2, ay = grip ? gy : h / 2;
-  const cs = Math.cos(angle), sn = Math.sin(angle), R = Math.ceil(Math.hypot(Math.max(ax, w - ax), Math.max(ay, h - ay))) + 1;
-  const ox = Math.floor(x), oy = Math.floor(y);
-  for (let ty = -R; ty <= R; ty++)
-    for (let tx = -R; tx <= R; tx++) {
-      // where this screen pixel comes from in the unturned weapon
-      const u = Math.round(ax + tx * cs + ty * sn), v = Math.round(ay - tx * sn + ty * cs);
-      if (u < 0 || v < 0 || u >= w || v >= h) continue;
-      const c = sh.px[(wy + v) * sh.w + wx + u];
-      if (c >>> 24 > 128) p.px(ox + tx, oy + ty, tint((c | 0xff000000) >>> 0));
-    }
-}
-
-/**
- * A flying sword lying flat under the feet at (x, y) in the painter's space, pointing the way the painter faces; it rides
- * a little behind the body, the tail (its dragon, its flowers) trailing.
- */
+// ---- the flying sword: public/phi-kiem/<idx>-<name>/hinh.png (+ thong-tin.json: by, the row the feet stand on)
+/** A flying sword lying flat under the feet at (x, y) in the painter's space, pointing the way the painter faces. */
 export function drawFlySword(p, i, x, y, tint = (c) => c) {
-  const S = part("sword_a", i);
-  if (!S) return;
-  const [sx, sy, w, h, by] = S.m, sh = S.s, ox = Math.round(x - w * 0.55), oy = Math.round(y - by);
-  for (let v = 0; v < h; v++)
-    for (let u = 0; u < w; u++) {
-      const c = sh.px[(sy + v) * sh.w + sx + u];
-      if (c >>> 24 > 128) p.px(ox + u, oy + v, tint((c | 0xff000000) >>> 0));
-    }
+  const list = meta?.parts?.sword_a;
+  if (!list) return;
+  const e = list[i] ?? list[Object.keys(list)[0]];
+  if (!e) return;
+  const S2 = pic(`/${e.dir}/hinh.png`);
+  if (!S2) return;
+  const by = e.by ?? S2.h >> 1, ox = Math.round(x - S2.w * 0.55), oy = Math.round(y - by);
+  for (const [u, v, c] of S2.pts) p.px(ox + u, oy + v, tint(c));
 }
 
-/** One part on its own (for the pickers): a canvas, filled at 1:1 as soon as the part's picture is here. */
+/** How tall a dressed character stands above its feet (world px), for name tags: the highest of what it wears. */
+export function avatarTop(look) {
+  if (!meta) return 70;
+  let top = FY - 7;
+  for (const [K, a] of layers(look)) {
+    if (K.key === "thucung" || K.key === "haoquang") continue;
+    const L = pic(a);
+    if (L) top = Math.min(top, GH - L.h + L.top);
+  }
+  return (FY - top) * S + 2;
+}
+
+/**
+ * One item to show in a picker (a canvas, filled as soon as the pictures are here): worn by the plain figure, so a shirt
+ * looks like a shirt; a pet, a halo, wings on their own. A flying sword is itself. Shown at 1:1 (css scales it up).
+ */
 export function partCanvas(kind, g, i) {
   const c = document.createElement("canvas");
   c.width = c.height = 1;
-  loadPart(`${kind}_${g}`, i).then((P) => {
-    if (!P) return;
-    const { w, h, px } = P.s;
-    c.width = w;
-    c.height = h;
-    const img = new ImageData(new Uint8ClampedArray(px.buffer.slice(0)), w, h);
-    c.getContext("2d").putImageData(img, 0, 0);
-  });
+  c.className = "fpart";
+  (async () => {
+    await loadAvatars();
+    let L;
+    if (kind === "sword") {
+      const e = meta.parts?.sword_a?.[i];
+      if (!e) return;
+      const s = await load(`/${e.dir}/hinh.png`);
+      if (!s) return;
+      return paint(c, [[s, 0, 0]], s.w, s.h);
+    }
+    // on their own: what isn't worn on the body; the head's things on the head only (cut at the neck), so they show big
+    const alone = kind === "thucung" || kind === "haoquang" || kind === "canh" || kind === "docamtay";
+    const head = ["toc", "non", "kinh", "matna", "mat", "khuonmat"].includes(kind);
+    const look = { g, [kind]: i };
+    const ls = alone ? [[KIND[kind], `/thoi-trang/${kind}/${i}.png`]] : layers(look);
+    const got = (await Promise.all(ls.map(([, a]) => load(a)))).filter(Boolean);
+    if (!got.length) return;
+    L = got.map((s) => [s, 0, GH - s.h]);
+    paint(c, L, 50, GH, head ? NECK : GH);
+  })();
   return c;
 }
-
-/** How tall a dressed character stands, for name tags: the base plus whatever the hair adds on top. */
-export function avatarTop(look) {
-  const g = GENDERS.includes(look.g) ? look.g : "m", H = meta && part(`hair_${g}`, look.hair | 0);
-  return H ? BH - Math.min(0, H.m[5]) : 70;
+// the row under the chin: a picture of a hat or a hair style is cut there
+const NECK = 27;
+/** Paint pictures [pic, x, y] on a canvas cut to what they cover above row `below` (and a pixel round). */
+function paint(c, list, W, H, below = H) {
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  list = list.map(([s, ox, oy]) => [{ pts: s.pts.filter(([, y]) => y + oy < below) }, ox, oy]);
+  for (const [s, ox, oy] of list)
+    for (const [x, y] of s.pts) {
+      x0 = Math.min(x0, x + ox);
+      y0 = Math.min(y0, y + oy);
+      x1 = Math.max(x1, x + ox);
+      y1 = Math.max(y1, y + oy);
+    }
+  if (x1 < 0) return;
+  const w = x1 - x0 + 3, h = y1 - y0 + 3;
+  c.width = w;
+  c.height = h;
+  const img = new ImageData(w, h), d = new Uint32Array(img.data.buffer);
+  for (const [s, ox, oy] of list) for (const [x, y, col] of s.pts) d[(y + oy - y0 + 1) * w + (x + ox - x0 + 1)] = col;
+  c.getContext("2d").putImageData(img, 0, 0);
 }
