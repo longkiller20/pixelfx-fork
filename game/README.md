@@ -305,6 +305,19 @@ tiếng Việt, đồ họa pixel lấy từ thư viện pixelfx nằm ngay tron
 
 ## Cài lên VPS (Ubuntu/Debian)
 
+**Cách nhanh nhất: script và bảng điều khiển web.** Trên một VPS Ubuntu trắng, chạy:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/longkiller20/pixelfx-fork/main/deploy/install.sh | sudo bash
+```
+
+Script hỏi cổng cho bảng điều khiển (cổng bất kỳ bạn chọn), tên đăng nhập và mật khẩu, rồi in địa chỉ để mở trên trình
+duyệt. Ở đó bấm một nút là cài xong Node.js, MariaDB, game (chạy bằng systemd), mật khẩu trang admin, tên miền với Caddy
+hoặc Nginx kèm HTTPS, tường lửa và sao lưu mỗi ngày. Sau này vẫn dùng trang đó để xem log, chạy lại, cập nhật, khôi phục
+sao lưu. Chi tiết: [`deploy/README.md`](../deploy/README.md).
+
+### Cài bằng tay
+
 Nếu VPS chưa có các gói cần thiết, cài trước:
 
 ```bash
