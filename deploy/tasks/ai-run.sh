@@ -5,6 +5,8 @@
 # sửa code của game thì kiểm tra cú pháp và chạy lại game (AUTO_RESTART=1); game không chạy lại được thì tự hoàn tác.
 . "$(dirname "$0")/lib.sh"
 : "${PROMPT:?}" "${DVTT_MCP_URL:?}" "${DVTT_MCP_TOKEN:?}" "${AUTO_RESTART:=1}" "${ALLOW_CODE:=1}" "${DVTT_AGENT:=claude}"
+# the longest a job may take (minutes): a model that hangs (a provider that stops answering) can't hold the dashboard
+: "${DVTT_AI_MINUTES:=60}"
 AIHOME=/var/lib/dvtt-ai
 case "$DVTT_AGENT" in
 claude)
@@ -23,6 +25,25 @@ cd "$DVTT_DIR" || die "Không vào được $DVTT_DIR."
 G() { git -c safe.directory='*' -C "$DVTT_DIR" "$@"; }
 # the repository back to the game's user, readable (git and the agent may have left files root's or private)
 own() { find "$DVTT_DIR" -path "$DVTT_DIR/.git" -prune -o -exec chown "$GAME_USER:$GAME_USER" {} + 2>/dev/null; find "$DVTT_DIR/game" "$DVTT_DIR/src" -path '*/node_modules' -prune -o ! -name .env -exec chmod u+rwX,go+rX {} + 2>/dev/null; true; }
+# stopped from the dashboard: nothing the agent started keeps running as the game's user, no key or token left behind
+on_stop() {
+  trap - TERM INT
+  pkill -TERM -u "$GAME_USER" -f 'hermes_cli.main|hermes chat|claude -p' 2>/dev/null || true
+  sleep 2
+  pkill -KILL -u "$GAME_USER" -f 'hermes_cli.main|hermes chat|claude -p' 2>/dev/null || true
+  rm -f "$AIHOME/mcp.json" "$AIHOME/job.md"
+  printf "\n!!  Đã dừng theo yêu cầu. Thay đổi dở dang (nếu có) chưa được lưu: xem git status trên VPS hoặc bấm Giao việc lại.\n"
+  exit 143
+}
+trap on_stop TERM INT
+# the agent, its log made readable, in the background: the script waits for it, and a stop from the dashboard is acted
+# on at once (a foreground pipeline would hold the trap until the agent gave up by itself). Sets code: the agent's exit
+# status (124: out of time).
+agent() {
+  ( set -o pipefail; "$@" < /dev/null 2>&1 | node "$DVTT_DIR/deploy/agent/format.mjs" ) &
+  wait $!
+  code=$?
+}
 
 step "Việc được giao"
 printf '%s\n' "$PROMPT" | sed 's/^/    /'
@@ -52,13 +73,11 @@ if [ "$DVTT_AGENT" = claude ]; then
   export DISABLE_AUTOUPDATER=1 DISABLE_TELEMETRY=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
   set +e
   trap - ERR
-  runuser -p -u "$GAME_USER" -- claude -p "$PROMPT" \
+  agent timeout --kill-after=30 "$((DVTT_AI_MINUTES * 60))" runuser -p -u "$GAME_USER" -- claude -p "$PROMPT" \
     --output-format stream-json --verbose \
     --mcp-config "$AIHOME/mcp.json" --strict-mcp-config \
     --append-system-prompt "$(cat "$DVTT_DIR/deploy/agent/AGENT.md")" \
-    --permission-mode acceptEdits --allowedTools "$TOOLS" --max-turns 120 "${MODEL_ARGS[@]}" \
-    < /dev/null 2>&1 | node "$DVTT_DIR/deploy/agent/format.mjs"
-  code=${PIPESTATUS[0]}
+    --permission-mode acceptEdits --allowedTools "$TOOLS" --max-turns 120 "${MODEL_ARGS[@]}"
   set -e
   trap 'printf "\n✖  Lỗi ở dòng %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
   rm -f "$AIHOME/mcp.json"
@@ -120,15 +139,14 @@ else
   [ -f /etc/ssl/certs/ca-certificates.crt ] && export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
   set +e
   trap - ERR
-  runuser -p -u "$GAME_USER" -- "$HB" chat --oneshot --query-file "$AIHOME/job.md" --format stream-json --yolo \
-    --provider "$DVTT_HERMES_PROVIDER" --model "$DVTT_HERMES_MODEL" --toolsets "$TS" --source tool \
-    < /dev/null 2>&1 | node "$DVTT_DIR/deploy/agent/format.mjs"
-  code=${PIPESTATUS[0]}
+  agent timeout --kill-after=30 "$((DVTT_AI_MINUTES * 60))" runuser -p -u "$GAME_USER" -- "$HB" chat --oneshot --query-file "$AIHOME/job.md" --format stream-json --yolo \
+    --provider "$DVTT_HERMES_PROVIDER" --model "$DVTT_HERMES_MODEL" --toolsets "$TS" --source tool
   set -e
   trap 'printf "\n✖  Lỗi ở dòng %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
   stop_gateway
   rm -f "$AIHOME/job.md"
 fi
+[ "$code" = 124 ] && warn "Hết ${DVTT_AI_MINUTES} phút: trợ lý bị dừng (model không trả lời, hoặc việc quá lớn: chia nhỏ ra). Phần đã làm vẫn được lưu bên dưới."
 [ "$code" = 0 ] || warn "trợ lý dừng với mã $code (xem dòng 💬 ở trên: khoá sai, hết hạn mức, mạng…)"
 
 step "Thay đổi"
