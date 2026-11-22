@@ -109,7 +109,11 @@ export function createAi(h) {
     } catch (e) {
       return h.send(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: e.message } });
     }
-    who.used = Date.now();
+    // when each token was last used, for the dashboard (written at most once a minute)
+    if (!who.used || Date.now() - who.used > 60_000) {
+      const c2 = cfg(), t = c2.tokens.find((x) => x.hash === who.hash);
+      if (t) (t.used = Date.now()), saveCfg(c2);
+    }
     const [code, out] = await handleMcp(tools, body);
     if (code === 202) {
       res.writeHead(202);
