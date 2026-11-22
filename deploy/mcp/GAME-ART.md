@@ -58,6 +58,29 @@ figure that reads as mush at 1x is not done. Then put it in, then check it in th
   own palette: 7 colours dark to bright for slam and roar, 5 for hits); the game restarts. Then `spawn_boss` on a map
   (`boss_status` lists the maps), with life and reward pools. `announce` it.
 
+## A whole map (bản đồ)
+
+A map of the road: a side view, 20 rows of 32 px cells (16-24 allowed), 60-240 columns, with its own sky, monsters, scenery
+and at least one Truyền Tống Trận. Once saved it is on every array's list, and the game's Khu, placed monsters and bosses
+work on it like on the maps in code.
+
+1. `map_guide`: the rules, the tiles, every prop and its options, the theme, and the pictures, music, effects and monsters
+   there are. `get_map linhthuy` (a lake), `bichlac` (a forest), `uminh` (tombs), `mavuc` (lava): read one or two.
+2. **The terrain** as strokes (`layout`), not typed rows: `["ground", 0, 139, 15]` (floor at row 15 over the whole width),
+   then cut and raise: `["box", 34, 62, 15, 17, "w"]` a lake, `["box", 34, 62, 15, 15, "b"]` a bridge over it,
+   `["ground", 44, 52, 14, "s"]` a stone isle, `["box", 66, 70, 11, 11, "="]` a cloud to jump on, steps up a cliff.
+   A player climbs 3 cells and jumps gaps of about 4: keep every part reachable from the spawn. Leave the top rows open (sky).
+3. **Where things stand**: `spawn` by the west end; a Truyền Tống Trận (`portals`) near it and another at the far end;
+   `mobs` spread along the way, away from the spawn, with fliers' `up` 2-4; a `spring` (where one cultivates) somewhere
+   safe-ish. Use the monsters of the database (make new ones first with `create_monster` if the place needs its own);
+   numbers in line with the maps of the same stage.
+4. **The look**: `theme` (sky 5 colours, grass 5, earth 6, motes, mountains tint, heaven pictures, liquid, platform set) to
+   say where it is (snow, desert, swamp, night, fire), then props every 4-6 columns: trees (`pine`, `cherry`, `bamboo`,
+   pictures `xx` with `s` 2 for trees, 4-5 for small things, `tint` to match the light), `lantern`s, rocks, a few `fx`
+   (water ripples on lakes, spirit flames, fireflies) and `glow`s. Names players see (name, sub, portal msg) in Vietnamese.
+5. `preview_map`: fix every problem, read every warning, look at the picture (props standing on nothing, monsters in
+   the spawn, a part nobody can reach), and preview again. Then `save_map` (the game restarts), `announce` it.
+
 ## Other effects
 
 Art for skills, scenery or events uses the same library (`search_effects`), but the game needs code to use them: that is

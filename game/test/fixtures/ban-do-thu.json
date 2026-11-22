@@ -1,0 +1,58 @@
+{
+  "id": "bangphong",
+  "name": "Băng Phong Cốc",
+  "sub": "Thung lũng băng giá sau núi. Hồ đóng băng, cầu gỗ phủ tuyết, quỷ hỏa lạc lối giữa rừng thông trắng.",
+  "music": "2-asianstringsuite",
+  "theme": {
+    "sky": ["#1c2a4a", "#34507e", "#6a90bc", "#b4d0e6", "#eef6ff"],
+    "grass": ["#7a8ea8", "#a4b8cc", "#c8d8e6", "#e4eef6", "#ffffff"],
+    "earth": ["#141a24", "#1c2430", "#26303e", "#323e4e", "#40506a", "#56688a"],
+    "rim": "#0c1018",
+    "mountains": { "tint": "#d8e8ff", "k": 0.5 },
+    "heaven": [["bg_xianxia_far_03_00", 80, 60, { "tint": "#cfe0ff", "k": 0.4 }], ["bg_xianxia_far_04_01", 900, 30, { "tint": "#cfe0ff", "k": 0.4 }]],
+    "platform": "bluestone",
+    "motes": "spores",
+    "tiles": { "tint": "#d8e8ff", "k": 0.35 }
+  },
+  "layout": {
+    "cols": 140, "rows": 20,
+    "ops": [
+      ["ground", 0, 139, 15],
+      ["box", 34, 62, 15, 17, "w"],
+      ["box", 34, 62, 15, 15, "b"],
+      ["ground", 44, 52, 14, "s"],
+      ["ground", 80, 96, 13],
+      ["ground", 84, 92, 12],
+      ["box", 66, 70, 11, 11, "="],
+      ["box", 100, 104, 15, 16, "w"],
+      ["ground", 118, 139, 13, "s"],
+      ["ground", 126, 139, 11, "s"]
+    ]
+  },
+  "spawn": { "x": 8, "row": 15 },
+  "spring": { "x0": 85, "x1": 91, "row": 12 },
+  "portals": [
+    { "x": 3, "row": 15, "r": 0.8, "to": "tanthu", "msg": "Về Tân Thủ Thôn" },
+    { "x": 136, "row": 11, "r": 0.8, "to": "linhthuy", "msg": "Tới Linh Thủy Đàm" }
+  ],
+  "mobs": [
+    { "type": "slime", "x": 26, "row": 15 }, { "type": "slime", "x": 74, "row": 15 },
+    { "type": "frog", "x": 48, "row": 14 }, { "type": "frog", "x": 110, "row": 15 },
+    { "type": "wisp", "x": 40, "row": 15, "up": 3 }, { "type": "wisp", "x": 58, "row": 15, "up": 3 },
+    { "type": "ghost", "x": 112, "row": 15, "up": 3 }, { "type": "ghost", "x": 128, "row": 11, "up": 3 }
+  ],
+  "props": [
+    ["pine", 14, 15, { "v": 0 }], ["lantern", 6, 15], ["sign", 4.6, 15],
+    ["xx", 20, 15, { "n": "bg_mid_01_04", "s": 2, "tint": "#e4eeff", "k": 0.5 }],
+    ["xx", 28, 15, { "n": "bg_xianxia_deco_01_00", "s": 5, "tint": "#e4eeff", "k": 0.4 }],
+    ["fx", 38, 15, { "id": "water/ripples", "h": -4, "k": 1.2 }], ["fx", 58, 15, { "id": "water/ripples", "h": -4, "k": 1.2 }],
+    ["lantern", 45, 14], ["xx", 48.5, 14, { "n": "bg_mid_02_05", "s": 2, "tint": "#dce8ff", "k": 0.5 }], ["lantern", 52, 14],
+    ["pine", 66, 15, { "v": 1 }], ["xx", 74, 15, { "n": "bg_xianxia_deco_01_01", "s": 5 }],
+    ["taiji", 88, 12], ["lantern", 85, 12], ["lantern", 91, 12], ["xx", 82, 13, { "n": "bg_mid_01_00", "s": 2, "tint": "#e4eeff", "k": 0.4 }],
+    ["glow", 88, 12, { "h": 20, "r": 70, "c": "#9fd8ff", "a": 0.25 }],
+    ["fx", 102, 15, { "id": "water/bubbles", "h": -8, "k": 1 }],
+    ["pine", 108, 15, { "v": 2 }], ["tomb", 115, 15, { "v": 1 }],
+    ["xx", 122, 13, { "n": "bg_mid_01_04", "s": 2, "f": 1, "tint": "#e4eeff", "k": 0.5 }],
+    ["lantern", 131, 11], ["sign", 134, 11], ["fx", 128, 11, { "id": "fire/spirit-flame", "h": 0, "k": 1 }]
+  ]
+}

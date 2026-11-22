@@ -8,8 +8,8 @@ import { MAPS, START_MAP } from "./maps/index.js";
 /** A gate is an array when it leads to a map of the road (not "@back", not a sealed gate). */
 export const isTele = (g) => !!g?.to && !!MAPS[g.to];
 const hunting = (id) => MAPS[id].mobs.some((m) => m.type !== "dummy");
-/** Where an array sends: the starter town, then the maps with monsters, in the road's order. */
-export const TELE_MAPS = [START_MAP, ...Object.keys(MAPS).filter((id) => id !== START_MAP && !MAPS[id].peaceful && !MAPS[id].pvp && hunting(id))];
+/** Where an array sends: the starter town, then the maps with monsters (and the added towns), in the road's order. */
+export const TELE_MAPS = [START_MAP, ...Object.keys(MAPS).filter((id) => id !== START_MAP && !MAPS[id].peaceful && !MAPS[id].pvp && !MAPS[id].instanced && (hunting(id) || MAPS[id].town))];
 /** How near counts as "by the array": this many tiles either side, and up to this many above its step. */
 export const TELE_NEAR = { x: 3, up: 3 };
 /** The array a player at (x, y) stands by on map (mapInfo), or null. */

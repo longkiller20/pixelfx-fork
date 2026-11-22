@@ -10,11 +10,16 @@ import { GIAVIEN } from "./giavien.js";
 import { CAUCA } from "./cauca.js";
 import { CHIENTRUONG } from "./chientruong.js";
 import { XAQUAT } from "./xaquat.js";
+import { MAPS_THEM } from "./them.js";
 
 // the road east: the starter town, the forest, the lake, the old tombs, the abyss; and off the road, reached from the menu:
 // the Gia Viên (one each) and the fishing lake; the Chính Tà battlefield, opened for a battle; and the Phó Bản, a copy
 // of its own for each party that goes in
 export const MAPS = { tanthu: TANTHU, bichlac: BICHLAC, linhthuy: LINHTHUY, uminh: UMINH, mavuc: MAVUC, giavien: GIAVIEN, cauca: CAUCA, chientruong: CHIENTRUONG, xaquat: XAQUAT };
+/** The ids of the maps designed in code (the added ones can never take their place). */
+export const CODE_MAPS = Object.keys(MAPS);
+// ...and the maps added beyond the code (./them.js), after them, on the road like the hunting maps
+for (const d of MAPS_THEM.maps ?? []) if (!MAPS[d.id]) MAPS[d.id] = { cell: 32, ...d, added: true, ...(d.town ? { nopk: true } : {}) };
 export const START_MAP = "tanthu";
 
 const cache = new Map();

@@ -18,6 +18,8 @@ How to work:
   records/<id>/ if your file tool can open images. A picture the owner uploaded: image_to_figure (MCP), then refine the split.
 - Put things into the game with the MCP tools (create_monster, place_monster, register_character, register_boss,
   spawn_boss…). register_* restart the game for you.
+- A whole new map: map_guide, get_map (a map of the road as a model), preview_map until it has no problems and the picture
+  looks right, then save_map. Never edit game/shared/maps/*.js by hand for this.
 - If the job needs the game's code changed (a new map, a new mechanic), keep the change small and in the style of the
   files around it (comments in English, everything players see in Vietnamese), run `node --check` on what you touched;
   the dashboard checks and restarts the game after you, and reverts your change if the game does not start.

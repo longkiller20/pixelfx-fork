@@ -315,7 +315,7 @@ export function adminApp(world) {
   r.get("/maps", wrap(async (req, res) => {
     const can = spawnMaps();
     res.json(MAPS.map((m) => ({
-      id: m.id, name: m.name, sub: m.sub, cols: m.cols, rows: m.rows, cell: m.T, instanced: !!m.def.instanced, spawnsAllowed: can.includes(m.id), boss: bossMaps().includes(m.id),
+      id: m.id, name: m.name, sub: m.sub, cols: m.cols, rows: m.rows, cell: m.T, instanced: !!m.def.instanced, added: !!m.def.added, spawnsAllowed: can.includes(m.id), boss: bossMaps().includes(m.id),
       spawn: { x: m.def.spawn.x, row: m.def.spawn.row },
       mobs: (m.def.mobs ?? []).map((x) => ({ type: x.type, x: x.x, row: x.row, up: x.up ?? 0 })),
       spawns: spawnRows().filter((s) => s.map === m.id),

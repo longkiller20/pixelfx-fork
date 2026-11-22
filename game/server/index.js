@@ -47,6 +47,8 @@ app.get("/health", (req, res) => res.json({ ok: true, online: world.online }));
 const statics = { maxAge: "1h", index: false, fallthrough: true };
 // what was added beyond the code (shared/them.js: characters, bosses) is read fresh, so a new one shows after a restart
 app.get("/shared/them.js", (req, res) => res.set("cache-control", "no-cache").sendFile(join(ROOT, "shared", "them.js")));
+// ...and so are the maps added beyond the code (shared/maps/them.js), and the list that reads them
+for (const f of ["maps/them.js", "maps/index.js", "truyen-tong.js"]) app.get(`/shared/${f}`, (req, res) => res.set("cache-control", "no-cache").sendFile(join(ROOT, "shared", ...f.split("/"))));
 app.use("/shared", express.static(join(ROOT, "shared"), statics));
 // the pixel effects are in public/hieu-ung/ (copied from pixelfx by tools/hieu-ung.mjs: only the ones the game uses)
 app.use(express.static(join(ROOT, "public"), { ...statics, index: "index.html", maxAge: 0 }));
