@@ -579,12 +579,14 @@ const DEFAULT_THEME = {
   earth: ["#1c140f", "#261b14", "#30231a", "#3a2b1f", "#463425", "#5a4430"],
   grass: ["#1d3a22", "#2b5230", "#3b6a3a", "#547f45", "#7c9d5a"],
   rim: "#160e09",
-  liquid: "water", // or "lava"
+  liquid: "water", // or "lava", "venom"
   platform: "bluestone", // the set the "k" ledges are drawn from
   dockWater: true, // water painted behind a bridge's planks (a bridge on the water); false: a pier above it
   motes: "petals", // what drifts in the air: petals, leaves, spores, embers, souls
 };
 const LAVA = ["#3a0604", "#7a1206", "#c02a0c", "#f05a14", "#ffa63a", "#fff0a0"].map(C);
+// a venom marsh (the Phó Bản's): sickly green over violet depths
+const VENOM_LIQ = ["#1a0a2a", "#2a1a3e", "#2e5a2a", "#4a9a3a", "#8ae05a", "#e0ffb0"].map(C);
 /** A picture shifted towards a colour (k 0..1) and darkened by d: night and fire tints for the far scenery. */
 function tinted(img, tint, k, d = 0) {
   if (!tint || (!k && !d)) return img;
@@ -695,7 +697,7 @@ export async function buildScene(M) {
     const img = tinted(o.half === false ? sky[i] : halve(sky[i]), o.tint, o.k ?? 0, o.d ?? 0);
     heaven.blit(img.px, img.w, 0, 0, img.w, img.h, x, y);
   });
-  const LIQ = th.liquid === "lava" ? LAVA : WATER;
+  const LIQ = th.liquid === "lava" ? LAVA : th.liquid === "venom" ? VENOM_LIQ : WATER;
   // the mist on the peaks is see-through; a map with a moon behind them makes it solid, so the moon doesn't show through
   // the mist in stripes
   const mtCut = th.mountains.solid ? 8 : 128, mtDrop = th.mountains.drop ?? 0;

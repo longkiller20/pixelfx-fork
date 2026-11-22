@@ -565,6 +565,50 @@ const SCHEMA = [
     CONSTRAINT fk_brew_boss FOREIGN KEY (boss_id) REFERENCES world_bosses(id) ON DELETE CASCADE,
     CONSTRAINT fk_brew_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB`,
+  // Phó Bản (server/pho-ban.js): each run, who was in it and what they got, and each player's entries per day
+  `CREATE TABLE IF NOT EXISTS pb_runs (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    dungeon VARCHAR(16) NOT NULL,
+    leader_id INT UNSIGNED NOT NULL,
+    size TINYINT UNSIGNED NOT NULL,
+    state VARCHAR(10) NOT NULL DEFAULT 'running',
+    stage TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    lives SMALLINT NOT NULL DEFAULT 0,
+    deaths SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    seconds INT UNSIGNED NULL,
+    rank_ CHAR(1) NULL,
+    note VARCHAR(120) NOT NULL DEFAULT '',
+    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP NULL,
+    KEY k_state (state),
+    KEY k_best (dungeon, state, seconds)
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS pb_members (
+    run_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    name VARCHAR(32) NOT NULL,
+    day DATE NOT NULL,
+    deaths SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    dmg BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    stones INT UNSIGNED NOT NULL DEFAULT 0,
+    exp BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    items VARCHAR(200) NULL,
+    rewarded TINYINT(1) NOT NULL DEFAULT 0,
+    first TINYINT(1) NOT NULL DEFAULT 0,
+    \`left\` TINYINT(1) NOT NULL DEFAULT 0,
+    PRIMARY KEY (run_id, user_id),
+    KEY k_user (user_id, run_id),
+    CONSTRAINT fk_pbm_run FOREIGN KEY (run_id) REFERENCES pb_runs(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pbm_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
+  `CREATE TABLE IF NOT EXISTS pb_daily (
+    user_id INT UNSIGNED NOT NULL,
+    day DATE NOT NULL,
+    n SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    cleared SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day),
+    CONSTRAINT fk_pbd_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB`,
   `CREATE TABLE IF NOT EXISTS pvp_log (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     killer_id INT UNSIGNED NOT NULL,
