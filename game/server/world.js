@@ -50,6 +50,17 @@ const nextId = () => NID++;
  * the same tick, so their clocks (this.t) are always equal and a player's timers (cooldowns, buffs, protection) mean the
  * same thing on whichever map they are.
  */
+// The moments a player carries, all on the clock of the world they are in (World#t: seconds since that world was made, a
+// Khu, a Gia Viên or a lake's Khu made a moment ago starts at 0). Moving between worlds moves them by the difference, or
+// one from a long-running world would arrive rooted, busy or unable to fish for as long as that world had been up.
+const CLOCK = ["busyUntil", "rootUntil", "slowUntil", "protectUntil", "respawnAt", "reviveBy", "portalAt", "lastHurt", "itemCd", "jumpUntil", "fishCd", "chatAt", "worldAt", "burnSafe", "lastCast", "pkSince", "wallSaid"];
+export function rebase(p, d) {
+  if (!d || !Number.isFinite(d)) return;
+  for (const k of CLOCK) if (typeof p[k] === "number" && Number.isFinite(p[k])) p[k] += d;
+  if (Array.isArray(p.cd)) p.cd = p.cd.map((v) => (Number.isFinite(v) ? v + d : v));
+  if (p.artCd) for (const k of Object.keys(p.artCd)) if (Number.isFinite(p.artCd[k])) p.artCd[k] += d;
+}
+
 export class World {
   constructor(mapId = START_MAP, universe = null, home = null) {
     this.u = universe;
@@ -120,6 +131,10 @@ export class World {
   }
   /** Put a player on this map (logging in, or walking in through a gate) and tell their browser where they are. */
   enter(p, inv, at = null) {
+    // from another world: its clock is not this one's (each starts at 0 when it is made), so every moment they carry
+    // (a cooldown, being rooted or busy, protection, when they may fish again…) is moved onto this clock, keeping what is left
+    if (p.clock !== undefined) rebase(p, this.t - p.clock);
+    p.clock = undefined;
     p.world = this;
     p.safe = null;
     // a safe map (Tân Thủ Thôn, a Gia Viên, the lake): nobody fights there, so Đồ Sát goes off on the way in
@@ -151,6 +166,7 @@ export class World {
   /** Take a player off this map without saving or ending anything: they are walking to another map. */
   leave(p) {
     p.fish = null;
+    p.clock = this.t;
     if (this.players.get(p.userId) === p) this.players.delete(p.userId);
     this.ents.delete(p.id);
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
