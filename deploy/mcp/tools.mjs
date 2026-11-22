@@ -5,11 +5,14 @@
 //     players, announcements;
 //   - pixel art with the pixelfx library next to the game (src/fx): its guide, search, read, write (when the owner
 //     allows code), render to look at, and a picture turned into a rigged character, boss or monster;
-//   - putting a new character or boss into the game (game/tools/them.mjs), restarting the game, its logs.
+//   - putting a new character or boss into the game (game/tools/them.mjs), restarting the game, its logs;
+//   - whole new maps (game/tools/ban-do.mjs: checked strictly, pictured, saved in game/shared/maps/them.js).
 // Every file it changes is committed to the local git (author "AI (MCP)"), so the dashboard can undo it.
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, copyFileSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
+import { mkdtempSync, rmSync, chmodSync } from "node:fs";
+import { tmpdir } from "node:os";
 import http from "node:http";
 
 const ID = /^[a-z]+\/[a-z0-9_-]+$/;
@@ -75,7 +78,7 @@ export function createTools(ctx) {
     // the AI's changes in the local git, so the dashboard can show and undo them (never pushed anywhere)
     const g = (a) => ctx.runRoot(["git", "-c", "safe.directory=*", "-C", dir(), ...a]);
     // (tools/index.mjs also counts the library in README.md and lists it in docs/CATALOG.md)
-    await g(["add", "-A", "src/fx", "game/shared/them.js", "game/public/hieu-ung", "README.md", "docs/CATALOG.md"]);
+    await g(["add", "-A", "src/fx", "game/shared/them.js", "game/shared/maps/them.js", "game/public/hieu-ung", "README.md", "docs/CATALOG.md"]);
     const st = await g(["diff", "--cached", "--quiet"]);
     if (st.code === 0) return null;
     const out = await g(["-c", "user.name=AI (MCP)", "-c", "user.email=ai-mcp@localhost", "commit", "-q", "-m", msg.slice(0, 200)]);
@@ -113,6 +116,7 @@ export function createTools(ctx) {
         newBoss: "image_to_figure kind=boss (+ parts: heads/roots for serpents or tentacles, face, shoulders, waist) → render_effect anim=slam/roar → register_boss (restarts) → spawn_boss.",
         numbers: "get_schema, list_rows, update_row (live within seconds).",
         event: "announce + spawn_boss + give_item to many players.",
+        newMap: "map_guide (rules, tiles, props, pictures, music, monsters) → get_map a map of the road to see how one is made → preview_map (the problems and a picture; fix until none) → save_map (restarts the game) → it is on every Truyền Tống Trận's list; place_monster adds more monsters later.",
       },
     });
   });
@@ -269,6 +273,65 @@ export function createTools(ctx) {
   tool("unregister", "Take an added character (off sale; removed if nobody owns it) or an added boss (not while it is out) out of the game. Restarts the game.", { kind: S("character | boss", { enum: ["character", "boss"] }), id: S("character: its fx or idx; boss: its key") }, ["kind", "id"], async ({ kind, id }) => serial(async () => {
     const { j } = await them([kind === "boss" ? "boss" : "skin", "remove", id]);
     const sha = await commit(`gỡ ${kind} ${id}`);
+    return text({ ok: true, ...j, restart: await restart(), git: sha });
+  }));
+
+  // ---- whole maps (game/tools/ban-do.mjs checks each one: anything the game could not load or a player could get stuck
+  // in is refused with the reason; a picture of the layout comes back to look at)
+  const banDo = async (args, map) => {
+    let tmp = null;
+    if (map) {
+      tmp = mkdtempSync(join(tmpdir(), "dvtt-map-"));
+      chmodSync(tmp, 0o755);
+      writeFileSync(join(tmp, "map.json"), JSON.stringify(map), { mode: 0o644 });
+      args = args.map((a) => (a === "@map" ? join(tmp, "map.json") : a));
+    }
+    try {
+      const r = await ctx.runAs(["node", "tools/ban-do.mjs", ...args], { cwd: game(), timeout: 120000 });
+      const lines = r.out.trim().split("\n");
+      let j = null;
+      try {
+        j = JSON.parse(lines.pop());
+      } catch {}
+      if (!j) throw new Error(r.out.slice(-1500));
+      return { j, out: lines.join("\n") };
+    } finally {
+      if (tmp) rmSync(tmp, { recursive: true, force: true });
+    }
+  };
+  const MAP_HELP = `A map: { id (a-z, 3-16), name, sub, music, theme, layout (or grid), spawn, spring, portals, mobs, props, signs }.
+layout: { cols 60-240, rows 16-24 (the road's maps: 20), ops: [["ground", x0, x1, top, ch?], ["box", x0, x1, y0, y1, ch], ["row", y, x0, "chars"]] }
+  e.g. ground over the whole width from row 15, a lake cut in it with a bridge on top, a raised stone isle, cloud steps.
+Everything stands on the floor of its row: x in cells (fractions allowed), row = the floor row (the cell there is ground or a plank).
+portals: [{ x, row, to: a map of the road, msg: "Về …" }]: Truyền Tống Trận; one near the spawn, one at the far end is the custom.
+mobs: [{ type, x, row, up }]: monsters in the database (fliers: up 2-4 cells above the floor). town: true for a safe map with none.
+props: [kind, x, row, { options }]: trees, lanterns, pictures (xx), effects (fx), lights (glow)… one every 4-6 columns.
+A player climbs 3 cells and jumps gaps of about 4; the checker warns what cannot be reached from the spawn.`;
+  tool("map_guide", "How to make a whole new map: the rules, the tiles, the props and their options, the theme (sky, grass, earth, motes, mountains), the pictures, music, effects and monsters there are, the maps of the road a Truyền Tống Trận can lead to. Read it first, then get_map a map of the road as a model.", {}, [], async () => {
+    const { j } = await banDo(["assets"]);
+    delete j.ok;
+    return text({ howTo: MAP_HELP, ...j });
+  });
+  tool("get_map", "A map's whole definition (grid, theme, props, monsters, portals) as JSON: a map of the road to learn from (linhthuy: a lake with bridges and isles; bichlac: a forest; uminh: tombs; mavuc: an abyss with lava), or an added one to change.", { id: S("map id (list_maps)") }, ["id"], async ({ id }) => {
+    const r = await banDo(["get", String(id)]);
+    return text(r.out || r.j);
+  });
+  tool("preview_map", "Check a new map without saving it: every problem (it would be refused) and warning (probably a mistake: out of reach, floating props, too bare), and a picture of the layout with the spawn, the Truyền Tống Trận, the monsters and the props marked. Fix and preview again until there are no problems.", { map: O("the map (see map_guide)") }, ["map"], async ({ map }) => {
+    const { j } = await banDo(["preview", "@map", "--out", join(dir(), "records", "ban-do", `${String(map?.id ?? "map").replace(/[^a-z]/g, "") || "map"}.png`)], map);
+    return withImages({ problems: j.errors, warnings: j.warnings, saved: false }, [j.preview ? png(j.preview) : null]);
+  });
+  tool("save_map", "Save a new map into the game (checked again; refused with the reasons if anything is wrong), or change one added before (replace: true). Restarts the game so it opens: it is then on every Truyền Tống Trận's list. Ask the owner before replacing a map players use.", { map: O("the map (see map_guide)"), replace: B("change the added map with this id") }, ["map"], async ({ map, replace }) => serial(async () => {
+    const { j } = await banDo(["add", "@map", ...(replace ? ["--replace"] : []), "--out", join(dir(), "records", "ban-do", `${String(map?.id ?? "map").replace(/[^a-z]/g, "") || "map"}.png`)], map).catch((e) => {
+      throw new Error(e.message);
+    });
+    if (!j.ok) return withImages({ ok: false, problems: j.errors ?? [j.error], warnings: j.warnings ?? [] }, [j.preview ? png(j.preview) : null]);
+    const sha = await commit(`bản đồ ${map.name ?? map.id}`);
+    return withImages({ ok: true, id: j.id, replaced: j.replaced, warnings: j.warnings, restart: await restart("để mở bản đồ mới"), git: sha, next: "place_monster adds monsters to it live; announce it to the players." }, [j.preview ? png(j.preview) : null]);
+  }));
+  tool("remove_map", "Take a map added beyond the code out of the game (its placed monsters too; not while a world boss is on it). Players there wake up in Tân Thủ Thôn. Restarts the game. Ask the owner first.", { id: S("an added map's id") }, ["id"], async ({ id }) => serial(async () => {
+    const { j } = await banDo(["remove", String(id)]);
+    if (!j.ok) throw new Error(j.error);
+    const sha = await commit(`gỡ bản đồ ${id}`);
     return text({ ok: true, ...j, restart: await restart(), git: sha });
   }));
 

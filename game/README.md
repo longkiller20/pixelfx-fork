@@ -1726,6 +1726,10 @@ Những phần game có thêm cho việc này (dùng được cả không có AI
 - **Nhân vật, boss thêm ngoài code** (`shared/them.js`, ghi bằng `node tools/them.mjs`): hình làm bằng pixelfx trong
   `../src/fx` (`nhanvat/*`, `boss/*`), đăng ký một lệnh, chạy lại game là có (nhân vật bán trong Y Các, boss gọi được ở
   tab Boss).
+- **Bản đồ thêm ngoài code** (`shared/maps/them.js`, ghi bằng `node tools/ban-do.mjs`):
+  - công cụ kiểm tra chặt và vẽ ảnh bố cục;
+  - bản đồ mới vào danh sách Truyền Tống Trận sau khi chạy lại game;
+  - kiểm tra: `node test/ban-do.mjs`, mẫu ở `test/fixtures/ban-do-thu.json`.
 - API admin: `/api/schema` (các bảng sửa được), `/api/maps` (bản đồ, chỗ đặt quái, mặt đất), `/api/fx` (thư viện pixelfx,
   chép hiệu ứng vào game), `/api/announce` (thông báo cho mọi người), `/api/them`.
 

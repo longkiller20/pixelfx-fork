@@ -199,6 +199,7 @@ Tab **Trợ lý AI** của bảng điều khiển cho AI làm việc với game 
 - **Sự kiện:** gọi boss, tặng quà, thông báo.
 - **Hình ảnh:** vẽ bằng thư viện **pixelfx** của repo (theo skill `skills/pixelfx`), hoặc biến **ảnh bạn tải lên** thành
   nhân vật hay boss có rig cử động, rồi đưa vào game.
+- **Bản đồ mới:** địa hình, trời, cỏ, quái, đồ trang trí, Truyền Tống Trận. Xem phần "Bản đồ mới" bên dưới.
 
 MCP (Model Context Protocol) là chuẩn chung, nên **AI nào hỗ trợ MCP cũng dùng được**: Hermes Agent, Ekko Studio,
 Claude, Codex, Gemini CLI, Cursor, VS Code, OpenCode, LM Studio, Cline… Có hai cách dùng:
@@ -283,7 +284,7 @@ Máy chủ hỗ trợ các kiểu kết nối sau:
 
 ### Các công cụ MCP
 
-Có 35 công cụ, mô tả chi tiết nằm ngay trong MCP.
+Có 40 công cụ, mô tả chi tiết nằm ngay trong MCP.
 
 | Nhóm | Công cụ |
 | --- | --- |
@@ -293,6 +294,44 @@ Có 35 công cụ, mô tả chi tiết nằm ngay trong MCP.
 | Vẽ (pixelfx) | `pixelfx_guide`, `search_effects`, `read_effect_source`, `render_effect` (trả về ảnh để AI tự nhìn), `write_effect`, `image_to_figure`, `add_effect_to_game` |
 | Đưa vào game | `register_character` (bán trong Y Các), `register_boss`, `unregister`, `restart_game` |
 | Sự kiện | `spawn_boss`, `despawn_boss`, `announce`, `give_item`, `adjust_player`, `give_cosmetic` |
+| Bản đồ | `map_guide`, `get_map`, `preview_map` (lỗi, cảnh báo và ảnh bố cục), `save_map`, `remove_map` |
+
+### Bản đồ mới
+
+AI làm một bản đồ trọn vẹn, theo bốn bước:
+
+1. Đọc hướng dẫn (`map_guide`) và xem một bản đồ có sẵn làm mẫu (`get_map`).
+2. Tả địa hình bằng vài lệnh, ví dụ: nền đất, một hồ có cầu, một đảo đá, mây để nhảy.
+3. Thêm nơi xuất hiện, Truyền Tống Trận, quái, chỗ tu luyện, màu trời và cỏ, cây, đèn, hiệu ứng.
+4. Gọi `preview_map`, sửa tới khi hết lỗi rồi mới lưu.
+
+Công cụ `game/tools/ban-do.mjs` từ chối mọi thứ game không tải được hoặc khiến người chơi kẹt:
+
+- lưới lệch hàng, ký tự lạ;
+- nơi xuất hiện lơ lửng hoặc nằm trong đất;
+- không có Truyền Tống Trận, hoặc trận dẫn tới bản đồ không có;
+- quái không có trong database, quái đi bộ mà không có sàn;
+- hình, hiệu ứng hay nhạc không có;
+- màu sai, trường lạ.
+
+Nó cũng cảnh báo những chỗ người chơi đi bộ và nhảy không tới được từ nơi xuất hiện. `preview_map` trả về ảnh bố cục để
+AI tự nhìn.
+
+`save_map` ghi bản đồ vào `game/shared/maps/them.js`, commit lại (hoàn tác được ở thẻ "Thay đổi của AI") rồi chạy lại game.
+Bản đồ mới có ngay trong danh sách mọi Truyền Tống Trận, có Khu, đặt thêm quái được và gọi boss được như các bản đồ khác.
+
+`remove_map` gỡ bản đồ, xoá luôn quái đã đặt trên đó; nó từ chối khi boss đang ở bản đồ đó. Người chơi đang ở đó sẽ về
+Tân Thủ Thôn khi vào lại game.
+
+Chạy tay:
+
+```bash
+cd /opt/pixelfx-fork/game
+sudo -u dvtt node tools/ban-do.mjs assets                 # những gì một bản đồ được dùng
+sudo -u dvtt node tools/ban-do.mjs preview ban-do.json     # lỗi, cảnh báo, ảnh ở records/ban-do/
+sudo -u dvtt node tools/ban-do.mjs add ban-do.json         # lưu (--replace để sửa), rồi chạy lại game
+sudo -u dvtt node tools/ban-do.mjs remove <id>
+```
 
 ### An toàn và hoàn tác
 

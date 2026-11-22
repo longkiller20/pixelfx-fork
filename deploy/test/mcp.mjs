@@ -139,6 +139,28 @@ if (PIC) {
   assert.ok(!fix.res.isError && /parts \(.*a/.test(fix.text), fix.text.slice(0, 400));
   ok("image_to_figure again with parts: the front arm boxed in");
 }
+// ---- maps: the guide, a model, a preview of a broken map and of a good one (saving it restarts the game: MAPS=1 to try)
+const mg = await call("map_guide");
+assert.ok(mg.json?.pictures?.length > 20 && mg.json.props.xx && mg.json.roadMaps.includes("linhthuy") && /layout/.test(mg.json.howTo), mg.text.slice(0, 300));
+const gm = await call("get_map", { id: "linhthuy" });
+assert.ok(gm.json?.grid?.length === 20 && gm.json.portals.length >= 2, gm.text.slice(0, 200));
+const fixture = JSON.parse(readFileSync(new URL("../../game/test/fixtures/ban-do-thu.json", import.meta.url), "utf8"));
+const mapId = `mcp${Date.now().toString(36).replace(/[0-9]/g, "").slice(-6) || "thu"}`;
+const broken = await call("preview_map", { map: { ...fixture, id: mapId, spawn: { x: 8, row: 3 }, portals: [] } });
+assert.ok(broken.json.problems.some((x) => /spawn/.test(x)) && broken.json.problems.some((x) => /portals/.test(x)) && broken.images.length === 1, broken.text.slice(0, 400));
+const fine = await call("preview_map", { map: { ...fixture, id: mapId } });
+assert.deepEqual(fine.json.problems, [], fine.text.slice(0, 400));
+assert.equal(fine.images.length, 1);
+ok(`maps: map_guide, get_map, preview_map (a broken map: ${broken.json.problems.length} problems; the test map: none, with its picture)`);
+if (process.env.MAPS) {
+  const savedMap = await call("save_map", { map: { ...fixture, id: mapId } });
+  assert.ok(!savedMap.res.isError && savedMap.json.ok, savedMap.text.slice(0, 400));
+  const mapsNow = (await call("list_maps")).json;
+  assert.ok(mapsNow.some((m) => m.id === mapId && m.added), "listed after the restart");
+  const unsaved = await call("remove_map", { id: mapId });
+  assert.ok(!unsaved.res.isError, unsaved.text.slice(0, 300));
+  ok(`save_map (restart, listed as added) and remove_map: ${mapId}`);
+}
 const unk = await rpc("tools/call", { name: "khong_co", arguments: {} });
 assert.ok(unk.j.result.isError);
 const miss = await call("spawn_boss", {});

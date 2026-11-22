@@ -9,7 +9,7 @@ import crypto from "node:crypto";
 const BASE = process.argv[2] ?? "http://localhost:5886";
 const { q, pool } = await import("../server/db.js");
 const { createSession } = await import("../server/auth.js");
-const { mapInfo } = await import("../shared/maps/index.js");
+const { mapInfo, MAPS } = await import("../shared/maps/index.js");
 const { teleAt, TELE_MAPS } = await import("../shared/truyen-tong.js");
 const tag = crypto.randomBytes(3).toString("hex");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -46,7 +46,7 @@ const until = async (fn, ms = 6000) => {
 };
 const since = (k) => c.msgs.slice(k);
 try {
-  assert.deepEqual(TELE_MAPS, ["tanthu", "bichlac", "linhthuy", "uminh", "mavuc"], "the starter town and the maps with monsters");
+  assert.deepEqual(TELE_MAPS.filter((m) => !MAPS[m].added), ["tanthu", "bichlac", "linhthuy", "uminh", "mavuc"], "the starter town and the maps with monsters (and any added since)");
   await until(() => me());
   const B = mapInfo("bichlac");
   // ---- away from the array
