@@ -36,7 +36,10 @@ MODEL_ARGS=()
 
 step "Trợ lý đang làm việc"
 export HOME="$AIHOME" DISABLE_AUTOUPDATER=1 DISABLE_TELEMETRY=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+# the game's MCP is on this machine: never through a proxy the VPS may use for the internet
+export NO_PROXY="127.0.0.1,localhost${NO_PROXY:+,$NO_PROXY}" no_proxy="127.0.0.1,localhost${no_proxy:+,$no_proxy}"
 set +e
+trap - ERR
 runuser -p -u "$GAME_USER" -- claude -p "$PROMPT" \
   --output-format stream-json --verbose \
   --mcp-config "$AIHOME/mcp.json" --strict-mcp-config \
@@ -45,17 +48,21 @@ runuser -p -u "$GAME_USER" -- claude -p "$PROMPT" \
   < /dev/null 2>&1 | node "$DVTT_DIR/deploy/agent/format.mjs"
 code=${PIPESTATUS[0]}
 set -e
+trap 'printf "\n✖  Lỗi ở dòng %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
 rm -f "$AIHOME/mcp.json"
-[ "$code" = 0 ] || warn "trợ lý dừng với mã $code"
+[ "$code" = 0 ] || warn "trợ lý dừng với mã $code (xem dòng 💬 ở trên: khoá sai, hết hạn mức, mạng…)"
 
 step "Thay đổi"
 find "$DVTT_DIR" -path "$DVTT_DIR/.git" -prune -o -user root -newer "$DVTT_DIR/.git/HEAD" -exec chown "$GAME_USER:$GAME_USER" {} + 2>/dev/null || true
 if [ -n "$(G status --porcelain)" ]; then
   G add -A
-  G -c user.name="AI (agent)" -c user.email=ai-agent@localhost commit -q -m "AI (agent): $(printf '%s' "$PROMPT" | tr '\n' ' ' | cut -c1-90)"
+  G -c user.name="AI (agent)" -c user.email=ai-agent@localhost commit -q -m "$(printf '%s' "$PROMPT" | tr '\n' ' ' | cut -c1-100)"
 fi
 AFTER="$(G rev-parse HEAD)"
-if [ "$BEFORE" = "$AFTER" ]; then ok "Không có tệp nào thay đổi."; else
+if [ "$BEFORE" = "$AFTER" ]; then
+  [ "$code" = 0 ] || die "Trợ lý không làm được việc này (mã $code)."
+  ok "Không có tệp nào thay đổi."
+else
   G log --format='    %h %an: %s' "$BEFORE..$AFTER"
   G diff --stat "$BEFORE" "$AFTER" | tail -15 | sed 's/^/    /'
 fi
@@ -67,7 +74,7 @@ if [ -n "$changed" ]; then
   for f in $changed; do [ -f "$f" ] || continue; node --check "$f" 2>&1 | sed 's/^/    /' || bad=1; done
   last="$(G log -1 --format=%an)"
   if [ $bad = 1 ]; then
-    [[ "$last" == AI* ]] && G -c user.name="Bảng điều khiển" -c user.email=panel@localhost revert --no-edit HEAD -q && warn "Code có lỗi cú pháp: đã hoàn tác thay đổi của AI."
+    [[ "$last" == AI* ]] && G -c user.name="Bảng điều khiển" -c user.email=panel@localhost revert --no-edit HEAD >/dev/null && warn "Code có lỗi cú pháp: đã hoàn tác thay đổi của AI."
     die "Thay đổi của AI có lỗi, game giữ nguyên."
   fi
   ok "cú pháp đúng"
@@ -76,7 +83,7 @@ if [ -n "$changed" ]; then
     systemctl restart dvtt
     if wait_port "$GAME_PORT" 60; then ok "game chạy với thay đổi mới"; else
       journalctl -u dvtt -n 30 --no-pager | sed 's/^/    /' || true
-      [[ "$last" == AI* ]] && G -c user.name="Bảng điều khiển" -c user.email=panel@localhost revert --no-edit HEAD -q
+      [[ "$last" == AI* ]] && G -c user.name="Bảng điều khiển" -c user.email=panel@localhost revert --no-edit HEAD >/dev/null
       systemctl restart dvtt; wait_port "$GAME_PORT" 60 || true
       die "Game không chạy được với thay đổi của AI: đã hoàn tác và chạy lại bản cũ."
     fi

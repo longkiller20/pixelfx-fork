@@ -74,7 +74,8 @@ export function createTools(ctx) {
   async function commit(msg) {
     // the AI's changes in the local git, so the dashboard can show and undo them (never pushed anywhere)
     const g = (a) => ctx.runRoot(["git", "-c", "safe.directory=*", "-C", dir(), ...a]);
-    await g(["add", "-A", "src/fx", "game/shared/them.js", "game/public/hieu-ung"]);
+    // (tools/index.mjs also counts the library in README.md and lists it in docs/CATALOG.md)
+    await g(["add", "-A", "src/fx", "game/shared/them.js", "game/public/hieu-ung", "README.md", "docs/CATALOG.md"]);
     const st = await g(["diff", "--cached", "--quiet"]);
     if (st.code === 0) return null;
     const out = await g(["-c", "user.name=AI (MCP)", "-c", "user.email=ai-mcp@localhost", "commit", "-q", "-m", msg.slice(0, 200)]);
