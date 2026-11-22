@@ -151,34 +151,38 @@ export function initPhoBan({ panel, flash, game }) {
   function drawDungeon(force = false) {
     if (!view || (!force && !panelIs("pbp"))) return;
     const v = view, R = v.rules, wrap = h("div.pbp"), names = v.itemNames;
+    // a phone on its side: two columns, everything small, so the dungeon and the button fit without scrolling
+    const rot = document.body.classList.contains("rotated"), H = rot ? innerWidth : innerHeight, W = rot ? innerHeight : innerWidth;
+    if (H < 521 || W < 700) wrap.classList.add("short");
     const me = v.members.find((m) => m.uid === myUid()) ?? v.members[0];
     for (const d of v.dungeons) {
-      const card = h("section.pbcard");
-      card.append(h("h3", { text: `🏯 ${d.name}` }), h("p.pbdesc", { text: d.desc }));
-      card.append(h("ol.pbst", {}, ...d.stages.map((s, i) => h("li", {},
+      const card = h("section.pbcard"), left = h("div.pbl"), right = h("div.pbr");
+      card.append(left, right);
+      left.append(h("h3", { text: `🏯 ${d.name}` }), h("p.pbdesc", { text: d.desc }));
+      left.append(h("ol.pbst", {}, ...d.stages.map((s, i) => h("li", {},
         h("b", { text: `Tầng ${i + 1} · ${s.name}` }), h("span.dim", { text: ` — ${s.goal}` }),
         h("div.pbmobs", { text: s.boss ? `Boss: ${s.boss} (gọi thuộc hạ khi còn một nửa máu, cuồng bạo khi còn một phần tư)` : s.mobs.map((m) => `${m.elite ? "★ " : ""}${m.name} ×${m.n}`).join(" · ") })))));
       // the rewards by rank
       const rw = (r) => d.reward[r];
-      card.append(h("table.pbrw", {},
+      right.append(h("table.pbrw", {},
         h("tr", {}, h("th", { text: "Hạng" }), h("th", { text: "Thời gian" }), h("th", { text: "Linh thạch" }), h("th", { text: "Tu vi" }), h("th", { text: "Vật phẩm" })),
         ...["S", "A", "B"].map((r) => h("tr", {},
           h("td", {}, h(`b.rank.${RANK_CLS[r]}`, { text: r })),
           h("td", { text: r === "S" ? `≤ ${R.rankS}%` : r === "A" ? `≤ ${R.rankA}%` : "còn lại" }),
           h("td", { text: fmt(rw(r).stones) }), h("td", { text: fmt(rw(r).exp) }), h("td", { text: itemsText(rw(r).items, names) })))));
-      card.append(h("p.dim.small", { text: `Lần thông quan đầu tiên trong ngày: thêm ${d.reward.first}% linh thạch và tu vi.` }));
+      right.append(h("p.dim.small.pbfirst", { text: `Lần thông quan đầu tiên trong ngày: thêm ${d.reward.first}% linh thạch và tu vi.` }));
       // the fastest clears
       if (d.best.length)
-        card.append(h("div.pbbest", {}, h("b", { text: "Thông quan nhanh nhất" }),
+        left.append(h("div.pbbest", {}, h("b", { text: "Thông quan nhanh nhất" }),
           h("ol", {}, ...d.best.map((b) => h("li", {}, h(`b.rank.${RANK_CLS[b.rank] ?? "rb"}`, { text: b.rank ?? "-" }), ` ${clock(b.secs)} · ${b.size} người · `, h("span", { text: b.names }))))));
       // who can go, and the button
       const all = v.members.every((m) => !m.why);
-      card.append(h("div.pbparty", {}, h("b", { text: v.party ? `Tổ đội (${v.members.length}/${R.party})` : "Đi một mình" }),
+      right.append(h("div.pbparty", {}, h("b", { text: v.party ? `Tổ đội (${v.members.length}/${R.party})` : "Đi một mình" }),
         ...v.members.map((m) => h(`div.pbm${m.why ? ".no" : ""}`, {},
           h("span", { text: `${m.leader && v.party ? "★ " : ""}${m.name}` }), h("span.dim", { text: m.realm }),
           h("span", { text: `${m.left}/${R.daily} lượt` }), h("span.why", { text: m.why ? `✗ ${m.why}` : "✓ sẵn sàng" })))));
       if (v.run) {
-        card.append(h("div.pbgo", {}, h("p", { text: `Đạo hữu đang trong ${v.run.name}.` }),
+        right.append(h("div.pbgo", {}, h("p", { text: `Đạo hữu đang trong ${v.run.name}.` }),
           h("button.danger", { type: "button", text: "Rời phó bản", onclick: () => quit() })));
       } else {
         const btn = h("button.primary.big", { type: "button", text: v.leader ? "Vào phó bản" : "Chỉ đội trưởng mới đưa tổ đội vào", disabled: !v.leader || !all || !!v.party?.ready });
@@ -187,12 +191,12 @@ export function initPhoBan({ panel, flash, game }) {
           btn.disabled = true;
           setTimeout(() => send({ t: "pb", a: "view" }), 1500);
         });
-        card.append(h("div.pbgo", {}, btn, !all ? h("p.dim.small", { text: "Mọi thành viên cần trực tuyến, đủ cấp và còn lượt trong ngày." }) : v.party ? h("p.dim.small", { text: "Bấm vào: mọi thành viên được hỏi sẵn sàng; khi tất cả đồng ý, cả đội vào cùng lúc và mỗi người tính một lượt." }) : null));
+        right.append(h("div.pbgo", {}, btn, !all ? h("p.dim.small", { text: "Mọi thành viên cần trực tuyến, đủ cấp và còn lượt trong ngày." }) : v.party ? h("p.dim.small", { text: "Bấm vào: mọi thành viên được hỏi sẵn sàng; khi tất cả đồng ý, cả đội vào cùng lúc và mỗi người tính một lượt." }) : null));
       }
       wrap.append(card);
     }
     // the rules
-    wrap.append(h("section.pbrules", {}, h("b", { text: "Luật phó bản" }), h("ul", {},
+    wrap.append(h("details.pbrules", {}, h("summary", { text: "📜 Luật phó bản" }), h("ul", {},
       h("li", { text: `Tổ đội 1–${R.party} người, cảnh giới tối thiểu ${R.level}. Mỗi người vào tối đa ${R.daily} lượt mỗi ngày (tính lúc vào, kể cả khi thất bại). Hôm nay đạo hữu còn ${me?.left ?? 0} lượt.` }),
       h("li", { text: `Mỗi tầng bị phong ấn tới khi diệt sạch tầng trước. Yêu thú và boss mạnh hơn theo số người: mỗi người thêm +${R.hpPer}% máu, +${R.atkPer}% công.` }),
       h("li", { text: `Lượt hồi sinh chung của cả đội: ${R.lives} lượt, mỗi người thêm ${R.livesPer}. Gục ngã thì hồi sinh sau ${R.respawn} giây ở điểm hồi sinh của tầng; gục khi đã hết lượt là thất bại.` }),
@@ -200,7 +204,7 @@ export function initPhoBan({ panel, flash, game }) {
       h("li", { text: "Rớt mạng: đăng nhập lại là về đúng phó bản. Rời phó bản giữa chừng thì không có thưởng, các thành viên khác vẫn đánh tiếp." }))));
     // one's runs
     if (v.history.length)
-      wrap.append(h("section.pbhist", {}, h("b", { text: "Các lượt gần đây của đạo hữu" }), h("table", {},
+      wrap.append(h("details.pbhist", {}, h("summary", { text: `🕮 Các lượt gần đây của đạo hữu (${v.history.length})` }), h("table", {},
         h("tr", {}, h("th", { text: "Phó bản" }), h("th", { text: "Người" }), h("th", { text: "Kết quả" }), h("th", { text: "Thời gian" }), h("th", { text: "Thưởng" })),
         ...v.history.map((r) => h("tr", {},
           h("td", { text: r.name }), h("td", { text: r.size }),

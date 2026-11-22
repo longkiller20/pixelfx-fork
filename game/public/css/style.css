@@ -2097,3 +2097,35 @@ body.inpb .bosspill, body.inpb .bossbtn { display: none; }
 body.rotated .partyhud { position: static; width: 190px; padding: 3px 6px 4px; font-size: 10px; gap: 2px; }
 body.rotated .partyhud .pm .pw { display: none; }
 body.rotated.touch #hud:has(#partyhud:not([hidden])) .chat { top: 200px; }
+/* the dungeon panel: two columns where there is room; folded rules and history */
+.pbcard { grid-template-columns: 1fr; }
+.pbl, .pbr { display: grid; gap: 8px; align-content: start; }
+.pbrules summary, .pbhist summary { cursor: pointer; font-weight: 700; color: #e0d0ff; font-size: 12.5px; }
+@media (min-width: 760px) { #panel .pbox:has(.pbp) { width: min(860px, 100%); } .pbcard { grid-template-columns: 1.05fr 1fr; gap: 12px; } }
+/* a phone on its side: everything small and tight, so the card and its button fit without scrolling */
+#panel:has(.pbp.short) { padding: 4px; }
+#panel .pbox:has(.pbp.short) { width: min(900px, 100%); border-width: 12px; border-image-width: 12px; }
+#panel .pbox:has(.pbp.short) header { padding-bottom: 0; }
+#panel .pbox:has(.pbp.short) header h3 { font-size: 14px; margin: 0; }
+#panel .pbox:has(.pbp.short) header h3::after { display: none; }
+.pbp.short { gap: 5px; }
+.pbp.short .pbcard { grid-template-columns: 1.1fr 1fr; gap: 8px; padding: 6px 8px; }
+.pbp.short .pbl, .pbp.short .pbr { gap: 4px; }
+.pbp.short .pbcard h3 { font-size: 13.5px; }
+.pbp.short .pbdesc { font-size: 10.5px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.pbp.short .pbst { font-size: 10.5px; gap: 2px; padding-left: 15px; }
+.pbp.short .pbst .dim { display: none; }
+.pbp.short .pbmobs { font-size: 9.5px; }
+.pbp.short .pbrw { font-size: 10px; }
+.pbp.short .pbrw th, .pbp.short .pbrw td { padding: 1px 4px; }
+.pbp.short .rank { min-width: 14px; font-size: 10px; }
+.pbp.short .pbfirst { font-size: 9.5px; margin: 0; }
+.pbp.short .pbbest { font-size: 10px; }
+.pbp.short .pbparty { font-size: 10.5px; gap: 2px; }
+.pbp.short .pbm { padding: 1px 5px; gap: 4px; grid-template-columns: 1.1fr 1fr .6fr 1.1fr; }
+.pbp.short .pbgo { gap: 2px; }
+.pbp.short .pbgo button.big { font-size: 12.5px; padding: 3px 16px; border-width: 6px; border-image-width: 6px; }
+.pbp.short .pbgo p, .pbp.short .pbgo .small { font-size: 9.5px; margin: 0; text-align: center; }
+.pbp.short .pbrules summary, .pbp.short .pbhist summary { font-size: 11px; }
+.pbp.short .pbrules ul, .pbp.short .pbhist table { font-size: 10.5px; }
+.pbp.short .pbrw th { white-space: nowrap; }
