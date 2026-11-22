@@ -251,7 +251,7 @@ export function createAi(h) {
         await g(["revert", "--abort"]);
         h.bad(`Không hoàn tác được (có thay đổi sau đè lên nó: hoàn tác cái mới hơn trước): ${r.out.trim().slice(-300)}`);
       }
-      await run(["bash", "-c", `find '${s.dir}' -path '${s.dir}/.git' -prune -o -exec chown dvtt:dvtt {} +`], { asGame: false });
+      await run(["bash", "-c", `find '${s.dir}' -path '${s.dir}/.git' -prune -o -exec chown dvtt:dvtt {} +; find '${s.dir}/game' '${s.dir}/src' -path '*/node_modules' -prune -o ! -name .env -exec chmod u+rwX,go+rX {} +`], { asGame: false });
       const msg = await restartGame();
       return h.send(res, 200, { ok: true, restart: msg }), true;
     }
