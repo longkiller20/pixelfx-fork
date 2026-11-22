@@ -175,6 +175,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       case "warp":
         screenFx = createFx(effects[WARP_FX], { seed: (Math.random() * 1e6) | 0 });
         warpWaiting = true;
+        teleSentAt = -1e9;
+        if (!$("panel").hidden && $("panelBody").querySelector(".telep")) $("panel").hidden = true;
+        teleBtn.hidden = true;
         break;
       case "arts":
         arts = { slots: m.slots, learned: m.learned };
@@ -269,6 +272,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         renderZone();
         break;
       case "toast":
+        // (a refused teleport says why with a toast: the button may show again)
+        if (!warpWaiting) teleSentAt = -1e9;
         toast(m.m);
         // the Khu asked for filled up meanwhile: the box again, with the others' room
         if (m.zfull) openZones(m.m);
@@ -660,9 +665,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   zoneBtn.addEventListener("click", (e) => (e.preventDefault(), openZones()));
   // Truyền Tống Trận: standing by an array (and alive), its button shows; it (or T) opens the list of maps
   const teleBtn = $("teleBtn");
+  // a request already sent (until the server answers, or a few seconds): no second one, and no button meanwhile
+  let teleSentAt = -1e9;
+  const teleBusy = () => warpWaiting || !!screenFx || performance.now() - teleSentAt < 4000;
   const teleNear = () => {
     const e = drawn.get(myId);
-    return !!(e && map && me && !(me.respawn > 0) && teleAt(map, e.x, e.y));
+    return !!(e && map && me && !teleBusy() && !(me.respawn > 0) && teleAt(map, e.x, e.y));
   };
   // hidden while a panel is open (it would sit over it)
   const teleShown = () => teleNear() && !!$("panel")?.hidden;
@@ -1711,7 +1719,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     },
     refreshSlots: renderSlots,
     // Truyền Tống Trận: go to map `to` (the server checks the array is near and the map is one it sends to)
-    tele: (to) => send({ t: "tele", to }),
+    tele: (to) => {
+      if (teleBusy()) return;
+      teleSentAt = performance.now();
+      send({ t: "tele", to });
+    },
     // Tổ Đội and Phó Bản (public/js/pho-ban.js): a message to the server; the party's ids here (their names in green)
     send: (m) => send(m),
     setParty: (ids) => (partyIds = new Set(ids)),
