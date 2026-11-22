@@ -4,7 +4,7 @@
 import { realmName } from "/shared/balance.js";
 import { h, sure } from "./tong-mon.js";
 
-const CH = { w: "Thế Giới", k: "Khu Vực", s: "Tông Môn" };
+const CH = { w: "Thế Giới", k: "Khu Vực", s: "Tông Môn", p: "Tổ Đội" };
 const two = (n) => String(n).padStart(2, "0");
 const hm = (t) => {
   const d = new Date(t);

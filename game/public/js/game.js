@@ -35,7 +35,7 @@ const JADE = ["#04120c", "#0b2a1e", "#145a3a", "#22a06a", "#5cf0a0", "#c8ffe0", 
 const INTERP = 0.11; // seconds behind the newest snapshot that others are drawn at
 const $ = (id) => document.getElementById(id);
 
-export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap, onFish, onFrame, onDaolu, onCt, onTele }) {
+export function startGame({ token, character, inventory, api, onFatal, touch, refreshConfig, onArts, openArts, onSect, onSectChat, social, onHomeState, onHomeTap, onFish, onFrame, onDaolu, onCt, onTele, onPb }) {
   loadAvatars();
   const view = $("view"), labels = $("labels"), ctx = view.getContext("2d"), lctx = labels.getContext("2d");
   let VW = 640, VH = 360, frame, img, bgBuf, scale = 1;
@@ -57,6 +57,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   const fxs = []; // live effects: { fx, x, y, follow, until }
   const texts = []; // floating numbers: { x, y, s, color, at }
   const ambient = [];
+  // a Phó Bản's seals open so far (the map's "fx" props with a `seal` number below it are not drawn)
+  let sealsOpen = 0;
+  // the party's members (their ids on the map), for their names in green
+  let partyIds = new Set();
   let alive = true;
 
   // ---------------------------------------------------------------- the socket
@@ -87,6 +91,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
           // the Chính Tà battlefield: its own bar (public/js/chinh-ta.js); elsewhere it goes
           document.body.classList.toggle("war", m.map === WAR_MAP);
           onCt?.({ t: "map", map: m.map });
+          onPb?.({ t: "map", map: m.map });
+          sealsOpen = 0;
           home.onWelcome(m.map);
           fish.st = null;
           // each map has its own music
@@ -111,7 +117,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
             scene = sc;
             // the map's own living scenery: pixelfx effects that loop where the map puts them (fireflies, spirit fire...)
             for (const [kind, x, row, o = {}] of map.def.props)
-              if (kind === "fx" && effects[o.id]) ambient.push({ id: o.id, fx: createFx(effects[o.id], { seed: (x * 97) | 0, flip: !!o.f, actor: BLANK_ACTOR, ...(o.o ?? {}) }), x: x * map.T, y: row * map.T - (o.h ?? 0), k: o.k ?? 1.4, every: o.every ?? 0, next: 0 });
+              if (kind === "fx" && effects[o.id]) ambient.push({ id: o.id, fx: createFx(effects[o.id], { seed: (x * 97) | 0, flip: !!o.f, actor: BLANK_ACTOR, ...(o.o ?? {}) }), x: x * map.T, y: row * map.T - (o.h ?? 0), k: o.k ?? 1.4, every: o.every ?? 0, next: 0, seal: o.seal });
             // a Truyền Tống Trận where each way to another map of the road is
             for (const g of map.portals)
               if (isTele(g) && effects[TELE_FX]) ambient.push({ id: TELE_FX, fx: createFx(effects[TELE_FX], { seed: (g.x * 7) | 0 }), x: g.x, y: g.y, k: 1.3, every: 0, next: 0 });
@@ -267,6 +273,19 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         // the Khu asked for filled up meanwhile: the box again, with the others' room
         if (m.zfull) openZones(m.m);
         if (m.ch === "s") logLine(null, m.m, "sect");
+        break;
+      // Tổ Đội and Phó Bản (public/js/pho-ban.js): the party, invitations, the ready check, the panel, the run's HUD, the end
+      case "party":
+      case "pinvite":
+      case "pready":
+      case "pbview":
+      case "pbend":
+        onPb?.(m);
+        break;
+      case "pbstate":
+        // a Phó Bản's seals: those of the cleared halls are gone
+        sealsOpen = m.stage;
+        onPb?.(m);
         break;
       case "ctstate":
       case "ctscore":
@@ -437,6 +456,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         if (t) addFx(e.k === "wedding" ? "love/wedding" : "love/hearts", t.x, t.y, {}, e.id, 0, e.k === "wedding" ? 1.2 : 1);
         break;
       }
+      // a Phó Bản: a seal broken, the boss calling help or raging, the end (public/js/pho-ban.js says it)
+      case "pb":
+        if (e.k === "seal" || e.k === "rage") artHelp.shake(e.k === "rage" ? 8 : 5, 0.5);
+        onPb?.({ t: "pbev", ...e });
+        break;
       case "fx":
         if (e.k === "thunder") addFx("lightning/lightning-strike", e.x, e.y, {});
         // Boss Thế Giới: its strike on the ground in front of it; its roar round it (and everyone's screen shaking)
@@ -496,8 +520,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
   const keys = new Set();
   let joy = { dx: 0, dy: 0 }, mouse = null, sentIn = { dx: 9 }, lastSent = 0, lastDir = { x: 1, y: 0 };
   const chatInput = $("chatInput");
-  // the channel the chat box talks on (the pill left of it; Tab while typing switches): w Thế Giới, k Khu Vực, s Tông Môn
-  const CHANNELS = ["w", "k", "s"], CH_NAME = { w: "Thế Giới", k: "Khu Vực", s: "Tông Môn" };
+  // the channel the chat box talks on (the pill left of it; Tab while typing switches): w Thế Giới, k Khu Vực, s Tông Môn,
+  // p Tổ Đội
+  const CHANNELS = ["w", "k", "s", "p"], CH_NAME = { w: "Thế Giới", k: "Khu Vực", s: "Tông Môn", p: "Tổ Đội" };
   let chatCh = "w";
   const setCh = (c) => {
     chatCh = c;
@@ -505,20 +530,20 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     $("chatCh").className = `ch-${c}`;
     chatInput.placeholder = `Nói ở kênh ${CH_NAME[c]}...`;
   };
-  $("chatCh").addEventListener("click", () => (setCh(CHANNELS[(CHANNELS.indexOf(chatCh) + 1) % 3]), chatInput.focus()));
+  $("chatCh").addEventListener("click", () => (setCh(CHANNELS[(CHANNELS.indexOf(chatCh) + 1) % CHANNELS.length]), chatInput.focus()));
   chatInput.addEventListener("keydown", (e) => {
     if (e.key !== "Tab") return;
     e.preventDefault();
-    setCh(CHANNELS[(CHANNELS.indexOf(chatCh) + 1) % 3]);
+    setCh(CHANNELS[(CHANNELS.indexOf(chatCh) + 1) % CHANNELS.length]);
   });
   addEventListener("keydown", (e) => {
     if (document.activeElement === chatInput) {
       if (e.key === "Enter") {
-        // the channel picked on the pill, or a command: /w Thế Giới, /k Khu Vực, /t Tông Môn, /ta <đạo hiệu> <lời> Truyền Âm
+        // the channel picked on the pill, or a command: /w Thế Giới, /k Khu Vực, /t Tông Môn, /p Tổ Đội, /ta <đạo hiệu> <lời> Truyền Âm
         const v = chatInput.value.trim();
-        const cmd = /^\/(w|tg|k|kv|t|tm|tong)\s+([\s\S]+)/i.exec(v), ta = /^\/(ta|pm)\s+(\S+(?:\s\S+)*?)\s*:\s*([\s\S]+)/i.exec(v);
+        const cmd = /^\/(w|tg|k|kv|t|tm|tong|p|td)\s+([\s\S]+)/i.exec(v), ta = /^\/(ta|pm)\s+(\S+(?:\s\S+)*?)\s*:\s*([\s\S]+)/i.exec(v);
         if (ta) send({ t: "pm", toName: ta[2], m: ta[3], c: "cmd" });
-        else if (cmd) send({ t: "chat", ch: { w: "w", tg: "w", k: "k", kv: "k" }[cmd[1].toLowerCase()] ?? "s", m: cmd[2] });
+        else if (cmd) send({ t: "chat", ch: { w: "w", tg: "w", k: "k", kv: "k", p: "p", td: "p" }[cmd[1].toLowerCase()] ?? "s", m: cmd[2] });
         else if (v) send({ t: "chat", ch: chatCh, m: v });
         chatInput.value = "";
         chatInput.blur();
@@ -990,7 +1015,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     while (box.children.length > 40) box.firstChild.remove();
     box.scrollTop = box.scrollHeight;
   }
-  const CH_TAG = { w: "Thế Giới", k: "Khu Vực", s: "Tông Môn" };
+  const CH_TAG = { w: "Thế Giới", k: "Khu Vực", s: "Tông Môn", p: "Tổ Đội" };
   let toastTimer = 0;
   // ---- a wedding anywhere on the server: a banner, then for about nine seconds little hearts drifting down over the whole
   // view and fireworks bursting in the sky (pixelfx love/heart-fall, explosions/firework-burst and -rocket). They live in
@@ -1346,6 +1371,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       fx.options.y = Math.round(y - camY);
     };
     for (const a of ambient) {
+      if (a.seal !== undefined && a.seal < sealsOpen) continue;
       a.fx.update(dt);
       // a one-shot (a pillar of flame, a geyser) starts over after a pause
       if (a.fx.done() && now > a.next) {
@@ -1392,7 +1418,7 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     }
     for (const id of boltFx.keys()) if (!live.has(id)) boltFx.delete(id);
     for (const f of fxs) if (on(f.x, f.y)) drawFx(f.fx, "front", f.x, f.y, f.k);
-    for (const a of ambient) if (on(a.x, a.y, 260)) drawFx(a.fx, "front", a.x, a.y, a.k);
+    for (const a of ambient) if (on(a.x, a.y, 260) && !(a.seal !== undefined && a.seal < sealsOpen)) drawFx(a.fx, "front", a.x, a.y, a.k);
     drawPortalArrows(p, now, on);
     drawAim(p, now);
     drawPetals(p, now, dt);
@@ -1460,9 +1486,12 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         g.fx.update(1 / 60);
         g.fx.options.flip = e.face < 0;
         const lunge = e.f & 128 ? e.face * 6 : 0;
-        if (!md.fly) (p.place(sx, sy, false), shadow(p, 12));
-        drawFx(g.fx, "back", e.x + lunge, e.y, MON_SCALE);
-        drawFx(g.fx, "front", e.x + lunge, e.y, MON_SCALE);
+        // a Phó Bản's Thống Lĩnh (elite): bigger, in a red aura
+        const elite = !!(e.f & 256), sc = elite ? MON_SCALE * 1.6 : MON_SCALE;
+        if (elite) (p.place(sx, sy, false), p.glow(0, -monsterHeight(md) * 0.8, 46, hex("#ff2a4a"), 0.22 + 0.08 * Math.sin(now * 4)));
+        if (!md.fly) (p.place(sx, sy, false), shadow(p, elite ? 20 : 12));
+        drawFx(g.fx, "back", e.x + lunge, e.y, sc);
+        drawFx(g.fx, "front", e.x + lunge, e.y, sc);
         p.place(sx, sy, false);
         const cy = -monsterHeight(md) / 2;
         if (flash) p.glow(lunge, cy, 18, WHITE, 0.8);
@@ -1520,6 +1549,8 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
         fac = info.f;
         if (fac && map.id === WAR_MAP && e.id !== myId) color = fac === "c" ? "#ffe08a" : "#ff8a9a";
         else if (info.pk) color = "#ff4a3a";
+        // Tổ Đội: one's party in green, a flag before the name
+        else if (partyIds.has(e.id) && e.id !== myId) (color = "#8affa8"), (name = `⚑ ${name}`);
         sect = info.sect;
         dl = info.dl;
       } else if (bossOf(e.type)) {
@@ -1530,9 +1561,10 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       } else {
         const md = MONSTERS[e.type];
         if (!md) continue;
-        top = (e.y - camY - (md.fx ? monsterHeight(md) + 8 : 58)) * k;
-        name = md.name;
-        color = md.style === "none" ? "#d8c890" : "#ff9a9a";
+        const elite = !!(e.f & 256);
+        top = (e.y - camY - (md.fx ? monsterHeight(md) * (elite ? 1.6 : 1) + 8 : 58)) * k;
+        name = elite ? `★ ${md.name} Thống Lĩnh` : md.name;
+        color = md.style === "none" ? "#d8c890" : elite ? "#ffb04a" : "#ff9a9a";
       }
       const fs = Math.max(10, Math.round(5.2 * k));
       c.font = `600 ${fs}px system-ui, sans-serif`;
@@ -1680,5 +1712,11 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
     refreshSlots: renderSlots,
     // Truyền Tống Trận: go to map `to` (the server checks the array is near and the map is one it sends to)
     tele: (to) => send({ t: "tele", to }),
+    // Tổ Đội and Phó Bản (public/js/pho-ban.js): a message to the server; the party's ids here (their names in green)
+    send: (m) => send(m),
+    setParty: (ids) => (partyIds = new Set(ids)),
+    // the people on this map now (for inviting someone close by): [{ id, name, lv }]
+    nearby: () => [...infos.values()].filter((i) => i.id !== myId).map((i) => ({ id: i.id, name: i.name, lv: i.lv })),
+    myId: () => myId,
   };
 }

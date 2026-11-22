@@ -22,6 +22,7 @@ import * as cc from "./cau-ca.js";
 import * as dl from "./dao-lu.js";
 import * as ct from "./chinh-ta.js";
 import { BOSSES, BOSS, bossMaps } from "../shared/boss.js";
+import { DUNGEONS } from "../shared/pho-ban.js";
 import { KIND_KEYS, KIND_NAME, SKIN } from "../shared/nhan-vat.js";
 import { RINGS, RING_BUFF, ROSE, NEED } from "../shared/dao-lu.js";
 import { RODS, BAITS, FISH, RARITY, RATES, CHEST, odds } from "../shared/cau-ca.js";
@@ -272,6 +273,57 @@ export function adminApp(world) {
     const id = world.boss.b?.id;
     if (!(await world.boss.leave("admin"))) throw bad("Không có boss nào đang ở ngoài.");
     await log(req.admin, "boss.despawn", String(id), null);
+    res.json({ ok: true });
+  }));
+
+  // ---- Phó Bản and Tổ Đội (server/pho-ban.js, server/to-doi.js): the runs now (their stage, lives, time, members), the
+  // parties now, the record and each run's rewards; the buttons: open the next seal of a run now (support, tests), end a
+  // run now (failed, nothing given), give a player back today's entries. The rules are settings pb.*.
+  r.get("/phoban", wrap(async (req, res) => res.json({
+    runs: world.runs.adminList(), parties: world.parties.adminList(), history: await world.runs.history(30),
+    dungeons: Object.values(DUNGEONS).map((d) => ({ key: d.key, name: d.name, stages: d.stages.map((s) => s.name) })),
+  })));
+  r.get("/phoban/:id/members", wrap(async (req, res) => res.json(await world.runs.members(Number(req.params.id)))));
+  const runOr404 = (id) => {
+    const run = world.runs.runs.get(Number(id));
+    if (!run) throw bad("Không có lượt phó bản này đang chạy.", 404);
+    return run;
+  };
+  r.post("/phoban/:id/skip", wrap(async (req, res) => {
+    const run = runOr404(req.params.id);
+    try {
+      run.skip();
+    } catch (e) {
+      throw bad(e.message, e.status ?? 400);
+    }
+    await log(req.admin, "pb.skip", String(run.id), { stage: run.stage });
+    res.json({ ok: true, stage: run.stage });
+  }));
+  r.post("/phoban/:id/gather", wrap(async (req, res) => {
+    const run = runOr404(req.params.id);
+    run.gather();
+    await log(req.admin, "pb.gather", String(run.id), { stage: run.stage });
+    res.json({ ok: true });
+  }));
+  r.post("/phoban/:id/end", wrap(async (req, res) => {
+    const run = runOr404(req.params.id);
+    await run.cancel(`Admin ${req.admin.name} kết thúc`);
+    await log(req.admin, "pb.end", String(run.id), null);
+    res.json({ ok: true });
+  }));
+  r.post("/phoban/boss/:id", wrap(async (req, res) => {
+    // set the run's boss life (support, tests): { hp }
+    const run = runOr404(req.params.id), hp = Math.round(Number(req.body?.hp));
+    if (!run.boss || !(hp >= 1)) throw bad("Không đặt được máu boss.");
+    run.boss.hp = Math.min(run.boss.maxHp, hp);
+    await log(req.admin, "pb.boss", String(run.id), { hp });
+    res.json({ ok: true });
+  }));
+  r.get("/phoban/daily/:uid", wrap(async (req, res) => res.json(await world.runs.daily(Number(req.params.uid)))));
+  r.post("/phoban/daily/:uid/reset", wrap(async (req, res) => {
+    const uid = Number(req.params.uid);
+    await world.runs.resetDaily(uid);
+    await log(req.admin, "pb.reset", String(uid), null);
     res.json({ ok: true });
   }));
 

@@ -18,7 +18,7 @@ export const BOSSES = {
       hit: ["#1a0414", "#5a1040", "#c02a5a", "#ff7aa0", "#fff0f4"],
     },
     // its body, from its base (world px): half its width, its height; where its heads strike in front of it
-    half: 70, tall: 148, slamAt: 96,
+    half: 100, tall: 148, slamAt: 96,
   },
 };
 

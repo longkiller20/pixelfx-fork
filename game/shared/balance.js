@@ -17,6 +17,7 @@ import { FISH, setRates } from "./cau-ca.js";
 import { RINGS, STATS as DL_STATS, setRingBuffs } from "./dao-lu.js";
 import { CT, slotOk, hhmm } from "./chinh-ta.js";
 import { BOSS } from "./boss.js";
+import { PB } from "./pho-ban.js";
 
 export const TICK_HZ = 20;
 // Maps (size, walls, spawn, the spirit vein, the ways out) live in shared/maps/.
@@ -202,6 +203,34 @@ export const DEFAULTS = {
     "boss.exp": [120000, "Tổng tu vi chia cho người gây sát thương (admin đổi được khi gọi)"],
     "boss.kill_bonus": [20, "Người kết liễu nhận thêm bấy nhiêu % tổng thưởng"],
     "boss.minutes": [60, "Boss tự rời đi sau bấy nhiêu phút nếu chưa bị hạ (admin đổi được khi gọi)"],
+    // Tổ Đội và Phó Bản (shared/pho-ban.js, server/to-doi.js, server/pho-ban.js)
+    "pb.party": [4, "Tổ đội tối đa bấy nhiêu người (1-4)"],
+    "pb.daily": [3, "Mỗi người vào phó bản tối đa bấy nhiêu lượt mỗi ngày (tính lúc vào, kể cả khi thất bại)"],
+    "pb.level": [6, "Cấp tối thiểu để vào phó bản (6 = Trúc Cơ tầng 1 với cảnh giới mặc định)"],
+    "pb.minutes": [15, "Thời gian tối đa một lượt phó bản (phút); hết giờ là thất bại"],
+    "pb.lives": [3, "Lượt hồi sinh chung của tổ đội 1 người"],
+    "pb.lives_per_member": [1, "Mỗi thành viên thêm cho tổ đội bấy nhiêu lượt hồi sinh"],
+    "pb.respawn": [5, "Giây chờ hồi sinh ở điểm hồi sinh của tầng trong phó bản"],
+    "pb.respawn": [5, "Giây chờ hồi sinh ở điểm hồi sinh của tầng"],
+    "pb.monster_hp": [2, "Yêu thú trong phó bản có máu gấp bấy nhiêu lần ngoài thế giới"],
+    "pb.monster_atk": [1.3, "Yêu thú trong phó bản có công gấp bấy nhiêu lần ngoài thế giới"],
+    "pb.hp_per_member": [60, "Mỗi thành viên thêm: yêu thú và boss thêm bấy nhiêu % máu"],
+    "pb.atk_per_member": [10, "Mỗi thành viên thêm: yêu thú và boss thêm bấy nhiêu % công"],
+    "pb.boss_hp": [60000, "Máu boss phó bản (tổ đội 1 người)"],
+    "pb.boss_atk": [90, "Công boss phó bản (cú mổ)"],
+    "pb.boss_def": [60, "Thủ boss phó bản"],
+    "pb.roar_every": [20, "Cứ bấy nhiêu giây boss phó bản gầm phản kích cả tổ đội"],
+    "pb.roar_pct": [15, "Phản kích của boss phó bản lấy bấy nhiêu % máu tối đa"],
+    "pb.thorns_pct": [4, "Phản đòn của boss phó bản (% sát thương dội lại)"],
+    "pb.stones": [800, "Linh thạch mỗi người nhận khi thông quan (hạng B)"],
+    "pb.exp": [6000, "Tu vi mỗi người nhận khi thông quan (hạng B)"],
+    "pb.first_bonus": [50, "Lần thông quan đầu tiên trong ngày: thưởng thêm bấy nhiêu %"],
+    "pb.rank_s": [40, "Thông quan trong bấy nhiêu % thời gian thì hạng S"],
+    "pb.rank_a": [70, "Thông quan trong bấy nhiêu % thời gian thì hạng A (còn lại hạng B)"],
+    "pb.mul_s": [150, "Hạng S nhận bấy nhiêu % thưởng"],
+    "pb.mul_a": [120, "Hạng A nhận bấy nhiêu % thưởng"],
+    "pb.hoixuan": [2, "Số Hồi Xuân Đan mỗi người khi thông quan (hạng S thêm 1)"],
+    "pb.tukhi": [1, "Số Tụ Khí Đan mỗi người khi thông quan (hạng S thêm 1)"],
   },
 };
 
@@ -450,6 +479,16 @@ export function applyConfig(c) {
     slamMult: S["boss.slam_mult"], slamReach: S["boss.slam_reach"], aggro: S["boss.aggro"], leash: S["boss.leash"],
     roarEvery: Math.max(3, S["boss.roar_every"]), roarPct: Math.min(100, S["boss.roar_pct"]), thornsPct: Math.min(100, S["boss.thorns_pct"]),
     stones: S["boss.stones"] | 0, exp: S["boss.exp"] | 0, killBonus: Math.min(500, S["boss.kill_bonus"]), minutes: Math.max(1, S["boss.minutes"]),
+  });
+  Object.assign(PB, {
+    party: Math.max(1, Math.min(4, S["pb.party"] | 0)), daily: Math.max(0, S["pb.daily"] | 0), level: Math.max(1, S["pb.level"] | 0),
+    minutes: Math.max(1, S["pb.minutes"]), lives: Math.max(0, S["pb.lives"] | 0), livesPerMember: Math.max(0, S["pb.lives_per_member"] | 0),
+    respawn: Math.max(1, S["pb.respawn"]), monsterHp: Math.max(0.1, S["pb.monster_hp"]), monsterAtk: Math.max(0.1, S["pb.monster_atk"]),
+    hpPerMember: Math.max(0, S["pb.hp_per_member"]), atkPerMember: Math.max(0, S["pb.atk_per_member"]),
+    bossHp: Math.max(1, S["pb.boss_hp"] | 0), bossAtk: S["pb.boss_atk"], bossDef: S["pb.boss_def"], roarEvery: Math.max(3, S["pb.roar_every"]),
+    roarPct: Math.min(100, S["pb.roar_pct"]), thornsPct: Math.min(100, S["pb.thorns_pct"]),
+    stones: Math.max(0, S["pb.stones"] | 0), exp: Math.max(0, S["pb.exp"] | 0), firstBonus: Math.max(0, S["pb.first_bonus"]),
+    rankS: S["pb.rank_s"], rankA: S["pb.rank_a"], mulS: S["pb.mul_s"], mulA: S["pb.mul_a"], hoixuan: Math.max(0, S["pb.hoixuan"] | 0), tukhi: Math.max(0, S["pb.tukhi"] | 0),
   });
   Object.assign(PK, {
     level: Math.max(1, S["pk.level"] | 0), offDelay: Math.max(0, S["pk.off_delay"]), decayMinutes: Math.max(1, S["pk.decay_minutes"]),

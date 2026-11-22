@@ -897,6 +897,115 @@ trong database được đổi sang boss này khi máy chủ khởi động.)
 - `boss_damage`: sát thương từng người.
 - `boss_rewards`: phần thưởng từng người.
 
+## Tổ Đội và Phó Bản (nút ▦ Thêm → Tổ Đội / Phó Bản, phím G)
+
+Đi phó bản theo tổ đội 1–4 người. Mỗi tổ đội vào một bản sao riêng của map phó bản. Hiện có một phó bản:
+**Cửu U Xà Quật**. Quái và boss tạm dùng lại yêu thú ngoài thế giới và Cửu U Xà Vương; sau này thay bằng quái riêng chỉ
+cần sửa danh sách trong `shared/pho-ban.js`.
+
+**Tổ Đội** (`server/to-doi.js`, giữ trong bộ nhớ):
+- Đội trưởng mời theo đạo hiệu (hoặc bấm tên người "Ở gần đây" trong bảng Tổ Đội). Lời mời đầu tiên tự lập tổ đội.
+- Người được mời thấy thẻ lời mời ở trên màn hình: Đồng ý / Từ chối, hết hạn sau 60 giây.
+- Không mời được: chính mình, người đã ở tổ đội khác, người đã chặn mình, khi tổ đội đã đủ `pb.party` người.
+- Đội trưởng trao quyền hoặc mời người ra. Đội trưởng rời đội thì người vào sớm nhất lên thay. Người cuối cùng rời thì
+  tổ đội giải tán.
+- Mất kết nối: giữ chỗ 5 phút (lâu hơn nếu đang trong phó bản), quá hạn thì tự rời.
+- Bên trái màn hình: danh sách đồng đội với thanh máu, đang ở map nào, ★ đội trưởng. Bấm vào để mở bảng Tổ Đội.
+- Tên đồng đội hiện màu xanh lá với ⚑.
+- Kênh chat **Tổ Đội**: chọn ở ô chat (Tab đổi kênh) hoặc gõ `/p <lời>`.
+- Máy chủ khởi động lại thì tổ đội giải tán (không mất gì: lượt phó bản có bản ghi riêng).
+
+**Vào phó bản** (`server/pho-ban.js`):
+- Bảng Phó Bản cho thấy:
+  - các tầng và yêu thú mỗi tầng, boss;
+  - thưởng theo hạng S/A/B;
+  - luật chơi;
+  - từng thành viên còn bao nhiêu lượt hôm nay và vì sao chưa vào được (ngoại tuyến, chưa đủ cấp, hết lượt, đang ở
+    phó bản hay Chính Tà);
+  - các lượt gần đây của mình;
+  - 5 lượt thông quan nhanh nhất.
+- Chỉ đội trưởng (hoặc người đi một mình) bấm **Vào phó bản**. Mọi thành viên được hỏi **Sẵn sàng / Chưa** trong 20
+  giây. Một người từ chối, không trả lời hay mất kết nối là hủy.
+- Khi tất cả sẵn sàng, lượt vào trong ngày của mọi người được tính **trong cùng một giao dịch**: ai đã hết lượt thì
+  không ai bị tính và không ai vào. Cả đội được đưa vào cùng lúc.
+- Mỗi người tối đa `pb.daily` lượt mỗi ngày (theo giờ Việt Nam), tính lúc vào, kể cả khi thất bại.
+- Cấp tối thiểu `pb.level`.
+
+**Bên trong Cửu U Xà Quật** (map `shared/maps/xaquat.js`, hang rắn tím với đầm độc xanh):
+1. **Xà Huyệt**: 4 Thanh Xà, 3 Độc Thiềm, 3 Nhuyễn Yêu.
+2. **Độc Chướng Đầm**: hai đầm độc vượt qua bằng các bậc đá (chạm đầm độc bị thiêu và hất lại bờ); 3 Huyết Bức, 2 Quỷ
+   Hỏa, 2 Ma Nhãn bay, và **★ Thanh Xà Thống Lĩnh** (quái tinh anh: to hơn, hào quang đỏ, máu ×6, công ×1,6).
+3. **Cửu U Xà Đàn**: boss **Cửu U Xà Vương**.
+   - Mổ người trước mặt và cứ `pb.roar_every` giây gầm phản kích cả tổ đội.
+   - Còn một nửa máu: gọi 2 Thanh Xà và 2 Quỷ Hỏa tới trợ chiến.
+   - Còn một phần tư máu: **cuồng bạo**, đòn nhanh gấp đôi và mạnh hơn.
+
+Luật trong phó bản:
+- **Phong ấn**: mỗi tầng bị một bức kết giới đỏ tím chắn tới khi diệt sạch tầng trước. Phá xong thì kết giới biến mất,
+  màn hình rung.
+- **Mạnh theo số người**: yêu thú có máu ×`pb.monster_hp`, công ×`pb.monster_atk`. Mỗi thành viên thêm: +`pb.hp_per_member`%
+  máu, +`pb.atk_per_member`% công (cả boss). Máu boss: `pb.boss_hp` × hệ số đó.
+- **Lượt hồi sinh chung**: `pb.lives` + `pb.lives_per_member` cho mỗi thành viên thêm.
+  - Gục ngã thì dùng một lượt, hồi sinh sau `pb.respawn` giây ở điểm hồi sinh của tầng đang mở.
+  - Gục khi đã hết lượt là **thất bại**.
+- **Thời gian**: tối đa `pb.minutes` phút; hết giờ là thất bại.
+- **Rớt mạng**: đăng nhập lại là về đúng phó bản. Cả đội mất kết nối quá 3 phút thì lượt bị bỏ dở.
+- **Rời phó bản** (nút Rời trên thanh phó bản): về chỗ cũ, không có thưởng, những người khác vẫn đánh tiếp. Không rời
+  tổ đội được khi đang trong phó bản.
+- Không vào Gia Viên, hồ câu, không đổi khu được khi đang trong phó bản. Không ai đánh được người khác trong phó bản.
+
+Thanh phó bản ở trên cùng hiện:
+- tên phó bản, tầng đang mở;
+- việc phải làm và số quái còn lại;
+- thời gian còn lại (đỏ khi dưới 1 phút) và số lượt hồi sinh;
+- ở tầng boss: máu boss, giây tới lần phản kích, chữ "Cuồng bạo!".
+
+Trên điện thoại thanh này nằm bên phải dưới menu.
+
+**Thông quan và thưởng:**
+- Hạng theo thời gian:
+  - **S**: thông quan trong `pb.rank_s`% thời gian, nhận `pb.mul_s`% thưởng;
+  - **A**: trong `pb.rank_a`% thời gian, nhận `pb.mul_a`%;
+  - **B**: còn lại, nhận 100%.
+- Mỗi người còn trong phó bản (kể cả đang mất kết nối) nhận:
+  - `pb.stones` linh thạch và `pb.exp` tu vi nhân theo hạng;
+  - `pb.hoixuan` Hồi Xuân Đan và `pb.tukhi` Tụ Khí Đan (hạng S thêm mỗi loại 1 viên).
+- **Lần thông quan đầu tiên trong ngày** thêm `pb.first_bonus`% linh thạch và tu vi.
+- Thưởng được trao **đúng một lần**:
+  - lượt chuyển từ "đang đánh" sang "thông quan" bằng một câu UPDATE có điều kiện;
+  - mỗi người nhận trong giao dịch riêng, dưới khóa của người đó, với dòng `pb_members.rewarded` 0 → 1.
+- Bảng kết quả: hạng, thời gian, sát thương và số lần gục của từng người, phần thưởng của mình. Sau 10 giây mọi người
+  được đưa về chỗ cũ. Cả server được báo khi một tổ đội thông quan.
+- Máy chủ khởi động lại giữa lượt: lượt bị đánh dấu thất bại và **trả lại lượt vào** trong ngày cho các thành viên.
+
+**Trang admin, tab 🏯 Phó Bản:**
+- Các lượt đang diễn ra: tầng, thời gian, lượt hồi sinh, máu boss, thành viên. Có các nút:
+  - **Mở phong ấn tầng này**;
+  - **Đưa cả đội về điểm hồi sinh**;
+  - **Kết thúc (không thưởng)**.
+- Các tổ đội đang có.
+- Lượt vào của một người chơi theo ngày, nút **Trả lượt hôm nay**.
+- Lịch sử các lượt, nút **Xem** thành viên và phần thưởng.
+- Các thông số `pb.*`.
+
+**Lưu trữ:**
+- `pb_runs`: mỗi lượt một dòng (trạng thái, tầng, lượt hồi sinh, thời gian, hạng).
+- `pb_members`: ai trong lượt đó, sát thương, số lần gục, thưởng, đã rời hay chưa.
+- `pb_daily`: số lượt vào và số lần thông quan của mỗi người mỗi ngày.
+
+**Thêm phó bản mới:**
+1. Vẽ map trong `shared/maps/` (có `instanced: true`, `dungeon: <key>` và `stages`: vị trí từng tầng, phong ấn, điểm
+   hồi sinh, chỗ đặt quái).
+2. Thêm vào `DUNGEONS` trong `shared/pho-ban.js` (tên, mô tả, quái từng tầng, boss).
+
+**Kiểm tra:** `node test/pho-ban.mjs` (máy chủ đang chạy), gồm:
+- mời, chat tổ đội, trao quyền, mời ra;
+- điều kiện vào: cấp, hết lượt;
+- kiểm tra sẵn sàng;
+- phong ấn, rớt mạng rồi vào lại;
+- thông quan, xếp hạng, thưởng một lần;
+- rời giữa chừng, hết lượt hồi sinh thì thất bại.
+
 ## Chính Tà Phân Tranh (nút ▦ Thêm → Chính Tà)
 
 Chính Phái đối đầu Tà Phái, mỗi phe tối đa 30 người, trên bản đồ riêng **Chính Tà Chiến Trường**

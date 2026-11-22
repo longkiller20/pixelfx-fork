@@ -557,6 +557,61 @@ const VIEWS = {
     return out;
   },
 
+  // Phó Bản and Tổ Đội: the runs now (stage, lives, time, members; buttons to open the next seal, bring everyone to the
+  // checkpoint, end it), the parties now, the record (each run's members and rewards), a player's entries (and giving
+  // them back), the rules (settings pb.*)
+  async phoban() {
+    const d = await api("/phoban"), out = el("div"), at = (v) => (v ? new Date(v).toLocaleString("vi-VN") : "");
+    const mmss = (s) => (s === null || s === undefined ? "" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`);
+    out.append(el("h2", {}, "Phó Bản và Tổ Đội"),
+      el("p", { class: "dim" }, `Tổ đội 1-4 người (pb.party) vào phó bản: mỗi tổ đội một bản sao riêng của map. Các tầng bị phong ấn tới khi dọn sạch tầng trước; yêu thú và boss mạnh hơn theo số người; lượt hồi sinh chung; giới hạn thời gian; thông quan được thưởng theo hạng S/A/B (theo thời gian), lần đầu trong ngày thêm thưởng. Mỗi người tối đa pb.daily lượt mỗi ngày (tính lúc vào). Phó bản hiện có: ${d.dungeons.map((x) => `${x.name} (${x.stages.join(" → ")})`).join("; ")}.`));
+    // the runs now
+    out.append(el("h3", {}, `Đang diễn ra (${d.runs.length})`));
+    if (!d.runs.length) out.append(el("p", { class: "dim" }, "Không có lượt nào."));
+    for (const r of d.runs)
+      out.append(el("div", { class: "card" },
+        el("p", {}, el("b", {}, `#${r.id} ${r.name}`), ` · tầng ${r.stage + 1} (${r.stageName}) · còn ${mmss(r.left)} · ♥ ${r.lives} · ${r.deaths} lần gục · ${r.state === "running" ? "đang đánh" : "đang kết thúc"}`),
+        r.boss ? el("p", {}, `Boss: ${fmt(r.boss.hp)} / ${fmt(r.boss.max)} máu`) : "",
+        el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["ID", "Tên", "Sát thương", "Gục", "Trạng thái"].map((t) => el("th", {}, t))),
+          ...r.members.map((m) => el("tr", {}, el("td", {}, String(m.uid)), el("td", {}, m.name), el("td", {}, fmt(m.dmg)), el("td", {}, String(m.deaths)), el("td", {}, m.left ? "đã rời" : m.away ? "mất kết nối" : "trong phó bản"))))),
+        el("div", { class: "bar" },
+          el("button", { class: "small", onclick: async () => confirm("Mở phong ấn tầng này ngay (yêu thú còn lại của tầng biến mất)?") && (await guard(() => api(`/phoban/${r.id}/skip`, { method: "POST" }), "Đã mở phong ấn.")) && reload() }, "Mở phong ấn tầng này"),
+          el("button", { class: "small", onclick: async () => (await guard(() => api(`/phoban/${r.id}/gather`, { method: "POST" }), "Đã đưa về điểm hồi sinh.")) && reload() }, "Đưa cả đội về điểm hồi sinh"),
+          el("button", { class: "small danger", onclick: async () => confirm("Kết thúc lượt này? Thất bại, không ai được thưởng, mọi người về ngay.") && (await guard(() => api(`/phoban/${r.id}/end`, { method: "POST" }), "Đã kết thúc.")) && reload() }, "Kết thúc (không thưởng)"))));
+    // the parties now
+    out.append(el("h3", {}, `Tổ đội đang có (${d.parties.length})`));
+    out.append(d.parties.length ? el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["#", "Đội trưởng", "Thành viên"].map((t) => el("th", {}, t))),
+      ...d.parties.map((p) => el("tr", {}, el("td", {}, String(p.id)), el("td", {}, p.members.find((m) => m.uid === p.leader)?.name ?? ""),
+        el("td", {}, p.members.map((m) => `${m.name}${m.on ? "" : " (ngoại tuyến)"}${m.run ? " (phó bản)" : ""}`).join(", ")))))) : el("p", { class: "dim" }, "Không có tổ đội nào."));
+    // a player's entries
+    out.append(el("h3", {}, "Lượt vào của một người chơi"));
+    const uidIn = el("input", { type: "number", placeholder: "ID người chơi" }), daily = el("div");
+    out.append(el("div", { class: "bar" }, uidIn,
+      el("button", { class: "small", onclick: async () => {
+        const rows = await guard(() => api(`/phoban/daily/${Number(uidIn.value)}`));
+        if (rows) daily.replaceChildren(rows.length ? el("table", { class: "ftbl" }, el("tr", {}, ...["Ngày", "Đã vào", "Thông quan"].map((t) => el("th", {}, t))), ...rows.map((r) => el("tr", {}, el("td", {}, r.day), el("td", {}, String(r.n)), el("td", {}, String(r.cleared))))) : el("p", { class: "dim" }, "Chưa vào lần nào."));
+      } }, "Xem"),
+      el("button", { class: "small", onclick: async () => confirm("Trả lại toàn bộ lượt vào hôm nay cho người chơi này?") && (await guard(() => api(`/phoban/daily/${Number(uidIn.value)}/reset`, { method: "POST" }), "Đã trả lượt.")) }, "Trả lượt hôm nay")), daily);
+    // the record
+    out.append(el("h3", {}, "Các lượt gần đây"));
+    const box = el("div");
+    out.append(el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["#", "Phó bản", "Người", "Thành viên", "Kết quả", "Hạng", "Thời gian", "Tầng", "Gục", "Bắt đầu", "Ghi chú", ""].map((t) => el("th", {}, t))),
+      ...d.history.map((h) => el("tr", {}, el("td", {}, String(h.id)), el("td", {}, h.name), el("td", {}, String(h.size)), el("td", {}, h.names ?? ""), el("td", {}, h.stateName), el("td", {}, h.rank ?? ""),
+        el("td", {}, mmss(h.seconds)), el("td", {}, String(h.stage + 1)), el("td", {}, String(h.deaths)), el("td", {}, at(h.started_at)), el("td", {}, h.note ?? ""),
+        el("td", {}, el("button", { class: "small", onclick: async () => {
+          const rows = await api(`/phoban/${h.id}/members`);
+          box.replaceChildren(el("h4", {}, `Lượt #${h.id}: thành viên và thưởng`), el("div", { class: "fwrap" }, el("table", { class: "ftbl" }, el("tr", {}, ...["ID", "Tên", "Sát thương", "Gục", "Linh thạch", "Tu vi", "Vật phẩm", "Lần đầu", "Đã rời"].map((t) => el("th", {}, t))),
+            ...rows.map((r) => el("tr", {}, ...[r.user_id, r.name, fmt(r.dmg), r.deaths, r.rewarded ? fmt(r.stones) : "-", r.rewarded ? fmt(r.exp) : "-", Object.entries(r.items).map(([k, n]) => `${n} ${k}`).join(", "), r.first ? "★" : "", r.left ? "✓" : ""].map((v) => el("td", {}, String(v ?? ""))))))));
+        } }, "Xem")))))), box);
+    // the rules
+    out.append(el("h3", {}, "Thông số"), el("p", { class: "dim" }, "Cũng có ở tab Cài đặt (pb.*). Đổi là áp dụng cho các lượt bắt đầu sau đó (lượt đang chạy giữ số đã có lúc vào)."));
+    const S = (await api("/t/settings")).filter((r) => r.k.startsWith("pb."));
+    for (const r of S)
+      out.append(record({ title: r.note || r.k, sub: `${r.k} = ${r.v}`, row: { v: r.v }, fields: [{ k: "v", label: "Giá trị", type: "number", step: "any" }],
+        onSave: async (c) => (await guard(() => api(`/t/settings/${r.k}`, { method: "PATCH", body: c }), "Đã lưu.")) && reload() }));
+    return out;
+  },
+
   async chinhta() {
     const d = await api("/chinhta"), out = el("div"), R = d.rules;
     const F = { c: "Chính Phái", t: "Tà Phái", d: "Hòa" }, RES = { w: "Thắng", l: "Thua", d: "Hòa", x: "Rời trận" };

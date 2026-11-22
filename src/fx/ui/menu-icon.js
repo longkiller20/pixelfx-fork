@@ -4,7 +4,7 @@ import { lit } from "../farm/_lib.js";
 
 export const meta = {
   name: "Menu icon",
-  desc: "Small 20 px menu icons, shaded and outlined: character, home, sect, friends, chat, gift, alchemy, robes, scroll, trophy, help, fullscreen, gear, more, fish, love, war, pk.",
+  desc: "Small 20 px menu icons, shaded and outlined: character, home, sect, friends, chat, gift, shop, robes, arts, rank, help, fullscreen, gear, more, fish, love, war, pk, party, dungeon.",
   tags: ["ui", "icon", "menu", "button"],
   size: [24, 24],
   origin: [12, 12],
@@ -16,7 +16,7 @@ export const meta = {
 };
 
 /** The icons, by name: what each draws (on a 20 x 20 grid, -10..9 each way). */
-export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more", "fish", "love", "chinhta", "pk"];
+export const ICONS = ["char", "home", "sect", "friend", "chat", "gift", "shop", "ward", "arts", "rank", "help", "fs", "settings", "more", "fish", "love", "chinhta", "pk", "party", "phoban"];
 
 const H = (a) => a.map(hex);
 const SKIN = H(["#8a4a3a", "#d8996e", "#f6cfa8", "#ffe6cc", "#fff4e8"]);
@@ -230,6 +230,35 @@ const DRAW = {
     g.line(-9.5, -9.5, -7.5, -7.5, WOOD[1]);
     g.ellipse(7.5, 8.5, 1.4, 1.8, ell(RED, 2));
     g.set(7.5, 6.5, RED[3]);
+  },
+  // Tổ Đội: three companions shoulder to shoulder, the middle one in front under a little gold banner
+  party(g) {
+    const one = (cx, C, hair, cy = 0, r = 1) => {
+      g.poly([[cx - 4.5 * r, 9], [cx - 4 * r, 4.5 + cy], [cx - 1.8 * r, 3 + cy], [cx + 1.8 * r, 3 + cy], [cx + 4 * r, 4.5 + cy], [cx + 4.5 * r, 9]], boxLit(C, cx - 4.5, 3 + cy, cx + 4.5, 9));
+      g.ellipse(cx, -1.4 + cy, 2.9 * r, 3.1 * r, ell(SKIN));
+      g.ellipse(cx, -3.4 + cy, 3.1 * r, 1.9 * r, ell(hair));
+      g.set(cx - 1, -1 + cy, INK), g.set(cx + 1, -1 + cy, INK);
+    };
+    one(-5.5, JADE, HAIR, 1.5, 0.85);
+    one(5.5, PINK, H(["#2a120a", "#5a2a1a", "#8a4a2a", "#a8683a", "#c88a5a"]), 1.5, 0.85);
+    one(0, BLUE, HAIR, 0.5, 1);
+    g.line(7.5, -9, 7.5, -3, WOOD[2]);
+    g.poly([[7.5, -9], [3, -8], [7.5, -6.5]], GOLD[3]);
+    g.set(5, -8, GOLD[4]);
+  },
+  // Phó Bản: a cave gate in dark stone, a serpent's two red eyes glowing in the dark inside, a skull on the lintel
+  phoban(g) {
+    g.shade(-9, -6, 9, 9, (x, y) => {
+      const inside = Math.abs(x) < 5.5 && y > -2 && (y > 1 || Math.hypot(x, y - 1) < 5.5);
+      return inside ? (y > 6 ? PURP[0] : INK) : lit(STEEL, x / 9, (y + 1) / 8, 1);
+    });
+    g.poly([[-10, -6], [0, -10], [10, -6]], boxLit(PURP, -10, -10, 10, -6, 2));
+    g.ellipse(-2.2, 2.5, 1.2, 0.8, () => RED[3]);
+    g.ellipse(2.2, 2.5, 1.2, 0.8, () => RED[3]);
+    g.set(-2.2, 2.5, RED[4]), g.set(2.2, 2.5, RED[4]);
+    g.ellipse(0, -4.5, 2.2, 2, ell(PAPER, 2));
+    g.set(-0.8, -4.6, INK), g.set(0.8, -4.6, INK), g.set(0, -3.2, PAPER[1]);
+    for (const x of [-8.5, 8.5]) g.shade(x - 0.5, 4, x + 0.5, 9, () => JADE[2]);
   },
   // four gold tiles: more of the menu
   more(g) {

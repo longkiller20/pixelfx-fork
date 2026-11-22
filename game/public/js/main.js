@@ -11,6 +11,7 @@ import { initHomeUI } from "./gia-vien.js";
 import { initFishUI, fishIconUrl } from "./cau-ca.js";
 import { initDaoLu, roseIconUrl } from "./dao-lu.js";
 import { initChinhTa, emblemPic } from "./chinh-ta.js";
+import { initPhoBan } from "./pho-ban.js";
 import { FACTIONS } from "/shared/chinh-ta.js";
 import { KIND_NAME } from "/shared/nhan-vat.js";
 import { TELE_MAPS, teleInfo } from "/shared/truyen-tong.js";
@@ -254,6 +255,7 @@ function play() {
     onDaolu: (m) => daoLu.onMsg(m),
     // Chính Tà Phân Tranh: the battlefield's bar, board and result; a new map (off the field, the bar goes)
     onCt: (m) => (m.t === "map" ? chinhTa.onMap(m.map) : chinhTa.onMsg(m)),
+    onPb: (m) => phoBan.onMsg(m),
     // Truyền Tống Trận: standing by one, its button opens the list of maps
     onTele: (here) => telePanel(here),
     onFatal: (msg, relog) => {
@@ -884,6 +886,16 @@ $("loveBtn").addEventListener("click", () => daoLu.open());
 // ---------------------------------------------------------------- Chính Tà Phân Tranh (▦ Thêm → Chính Tà): public/js/chinh-ta.js
 const chinhTa = initChinhTa({ call, uuid, panel, flash, game: () => game });
 $("ctBtn").addEventListener("click", () => chinhTa.open());
+
+// ---------------------------------------------------------------- Tổ Đội and Phó Bản (▦ Thêm; G for the party): public/js/pho-ban.js
+const phoBan = initPhoBan({ panel, flash, game: () => game });
+$("partyBtn").addEventListener("click", () => phoBan.openParty());
+$("pbBtn").addEventListener("click", () => phoBan.openDungeon());
+addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() !== "g" || e.repeat || !game || /input|textarea|select/i.test(document.activeElement?.tagName ?? "")) return;
+  if (!$("panel").hidden && $("panel").querySelector(".ptp")) return void ($("panel").hidden = true);
+  phoBan.openParty();
+});
 
 // ---------------------------------------------------------------- Đàm Đạo (💬) and Đạo Hữu (🤝, H): public/js/dao-huu.js
 // a Đạo Hữu of the other gender gets a 🌹 in their conversation: roses for Đạo Lữ

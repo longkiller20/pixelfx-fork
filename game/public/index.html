@@ -83,6 +83,8 @@
         <span id="ping" class="dim"></span>
         <button id="legendBtn" class="legendBtn" type="button" title="Các biểu tượng là gì?" aria-label="Chú thích biểu tượng" aria-expanded="false">?</button>
       </div>
+      <!-- Tổ Đội: the party's members, their life and where they are (public/js/pho-ban.js); click for the party panel -->
+      <div id="partyhud" class="partyhud" hidden role="button" tabindex="0" title="Tổ Đội"></div>
       <div id="legend" class="legend" hidden role="dialog" aria-label="Chú thích biểu tượng">
         <b>Chú thích</b>
         <p><img class="ico" src="/xianxia/ui/ui_xianxia_item_spirit_stone.png" alt=""> <span><b>Linh thạch</b>: tiền trong game. Nhận từ quà mỗi ngày, hạ yêu thú, thắng tỷ thí; tiêu ở Đan Các và Y Các.</span></p>
@@ -104,6 +106,8 @@
         <button id="dailyBtn" data-icon="gift" title="Quà mỗi ngày" aria-label="Quà mỗi ngày"></button>
         <button id="moreBtn" data-icon="more" title="Thêm" aria-label="Thêm" aria-expanded="false" aria-controls="moreMenu"></button>
         <div id="moreMenu" class="moremenu" hidden>
+          <button id="partyBtn" data-icon="party" title="Tổ Đội: mời, trao đội trưởng, rời đội (G)"><span class="lbl">Tổ Đội</span></button>
+          <button id="pbBtn" data-icon="phoban" title="Phó Bản: đi cùng tổ đội 1-4 người"><span class="lbl">Phó Bản</span></button>
           <button id="ctBtn" data-icon="chinhta" title="Chính Tà Phân Tranh: đăng ký, phe phái, Tiệm Chính Tà"><span class="lbl">Chính Tà</span></button>
           <button id="loveBtn" data-icon="love" title="Đạo Lữ: tặng hoa hồng, cầu hôn, nhẫn cưới"><span class="lbl">Đạo Lữ</span></button>
           <button id="fishBtn" data-icon="fish" title="Câu Cá: tới Vọng Nguyệt Hồ; ở hồ thì mở quầy Ngư Cụ"><span class="lbl">Câu Cá</span></button>
@@ -121,6 +125,9 @@
       <div id="fishbar" hidden></div>
       <div id="reel" hidden><span class="rn"></span><canvas width="64" height="220"></canvas><small>Giữ nút / phím E: vùng xanh lên. Thả: chìm xuống. Giữ cá trong vùng xanh!</small></div>
       <div id="fishcatch" hidden></div>
+      <!-- Phó Bản: invitations and the ready check (cards at the top), and inside a dungeon its bar -->
+      <div id="pbpop" class="pbpop" hidden></div>
+      <div id="pbhud" class="pbhud" hidden></div>
       <div id="zone"></div>
       <div id="toast"></div>
       <!-- a wedding anywhere on the server: who, with which ring (hearts and fireworks fill the view meanwhile) -->

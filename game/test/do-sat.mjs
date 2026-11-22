@@ -111,9 +111,14 @@ try {
   // ---- A brings B down: sát khí; switching off waits
   await near(A, B);
   // swing until B falls once (no more: risen beside A, B would fall again)
-  for (let i = 0; i < 40 && !(A.me?.pk?.sk >= 1); i++) await swing(A, B, 200);
-  assert.ok(await until(() => A.me?.pk?.sk === 1, 8000), "a point of sát khí: " + JSON.stringify(A.me?.pk));
-  assert.equal(Number((await q("SELECT sat_khi FROM characters WHERE user_id = ?", [A.P.id]))[0].sat_khi), 1, "written");
+  // (stopping the moment B is down: "me" comes a few ticks later, and B rises beside A)
+  for (let i = 0; i < 40 && !(A.me?.pk?.sk >= 1) && !B.pos[B.id]?.dead; i++) await swing(A, B, 200);
+  // (B may fall twice before the swinging stops: rising beside A; each fall a point)
+  assert.ok(await until(() => A.me?.pk?.sk >= 1, 8000), "a point of sát khí: " + JSON.stringify(A.me?.pk));
+  await sleep(600);
+  const sk = A.me.pk.sk;
+  assert.ok(sk >= 1 && sk <= 2, "one point a fall");
+  assert.equal(Number((await q("SELECT sat_khi FROM characters WHERE user_id = ?", [A.P.id]))[0].sat_khi), sk, "written");
   assert.ok(A.msgs.some((m) => m.t === "feed" && /Sát khí/.test(m.m)), "the server hears of it");
   tx(A, { t: "pk", on: false });
   assert.ok(await until(() => A.msgs.some((m) => m.t === "toast" && /chưa tan/.test(m.m))), "switching off waits after a fight");
@@ -124,8 +129,8 @@ try {
   await near(C, A);
   await swing(C, A, 5000);
   await sleep(6000); // saved (every 5 s)
-  assert.equal(await stones(A.P), a0 - 50, "A paid the bounty (50 × sát khí 1)");
-  assert.equal(await stones(C.P), c0 + 50, "to C");
+  assert.equal(await stones(A.P), a0 - 50 * sk, `A paid the bounty (50 × sát khí ${sk})`);
+  assert.equal(await stones(C.P), c0 + 50 * sk, "to C");
   ok("Brought down while on Đồ Sát: the bounty on the sát khí goes to the killer");
 
   // ---- off after the wait

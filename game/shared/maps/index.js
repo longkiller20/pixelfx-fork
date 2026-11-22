@@ -9,10 +9,12 @@ import { MAVUC } from "./mavuc.js";
 import { GIAVIEN } from "./giavien.js";
 import { CAUCA } from "./cauca.js";
 import { CHIENTRUONG } from "./chientruong.js";
+import { XAQUAT } from "./xaquat.js";
 
 // the road east: the starter town, the forest, the lake, the old tombs, the abyss; and off the road, reached from the menu:
-// the Gia Viên (one each) and the fishing lake; and the Chính Tà battlefield, opened for a battle
-export const MAPS = { tanthu: TANTHU, bichlac: BICHLAC, linhthuy: LINHTHUY, uminh: UMINH, mavuc: MAVUC, giavien: GIAVIEN, cauca: CAUCA, chientruong: CHIENTRUONG };
+// the Gia Viên (one each) and the fishing lake; the Chính Tà battlefield, opened for a battle; and the Phó Bản, a copy
+// of its own for each party that goes in
+export const MAPS = { tanthu: TANTHU, bichlac: BICHLAC, linhthuy: LINHTHUY, uminh: UMINH, mavuc: MAVUC, giavien: GIAVIEN, cauca: CAUCA, chientruong: CHIENTRUONG, xaquat: XAQUAT };
 export const START_MAP = "tanthu";
 
 const cache = new Map();

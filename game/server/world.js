@@ -9,7 +9,7 @@ import {
 import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
 import { isTele, teleAt, TELE_MAPS } from "../shared/truyen-tong.js";
 import { ZONE_COUNT, ZONE_CAP, isField, zoneKey, zoneOf } from "../shared/khu.js";
-import { BOSS, bossType, SLAM_HIT, ROAR_HIT } from "../shared/boss.js";
+import { BOSS, bossType, bossOf, SLAM_HIT, ROAR_HIT } from "../shared/boss.js";
 import { BossFight } from "./boss.js";
 import { stepBody, fits, PHYS, zoneLanding } from "../shared/physics.js";
 import { CAST, stepReturning } from "./cong-phap.js";
@@ -29,6 +29,9 @@ import { userFromToken } from "./auth.js";
 import { War } from "./chinh-ta.js";
 import { CT, WAR_MAP, WAR_KEY, FACTIONS } from "../shared/chinh-ta.js";
 import { KeyedLock } from "./lock.js";
+import { Parties } from "./to-doi.js";
+import { Runs } from "./pho-ban.js";
+import { PB, runKey } from "../shared/pho-ban.js";
 
 const DT = 1 / TICK_HZ;
 // seconds between stepping into a gate and arriving on the other map: the departure plays, the screen closes
@@ -60,7 +63,10 @@ export class World {
     this.map = mapInfo(mapId);
     // which world this is in the Universe: the map's id, or for a Gia Viên "gv:<owner>" (one copy per owner)
     this.key = mapId;
-    if (home?.war) {
+    if (home?.run) {
+      // a Phó Bản run (server/pho-ban.js): this party's own copy of the dungeon's map; its Run is set by whoever made it
+      this.key = runKey(home.run);
+    } else if (home?.war) {
       // the Chính Tà battlefield (server/chinh-ta.js): one while a battle is on; its War is set by whoever made it
       this.key = WAR_KEY;
     } else if (home?.khu) {
@@ -137,6 +143,7 @@ export class World {
     this.sendArts(p);
     this.sendMe(p);
     this.war?.onEnter(p);
+    this.run?.onEnter(p);
     // Boss Thế Giới: whether one is up and where (and, on its map, its bar at the next second)
     if (this.u?.boss) send(p.ws, this.u.boss.infoMsg());
   }
@@ -148,6 +155,7 @@ export class World {
     for (const m of this.ents.values()) if (m.target === p) m.target = null;
     this.broadcast({ t: "gone", id: p.id });
     if ((this.grid || this.khu || this.zone > 1) && !this.players.size) this.u?.dropHomeLater(this.key);
+    this.run?.onLeave(p);
   }
 
   /** Take a player out and save what they earned. Safe to call twice. */
@@ -161,6 +169,7 @@ export class World {
     this.broadcast({ t: "gone", id: p.id });
     if ((this.grid || this.khu || this.zone > 1) && !this.players.size) this.u?.dropHomeLater(this.key);
     this.war?.onGone(p);
+    this.run?.onGone(p);
     await this.save(p);
   }
 
@@ -180,10 +189,11 @@ export class World {
 
   /** An admin changed the game's numbers: monsters take their new stats, players their new levels, browsers the new set. */
   onConfig() {
+    // (a boss keeps its own numbers; a Phó Bản's monsters keep the run's, set when it began)
     for (const m of this.ents.values())
-      if (m.kind === "m") {
+      if (m.kind === "m" && !m.boss && !m.once) {
         const d = MONSTERS[m.type];
-        m.st = { maxHp: d.hp, atk: d.atk, def: d.def, spd: d.spd };
+        if (d) m.st = { maxHp: d.hp, atk: d.atk, def: d.def, spd: d.spd };
       }
     for (const p of this.players.values()) {
       this.relevel(p);
@@ -455,10 +465,20 @@ export class World {
         const to = num(m.tx) && num(m.ty) ? { x: m.tx, y: m.ty } : null;
         return this.cast(p, i, ax, ay, to);
       }
+      // Tổ Đội (server/to-doi.js): invite, answer, leave, put out, hand the lead, make one alone
+      case "party":
+        return this.partyMsg(p, m);
+      // Phó Bản (server/pho-ban.js): the panel, going in (the leader), answering the ready check, leaving a run
+      case "pb":
+        return void this.pbMsg(p, m).catch((e) => {
+          send(p.ws, { t: "toast", m: e.status ? e.message : "Có lỗi, thử lại sau." });
+          if (!e.status) console.error("pb", e);
+        });
       case "chat": {
-        // three channels: Thế Giới (w, every map), Khu Vực (k, this map), Tông Môn (s, the sect wherever its members are)
+        // four channels: Thế Giới (w, every map), Khu Vực (k, this map), Tông Môn (s, the sect wherever its members are),
+        // Tổ Đội (p, the party wherever its members are)
         if (typeof m.m !== "string" || this.t < p.chatAt) return;
-        const ch = m.ch === "k" || m.ch === "s" ? m.ch : "w";
+        const ch = m.ch === "k" || m.ch === "s" || m.ch === "p" ? m.ch : "w";
         const text = dao.cleanLine(m.m, 120);
         if (!text) return;
         if (ch === "w" && this.t < p.worldAt)
@@ -470,6 +490,11 @@ export class World {
         if (ch === "w") p.worldAt = this.t + SOCIAL.worldCooldown;
         p.lastLine = { text, ch, t: this.t };
         const msg = { t: "chat", ch, n: p.name, lv: p.level, m: text, at: Date.now() };
+        if (ch === "p") {
+          const party = this.u?.parties.partyOf(p.userId);
+          if (!party) return send(p.ws, { t: "toast", m: "Đạo hữu chưa ở trong tổ đội nào." });
+          return this.u.say(msg, p, (q) => party.members.has(q.userId), `p${party.id}`);
+        }
         if (ch === "s") {
           if (!p.sect) return send(p.ws, { t: "toast", m: "Đạo hữu chưa ở tông môn nào." });
           return this.u?.say(msg, p, (q) => q.sect?.id === p.sect.id, `s${p.sect.id}`);
@@ -490,6 +515,43 @@ export class World {
         if (num(m.c)) send(p.ws, { t: "pong", c: m.c });
         return;
     }
+  }
+
+  partyMsg(p, m) {
+    const P = this.u?.parties;
+    if (!P) return;
+    const uid = Number.isInteger(m.uid) ? m.uid : null;
+    try {
+      if (m.a === "invite") {
+        const out = P.invite(p.userId, m.name);
+        send(p.ws, { t: "toast", m: `Đã mời ${out.name} vào tổ đội.` });
+      } else if (m.a === "accept" || m.a === "decline") P.answer(p.userId, uid, m.a === "accept");
+      else if (m.a === "leave") {
+        if (this.run && this.run.state === "running") throw Object.assign(new Error("Đang trong phó bản: rời phó bản trước khi rời tổ đội."), { status: 409 });
+        P.remove(p.userId);
+      } else if (m.a === "kick") P.kick(p.userId, uid);
+      else if (m.a === "lead") P.lead(p.userId, uid);
+      else if (m.a === "create") P.create(p.userId);
+      else if (m.a === "get") {
+        const party = P.partyOf(p.userId);
+        send(p.ws, { t: "party", party: party ? P.view(party) : null, you: p.userId });
+      }
+    } catch (e) {
+      send(p.ws, { t: "toast", m: e.status ? e.message : "Có lỗi, thử lại sau." });
+      if (!e.status) console.error("party", e);
+    }
+  }
+  async pbMsg(p, m) {
+    const R = this.u?.runs;
+    if (!R) return;
+    if (m.a === "view") return send(p.ws, { t: "pbview", you: p.userId, ...(await R.view(p.userId)) });
+    if (m.a === "start") {
+      const out = R.request(p.userId, String(m.d ?? ""));
+      send(p.ws, { t: "toast", m: out.asked ? `Đang chờ ${out.asked} đồng đội sẵn sàng...` : "Đang vào phó bản..." });
+      return;
+    }
+    if (m.a === "ready") return this.u.parties.answerReady(p.userId, m.ok === true);
+    if (m.a === "quit") return R.quit(p.userId);
   }
 
   async useItem(p, item) {
@@ -567,6 +629,8 @@ export class World {
     // Đồ Sát: both are fighting a player now (neither may switch it off for a while)
     if (!this.war && att.kind === "p" && e.kind === "p") att.pkFight = e.pkFight = this.t;
     this.ev({ e: "hit", id: e.id, d: dmg, by: att.id });
+    // a Phó Bản: what each member dealt, for the board
+    if (this.run && att.kind === "p" && e.kind === "m") this.run.onDmg(att, Math.min(dmg, Math.max(0, dmg + e.hpFrac * st.maxHp)));
     if (e.hpFrac <= 0) this.kill(e, att);
     return dmg;
   }
@@ -661,7 +725,9 @@ export class World {
     this.ev({ e: "die", id: e.id });
     const owner = att.kind === "p" ? att : null;
     if (e.kind === "m") {
-      e.respawnAt = this.t + e.def.respawn;
+      // a Phó Bản's monsters never come back
+      e.respawnAt = e.once ? Infinity : this.t + e.def.respawn;
+      if (e.once) e.goneAt = this.t + 1.5;
       if (owner && !owner.gone) {
         const gx = this.gain(owner, "exp", e.def.exp(owner.level)), gs = this.gain(owner, "stones", e.def.stones);
         owner.pend.exp += gx;
@@ -671,10 +737,20 @@ export class World {
         this.relevel(owner);
         this.sendMe(owner);
       }
+      if (e.once) this.run?.onMobDie(e);
       return;
     }
     // a player: falls off the sword
     e.flying = false;
+    if (this.run) {
+      // a Phó Bản: a life of the party's spent (or the run lost), rising at the hall's checkpoint
+      e.respawnAt = this.t + PB.respawn;
+      e.busyUntil = 0;
+      e.rootUntil = 0;
+      this.run.onFall(e);
+      this.sendMe(e);
+      return;
+    }
     // the open world: a player brought down by a player (Đồ Sát), its own reckoning
     if (!this.war && !this.map.pvp && owner && owner !== e) {
       e.respawnAt = this.t + RESPAWN_WORLD;
@@ -989,6 +1065,15 @@ export class World {
   }
   /** Where someone appears: the map's spawn (on the battlefield: their side's camp), nudged a little, always on open ground. */
   spawnPoint(p = null) {
+    // a Phó Bản: the checkpoint of the hall open now
+    if (this.run) {
+      const x0 = this.run.checkpoint(), y = this.map.spawn.y;
+      for (let i = 0; i < 12; i++) {
+        const x = x0 + rnd(-30, 30);
+        if (fits(x, y, this.map)) return { x, y, vx: 0, vy: 0, ground: false };
+      }
+      return { x: x0, y, vx: 0, vy: 0, ground: false };
+    }
     const cp = this.war && p?.faction ? this.camp(p.faction) : null;
     if (cp) {
       for (let i = 0; i < 12; i++) {
@@ -1076,13 +1161,14 @@ export class World {
       p.hpFrac -= hurt.hit;
       p.lastHurt = t;
       this.ev({ e: "burn", id: p.id });
-      send(p.ws, { t: "toast", m: "Bị nham thạch thiêu đốt!" });
+      send(p.ws, { t: "toast", m: hurt.msg ?? "Bị nham thạch thiêu đốt!" });
       if (p.hpFrac <= 0) {
         p.dead = true;
         p.hpFrac = 0;
-        p.respawnAt = t + RESPAWN_WORLD;
+        p.respawnAt = t + (this.run ? PB.respawn : RESPAWN_WORLD);
         this.ev({ e: "die", id: p.id });
-        this.feed(`${p.name} đã bị nham thạch thiêu đốt.`);
+        this.feed(`${p.name} đã bị ${this.run ? "độc chướng" : "nham thạch"} thiêu đốt.`);
+        this.run?.onFall(p);
         this.sendMe(p);
         return;
       }
@@ -1099,6 +1185,8 @@ export class World {
     if (p.y > this.map.h + 200) Object.assign(p, this.spawnPoint(p));
     // the battlefield's camps: the other side's kết giới can't be crossed; while getting ready nobody leaves their own
     if (this.war && p.faction) this.campWall(p);
+    // a Phó Bản's seals: nobody passes one until the hall before it is cleared
+    this.run?.wall(p);
     // a way out: to the map it leads to, or (a road still being built) a word and a step back. A Truyền Tống Trận
     // (shared/truyen-tong.js) takes nobody by walking onto it: it waits for its button (the "tele" message)
     const g0 = this.map.portalAt(p.x, p.y), gate0 = isTele(g0) ? null : g0;
@@ -1157,19 +1245,38 @@ export class World {
     return m;
   }
   /**
+   * A Phó Bản's boss (server/pho-ban.js): a world boss's figure and ways, with a life of its own (fight: { hit(att, dmg),
+   * frac() }) and its own numbers (cfg).
+   */
+  addRunBoss(key, x, y, fight, cfg, maxHp) {
+    const d = bossOf(bossType(key)), m = {
+      id: nextId(), kind: "m", type: bossType(key), boss: true, fight, cfg, def: { name: d.name, style: "boss", respawn: 1e9, stones: 0, dropRate: 0, exp: () => 0 },
+      x, y, home: { x, y }, face: -1, hpFrac: 1, dead: false, respawnAt: 0, slowUntil: 0, lastHurt: -99,
+      half: d.half, tall: d.tall, slamAt: -99, roarAt: -99, nextSlam: this.t + 2, target: null, atkAnim: 0, proxies: new Map(), moving: false,
+      st: { maxHp, atk: cfg.atk, def: cfg.def, spd: cfg.spd },
+    };
+    this.ents.set(m.id, m);
+    this.ev({ e: "spawn", id: m.id });
+    this.ev({ e: "boss", id: m.id, a: "rise" });
+    return m;
+  }
+  /**
    * A blow on the boss: worked out as on anything (its defence counts), taken from its one shared life; a player's
    * blow is written against them, and part of it is thrown back at them (phản đòn).
    */
   hitBoss(att, atk, m, mult) {
     if (m.dead || att.kind !== "p" || att.dead) return 0;
-    const dmg = Math.max(1, Math.round(atk * mult * mitigate(m.st.def) * (0.95 + Math.random() * 0.1)));
-    const took = this.u?.boss.hit(att, dmg) ?? 0;
+    const B = m.cfg ?? BOSS;
+    const dmg = Math.max(1, Math.round(atk * mult * mitigate(B.def ?? m.st.def) * (0.95 + Math.random() * 0.1)));
+    // a Phó Bản's boss keeps its own life (m.fight, server/pho-ban.js); the world boss its one shared life
+    const took = (m.fight ?? this.u?.boss)?.hit(att, dmg) ?? 0;
     if (!took) return 0;
+    if (this.run) this.run.onDmg(att, took);
     m.lastHurt = this.t;
     m.lastHitBy = att;
     this.ev({ e: "hit", id: m.id, d: took, by: att.id });
     // phản đòn: a share of it back at the striker (it never kills: it leaves them at 1 hp at worst)
-    const back = Math.round((took * BOSS.thornsPct) / 100);
+    const back = Math.round((took * B.thornsPct) / 100);
     if (back > 0 && !att.dead && att.protectUntil <= this.t) {
       const st = this.stats(att), hp = att.hpFrac * st.maxHp, lose = Math.min(back, Math.max(0, hp - 1));
       if (lose > 0) {
@@ -1187,11 +1294,13 @@ export class World {
   stepBoss(m) {
     const t = this.t;
     if (m.dead) return;
-    m.hpFrac = this.u?.boss.b ? this.u.boss.b.hp / this.u.boss.b.maxHp : m.hpFrac;
-    const ok = (p) => p && !p.gone && !p.dead && p.protectUntil <= t && Math.abs(p.x - m.home.x) < BOSS.aggro + BOSS.leash && Math.abs(p.y - m.y) < 220;
-    if (!ok(m.target) || Math.abs(m.target.x - m.x) > BOSS.aggro * 1.4) {
+    // its numbers: a Phó Bản's own (m.cfg), else the world boss's settings
+    const B = m.cfg ?? BOSS;
+    m.hpFrac = m.fight ? m.fight.frac() : this.u?.boss.b ? this.u.boss.b.hp / this.u.boss.b.maxHp : m.hpFrac;
+    const ok = (p) => p && !p.gone && !p.dead && p.protectUntil <= t && Math.abs(p.x - m.home.x) < B.aggro + B.leash && Math.abs(p.y - m.y) < 220;
+    if (!ok(m.target) || Math.abs(m.target.x - m.x) > B.aggro * 1.4) {
       m.target = null;
-      let bd = BOSS.aggro;
+      let bd = B.aggro;
       for (const p of this.players.values())
         if (ok(p)) {
           const dd = Math.abs(p.x - m.x);
@@ -1204,11 +1313,11 @@ export class World {
     if (!m.target || busy) return;
     const p = m.target, dx = p.x - m.x;
     m.face = dx > 0 ? 1 : -1;
-    const reach = BOSS.slamReach;
+    const reach = B.slamReach;
     if (Math.abs(dx) <= reach + m.half * 0.4 && Math.abs(p.y - m.y) < 160) {
       if (t >= m.nextSlam) {
         // the slam: raised, brought down at SLAM_HIT, hitting everyone in front within reach
-        m.nextSlam = t + BOSS.slamCd;
+        m.nextSlam = t + B.slamCd;
         m.slamAt = t;
         m.atkAnim = t + 1.45;
         const face = m.face;
@@ -1220,15 +1329,15 @@ export class World {
           for (const q of this.players.values()) {
             if (q.dead || q.gone || q.protectUntil > this.t) continue;
             const qx = (q.x - m.x) * face;
-            if (qx >= -30 && qx <= reach + 20 && Math.abs(q.y - m.y) < 140) this.damage(m, BOSS.atk, q, BOSS.slamMult);
+            if (qx >= -30 && qx <= reach + 20 && Math.abs(q.y - m.y) < 140) this.damage(m, B.atk, q, B.slamMult);
           }
         });
       }
       return;
     }
     // walk at them, never more than leash from where it stood, on ground it fits on
-    const nx = m.x + Math.sign(dx) * BOSS.spd * DT;
-    if (Math.abs(nx - m.home.x) <= BOSS.leash && fits(nx, m.y, this.map) && (this.map.solid(Math.floor(nx / this.map.T), Math.floor((m.y + 2) / this.map.T)) || this.map.plank(Math.floor(nx / this.map.T), Math.floor((m.y + 2) / this.map.T)))) {
+    const nx = m.x + Math.sign(dx) * B.spd * DT;
+    if (Math.abs(nx - m.home.x) <= B.leash && fits(nx, m.y, this.map) && (this.map.solid(Math.floor(nx / this.map.T), Math.floor((m.y + 2) / this.map.T)) || this.map.plank(Math.floor(nx / this.map.T), Math.floor((m.y + 2) / this.map.T)))) {
       m.x = nx;
       m.moving = true;
     }
@@ -1245,7 +1354,7 @@ export class World {
       this.ev({ e: "fx", k: "bossroar", b: m.type, x: Math.round(m.x), y: Math.round(m.y) });
       for (const p of this.players.values()) {
         if (p.dead || p.gone || p.protectUntil > this.t) continue;
-        const st = this.stats(p), dmg = Math.max(1, Math.round((st.maxHp * BOSS.roarPct) / 100));
+        const st = this.stats(p), dmg = Math.max(1, Math.round((st.maxHp * (m.cfg ?? BOSS).roarPct) / 100));
         p.hpFrac -= dmg / st.maxHp;
         p.lastHurt = this.t;
         this.ev({ e: "hit", id: p.id, d: dmg, by: m.id, roar: 1 });
@@ -1303,6 +1412,10 @@ export class World {
     if (m.boss) return this.stepBoss(m);
     const t = this.t, d = m.def;
     if (m.dead) {
+      if (m.once) {
+        if (t >= m.goneAt) this.ents.delete(m.id);
+        return;
+      }
       if (m.temp) {
         if (t - m.respawnAt > -d.respawn + 1.5) this.ents.delete(m.id);
         return;
@@ -1343,7 +1456,7 @@ export class World {
           if (t >= m.nextAtk) {
             m.nextAtk = t + d.cd;
             m.atkAnim = t + 0.3;
-            this.damage(m, d.atk, p, d.mult);
+            this.damage(m, m.st.atk, p, d.mult);
           }
         } else (gx = p.x - Math.sign(dx) * d.reach * 0.6), (gy = ty);
       } else {
@@ -1352,7 +1465,7 @@ export class World {
           m.nextAtk = t + d.cd;
           m.atkAnim = t + 0.3;
           const sy = m.y - (d.fly ? 0 : 24), ax = p.x - m.x, ay = p.y - 26 - sy, l = Math.hypot(ax, ay) || 1;
-          this.bolts.push({ id: nextId(), owner: m, art: "@" + m.type, x: m.x, y: sy + 30, vx: (ax / l) * d.shotSpeed, vy: (ay / l) * d.shotSpeed, left: d.range * 1.3, r: 12, atk: d.atk, mult: d.mult });
+          this.bolts.push({ id: nextId(), owner: m, art: "@" + m.type, x: m.x, y: sy + 30, vx: (ax / l) * d.shotSpeed, vy: (ay / l) * d.shotSpeed, left: d.range * 1.3, r: 12, atk: m.st.atk, mult: d.mult });
         }
         if (dd > d.range * 0.85) (gx = p.x - Math.sign(dx) * d.range * 0.6), (gy = ty);
         else if (dd < d.range * 0.4) (gx = m.x - Math.sign(dx) * 60), (gy = ty), (run = 0.7);
@@ -1425,7 +1538,7 @@ export class World {
         // fishing: where the float is, what it is doing (1 floating, 2 under, 3 a fish on the line), the rod's tier
         ...(p.fish?.bx ? [Math.round(p.fish.bx), Math.round(p.fish.by), FSTATE[p.fish.s] ?? 1, RODS[p.fish.rod]?.tier ?? 1] : [])]);
     for (const m of this.ents.values())
-      if (m.kind === "m") M.push([m.id, m.type, Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0)]);
+      if (m.kind === "m") M.push([m.id, m.type, Math.round(m.x), Math.round(m.y), m.face, Math.round(m.hpFrac * 1000), (m.dead ? 1 : 0) | (m.slowUntil > t ? 4 : 0) | (m.atkAnim > t ? 128 : 0) | (m.elite ? 256 : 0)]);
     // the thrower's id: a flying sword is drawn as the weapon its owner holds
     // ... and the art it belongs to ("" for none): Phi Kiếm draws the weapon, other arts their own effect
     for (const b of this.bolts) B.push([b.id, b.owner.id, Math.round(b.x), Math.round(b.y), Math.round(b.vx), Math.round(b.vy), b.art ?? ""]);
@@ -1469,7 +1582,7 @@ export class Universe {
     // one tick for every map, so all their clocks stay equal
     this.timer = setInterval(() => {
       for (const w of this.worlds.values()) w.step();
-      if (++this.ticks % TICK_HZ === 0) (this.pushKhu(), this.pushZones(), this.boss?.tick());
+      if (++this.ticks % TICK_HZ === 0) (this.pushKhu(), this.pushZones(), this.boss?.tick(), this.parties.tick(), this.runs.tick());
     }, 1000 / TICK_HZ);
     this.ticks = 0;
     // Truyền Âm older than pm.keep_days goes, once an hour
@@ -1483,6 +1596,19 @@ export class Universe {
     // Boss Thế Giới (server/boss.js): the one up (brought back after a restart), stepped once a second
     this.boss = new BossFight(this);
     this.boss.load().catch((e) => console.error("boss load", e));
+    // Tổ Đội (server/to-doi.js) and Phó Bản (server/pho-ban.js): parties in memory; each run a world of its own
+    this.parties = new Parties(this);
+    this.runs = new Runs(this, (id, mapId) => new World(mapId, this, { run: id }));
+  }
+  /** One message to uid, wherever they are (nothing if offline). */
+  sendUser(uid, obj) {
+    const p = this.players.get(uid);
+    if (p) send(p.ws, obj);
+  }
+  /** Their bag again, wherever they are. */
+  async sendInvOf(uid) {
+    const p = this.players.get(uid);
+    if (p) send(p.ws, { t: "inv", inv: await store.inventory(uid) });
   }
   /** userId -> player, every map (a fresh Map each time: for lookups, not for keeping). */
   get players() {
@@ -1553,7 +1679,11 @@ export class Universe {
       if (p) {
         sessionLock.run(p.userId, () => p.world.remove(p)).catch((e) => console.error("leave", e));
         // gone for good (not replaced by a new tab of the same account): friends hear it
-        setTimeout(() => !this.players.has(p.userId) && this.presence(p, false), 1500);
+        setTimeout(() => {
+          if (this.players.has(p.userId)) return;
+          this.presence(p, false);
+          this.parties.offline(p.userId);
+        }, 1500);
       }
     });
     ws.on("error", () => {});
@@ -1589,7 +1719,9 @@ export class Universe {
       if (ws.readyState !== WebSocket.OPEN) return;
       // back on the map they were last on (at its arrival point), or the starter town; one with a place in the Chính Tà
       // battle on now goes back onto the field, at their camp
-      const warW = this.war.fighting(uid) ? this.war.world : null;
+      // ... and one with a place in a Phó Bản run still going goes back into it, at its checkpoint
+      const runW = this.runs.runOf(uid)?.world ?? null;
+      const warW = runW ?? (this.war.fighting(uid) ? this.war.world : null);
       // (a map of the road: the Khu they were in if it has room, else the first with room)
       const zk = this.zoneFor(ch.mapId ?? START_MAP, true);
       (warW ?? (zoneOf(zk) ? this.zoneWorld(zk) : null) ?? this.worlds.get(START_MAP)).admit(ws, ch, inv, buffs, sect, social, spouse);
@@ -1598,6 +1730,7 @@ export class Universe {
         me.chatMuted = mute;
         send(ws, { t: "unread", n: unread });
         this.presence(me, true);
+        this.parties.online(uid);
       }
     });
   }
@@ -1658,7 +1791,7 @@ export class Universe {
     to.enter(p, inv, at);
     to.ev({ e: "warp", id: p.id, x: Math.round(at.x), y: Math.round(at.y), out: 0 });
     // a Gia Viên isn't remembered: logging in again starts where they came from
-    if (!to.grid && !to.khu && !to.war) store.setMap(p.userId, key).catch((e) => console.error("map", e.message));
+    if (!to.grid && !to.khu && !to.war && !to.run) store.setMap(p.userId, key).catch((e) => console.error("map", e.message));
     if (to.grid) to.ev({ e: "spawn", id: p.id });
   }
 
@@ -1671,6 +1804,7 @@ export class Universe {
     if (p.world.key === key) return;
     if (p.warping || p.dead) throw Object.assign(new Error("Không thể vào Gia Viên lúc này."), { status: 409 });
     if (p.world.war) throw Object.assign(new Error("Đang ở Chính Tà chiến trường: rời trận trước đã."), { status: 409 });
+    if (p.world.run) throw Object.assign(new Error("Đang ở trong phó bản: rời phó bản trước đã."), { status: 409 });
     let w = this.worlds.get(key);
     if (!w) {
       const house = await gv.houseOf(uid);
@@ -1813,6 +1947,7 @@ export class Universe {
     if (cur && (want === null || want === cur)) return cur;
     if (p.warping || p.dead) throw no("Không thể tới Vọng Nguyệt Hồ lúc này.");
     if (p.world.war) throw no("Đang ở Chính Tà chiến trường: rời trận trước đã.");
+    if (p.world.run) throw no("Đang ở trong phó bản: rời phó bản trước đã.");
     if (p.fish) throw no("Hãy thu cần trước khi đổi khu.");
     let n = want;
     if (n === null) {
@@ -1904,9 +2039,10 @@ export class Universe {
     this.hist.set(key, list);
   }
   history(p, ch) {
-    const key = ch === "k" ? `k${p.world.key}` : ch === "s" ? (p.sect ? `s${p.sect.id}` : null) : "w";
+    const party = ch === "p" ? this.parties.partyOf(p.userId) : null;
+    const key = ch === "k" ? `k${p.world.key}` : ch === "s" ? (p.sect ? `s${p.sect.id}` : null) : ch === "p" ? (party ? `p${party.id}` : null) : "w";
     const list = (key && this.hist?.get(key)) || [];
-    send(p.ws, { t: "hist", ch: ch === "k" || ch === "s" ? ch : "w", list: list.filter((x) => !p.blocked.has(x.u)).map((x) => x.msg) });
+    send(p.ws, { t: "hist", ch: ch === "k" || ch === "s" || ch === "p" ? ch : "w", list: list.filter((x) => !p.blocked.has(x.u)).map((x) => x.msg) });
   }
   /** Truyền Âm: a few a second at most; only to a friend (checked here first, then in the database when it is saved). */
   whisper(p, m) {
