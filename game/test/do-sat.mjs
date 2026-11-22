@@ -125,6 +125,9 @@ try {
   ok("Bringing down someone without Đồ Sát: a point of sát khí (written, announced); switching off waits after fighting");
 
   // ---- C brings A down: the bounty
+  // (whoever fell above waits on the death box now: an admin gets them up where they are, free, before the next fight)
+  for (const c of [A, B]) if (c.me?.rv || me(c)?.dead) await adm(`/players/${c.P.id}/live`, { action: "revive" });
+  assert.ok(await until(() => !me(A)?.dead && !me(B)?.dead), "A and B up again");
   const a0 = await stones(A.P), c0 = await stones(C.P);
   await near(C, A);
   await swing(C, A, 5000);

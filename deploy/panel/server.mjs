@@ -238,7 +238,8 @@ function startTask(key, extra = {}, after) {
   const logFile = join(LOGS, `${id}.log`);
   const t = { id, key, name: def.name + (extra.AGENT_KIND ? ` (${extra.AGENT_KIND === "hermes" ? "Hermes Agent" : "Claude Code"})` : ""), started: Date.now(), ended: null, code: null, running: true, log: "", logFile };
   task = t;
-  const child = spawn("bash", [join(TASKS, def.file)], { env: taskEnv(s, extra), stdio: ["ignore", "pipe", "pipe"] });
+  // in a process group of its own, so stopping it stops everything it started (an AI agent and its helpers too)
+  const child = spawn("bash", [join(TASKS, def.file)], { env: taskEnv(s, extra), stdio: ["ignore", "pipe", "pipe"], detached: true });
   t.pid = child.pid;
   const add = (b) => {
     const text = b.toString();
@@ -586,9 +587,18 @@ async function api(req, res, path, url) {
   }
   if (path === "/api/task/stop" && M === "POST") {
     if (!task?.running) bad("Không có tác vụ nào đang chạy.");
-    try {
-      process.kill(task.pid, "SIGTERM");
-    } catch {}
+    // the whole group (the script cleans up on TERM); whatever is still there 20 s later is killed
+    const t = task, kill = (sig) => {
+      try {
+        process.kill(-t.pid, sig);
+      } catch {
+        try {
+          process.kill(t.pid, sig);
+        } catch {}
+      }
+    };
+    kill("SIGTERM");
+    setTimeout(() => t.running && kill("SIGKILL"), 20000).unref();
     return send(res, 200, { ok: true });
   }
   if (path === "/api/service" && M === "POST") {

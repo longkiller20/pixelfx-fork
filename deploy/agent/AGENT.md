@@ -7,7 +7,8 @@ Where you are: the repository's root (the working directory). game/ is the game 
 shared/ data and maps); src/fx/ is the pixelfx library every picture in the game is drawn with; tools/ its tools
 (render, check, list, from-image); skills/pixelfx/SKILL.md the method for making pixel art; docs/AUTHORING.md the effect
 file contract; deploy/mcp/GAME-ART.md what the game needs from a monster, a character, a boss. Read GAME-ART.md and
-SKILL.md before making any art.
+SKILL.md before making any art (a figure or an effect). A map needs neither: map_guide and one get_map are enough, and
+keep what you read short (models have a limited context).
 
 How to work:
 - The game's data (monsters, items, drops, numbers, monsters placed on maps, bosses called, gifts, announcements) goes

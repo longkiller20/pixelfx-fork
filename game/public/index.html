@@ -154,6 +154,17 @@
       <!-- Truyền Tống Trận: shows while standing by an array -->
       <button id="teleBtn" class="telebtn" type="button" title="Truyền tống (T)" hidden><b>☯</b><span>Truyền tống</span><kbd>T</kbd></button>
       <div id="respawn" hidden>Đạo hữu đã tử trận. Hồi sinh sau <b id="respawnT">0</b>s</div>
+      <!-- fallen in the open world: back to Tân Thủ Thôn for free, or up where they fell for linh thạch -->
+      <div id="death" hidden>
+        <div class="deathbox" role="dialog" aria-labelledby="deathT">
+          <h3 id="deathT">Đạo hữu đã tử trận</h3>
+          <div class="deathbtns">
+            <button id="dTown" type="button"><b>⌂ Về <span id="dTownName">Tân Thủ Thôn</span></b><small id="dTownT">miễn phí</small></button>
+            <button id="dHere" type="button" class="gold"><b>✦ Hồi sinh tại chỗ</b><small><img src="/xianxia/ui/ui_xianxia_item_spirit_stone.png" alt="" class="ico"> <span id="dCost">0</span> linh thạch</small><small id="dPoor" class="poor" hidden></small></button>
+          </div>
+          <p class="deathnote">Tự về <span id="dAutoName">Tân Thủ Thôn</span> sau <b id="dLeft">30</b> giây</p>
+        </div>
+      </div>
     </div>
     <div id="panel" hidden>
       <div class="pbox">
