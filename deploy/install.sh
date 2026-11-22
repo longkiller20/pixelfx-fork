@@ -154,8 +154,11 @@ else
     rm -rf "$DIR"
     git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$DIR" || die "Không tải được mã nguồn từ $REPO (kho riêng tư? Hãy git clone bằng tay rồi chạy: sudo bash <thư mục>/deploy/install.sh)."
   else
-    git -C "$DIR" sparse-checkout set game deploy
+    # everything but the big pictures of the readme (the game, the panel, and the pixelfx library the AI draws with)
+    git -C "$DIR" sparse-checkout set --no-cone '/*' '!/docs/readme/'
+    # the commit the game came as: what the AI or the owner changed since is kept across updates (tasks/update.sh)
   fi
+  git -C "$DIR" config dvtt.base "$(git -C "$DIR" rev-parse HEAD)"
   ok "đã tải về $DIR ($(git -C "$DIR" log -1 --format=%h))"
 fi
 chmod 755 "$DIR"

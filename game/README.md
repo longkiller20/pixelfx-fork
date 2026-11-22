@@ -1707,6 +1707,23 @@ Dùng SQL trực tiếp cũng được, ví dụ `UPDATE settings SET v = 50 WHE
 - Thêm hoặc bớt cảnh giới sẽ đổi cấp tối đa. Tu vi của người chơi giữ nguyên; cấp và tên cảnh giới tự tính lại theo danh sách mới.
 - Loại yêu thú và loại đánh thường (`melee`, `bolt`, `zone`) gắn với hình vẽ và cơ chế trong code. Công pháp thì nằm hẳn trong code. Admin đổi được mọi con số và tên, còn thêm loại mới thì cần sửa code.
 
+## AI và MCP (tạo quái, nhân vật, boss bằng AI)
+
+Bảng điều khiển VPS có tab **Trợ lý AI**: một trợ lý chạy ngay trên VPS (Claude Code), hoặc AI trên máy bạn qua MCP,
+tạo yêu thú, nhân vật, boss bằng thư viện pixelfx (hoặc từ ảnh bạn tải lên) rồi đưa vào game, chỉnh số liệu, gọi boss,
+tặng quà, thông báo. Chi tiết: [`deploy/README.md`](../deploy/README.md), phần 9.
+
+Những phần game có thêm cho việc này (dùng được cả không có AI):
+
+- **Đặt quái từ database** (bảng `map_spawns`, `server/spawns.js`): thêm quái lên một bản đồ có yêu thú mà không sửa code
+  bản đồ. Mọi Khu của bản đồ có ngay, sửa hay xoá dòng thì quái đổi hay biến mất ngay. API admin: `GET/POST /api/spawns`,
+  `PATCH/DELETE /api/spawns/:id`. Kiểm tra: `node test/dat-quai.mjs`.
+- **Nhân vật, boss thêm ngoài code** (`shared/them.js`, ghi bằng `node tools/them.mjs`): hình làm bằng pixelfx trong
+  `../src/fx` (`nhanvat/*`, `boss/*`), đăng ký một lệnh, chạy lại game là có (nhân vật bán trong Y Các, boss gọi được ở
+  tab Boss).
+- API admin: `/api/schema` (các bảng sửa được), `/api/maps` (bản đồ, chỗ đặt quái, mặt đất), `/api/fx` (thư viện pixelfx,
+  chép hiệu ứng vào game), `/api/announce` (thông báo cho mọi người), `/api/them`.
+
 ## Mở rộng
 
 Thế giới chạy trong bộ nhớ của một tiến trình Node, nên hãy chạy **một** tiến trình (pm2 `instances: 1`). Một tiến trình chịu

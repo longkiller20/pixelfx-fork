@@ -5,6 +5,7 @@
 // thạch and tu vi is shared out by the damage each one did; whoever struck the last blow gets a bonus on top.
 // Shared by the server (server/boss.js), the browser (public/js/boss.js) and the admin.
 import { MAPS } from "./maps/index.js";
+import { EXTRA_BOSSES } from "./them.js";
 
 /** The bosses there are: each a rigged pixelfx figure (src/fx/boss/) and what it throws. */
 export const BOSSES = {
@@ -20,6 +21,8 @@ export const BOSSES = {
     // its body, from its base (world px): half its width, its height; where its heads strike in front of it
     half: 100, tall: 148, slamAt: 96,
   },
+  // and the ones added since (shared/them.js, written by tools/them.mjs)
+  ...EXTRA_BOSSES,
 };
 
 export const BOSS_KEYS = Object.keys(BOSSES);

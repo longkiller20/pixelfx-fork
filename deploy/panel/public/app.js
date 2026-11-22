@@ -203,6 +203,7 @@ async function runTask(task, extra = {}, cb) {
 const VIEWS = [
   ["Chung", [["overview", "◉", "Tổng quan"], ["setup", "✦", "Cài đặt nhanh"]]],
   ["Cấu hình", [["game", "⚔", "Game & Admin"], ["domain", "🌐", "Tên miền & HTTPS"], ["firewall", "🛡", "Tường lửa"]]],
+  ["AI", [["ai", "✧", "Trợ lý AI"]]],
   ["Vận hành", [["services", "▤", "Dịch vụ & Log"], ["backup", "⛁", "Sao lưu"], ["update", "⟳", "Cập nhật"], ["env", "≡", "Tệp .env"], ["panel", "⚙", "Bảng điều khiển"]]],
 ];
 const TITLES = Object.fromEntries(VIEWS.flatMap(([, v]) => v.map(([k, , t]) => [k, t])));
@@ -792,6 +793,147 @@ RENDER.panel = () => {
     ),
   ];
 };
+
+// ---------------------------------------------------------------- Trợ lý AI: MCP, the agent on this VPS, pictures, what it changed
+let AI = null;
+const EXAMPLES = [
+  "Thêm một loài yêu thú mới: Hỏa Hồ (cáo lửa) ở Linh Thủy, mạnh ngang quái ở đó, rơi Hồi Xuân Đan hiếm. Vẽ nó bằng pixelfx, đặt 4 con quanh giữa bản đồ.",
+  "Biến ảnh hoa-yeu.png thành nhân vật nữ \"Hoa Yêu Tiên Tử\", bán 800 linh thạch trong Y Các. Chỉnh rig cho tóc và tay áo cử động đẹp.",
+  "Tạo boss mới từ ảnh long-vuong.png tên \"Băng Long Vương\", màu chiêu theo bảng màu của nó. Gọi boss ở Ma Vực với 3 triệu máu, thông báo cho mọi người.",
+  "Sự kiện tối nay: thông báo sự kiện, tặng mỗi người đang online 2 Hồi Xuân Đan.",
+];
+RENDER.ai = () => {
+  const box = h("div", { style: "display:grid;gap:16px" }, h("p", { class: "muted", text: "Đang tải…" }));
+  (async () => {
+    AI = await tryApi("/api/ai");
+    if (AI) box.replaceChildren(...aiCards());
+  })();
+  return box;
+};
+function aiCards() {
+  const a = AI, m = a.mcp, ag = a.agent, gb = (n) => (n / 1024 ** 3).toFixed(1) + " GB";
+  const cards = [];
+  // ---- the agent on this VPS
+  const ready = m.enabled && ag.claude && ag.key;
+  cards.push(h("div", { class: "card" },
+    h("h2", {}, "Trợ lý AI trên VPS ", ag.claude ? pill("on", "Đã cài") : pill("none", "Chưa cài")),
+    h("dl", { class: "kv" },
+      h("dt", { text: "Máy" }), h("dd", {}, `${gb(a.machine.ram)} RAM · ${a.machine.cpus} nhân `, a.machine.strong ? pill("on", "Đủ mạnh") : a.machine.enough ? pill("warn", "Hơi yếu") : pill("off", "Không đủ")),
+      h("dt", { text: "Claude Code" }), h("dd", { text: ag.claude ? `${ag.claude.version} (${ag.claude.path})` : "chưa cài" }),
+      h("dt", { text: "Khoá" }), h("dd", {}, ag.key ? pill("on", ag.key === "oauth" ? "Token gói Claude" : "Khoá API") : pill("warn", "Chưa nhập")),
+      Object.entries(ag.others).some(([, v]) => v) ? [h("dt", { text: "Agent khác" }), h("dd", { text: Object.entries(ag.others).filter(([, v]) => v).map(([k]) => k).join(", ") + " (dùng với MCP bên dưới)" })] : null,
+    ),
+    h("p", { class: "hint", text: "Trợ lý chạy ngay trên VPS bằng người dùng của game (không phải root): nó dùng các công cụ MCP của game và skill pixelfx để vẽ quái, nhân vật, boss rồi đưa vào game. Nên dùng máy từ 2 GB RAM. VPS yếu: bỏ qua phần này, kết nối AI trên máy bạn qua MCP." }),
+    h("div", { class: "actions" },
+      h("button", { class: "btn" + (ag.claude ? "" : " primary"), type: "button", disabled: !a.machine.enough, onclick: () => runTask("agent", {}, () => go("ai")) }, ag.claude ? "Cập nhật Claude Code" : "Cài trợ lý AI (Claude Code)"),
+    ),
+    keyForm(ag),
+  ));
+  // ---- give it a job
+  const prompt = h("textarea", { style: "min-height:140px;font-family:inherit;font-size:14px", placeholder: "Ví dụ: Thêm một loài yêu thú mới ở Linh Thủy…" });
+  const code = h("input", { type: "checkbox", checked: true }), restart = h("input", { type: "checkbox", checked: true });
+  cards.push(h("div", { class: "card" },
+    h("h2", { text: "Giao việc cho AI" }),
+    !ready ? h("p", { class: "err", text: !m.enabled ? "Bật MCP trước (thẻ MCP bên dưới)." : !ag.claude ? "Cài trợ lý AI trước." : "Nhập khoá API trước." }) : null,
+    prompt,
+    h("div", { class: "row", style: "margin-top:8px" }, ...EXAMPLES.map((e, i) => h("button", { class: "btn small ghost", type: "button", title: e, onclick: () => ((prompt.value = e), prompt.focus()) }, ["Yêu thú mới", "Nhân vật từ ảnh", "Boss từ ảnh", "Sự kiện"][i]))),
+    h("div", { class: "row", style: "margin-top:10px" }, h("label", { class: "check" }, code, "Cho sửa tệp (vẽ hiệu ứng, sửa code game)"), h("label", { class: "check" }, restart, "Tự chạy lại game khi xong")),
+    h("p", { class: "hint", text: "AI làm xong sẽ báo lại trong cửa sổ log. Mọi thay đổi được lưu (git) và hoàn tác được ở thẻ \"Thay đổi của AI\". Code game sửa sai thì tự hoàn tác. Mỗi lần chạy tốn phí theo khoá API của bạn." }),
+    h("div", { class: "actions" }, h("button", { class: "btn primary", type: "button", disabled: !ready, onclick: () => {
+      if (prompt.value.trim().length < 5) return toast("Viết việc cần làm.", "bad");
+      runTask("ai", { prompt: prompt.value.trim(), code: code.checked, restart: restart.checked }, () => go("ai"));
+    } }, "Giao việc")),
+  ));
+  // ---- pictures for it
+  const file = h("input", { type: "file", accept: "image/png", style: "max-width:100%" });
+  cards.push(h("div", { class: "card" },
+    h("h2", { text: "Ảnh cho AI" }),
+    h("p", { class: "hint", text: "Tải lên ảnh PNG nền trong suốt (nhân vật đứng cả người, boss, quái). Nhắc tên ảnh khi giao việc, ví dụ \"biến ảnh hoa-yeu.png thành nhân vật…\"." }),
+    h("div", { class: "row", style: "margin:10px 0" }, file, h("button", { class: "btn small", type: "button", onclick: async () => {
+      const f = file.files[0];
+      if (!f) return toast("Chọn một ảnh PNG.", "bad");
+      if (f.size > 15 << 20) return toast("Ảnh tối đa 15 MB.", "bad");
+      const name = f.name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/\.png$/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "") || "anh";
+      const r = await fetch(`/api/ai/upload?name=${encodeURIComponent(name)}`, { method: "POST", headers: { "x-csrf": csrf, "content-type": "image/png" }, body: f });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) return toast(j.error ?? `Lỗi ${r.status}`, "bad");
+      toast(`Đã tải lên ${j.name}`, "good");
+      go("ai");
+    } }, "Tải lên")),
+    a.uploads.length ? h("div", { class: "grid", style: "grid-template-columns:repeat(auto-fill,minmax(150px,1fr))" }, a.uploads.map((u) => h("div", { class: "card", style: "padding:10px;text-align:center" },
+      h("img", { src: `/api/ai/upload?name=${encodeURIComponent(u.name)}`, alt: u.name, style: "max-width:100%;max-height:120px;image-rendering:pixelated;background:repeating-conic-gradient(#222 0 25%,#333 0 50%) 0 0/16px 16px" }),
+      h("div", { class: "mono small", style: "margin-top:6px;overflow-wrap:anywhere", text: u.name }),
+      h("button", { class: "btn small ghost", type: "button", onclick: async () => (await confirmBox("Xoá ảnh?", u.name)) && (await tryApi(`/api/ai/upload?name=${encodeURIComponent(u.name)}`, undefined, "DELETE")) && go("ai") }, "✕ Xoá"),
+    ))) : h("p", { class: "muted", text: "Chưa có ảnh nào." }),
+  ));
+  // ---- MCP
+  const tokName = h("input", { placeholder: "tên, vd: may-nha", value: "" });
+  const shown = h("div");
+  cards.push(h("div", { class: "card" },
+    h("h2", {}, "MCP: kết nối AI ", m.enabled ? pill("on", "Đang bật") : pill("off", "Đang tắt")),
+    h("p", { class: "hint", text: `MCP cho AI (Claude Code, Claude Desktop, claude.ai, Cursor…) ${m.tools.length} công cụ làm việc với game: số liệu, yêu thú, đặt quái lên bản đồ, boss, người chơi, thông báo; vẽ bằng pixelfx, biến ảnh thành nhân vật/boss, đưa vào game. Mọi thay đổi số liệu được kiểm tra như trang admin và ghi nhật ký dưới tên ${m.adminUser ?? "ai-mcp"}.` }),
+    h("dl", { class: "kv", style: "margin-top:10px" }, h("dt", { text: "Địa chỉ" }), h("dd", {}, h("code", { text: m.url }))),
+    h("div", { class: "grid2", style: "margin-top:12px" },
+      h("label", { class: "switch" }, h("input", { type: "checkbox", checked: m.enabled, onchange: async (e) => (await tryApi("/api/ai/mcp", { enabled: e.target.checked })) && go("ai") }), h("span", {}, "Bật MCP", h("small", { text: "Tắt: mọi token đều bị từ chối." }))),
+      h("label", { class: "switch" }, h("input", { type: "checkbox", checked: m.allowCode, onchange: async (e) => (await tryApi("/api/ai/mcp", { allowCode: e.target.checked })) && go("ai") }), h("span", {}, "Cho phép viết code pixelfx", h("small", { text: "write_effect, image_to_figure: chạy code do AI viết trên VPS (bằng người dùng game). Chỉ bật với AI bạn tin." }))),
+    ),
+    h("h3", { text: "Token" }),
+    m.tokens.length ? h("table", {}, h("tbody", {}, m.tokens.map((t) => h("tr", {},
+      h("td", {}, h("b", { text: t.name }), h("br"), h("small", { class: "muted", text: `tạo ${fmtDate(t.created)}${t.used ? ` · dùng ${ago(t.used)}` : " · chưa dùng"}` })),
+      h("td", { style: "text-align:right" }, t.name === "agent-vps" ? h("small", { class: "muted", text: "của trợ lý trên VPS" }) : h("button", { class: "btn small danger", type: "button", onclick: async () => (await confirmBox("Thu hồi token?", `AI dùng token "${t.name}" sẽ mất kết nối.`)) && (await tryApi("/api/ai/mcp", { revoke: t.name })) && go("ai") }, "Thu hồi")),
+    )))) : h("p", { class: "muted", text: "Chưa có token." }),
+    h("div", { class: "row", style: "margin-top:10px" }, h("div", { style: "min-width:200px;flex:1" }, tokName), h("button", { class: "btn primary small", type: "button", onclick: async () => {
+      const r = await tryApi("/api/ai/mcp", { newToken: tokName.value.trim() || "token" });
+      if (r?.token) shown.replaceChildren(tokenBox(r.token, m.url));
+    } }, "Tạo token")),
+    shown,
+  ));
+  // ---- what it changed
+  cards.push(h("div", { class: "card" },
+    h("h2", { text: "Thay đổi của AI" }),
+    a.changes.length ? h("div", { class: "tableWrap" }, h("table", {}, h("tbody", {}, a.changes.map((c) => h("tr", {},
+      h("td", {}, h("b", { text: c.subject }), h("br"), h("small", { class: "muted mono", text: `${c.hash} · ${c.author} · ${fmtDate(c.at)}` })),
+      h("td", { style: "text-align:right" }, h("button", { class: "btn small", type: "button", onclick: async () => {
+        if (!(await confirmBox("Hoàn tác thay đổi này?", c.subject, "Tệp trở về như trước thay đổi đó, rồi game chạy lại. Hoàn tác cái mới nhất trước nếu chúng chồng lên nhau. (Số liệu trong database mà AI đã đổi không tự quay lại: xem Nhật ký ở trang admin.)"))) return;
+        const r = await tryApi("/api/ai/undo", { hash: c.hash });
+        if (r) (toast(`Đã hoàn tác. ${r.restart}`, "good"), go("ai"));
+      } }, "↺ Hoàn tác")),
+    ))))) : h("p", { class: "muted", text: "AI chưa thay đổi tệp nào." }),
+  ));
+  return cards;
+}
+function keyForm(ag) {
+  const key = h("input", { type: "password", autocomplete: "off", placeholder: ag.key ? "•••••••• (đã có: nhập để thay)" : "sk-ant-api… hoặc sk-ant-oat…" });
+  const model = h("input", { placeholder: "để trống: mặc định", value: ag.model });
+  return h("form", { style: "margin-top:12px", onsubmit: async (e) => {
+    e.preventDefault();
+    const body = { model: model.value.trim() };
+    if (key.value.trim()) body.key = key.value.trim();
+    else if (!ag.key) return toast("Nhập khoá.", "bad");
+    if (await tryApi("/api/ai/key", body)) (toast("Đã lưu.", "good"), go("ai"));
+  } },
+    h("div", { class: "grid2" },
+      field("Khoá API Anthropic, hoặc token gói Claude", key, "Khoá API: console.anthropic.com. Gói Claude Pro/Max: chạy \"claude setup-token\" trên máy bạn rồi dán token. Lưu ở /etc/dvtt-panel/agent.env (chỉ root đọc)."),
+      field("Model (tuỳ chọn)", model, "Ví dụ: sonnet, opus. Để trống dùng mặc định của Claude Code."),
+    ),
+    h("div", { class: "actions" }, ag.key ? h("button", { class: "btn small danger", type: "button", onclick: async () => (await confirmBox("Xoá khoá?", "Trợ lý trên VPS sẽ không chạy được nữa.")) && (await tryApi("/api/ai/key", { key: "", model: model.value.trim() })) && go("ai") }, "Xoá khoá") : null, h("button", { class: "btn small", type: "submit" }, "Lưu")),
+  );
+}
+function tokenBox(token, url) {
+  const pathUrl = url.replace(/\/mcp$/, `/mcp/${token}`);
+  const snippets = [
+    ["Claude Code (máy bạn)", `claude mcp add --transport http dvtt ${url} --header "Authorization: Bearer ${token}"`],
+    ["claude.ai / Claude Desktop (Settings → Connectors → Add custom connector: dán địa chỉ)", pathUrl],
+    ["Cursor, VS Code, các app đọc mcp.json", JSON.stringify({ mcpServers: { dvtt: { url, headers: { Authorization: `Bearer ${token}` } } } }, null, 2)],
+    ["App chỉ chạy MCP dạng lệnh (stdio)", JSON.stringify({ mcpServers: { dvtt: { command: "npx", args: ["-y", "mcp-remote", url, "--header", `Authorization: Bearer ${token}`] } } }, null, 2)],
+  ];
+  return h("div", { class: "banner good", style: "display:block;margin-top:12px" },
+    h("b", { text: "Token mới: chép ngay, sẽ không hiện lại" }),
+    h("pre", { class: "console", style: "margin:8px 0", text: token }),
+    ...snippets.flatMap(([t, s]) => [h("p", { style: "margin:10px 0 4px;font-weight:600", text: t }), h("pre", { class: "console", style: "margin:0", text: s })]),
+    h("p", { class: "hint", text: "Địa chỉ có token trong đường dẫn (claude.ai) chỉ nên dùng qua HTTPS (tên miền bảng điều khiển)." }),
+  );
+}
 
 async function service(unit, action) {
   const names = { start: "Chạy", stop: "Dừng", restart: "Chạy lại" };

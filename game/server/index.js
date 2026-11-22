@@ -10,6 +10,7 @@ import { api } from "./api.js";
 import { Universe } from "./world.js";
 import { loadConfig, watchConfig } from "./gameconfig.js";
 import { adminApp, adminMigrate } from "./admin.js";
+import { loadSpawns } from "./spawns.js";
 
 await migrate();
 // the game's numbers from the database; if they're broken at start, run on the built-in defaults and say why
@@ -19,6 +20,8 @@ try {
   console.error("config: database có số liệu không hợp lệ, tạm dùng số liệu mặc định:", e.message);
 }
 await adminMigrate();
+// the monsters an admin (or the MCP) placed on maps from the database, before the maps are stood up
+await loadSpawns();
 // every map's world, stepped together
 const world = new Universe();
 watchConfig(() => world.onConfig());
@@ -42,6 +45,8 @@ app.use("/api", api(world));
 app.get("/assets.json", (req, res) => res.set("cache-control", "no-cache").type("application/json").send(assetsJson()));
 app.get("/health", (req, res) => res.json({ ok: true, online: world.online }));
 const statics = { maxAge: "1h", index: false, fallthrough: true };
+// what was added beyond the code (shared/them.js: characters, bosses) is read fresh, so a new one shows after a restart
+app.get("/shared/them.js", (req, res) => res.set("cache-control", "no-cache").sendFile(join(ROOT, "shared", "them.js")));
 app.use("/shared", express.static(join(ROOT, "shared"), statics));
 // the pixel effects are in public/hieu-ung/ (copied from pixelfx by tools/hieu-ung.mjs: only the ones the game uses)
 app.use(express.static(join(ROOT, "public"), { ...statics, index: "index.html", maxAge: 0 }));

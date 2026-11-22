@@ -191,6 +191,92 @@ Bỏ `--pass` thì mật khẩu bảng điều khiển được tạo ngẫu nhi
 | `apt` báo bận | VPS mới thường tự cập nhật ở mấy phút đầu; script đợi tối đa 10 phút |
 | VPS dạng container (OpenVZ/LXC) | ufw có thể không bật được: dùng tường lửa của nhà cung cấp. Script báo rõ và vẫn chạy tiếp |
 
+## 9. Trợ lý AI và MCP: để AI tạo quái, nhân vật, boss… rồi đưa vào game
+
+Tab **Trợ lý AI** của bảng điều khiển cho AI làm việc với game thay quản trị:
+
+- **Dữ liệu:** thêm yêu thú, vật phẩm, rơi đồ, chỉnh số liệu, đặt quái lên bản đồ.
+- **Sự kiện:** gọi boss, tặng quà, thông báo.
+- **Hình ảnh:** vẽ bằng thư viện **pixelfx** của repo (theo skill `skills/pixelfx`), hoặc biến **ảnh bạn tải lên** thành
+  nhân vật hay boss có rig cử động, rồi đưa vào game.
+
+Có hai cách dùng:
+
+| | Trợ lý trên VPS (Claude Code) | AI trên máy bạn, qua MCP |
+| --- | --- | --- |
+| Hợp với | VPS từ 2 GB RAM, 2 nhân | VPS nào cũng được |
+| Cách dùng | Gõ việc cần làm vào ô "Giao việc cho AI", xem log trực tiếp | Claude Desktop, claude.ai, Claude Code, Cursor… kết nối tới `…/mcp`, rồi trò chuyện như bình thường |
+| Cần | Khoá API Anthropic, hoặc token gói Claude (`claude setup-token`) | Một token MCP (tạo ở tab Trợ lý AI) |
+| Sửa được code game | Có (sửa tệp, chạy công cụ pixelfx) | Chỉ qua các tool MCP |
+
+### Bật lên
+
+1. **Bật MCP** (thẻ MCP).
+   - Bảng điều khiển tạo cho AI một tài khoản admin game riêng, `ai-mcp`. Mọi thao tác của AI đều nằm trong Nhật ký của
+     trang admin dưới tên đó.
+   - Nếu muốn AI viết code hiệu ứng pixelfx hoặc biến ảnh thành hình, bật thêm **Cho phép viết code pixelfx**. Code này
+     chạy bằng người dùng của game, không phải root.
+2. **Trợ lý trên VPS:**
+   - bấm **Cài trợ lý AI (Claude Code)**;
+   - nhập khoá;
+   - gõ việc, ví dụ: *"Biến ảnh hoa-yeu.png thành nhân vật nữ Hoa Yêu Tiên Tử, bán 800 linh thạch"*.
+3. **AI trên máy bạn:** **Tạo token**. Bảng điều khiển hiện sẵn đoạn cấu hình cho Claude Code, claude.ai, Claude Desktop
+   và Cursor. Nên đặt tên miền + HTTPS cho bảng điều khiển trước, để token không đi qua mạng dạng chữ thường.
+4. **Ảnh:** thẻ **Ảnh cho AI** nhận PNG nền trong suốt, tối đa 15 MB. Nhắc tên ảnh khi giao việc.
+
+### Các công cụ MCP
+
+Có 35 công cụ, mô tả chi tiết nằm ngay trong MCP.
+
+| Nhóm | Công cụ |
+| --- | --- |
+| Xem | `game_overview`, `get_schema`, `list_rows`, `list_maps`, `boss_status`, `find_players`, `player_detail`, `admin_log`, `game_logs`, `list_added`, `list_uploads` |
+| Số liệu | `create_row`, `update_row`, `delete_row` (yêu thú, vật phẩm, rơi đồ, cảnh giới, cài đặt, Y Các…: được kiểm tra như trang admin, áp dụng ngay) |
+| Yêu thú | `create_monster` (hình + số liệu + rơi đồ + đặt lên bản đồ, một lần), `place_monster`, `update_spawn`, `remove_spawn` |
+| Vẽ (pixelfx) | `pixelfx_guide`, `search_effects`, `read_effect_source`, `render_effect` (trả về ảnh để AI tự nhìn), `write_effect`, `image_to_figure`, `add_effect_to_game` |
+| Đưa vào game | `register_character` (bán trong Y Các), `register_boss`, `unregister`, `restart_game` |
+| Sự kiện | `spawn_boss`, `despawn_boss`, `announce`, `give_item`, `adjust_player`, `give_cosmetic` |
+
+### An toàn và hoàn tác
+
+- **Token và quyền chạy:**
+  - token MCP chỉ lưu dạng băm, thu hồi được từng cái;
+  - sai token 10 lần trong 10 phút thì IP đó bị chặn;
+  - trợ lý trên VPS chạy bằng người dùng `dvtt`, chỉ được dùng các công cụ cho phép (sửa tệp, `node`, xem git, MCP của
+    game), mỗi lần chạy có một token MCP riêng.
+- **Hoàn tác thay đổi:**
+  - mọi tệp AI đổi đều được commit vào git trên VPS (tác giả `AI (MCP)` hoặc `AI (agent)`). Thẻ **Thay đổi của AI**
+    hoàn tác từng cái, rồi chạy lại game;
+  - AI sửa code game mà sai cú pháp, hoặc game không chạy lại được, thì bảng điều khiển tự hoàn tác và chạy lại bản cũ.
+- **Database không có nút hoàn tác:** số liệu AI đổi trong database xem ở Nhật ký trang admin, và có sao lưu mỗi ngày.
+- **Cập nhật game giữ thay đổi của AI:** thay đổi trên máy được lưu thành bản vá trong `/var/backups/dvtt`, rồi áp lại
+  sau khi tải mã mới. Nếu bản mới sửa đúng chỗ đó thì bản vá nằm lại để áp bằng tay.
+
+### Ảnh thành hình pixel (`tools/from-image.mjs`)
+
+Ảnh PNG nền trong suốt sẽ thành:
+
+- **nhân vật** cao 84 px: tóc, vạt áo, tay, chân cử động;
+- **boss** cao 148 px: thở, vồ, gầm, ngã, các đầu rắn hay xúc tu vươn ra cắn;
+- **yêu thú**: thở, nhún, chồm.
+
+Công cụ ghi ra:
+
+- `records/<id>/contact*.png`: hình đang chuyển động;
+- `records/<id>/parts.png`: bản đồ bộ phận để chỉnh.
+
+AI tự xem các ảnh này rồi sửa cách chia bộ phận bằng `parts` cho tới khi chuyển động đẹp. Quy ước đầy đủ cho từng loại
+nằm ở `deploy/mcp/GAME-ART.md`.
+
+Chạy tay:
+
+```bash
+cd /opt/pixelfx-fork
+sudo -u dvtt node tools/from-image.mjs anh.png --kind nhanvat --id nhanvat/hoa-yeu --name "Hoa Yêu Tiên Tử"
+sudo -u dvtt node game/tools/them.mjs skin add nhanvat/hoa-yeu --name "Hoa Yêu Tiên Tử" --g f --price 800
+sudo systemctl restart dvtt
+```
+
 ## Cấu trúc mã
 
 ```
@@ -208,8 +294,20 @@ deploy/
   tasks/firewall.sh        ufw
   tasks/apply.sh           áp dụng cấu hình đã lưu (.env + chạy lại, proxy, tường lửa)
   tasks/backup.sh          sao lưu, khôi phục, xoá, hẹn giờ
-  tasks/update.sh          cập nhật từ git
+  tasks/update.sh          cập nhật từ git (giữ thay đổi của AI)
+  tasks/agent.sh           cài trợ lý AI (Claude Code)
+  tasks/ai-run.sh          trợ lý làm một việc (commit, kiểm tra, chạy lại game, tự hoàn tác khi lỗi)
+  panel/ai.mjs             tab Trợ lý AI: MCP, token, ảnh, khoá, hoàn tác
+  mcp/tools.mjs            35 công cụ MCP của game        mcp/http.mjs  giao thức MCP qua HTTP
+  mcp/stdio.mjs            cầu nối cho app chỉ chạy MCP dạng lệnh
+  mcp/GAME-ART.md          game cần gì ở một yêu thú, nhân vật, boss (AI đọc)
+  agent/AGENT.md           luật làm việc của trợ lý trên VPS    agent/format.mjs  log dễ đọc
 ```
+
+Phía game: `game/server/spawns.js` (quái đặt từ database, bảng `map_spawns`), `game/shared/them.js` (nhân vật, boss
+thêm ngoài code), `game/tools/them.mjs` (đưa vào / gỡ ra), API admin mới `/api/schema`, `/api/maps`, `/api/spawns`,
+`/api/fx`, `/api/announce`, `/api/them`. Phía pixelfx: `tools/from-image.mjs`, `tools/lib/png.mjs` (đọc PNG),
+`src/fx/critters/_picture.js`.
 
 Mỗi tác vụ là một script bash độc lập, chạy được lại nhiều lần (idempotent). Tác vụ nhận cấu hình qua biến môi trường
 (xem đầu `tasks/lib.sh`), nên chạy được cả từ bảng điều khiển lẫn từ `dvtt-panel run`.

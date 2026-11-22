@@ -5,6 +5,8 @@
 // Game numbers are checked with the same checkConfig() the game uses before anything is saved, then applied at once.
 import crypto from "node:crypto";
 import { join } from "node:path";
+import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
+import { execFile } from "node:child_process";
 import express from "express";
 import { q, tx, isDup } from "./db.js";
 import { ROOT, config } from "./config.js";
@@ -14,6 +16,8 @@ import { readConfig, loadConfig } from "./gameconfig.js";
 import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS, HOME, DAOLU } from "../shared/balance.js";
 import { inventory, GameError, activeBuffs, adminAdjust, adminResetMeditation, adminLook, adminItem, adminArt, loadCharacter, grantArtMany } from "./store.js";
 import { userLock } from "./lock.js";
+import { spawnRows, spawnMaps, checkSpawn, placements, floorRow } from "./spawns.js";
+import { THEM } from "../shared/them.js";
 import { MAPS as MAP_DEFS, mapInfo } from "../shared/maps/index.js";
 import { CONG_PHAP } from "../shared/cong-phap.js";
 import * as sects from "./tong-mon.js";
@@ -141,6 +145,29 @@ function value(type, v, col) {
 const partName = KIND_NAME;
 // where a part must be: a character in shared/nhan-vat.js (drawn by src/fx/nhanvat/<key>.js), a flying sword public/phi-kiem/<idx>-<name>/
 const whereOf = (kind, g, idx) => (kind === "skin" ? (SKIN[idx] ? `hiệu ứng ${SKIN[idx].fx} trong public/hieu-ung (chạy tools/hieu-ung.mjs)` : `nhân vật số ${idx} trong shared/nhan-vat.js`) : `thư mục public/${Object.entries(PART_DIRS).find(([, v]) => v[0] === kind && v[1] === g)?.[0] ?? kind}/${idx}-tenmon/ có hinh.png`);
+
+// the pixelfx library next to the game (../src/fx): every effect's id, name and tags, read from the files (cached a minute),
+// each marked with whether the game already has it (public/hieu-ung)
+let fxLib = null, fxLibAt = 0;
+function fxLibrary() {
+  if (fxLib && Date.now() - fxLibAt < 60_000) return fxLib.map((f) => ({ ...f, inGame: hasFx(f.id) }));
+  const dir = join(ROOT, "..", "src", "fx"), out = [];
+  if (existsSync(dir))
+    for (const c of readdirSync(dir)) {
+      if (!statSync(join(dir, c)).isDirectory()) continue;
+      for (const f of readdirSync(join(dir, c))) {
+        if (!f.endsWith(".js") || f.startsWith("_")) continue;
+        const text = readFileSync(join(dir, c, f), "utf8").slice(0, 3000);
+        const name = (text.match(/name:\s*"([^"]*)"/) ?? [])[1] ?? f.slice(0, -3);
+        const desc = (text.match(/desc:\s*"([^"]*)"/) ?? [])[1] ?? "";
+        const tags = ((text.match(/tags:\s*\[([^\]]*)\]/) ?? [])[1] ?? "").split(",").map((t) => t.trim().replace(/^"|"$/g, "")).filter(Boolean);
+        out.push({ id: `${c}/${f.slice(0, -3)}`, name, desc: desc.slice(0, 160), tags });
+      }
+    }
+  fxLib = out.sort((a, b) => a.id.localeCompare(b.id));
+  fxLibAt = Date.now();
+  return fxLib.map((f) => ({ ...f, inGame: hasFx(f.id) }));
+}
 
 // ---------------------------------------------------------------- the app
 export function adminApp(world) {
@@ -275,6 +302,87 @@ export function adminApp(world) {
     await log(req.admin, "boss.despawn", String(id), null);
     res.json({ ok: true });
   }));
+
+  // ---- for AI tools (deploy/mcp) and the admin: what the editable tables hold, the maps, the monsters the database
+  // places on them (server/spawns.js), the pixel effects (in the game and in the pixelfx library), a word to everyone,
+  // and what was added beyond the code (shared/them.js).
+  r.get("/schema", wrap(async (req, res) => res.json(Object.fromEntries(Object.entries(T).map(([name, t]) => [name, { key: t.pk, add: !!t.add, del: !!t.del, live: !!t.config, cols: t.cols }])))));
+  r.get("/maps", wrap(async (req, res) => {
+    const can = spawnMaps();
+    res.json(MAPS.map((m) => ({
+      id: m.id, name: m.name, sub: m.sub, cols: m.cols, rows: m.rows, cell: m.T, instanced: !!m.def.instanced, spawnsAllowed: can.includes(m.id), boss: bossMaps().includes(m.id),
+      spawn: { x: m.def.spawn.x, row: m.def.spawn.row },
+      mobs: (m.def.mobs ?? []).map((x) => ({ type: x.type, x: x.x, row: x.row, up: x.up ?? 0 })),
+      spawns: spawnRows().filter((s) => s.map === m.id),
+      // the floor row under every 10th column: where a monster stands there
+      floors: can.includes(m.id) ? Array.from({ length: Math.floor(m.cols / 10) }, (_, i) => [i * 10 + 5, floorRow(m, i * 10 + 5)]) : [],
+    })));
+  }));
+  r.get("/spawns", wrap(async (req, res) => res.json(spawnRows())));
+  const spawnErr = (e) => {
+    throw bad(e.message);
+  };
+  r.post("/spawns", wrap(async (req, res) => {
+    let s;
+    try {
+      s = checkSpawn(req.body ?? {});
+    } catch (e) {
+      spawnErr(e);
+    }
+    const out = await q("INSERT INTO map_spawns (map_id, type, x, floor_row, up, n, note) VALUES (?, ?, ?, ?, ?, ?, ?)", [s.map, s.type, s.x, s.row, s.up, s.n, s.note]);
+    await log(req.admin, "spawn.add", `${s.map}:${s.type}`, s);
+    await world.spawnsChanged();
+    res.json({ ok: true, id: Number(out.insertId), at: placements(s).map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })) });
+  }));
+  r.patch("/spawns/:id", wrap(async (req, res) => {
+    const id = Number(req.params.id), cur = spawnRows().find((x) => x.id === id);
+    if (!cur) throw bad("Không có dòng này.", 404);
+    let s;
+    try {
+      s = checkSpawn(req.body ?? {}, cur);
+    } catch (e) {
+      spawnErr(e);
+    }
+    await q("UPDATE map_spawns SET map_id = ?, type = ?, x = ?, floor_row = ?, up = ?, n = ?, note = ? WHERE id = ?", [s.map, s.type, s.x, s.row, s.up, s.n, s.note, id]);
+    await log(req.admin, "spawn.edit", String(id), { before: cur, after: s });
+    await world.spawnsChanged();
+    res.json({ ok: true });
+  }));
+  r.delete("/spawns/:id", wrap(async (req, res) => {
+    const id = Number(req.params.id), cur = spawnRows().find((x) => x.id === id);
+    if (!cur) throw bad("Không có dòng này.", 404);
+    await q("DELETE FROM map_spawns WHERE id = ?", [id]);
+    await log(req.admin, "spawn.del", String(id), cur);
+    await world.spawnsChanged();
+    res.json({ ok: true });
+  }));
+  r.get("/fx", wrap(async (req, res) => {
+    const words = String(req.query.q ?? "").toLowerCase().split(/\s+/).filter(Boolean), cat = String(req.query.category ?? "");
+    const all = fxLibrary();
+    const hit = all.filter((f) => (!cat || f.id.startsWith(cat + "/")) && words.every((w) => `${f.id} ${f.name} ${f.tags.join(" ")}`.toLowerCase().includes(w)));
+    res.json({ library: all.length > 0, total: hit.length, effects: hit.slice(0, Math.min(500, Number(req.query.limit) || 200)) });
+  }));
+  r.post("/fx", wrap(async (req, res) => {
+    const id = String(req.body?.id ?? "");
+    if (!/^[a-z]+\/[a-z0-9-]+$/.test(id)) throw bad("Mã hiệu ứng dạng loại/tên, ví dụ critters/frog.");
+    if (hasFx(id)) return res.json({ ok: true, already: true });
+    if (!fxLibrary().some((f) => f.id === id)) throw bad(`Thư viện pixelfx (src/fx) không có "${id}".`);
+    const out = await new Promise((resolve) =>
+      execFile(process.execPath, [join(ROOT, "tools", "hieu-ung.mjs"), id], { cwd: ROOT, timeout: 120000 }, (e, so, se) => resolve({ ok: !e, text: `${so}${se}`.trim() })),
+    );
+    if (!out.ok) throw bad(`Không chép được hiệu ứng: ${out.text.slice(-400)}`, 500);
+    await log(req.admin, "fx.add", id, null);
+    res.json({ ok: true, id });
+  }));
+  r.post("/announce", wrap(async (req, res) => {
+    const text = String(req.body?.text ?? "").trim();
+    if (!text || text.length > 200) throw bad("Thông báo: 1-200 ký tự.");
+    world.feed(`📢 ${text}`);
+    world.broadcast({ t: "toast", m: `📢 ${text}` });
+    await log(req.admin, "announce", "", { text });
+    res.json({ ok: true, online: world.online });
+  }));
+  r.get("/them", wrap(async (req, res) => res.json(THEM)));
 
   // ---- Phó Bản and Tổ Đội (server/pho-ban.js, server/to-doi.js): the runs now (their stage, lives, time, members), the
   // parties now, the record and each run's rewards; the buttons: open the next seal of a run now (support, tests), end a
@@ -528,6 +636,8 @@ export function adminApp(world) {
       if (name === "monsters") {
         const used = MAPS.filter((m) => m.mobs.some((x) => x.type === pk)).map((m) => m.name);
         if (used.length) throw bad(`Không xóa được: bản đồ ${used.join(", ")} đang đặt yêu thú này.`);
+        const placed = spawnRows().filter((x) => x.type === pk);
+        if (placed.length) throw bad(`Không xóa được: ${placed.length} chỗ đặt trong map_spawns (dòng ${placed.map((x) => x.id).join(", ")}) đang dùng yêu thú này; xoá chúng trước.`);
         await c.query("DELETE FROM monster_drops WHERE monster = ?", [pk]);
       }
       if (t.config) await checkInside(c);

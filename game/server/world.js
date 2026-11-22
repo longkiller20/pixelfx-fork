@@ -1,6 +1,7 @@
 // The shared world. The server is the only authority: clients send what they press (a direction, a skill and where to aim)
 // and the server moves everyone, checks cooldowns and ranges, deals damage, hands out rewards and sends back what happened,
 // 20 times a second. Nothing a client claims about positions, damage or rewards is ever trusted.
+import { spawnRows, placements, loadSpawns } from "./spawns.js";
 import { WebSocket } from "ws";
 import {
   TICK_HZ, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE, levelFromExp, worldMult, arenaMult, mitigate, ARTS, ART_SLOTS, DROPS,
@@ -1395,6 +1396,30 @@ export class World {
   }
   spawnMonsters() {
     for (const m of this.map.mobs) this.addMonster(m.type, m.x, m.y);
+    this.syncSpawns();
+  }
+  /**
+   * The monsters the database places on this map (server/spawns.js): add the ones missing, take away the ones whose row
+   * went or changed. Only a map of the road (each of its Khu); never a Phó Bản, a battlefield or a Gia Viên.
+   */
+  syncSpawns() {
+    if (!this.zone || this.run || this.war) return;
+    const want = new Map();
+    for (const r of spawnRows())
+      if (r.map === this.map.id && MONSTERS[r.type]) placements(r).forEach((at, i) => want.set(`${r.id}:${i}`, `${r.type}@${Math.round(at.x)},${Math.round(at.y)}`));
+    for (const m of [...this.ents.values()])
+      // (gone from the next snapshot: browsers drop it by themselves, as a trial monster's)
+      if (m.spawnKey && want.get(m.spawnKey) !== m.spawnSig) this.ents.delete(m.id);
+    const have = new Set([...this.ents.values()].filter((m) => m.spawnKey).map((m) => m.spawnKey));
+    for (const [k, sig] of want) {
+      if (have.has(k)) continue;
+      const [type, xy] = sig.split("@"), [x, y] = xy.split(",").map(Number);
+      const m = this.addMonster(type, x, y);
+      if (!m) continue;
+      m.spawnKey = k;
+      m.spawnSig = sig;
+      this.ev({ e: "spawn", id: m.id });
+    }
   }
   /** An admin's test: a monster of that type a little way from the player. Gone after it dies or after 5 minutes. */
   summon(uid, type) {
@@ -1627,6 +1652,11 @@ export class Universe {
   }
   broadcast(obj) {
     for (const w of this.worlds.values()) w.broadcast(obj);
+  }
+  /** The map_spawns table changed (the admin, the MCP): read it again and bring every Khu in line. */
+  async spawnsChanged() {
+    await loadSpawns();
+    for (const w of this.worlds.values()) w.syncSpawns();
   }
   feed(m) {
     this.broadcast({ t: "feed", m });
@@ -2181,7 +2211,7 @@ export class Universe {
     return this.worldOf(uid)?.summon(uid, type) ?? null;
   }
   onConfig() {
-    for (const w of this.worlds.values()) w.onConfig();
+    for (const w of this.worlds.values()) (w.onConfig(), w.syncSpawns());
   }
   async shutdown() {
     clearInterval(this.timer);
