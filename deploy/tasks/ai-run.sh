@@ -135,7 +135,9 @@ step "Thay đổi"
 find "$DVTT_DIR" -path "$DVTT_DIR/.git" -prune -o -user root -newer "$DVTT_DIR/.git/HEAD" -exec chown "$GAME_USER:$GAME_USER" {} + 2>/dev/null || true
 if [ -n "$(G status --porcelain)" ]; then
   G add -A
-  G -c user.name="AI (agent)" -c user.email=ai-agent@localhost commit -q -m "$(printf '%s' "$PROMPT" | tr '\n' ' ' | cut -c1-100)"
+  # the first 100 characters of the job (characters, not bytes: cut -c would split a Vietnamese letter)
+  subj="$(printf '%s' "$PROMPT" | tr '\n' ' ' | node -e 'let s="";process.stdin.on("data",(d)=>(s+=d)).on("end",()=>process.stdout.write([...s].slice(0,100).join("")))')"
+  G -c user.name="AI (agent)" -c user.email=ai-agent@localhost commit -q -m "$subj"
 fi
 AFTER="$(G rev-parse HEAD)"
 if [ "$BEFORE" = "$AFTER" ]; then
