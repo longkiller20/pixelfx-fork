@@ -222,7 +222,7 @@ const TASK_DEFS = {
   "backup-timer": { file: "backup.sh", name: "Sao lưu tự động" },
   update: { file: "update.sh", name: "Cập nhật game" },
   apply: { file: "apply.sh", name: "Áp dụng cấu hình" },
-  agent: { file: "agent.sh", name: "Cài trợ lý AI (Claude Code)" },
+  agent: { file: "agent.sh", name: "Cài trợ lý AI" },
   ai: { file: "ai-run.sh", name: "Trợ lý AI làm việc" },
 };
 let task = null;
@@ -236,7 +236,7 @@ function startTask(key, extra = {}, after) {
   const id = `${new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14)}-${key}`;
   mkdirSync(LOGS, { recursive: true, mode: 0o700 });
   const logFile = join(LOGS, `${id}.log`);
-  const t = { id, key, name: def.name, started: Date.now(), ended: null, code: null, running: true, log: "", logFile };
+  const t = { id, key, name: def.name + (extra.AGENT_KIND ? ` (${extra.AGENT_KIND === "hermes" ? "Hermes Agent" : "Claude Code"})` : ""), started: Date.now(), ended: null, code: null, running: true, log: "", logFile };
   task = t;
   const child = spawn("bash", [join(TASKS, def.file)], { env: taskEnv(s, extra), stdio: ["ignore", "pipe", "pipe"] });
   t.pid = child.pid;
@@ -574,6 +574,11 @@ async function api(req, res, path, url) {
       const prompt = String(b.prompt ?? "").trim();
       if (prompt.length < 5 || prompt.length > 8000) bad("Yêu cầu cho AI: 5-8000 ký tự.");
       Object.assign(extra, ai.agentTaskEnv(), { PROMPT: prompt, AUTO_RESTART: b.restart === false ? "0" : "1", ALLOW_CODE: b.code === false ? "0" : "1" });
+    }
+    if (key === "agent") {
+      const kind = String(b.agent ?? "claude");
+      if (!["claude", "hermes"].includes(kind)) bad("Trợ lý: claude hoặc hermes.");
+      extra.AGENT_KIND = kind;
     }
     if (!TASK_DEFS[key]) bad("Không có tác vụ này.");
     const t = startTask(key, extra);

@@ -13,8 +13,9 @@ How to work:
 - The game's data (monsters, items, drops, numbers, monsters placed on maps, bosses called, gifts, announcements) goes
   through the MCP tools of the server "dvtt" (game_overview first). Never edit the database or game/.env directly.
 - Pixel art: search the library first (node tools/list.mjs <words>, search_effects); make new figures with the pixelfx
-  method (draft, `node tools/render.mjs <id>`, Read the PNG in records/<id>/, fix, three rounds at least,
-  `node tools/check.mjs <id>` clean). A picture the owner uploaded: image_to_figure (MCP), then refine the split.
+  method (draft, look at it, fix, three rounds at least, `node tools/check.mjs <id>` clean). To look: render_effect
+  (MCP) returns the frames as images (the surest way to see them); `node tools/render.mjs <id>` writes the same PNGs to
+  records/<id>/ if your file tool can open images. A picture the owner uploaded: image_to_figure (MCP), then refine the split.
 - Put things into the game with the MCP tools (create_monster, place_monster, register_character, register_boss,
   spawn_boss…). register_* restart the game for you.
 - If the job needs the game's code changed (a new map, a new mechanic), keep the change small and in the style of the

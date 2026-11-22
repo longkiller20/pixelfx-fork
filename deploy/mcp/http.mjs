@@ -1,7 +1,8 @@
 // The MCP protocol over HTTP for the game's tools (./tools.mjs): JSON-RPC 2.0 posted to /mcp (the Streamable HTTP
-// transport, answered with plain JSON: these tools need no server-sent stream). The dashboard (deploy/panel/server.mjs)
-// checks the bearer token before handing a request here.
-const VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
+// transport, answered with plain JSON: these tools need no server-sent stream; the older HTTP+SSE transport is in
+// deploy/panel/ai.mjs). Any MCP client works: Hermes Agent, Ekko Studio, Claude, Codex, Gemini CLI, Cursor…
+// The dashboard (deploy/panel/server.mjs) checks the bearer token before handing a request here.
+const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const INSTRUCTIONS = `This server runs the owner's game "Đa Vũ Trụ Tu Tiên" (a Vietnamese xianxia side-view web MMO). Call game_overview first.
 Data changes (monsters, items, drops, numbers, placed monsters, bosses called, gifts) apply live and are checked like the admin site's.
 New art is pixel art made with the pixelfx library (pixelfx_guide: read "game" then "skill"): render_effect after every change and look at it.

@@ -1709,9 +1709,14 @@ Dùng SQL trực tiếp cũng được, ví dụ `UPDATE settings SET v = 50 WHE
 
 ## AI và MCP (tạo quái, nhân vật, boss bằng AI)
 
-Bảng điều khiển VPS có tab **Trợ lý AI**: một trợ lý chạy ngay trên VPS (Claude Code), hoặc AI trên máy bạn qua MCP,
-tạo yêu thú, nhân vật, boss bằng thư viện pixelfx (hoặc từ ảnh bạn tải lên) rồi đưa vào game, chỉnh số liệu, gọi boss,
-tặng quà, thông báo. Chi tiết: [`deploy/README.md`](../deploy/README.md), phần 9.
+Bảng điều khiển VPS có tab **Trợ lý AI**. Có hai cách dùng:
+
+- một trợ lý chạy ngay trên VPS: **Claude Code**, hoặc **Hermes Agent** với model của OpenRouter, OpenAI, Gemini,
+  DeepSeek… hay máy chủ model riêng;
+- bất kỳ AI nào hỗ trợ MCP (Hermes Agent, Ekko Studio, Claude, Codex, Gemini CLI, Cursor, VS Code…), kết nối từ máy bạn.
+
+AI tạo yêu thú, nhân vật, boss bằng thư viện pixelfx (hoặc từ ảnh bạn tải lên) rồi đưa vào game. Nó cũng chỉnh được số
+liệu, gọi boss, tặng quà, thông báo. Chi tiết: [`deploy/README.md`](../deploy/README.md), phần 9.
 
 Những phần game có thêm cho việc này (dùng được cả không có AI):
 

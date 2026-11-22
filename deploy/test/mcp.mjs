@@ -35,6 +35,53 @@ assert.ok(list.length >= 30 && list.every((t) => t.name && t.description && t.in
 const pathUrl = URL_.replace(/\/mcp$/, `/mcp/${TOKEN}`);
 assert.equal((await fetch(pathUrl, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }) })).status, 200);
 ok(`protocol: initialize, notifications (202), ${list.length} tools with schemas, token in header or path, wrong token 401`);
+assert.equal((await rpc("initialize", { protocolVersion: "2099-01-01", capabilities: {}, clientInfo: { name: "t", version: "1" } })).j.result.protocolVersion, "2025-11-25");
+ok("an unknown protocol version gets the newest this server speaks (2025-11-25)");
+
+// ---- the older HTTP+SSE transport (clients that predate Streamable HTTP): GET …/sse names where to POST, replies come
+// down the stream
+async function sse(url, headers = {}) {
+  const ac = new AbortController(), r = await fetch(url, { headers: { accept: "text/event-stream", ...headers }, signal: ac.signal });
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get("content-type"), /text\/event-stream/);
+  const reader = r.body.getReader(), dec = new TextDecoder();
+  let buf = "";
+  const next = async () => {
+    for (;;) {
+      const i = buf.indexOf("\n\n");
+      if (i >= 0) {
+        const ev = buf.slice(0, i);
+        buf = buf.slice(i + 2);
+        if (ev.startsWith(":")) continue;
+        return { event: /^event: (.*)$/m.exec(ev)?.[1], data: /^data: (.*)$/m.exec(ev)?.[1] };
+      }
+      const { value, done } = await reader.read();
+      if (done) throw new Error("stream ended");
+      buf += dec.decode(value, { stream: true });
+    }
+  };
+  const ep = await next();
+  assert.equal(ep.event, "endpoint");
+  const post = new URL(ep.data, url).href;
+  const ask = async (m) => {
+    const p = await fetch(post, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ jsonrpc: "2.0", id: ++id, ...m }) });
+    assert.equal(p.status, 202);
+    const e = await next();
+    assert.equal(e.event, "message");
+    return JSON.parse(e.data);
+  };
+  const res = [await ask({ method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "sse", version: "1" } } }), await ask({ method: "tools/list" })];
+  ac.abort();
+  return { post, res };
+}
+const s1 = await sse(URL_ + "/sse", { authorization: `Bearer ${TOKEN}` });
+assert.equal(s1.res[0].result.protocolVersion, "2024-11-05");
+assert.equal(s1.res[1].result.tools.length, list.length);
+const s2 = await sse(pathUrl + "/sse");
+assert.ok(s2.post.includes(`/mcp/${TOKEN}/messages?sessionId=`) && s2.res[1].result.tools.length === list.length);
+assert.equal((await fetch(URL_ + "/sse", { headers: { authorization: "Bearer sai" } })).status, 401);
+assert.equal((await fetch(s1.post, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` }, body: "{}" })).status, 404);
+ok("HTTP+SSE transport: endpoint event, replies on the stream, token in header or path, closed session 404, wrong token 401");
 
 // ---- the game
 const ov = await call("game_overview");

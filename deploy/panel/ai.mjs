@@ -1,6 +1,6 @@
 // The dashboard's AI side: the game's MCP endpoint (/mcp, tools in deploy/mcp), its tokens and its own game admin
-// account, the pictures the owner uploads for the AI to turn into figures, the AI agent on this VPS (Claude Code: its
-// key, its runs are tasks), and what the AI changed (local git commits by "AI …", each one can be undone).
+// account, the pictures the owner uploads for the AI to turn into figures, the AI agent on this VPS (Claude Code or Hermes Agent: its
+// key or model provider, its runs are tasks), and what the AI changed (local git commits by "AI …", each one can be undone).
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync, chmodSync } from "node:fs";
@@ -12,6 +12,21 @@ import { createTools } from "../mcp/tools.mjs";
 import { handleMcp } from "../mcp/http.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// where Hermes Agent can get its model from (its --provider names); base: an OpenAI-compatible server of your own
+const HERMES_PROVIDERS = [
+  { id: "openrouter", name: "OpenRouter (mọi model: Claude, GPT, Gemini, Qwen, DeepSeek…)", model: "anthropic/claude-sonnet-4.6", keyUrl: "https://openrouter.ai/keys" },
+  { id: "anthropic", name: "Anthropic (Claude)", model: "claude-sonnet-4-6", keyUrl: "https://console.anthropic.com/settings/keys" },
+  { id: "openai-api", name: "OpenAI (GPT)", model: "gpt-5", keyUrl: "https://platform.openai.com/api-keys" },
+  { id: "gemini", name: "Google AI Studio (Gemini)", model: "gemini-2.5-pro", keyUrl: "https://aistudio.google.com/apikey" },
+  { id: "deepseek", name: "DeepSeek", model: "deepseek-chat", keyUrl: "https://platform.deepseek.com/api_keys" },
+  { id: "xai", name: "xAI (Grok)", model: "grok-4", keyUrl: "https://console.x.ai" },
+  { id: "zai", name: "Z.AI (GLM)", model: "glm-4.6", keyUrl: "https://z.ai/manage-apikey/apikey-list" },
+  { id: "kimi-coding", name: "Moonshot (Kimi)", model: "kimi-k2-turbo-preview", keyUrl: "https://platform.moonshot.ai/console/api-keys" },
+  { id: "nous-api", name: "Nous Research (Hermes)", model: "Hermes-4-405B", keyUrl: "https://portal.nousresearch.com" },
+  { id: "alibaba", name: "Qwen Cloud (Alibaba)", model: "qwen3-coder-plus", keyUrl: "https://modelstudio.console.alibabacloud.com" },
+  { id: "custom", name: "Máy chủ riêng tương thích OpenAI (Ollama, vLLM, LM Studio, LiteLLM…)", model: "qwen3-coder:30b", base: true },
+];
+
 export const UPLOADS = process.env.DVTT_UPLOADS ?? "/var/lib/dvtt-panel/uploads";
 const sha = (s) => crypto.createHash("sha256").update(s).digest("hex");
 
@@ -89,16 +104,61 @@ export function createAi(h) {
     return cfg().tokens.find((x) => x.hash.length === hh.length && crypto.timingSafeEqual(Buffer.from(x.hash), Buffer.from(hh))) ?? null;
   };
   const bad401 = new Map();
+  // when each token was last used, for the dashboard (written at most once a minute)
+  const touch = (who) => {
+    if (who.used && Date.now() - who.used < 60_000) return;
+    const c2 = cfg(), t = c2.tokens.find((x) => x.hash === who.hash);
+    if (t) (t.used = Date.now()), saveCfg(c2);
+  };
+  // the older transport: a GET opens an event stream that first names where to POST, and carries every reply
+  const streams = new Map();
+  function openSse(req, res, who, pathToken) {
+    if (streams.size >= 50) return h.send(res, 503, { error: "Quá nhiều kết nối SSE." });
+    const id = crypto.randomUUID();
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache, no-transform", connection: "keep-alive", "x-accel-buffering": "no" });
+    const base = pathToken ? `/mcp/${encodeURIComponent(pathToken)}` : "/mcp";
+    res.write(`event: endpoint\ndata: ${base}/messages?sessionId=${id}\n\n`);
+    const ping = setInterval(() => res.write(": ping\n\n"), 25_000);
+    streams.set(id, { res, who: who.hash });
+    req.on("close", () => (clearInterval(ping), streams.delete(id)));
+    touch(who);
+  }
   async function mcp(req, res, url) {
     const ip = h.clientIp(req), b = bad401.get(ip);
     if (b && b.n >= 10 && Date.now() - b.at < 10 * 60_000) return h.send(res, 429, { error: "Quá nhiều lần sai token." });
     const c = cfg();
-    const fromPath = url.pathname.startsWith("/mcp/") ? decodeURIComponent(url.pathname.slice(5)) : null;
+    // /mcp · /mcp/<token> (Streamable HTTP) · [/mcp/<token>]/sse + /messages (the older HTTP+SSE transport)
+    const parts = url.pathname.split("/").slice(2).map((x) => decodeURIComponent(x));
+    const legacy = ["sse", "messages"].includes(parts.at(-1)) ? parts.pop() : null;
+    const fromPath = parts.length === 1 && parts[0] ? parts[0] : null;
+    if (parts.length > 1) return h.send(res, 404, { error: "Không có địa chỉ này." });
     const tok = fromPath ?? (/^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? "") ?? [])[1];
     const who = c.enabled ? tokenOk(tok) : null;
     if (!who) {
       bad401.set(ip, { n: (b && Date.now() - b.at < 10 * 60_000 ? b.n : 0) + 1, at: Date.now() });
       return h.send(res, c.enabled ? 401 : 403, { error: c.enabled ? "Sai hoặc thiếu token MCP." : "MCP đang tắt (Bảng điều khiển → Trợ lý AI)." }, { "www-authenticate": "Bearer" });
+    }
+    if (legacy === "sse") {
+      if (req.method !== "GET") return h.send(res, 405, { error: "GET" }, { allow: "GET" });
+      return openSse(req, res, who, fromPath);
+    }
+    if (legacy === "messages") {
+      const st = streams.get(String(url.searchParams.get("sessionId") ?? ""));
+      if (!st || st.who !== who.hash) return h.send(res, 404, { error: "Phiên SSE đã đóng: kết nối lại." });
+      if (req.method !== "POST") return h.send(res, 405, { error: "POST" }, { allow: "POST" });
+      let body;
+      try {
+        body = await h.readBody(req, 24 << 20);
+      } catch (e) {
+        return h.send(res, 400, { error: e.message });
+      }
+      touch(who);
+      // answered now with 202; the reply goes down the event stream
+      res.writeHead(202, { "content-type": "text/plain" });
+      res.end("Accepted");
+      const [, out] = await handleMcp(tools, body);
+      if (out) for (const m of [].concat(out)) st.res.write(`event: message\ndata: ${JSON.stringify(m)}\n\n`);
+      return;
     }
     if (req.method === "GET") return h.send(res, 405, { error: "Dùng POST (JSON-RPC)." }, { allow: "POST" });
     if (req.method === "DELETE") return h.send(res, 200, { ok: true });
@@ -109,11 +169,7 @@ export function createAi(h) {
     } catch (e) {
       return h.send(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: e.message } });
     }
-    // when each token was last used, for the dashboard (written at most once a minute)
-    if (!who.used || Date.now() - who.used > 60_000) {
-      const c2 = cfg(), t = c2.tokens.find((x) => x.hash === who.hash);
-      if (t) (t.used = Date.now()), saveCfg(c2);
-    }
+    touch(who);
     const [code, out] = await handleMcp(tools, body);
     if (code === 202) {
       res.writeHead(202);
@@ -133,9 +189,14 @@ export function createAi(h) {
   async function aiStatus(req) {
     const c = cfg(), s = h.loadState(), p = h.loadPanel();
     const claude = (await run(["bash", "-lc", "command -v claude && claude --version 2>/dev/null | head -1"], { asGame: false, timeout: 15000 })).out.trim().split("\n");
+    const hb = "/var/lib/dvtt-ai/.local/bin/hermes";
+    const hermes = existsSync(hb) ? (await run(["runuser", "-u", "dvtt", "--", "env", "HOME=/var/lib/dvtt-ai", hb, "--version"], { asGame: false, timeout: 20000 })).out.trim().split("\n")[0] : null;
     const others = {};
-    for (const a of ["codex", "gemini", "opencode", "cursor-agent", "aider"]) others[a] = (await run(["bash", "-lc", `command -v ${a}`], { asGame: false, timeout: 5000 })).code === 0;
+    for (const a of ["codex", "gemini", "opencode", "cursor-agent", "aider", "goose"]) others[a] = (await run(["bash", "-lc", `command -v ${a}`], { asGame: false, timeout: 5000 })).code === 0;
     const log = await run(["git", "-c", "safe.directory=*", "-C", s.dir, "log", "-n", "30", "--author=AI", "--format=%h%x09%an%x09%cI%x09%s"], { asGame: false });
+    // the ones already undone (a revert names the commit it undoes)
+    const reverts = await run(["git", "-c", "safe.directory=*", "-C", s.dir, "log", "-n", "200", "--grep=This reverts commit", "--format=%b"], { asGame: false });
+    const undone = new Set([...reverts.out.matchAll(/This reverts commit ([0-9a-f]{7,40})/g)].map((x) => x[1]));
     const host = String(req.headers.host ?? "").replace(/:\d+$/, "");
     const sch = s.proxy !== "none" && s.https ? "https" : "http";
     const ram = os.totalmem(), cpus = os.cpus().length;
@@ -147,17 +208,27 @@ export function createAi(h) {
         localUrl: `http://127.0.0.1:${p?.port}/mcp`,
         tools: tools.list().map((t) => t.name),
       },
-      agent: {
-        claude: claude[0]?.startsWith("/") ? { path: claude[0], version: claude[1] ?? "" } : null,
-        others,
-        key: agentEnv().ANTHROPIC_API_KEY ? "api" : agentEnv().CLAUDE_CODE_OAUTH_TOKEN ? "oauth" : null,
-        model: agentEnv().DVTT_AI_MODEL ?? "",
-      },
+      agent: (() => {
+        const e = agentEnv();
+        return {
+          kind: e.DVTT_AGENT === "hermes" ? "hermes" : "claude",
+          claude: claude[0]?.startsWith("/") ? { path: claude[0], version: claude[1] ?? "" } : null,
+          hermes: hermes ? { path: hb, version: hermes } : null,
+          others,
+          key: e.ANTHROPIC_API_KEY ? "api" : e.CLAUDE_CODE_OAUTH_TOKEN ? "oauth" : null,
+          model: e.DVTT_AI_MODEL ?? "",
+          hermesProvider: e.DVTT_HERMES_PROVIDER ?? "",
+          hermesModel: e.DVTT_HERMES_MODEL ?? "",
+          hermesBase: e.DVTT_HERMES_BASE ?? "",
+          hermesKey: e.DVTT_HERMES_KEY ? `…${e.DVTT_HERMES_KEY.slice(-4)}` : null,
+          providers: HERMES_PROVIDERS,
+        };
+      })(),
       machine: { ram, cpus, strong: ram >= 1.9 * 1024 ** 3 && cpus >= 2, enough: ram >= 0.9 * 1024 ** 3 },
       uploads: uploads(),
       changes: log.out.trim().split("\n").filter(Boolean).map((l) => {
         const [hash, author, at, subject] = l.split("\t");
-        return { hash, author, at: Date.parse(at), subject };
+        return { hash, author, at: Date.parse(at), subject, undone: [...undone].some((u) => u.startsWith(hash)) };
       }),
     };
   }
@@ -228,8 +299,42 @@ export function createAi(h) {
     }
     if (path === "/api/ai/key" && M === "POST") {
       const b = await h.readBody(req), env = agentEnv();
+      if (b.agent !== undefined) {
+        if (!["claude", "hermes"].includes(b.agent)) h.bad("Trợ lý: claude hoặc hermes.");
+        env.DVTT_AGENT = b.agent;
+      }
+      if (b.agent === "hermes" || b.hermes) {
+        const x = b.hermes ?? {};
+        if (x.provider !== undefined) {
+          if (!HERMES_PROVIDERS.some((p) => p.id === x.provider)) h.bad("Không có nơi cung cấp model này.");
+          // another provider: the key of the old one is not for it
+          if (env.DVTT_HERMES_PROVIDER && env.DVTT_HERMES_PROVIDER !== x.provider && !("key" in x)) delete env.DVTT_HERMES_KEY;
+          env.DVTT_HERMES_PROVIDER = x.provider;
+        }
+        if (typeof x.model === "string") {
+          const m = x.model.trim();
+          if (m && !/^[A-Za-z0-9._:/@\-[\]]{1,120}$/.test(m)) h.bad("Tên model không hợp lệ.");
+          if (m) env.DVTT_HERMES_MODEL = m;
+          else delete env.DVTT_HERMES_MODEL;
+        }
+        if (typeof x.base === "string") {
+          const u = x.base.trim().replace(/\/+$/, "");
+          if (u && !/^https?:\/\/[A-Za-z0-9.\-_:[\]]+(\/[A-Za-z0-9._~\-/%]*)?$/.test(u)) h.bad("Địa chỉ máy chủ model không hợp lệ (vd http://127.0.0.1:11434/v1).");
+          if (u) env.DVTT_HERMES_BASE = u;
+          else delete env.DVTT_HERMES_BASE;
+        }
+        if ("key" in x) {
+          const k = String(x.key ?? "").trim();
+          if (k && !/^[\x21-\x7e]{8,400}$/.test(k)) h.bad("Khoá không đúng dạng (không có dấu cách, 8-400 ký tự).");
+          if (k) env.DVTT_HERMES_KEY = k;
+          else delete env.DVTT_HERMES_KEY;
+        }
+        const p = HERMES_PROVIDERS.find((p) => p.id === env.DVTT_HERMES_PROVIDER);
+        if (p?.base && !env.DVTT_HERMES_BASE) h.bad("Nhập địa chỉ máy chủ model (vd http://127.0.0.1:11434/v1 cho Ollama).");
+        if (p && !p.base) delete env.DVTT_HERMES_BASE;
+      }
       const key = String(b.key ?? "").trim();
-      // only when a key is sent ("" removes it); a model alone keeps the key there is
+      // Claude Code's key: only when a key is sent ("" removes it); a model alone keeps the key there is
       if ("key" in b) delete env.ANTHROPIC_API_KEY, delete env.CLAUDE_CODE_OAUTH_TOKEN;
       if (key) {
         if (!/^[A-Za-z0-9_\-.]{20,300}$/.test(key)) h.bad("Khoá không đúng dạng.");
@@ -250,6 +355,8 @@ export function createAi(h) {
       const g = (a) => run(["git", "-c", "safe.directory=*", "-C", s.dir, ...a], { asGame: false });
       const who = (await g(["log", "-1", "--format=%an", hash])).out.trim();
       if (!who.startsWith("AI")) h.bad("Chỉ hoàn tác được thay đổi của AI.");
+      const full = (await g(["rev-parse", hash])).out.trim();
+      if ((await g(["log", "-n", "200", "--grep=This reverts commit " + full, "--format=%h"])).out.trim()) h.bad("Thay đổi này đã được hoàn tác rồi.");
       const r = await g(["-c", "user.name=Bảng điều khiển", "-c", "user.email=panel@localhost", "revert", "--no-edit", hash]);
       if (r.code !== 0) {
         await g(["revert", "--abort"]);

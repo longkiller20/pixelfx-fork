@@ -200,14 +200,70 @@ Tab **Trợ lý AI** của bảng điều khiển cho AI làm việc với game 
 - **Hình ảnh:** vẽ bằng thư viện **pixelfx** của repo (theo skill `skills/pixelfx`), hoặc biến **ảnh bạn tải lên** thành
   nhân vật hay boss có rig cử động, rồi đưa vào game.
 
-Có hai cách dùng:
+MCP (Model Context Protocol) là chuẩn chung, nên **AI nào hỗ trợ MCP cũng dùng được**: Hermes Agent, Ekko Studio,
+Claude, Codex, Gemini CLI, Cursor, VS Code, OpenCode, LM Studio, Cline… Có hai cách dùng:
 
-| | Trợ lý trên VPS (Claude Code) | AI trên máy bạn, qua MCP |
+| | Trợ lý trên VPS | AI trên máy bạn (hoặc máy khác), qua MCP |
 | --- | --- | --- |
 | Hợp với | VPS từ 2 GB RAM, 2 nhân | VPS nào cũng được |
-| Cách dùng | Gõ việc cần làm vào ô "Giao việc cho AI", xem log trực tiếp | Claude Desktop, claude.ai, Claude Code, Cursor… kết nối tới `…/mcp`, rồi trò chuyện như bình thường |
-| Cần | Khoá API Anthropic, hoặc token gói Claude (`claude setup-token`) | Một token MCP (tạo ở tab Trợ lý AI) |
-| Sửa được code game | Có (sửa tệp, chạy công cụ pixelfx) | Chỉ qua các tool MCP |
+| Agent | **Claude Code** hoặc **Hermes Agent** (chọn trong tab) | Bất kỳ ứng dụng nào hỗ trợ MCP |
+| Cách dùng | Gõ việc cần làm vào ô "Giao việc cho AI", xem log trực tiếp | Kết nối tới `…/mcp`, rồi trò chuyện như bình thường |
+| Cần | Claude Code: khoá Anthropic hoặc token gói Claude. Hermes: khoá của nơi cung cấp model bạn chọn, hoặc máy chủ model riêng | Một token MCP (tạo ở tab Trợ lý AI) |
+| Sửa được code game | Có (sửa tệp, chạy công cụ pixelfx) | Qua các tool MCP; agent có quyền sửa tệp thì sửa thêm được nếu chạy trên chính VPS |
+
+### Hermes Agent trên VPS
+
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) (Nous Research, mã nguồn mở) dùng được model của nhiều nơi:
+
+| Nơi cung cấp | Ví dụ model | Ghi chú |
+| --- | --- | --- |
+| OpenRouter | `anthropic/claude-sonnet-4.6`, `openai/gpt-5`, `qwen/qwen3-coder` | Một khoá, gần như mọi model |
+| Anthropic, OpenAI, Google AI Studio | `claude-sonnet-4-6`, `gpt-5`, `gemini-2.5-pro` | Khoá của từng hãng |
+| DeepSeek, xAI, Z.AI, Moonshot, Qwen Cloud, Nous | `deepseek-chat`, `grok-4`, `glm-4.6`, `kimi-k2-turbo-preview`… | |
+| Máy chủ riêng tương thích OpenAI | Ollama, vLLM, LM Studio, LiteLLM | Nhập địa chỉ, ví dụ `http://127.0.0.1:11434/v1`; khoá nếu máy chủ cần |
+
+- Model phải biết **gọi công cụ** (tool calling). Model mạnh vẽ pixel art đẹp hơn hẳn.
+- Bản cài khoảng 1,5 GB, nằm trong `/var/lib/dvtt-ai/.hermes`, chạy bằng người dùng `dvtt`.
+- Mỗi lần chạy, bảng điều khiển viết lại `config.yaml` của Hermes:
+  - model và nơi cung cấp;
+  - MCP của game, với token để trong biến môi trường chứ không ghi vào tệp;
+  - tắt bộ nhớ dài hạn, để việc trước không lẫn sang việc sau.
+- Tiến trình nền của Hermes được dừng trước và sau mỗi việc, nên khoá API không nằm lại trong bộ nhớ.
+- Công cụ Hermes được dùng: sửa tệp, terminal, MCP của game. Nếu bỏ chọn "Cho sửa tệp" thì chỉ còn MCP.
+
+### Kết nối AI trên máy bạn
+
+Tạo token ở thẻ MCP: bảng điều khiển hiện sẵn đoạn cấu hình cho từng ứng dụng, có nút **Chép**. Ví dụ:
+
+- **Hermes Agent:** mở `~/.hermes/config.yaml`, thêm khối dưới đây, rồi gõ `/reload-mcp` trong Hermes. Hermes chạy qua
+  Telegram hay Discord (gateway) cũng dùng được.
+
+  ```yaml
+  mcp_servers:
+    dvtt:
+      url: "https://panel.example.com/mcp"
+      headers:
+        Authorization: "Bearer dvtt_…"
+      timeout: 600
+  ```
+
+- **Ekko Studio:** vào MCP, thêm máy chủ, rồi dán JSON `{"mcpServers": {"dvtt": {"url": …, "headers": {"Authorization": "Bearer …"}}}}`.
+  Ekko đưa nó vào runtime Hermes. Claude Code hay Codex chạy trong Ekko thì dùng đoạn cấu hình riêng của chúng.
+- **Codex CLI:** `~/.codex/config.toml` → `[mcp_servers.dvtt]` với `url` và `http_headers`.
+- **Gemini CLI:** `~/.gemini/settings.json` → `httpUrl` và `headers`.
+- **Cursor, Cline, Roo Code, LM Studio, Windsurf, VS Code, OpenCode:** mỗi ứng dụng có một đoạn riêng trong tab.
+- **claude.ai, Claude Desktop:** dán địa chỉ có token trong đường dẫn (`…/mcp/<token>`). Chỉ dùng cách này qua HTTPS.
+
+Máy chủ hỗ trợ các kiểu kết nối sau:
+
+| Kiểu | Địa chỉ | Dùng cho |
+| --- | --- | --- |
+| Streamable HTTP | `…/mcp` (token trong header) hoặc `…/mcp/<token>` | Hầu hết ứng dụng mới |
+| HTTP+SSE kiểu cũ | `…/mcp/sse` hoặc `…/mcp/<token>/sse` | Ứng dụng chưa hỗ trợ Streamable HTTP (n8n, Dify, Cherry Studio bản cũ…) |
+| stdio | `npx -y mcp-remote …` | Ứng dụng chỉ chạy được MCP dạng lệnh |
+
+Đã thử với bộ thư viện MCP chính thức cho Python (bộ mà Hermes dùng) ở cả ba cách nối. Phiên bản giao thức: từ
+`2024-11-05` tới `2025-11-25`.
 
 ### Bật lên
 
@@ -217,11 +273,12 @@ Có hai cách dùng:
    - Nếu muốn AI viết code hiệu ứng pixelfx hoặc biến ảnh thành hình, bật thêm **Cho phép viết code pixelfx**. Code này
      chạy bằng người dùng của game, không phải root.
 2. **Trợ lý trên VPS:**
-   - bấm **Cài trợ lý AI (Claude Code)**;
-   - nhập khoá;
+   - chọn **Claude Code** hoặc **Hermes Agent**, rồi bấm **Cài**;
+   - nhập khoá (Hermes: chọn thêm nơi cung cấp model và tên model);
    - gõ việc, ví dụ: *"Biến ảnh hoa-yeu.png thành nhân vật nữ Hoa Yêu Tiên Tử, bán 800 linh thạch"*.
-3. **AI trên máy bạn:** **Tạo token**. Bảng điều khiển hiện sẵn đoạn cấu hình cho Claude Code, claude.ai, Claude Desktop
-   và Cursor. Nên đặt tên miền + HTTPS cho bảng điều khiển trước, để token không đi qua mạng dạng chữ thường.
+3. **AI trên máy bạn:** bấm **Tạo token**. Bảng điều khiển hiện sẵn đoạn cấu hình cho từng ứng dụng (xem phần
+   "Kết nối AI trên máy bạn" ở trên). Nên đặt tên miền và bật HTTPS cho bảng điều khiển trước, để token không bị gửi
+   qua mạng ở dạng chưa mã hoá.
 4. **Ảnh:** thẻ **Ảnh cho AI** nhận PNG nền trong suốt, tối đa 15 MB. Nhắc tên ảnh khi giao việc.
 
 ### Các công cụ MCP
@@ -242,11 +299,12 @@ Có 35 công cụ, mô tả chi tiết nằm ngay trong MCP.
 - **Token và quyền chạy:**
   - token MCP chỉ lưu dạng băm, thu hồi được từng cái;
   - sai token 10 lần trong 10 phút thì IP đó bị chặn;
-  - trợ lý trên VPS chạy bằng người dùng `dvtt`, chỉ được dùng các công cụ cho phép (sửa tệp, `node`, xem git, MCP của
-    game), mỗi lần chạy có một token MCP riêng.
+  - trợ lý trên VPS chạy bằng người dùng `dvtt`, không phải root, và mỗi lần chạy có một token MCP riêng;
+  - Claude Code chỉ được dùng các công cụ cho phép: sửa tệp, `node`, xem git, MCP của game;
+  - Hermes có terminal đầy đủ, nhưng vẫn chạy bằng `dvtt`. Bỏ chọn "Cho sửa tệp" thì Hermes chỉ còn MCP.
 - **Hoàn tác thay đổi:**
   - mọi tệp AI đổi đều được commit vào git trên VPS (tác giả `AI (MCP)` hoặc `AI (agent)`). Thẻ **Thay đổi của AI**
-    hoàn tác từng cái, rồi chạy lại game;
+    hoàn tác từng cái rồi chạy lại game; cái đã hoàn tác được đánh dấu và không hoàn tác lần hai;
   - AI sửa code game mà sai cú pháp, hoặc game không chạy lại được, thì bảng điều khiển tự hoàn tác và chạy lại bản cũ.
 - **Database không có nút hoàn tác:** số liệu AI đổi trong database xem ở Nhật ký trang admin, và có sao lưu mỗi ngày.
 - **Cập nhật game giữ thay đổi của AI:** thay đổi trên máy được lưu thành bản vá trong `/var/backups/dvtt`, rồi áp lại
