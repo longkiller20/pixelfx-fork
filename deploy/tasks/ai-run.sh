@@ -116,6 +116,8 @@ else
   stop_gateway
   step "Hermes đang làm việc ($DVTT_HERMES_PROVIDER · $DVTT_HERMES_MODEL)"
   export HERMES_HOME="$HH" PATH="$AIHOME/.local/bin:$PATH" HERMES_YOLO_MODE=1
+  # Hermes' own Python trusts only its bundled CA list: give it the system's (a VPS behind a proxy with its own CA)
+  [ -f /etc/ssl/certs/ca-certificates.crt ] && export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
   set +e
   trap - ERR
   runuser -p -u "$GAME_USER" -- "$HB" chat --oneshot --query-file "$AIHOME/job.md" --format stream-json --yolo \
