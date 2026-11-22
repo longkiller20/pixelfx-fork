@@ -203,6 +203,7 @@ async function runTask(task, extra = {}, cb) {
 const VIEWS = [
   ["Chung", [["overview", "◉", "Tổng quan"], ["setup", "✦", "Cài đặt nhanh"]]],
   ["Cấu hình", [["game", "⚔", "Game & Admin"], ["domain", "🌐", "Tên miền & HTTPS"], ["firewall", "🛡", "Tường lửa"]]],
+  ["AI", [["ai", "✧", "Trợ lý AI"]]],
   ["Vận hành", [["services", "▤", "Dịch vụ & Log"], ["backup", "⛁", "Sao lưu"], ["update", "⟳", "Cập nhật"], ["env", "≡", "Tệp .env"], ["panel", "⚙", "Bảng điều khiển"]]],
 ];
 const TITLES = Object.fromEntries(VIEWS.flatMap(([, v]) => v.map(([k, , t]) => [k, t])));
@@ -792,6 +793,223 @@ RENDER.panel = () => {
     ),
   ];
 };
+
+// ---------------------------------------------------------------- Trợ lý AI: MCP, the agent on this VPS, pictures, what it changed
+let AI = null;
+const EXAMPLES = [
+  "Thêm một loài yêu thú mới: Hỏa Hồ (cáo lửa) ở Linh Thủy, mạnh ngang quái ở đó, rơi Hồi Xuân Đan hiếm. Vẽ nó bằng pixelfx, đặt 4 con quanh giữa bản đồ.",
+  "Biến ảnh hoa-yeu.png thành nhân vật nữ \"Hoa Yêu Tiên Tử\", bán 800 linh thạch trong Y Các. Chỉnh rig cho tóc và tay áo cử động đẹp.",
+  "Tạo boss mới từ ảnh long-vuong.png tên \"Băng Long Vương\", màu chiêu theo bảng màu của nó. Gọi boss ở Ma Vực với 3 triệu máu, thông báo cho mọi người.",
+  "Sự kiện tối nay: thông báo sự kiện, tặng mỗi người đang online 2 Hồi Xuân Đan.",
+];
+RENDER.ai = () => {
+  const box = h("div", { style: "display:grid;gap:16px" }, h("p", { class: "muted", text: "Đang tải…" }));
+  (async () => {
+    AI = await tryApi("/api/ai");
+    if (AI) box.replaceChildren(...aiCards());
+  })();
+  return box;
+};
+function aiCards() {
+  const a = AI, m = a.mcp, ag = a.agent, gb = (n) => (n / 1024 ** 3).toFixed(1) + " GB";
+  const cards = [];
+  // ---- the agent on this VPS: Claude Code or Hermes Agent (any model provider)
+  const kind = ag.kind, inst = kind === "hermes" ? ag.hermes : ag.claude;
+  const keyed = kind === "hermes" ? !!(ag.hermesProvider && ag.hermesModel && (ag.hermesKey || ag.hermesProvider === "custom")) : !!ag.key;
+  const ready = m.enabled && inst && keyed;
+  const prov = ag.providers.find((p) => p.id === ag.hermesProvider);
+  const pick = (k, label, sub) => h("label", { class: "switch", style: "cursor:pointer" },
+    h("input", { type: "radio", name: "agentKind", checked: kind === k, onchange: async () => (await tryApi("/api/ai/key", { agent: k })) && go("ai") }),
+    h("span", {}, label, h("small", { text: sub })));
+  cards.push(h("div", { class: "card" },
+    h("h2", {}, "Trợ lý AI trên VPS ", inst ? pill("on", "Đã cài") : pill("none", "Chưa cài")),
+    h("div", { class: "grid2", style: "margin:6px 0 12px" },
+      pick("claude", "Claude Code", "Của Anthropic. Khoá API Anthropic hoặc gói Claude Pro/Max."),
+      pick("hermes", "Hermes Agent", "Mã nguồn mở (Nous Research). Model của OpenRouter, OpenAI, Gemini, DeepSeek, Grok, GLM, Kimi, Qwen… hoặc máy chủ riêng (Ollama, vLLM)."),
+    ),
+    h("dl", { class: "kv" },
+      h("dt", { text: "Máy" }), h("dd", {}, `${gb(a.machine.ram)} RAM · ${a.machine.cpus} nhân `, a.machine.strong ? pill("on", "Đủ mạnh") : a.machine.enough ? pill("warn", "Hơi yếu") : pill("off", "Không đủ")),
+      h("dt", { text: "Claude Code" }), h("dd", { text: ag.claude ? `${ag.claude.version} (${ag.claude.path})` : "chưa cài" }),
+      h("dt", { text: "Hermes Agent" }), h("dd", { text: ag.hermes ? ag.hermes.version : "chưa cài" }),
+      h("dt", { text: "Đang dùng" }), h("dd", {}, kind === "hermes"
+        ? (prov ? `Hermes · ${prov.name.replace(/ \(.*/, "")} · ${ag.hermesModel || "chưa chọn model"} ` : "Hermes · chưa chọn nơi cung cấp model ")
+        : `Claude Code${ag.model ? ` · ${ag.model}` : ""} `, keyed ? pill("on", "Sẵn sàng") : pill("warn", "Chưa nhập khoá")),
+      Object.entries(ag.others).some(([, v]) => v) ? [h("dt", { text: "Agent khác" }), h("dd", { text: Object.entries(ag.others).filter(([, v]) => v).map(([k]) => k).join(", ") + " (dùng với MCP bên dưới)" })] : null,
+    ),
+    h("p", { class: "hint", text: "Trợ lý chạy ngay trên VPS bằng người dùng của game (không phải root): nó dùng các công cụ MCP của game và skill pixelfx để vẽ quái, nhân vật, boss rồi đưa vào game. Nên dùng máy từ 2 GB RAM (Hermes cần thêm ~2 GB đĩa). VPS yếu: bỏ qua phần này, dùng AI trên máy bạn (Claude, Hermes, Ekko Studio, Cursor, Codex…) qua MCP bên dưới." }),
+    h("div", { class: "actions" },
+      h("button", { class: "btn" + (inst ? "" : " primary"), type: "button", disabled: !a.machine.enough, onclick: () => runTask("agent", { agent: kind }, () => go("ai")) },
+        inst ? `Cập nhật ${kind === "hermes" ? "Hermes Agent" : "Claude Code"}` : `Cài ${kind === "hermes" ? "Hermes Agent" : "Claude Code"}`),
+    ),
+    kind === "hermes" ? hermesForm(ag) : keyForm(ag),
+  ));
+  // ---- give it a job
+  const prompt = h("textarea", { style: "min-height:140px;font-family:inherit;font-size:14px", placeholder: "Ví dụ: Thêm một loài yêu thú mới ở Linh Thủy…" });
+  const code = h("input", { type: "checkbox", checked: true }), restart = h("input", { type: "checkbox", checked: true });
+  cards.push(h("div", { class: "card" },
+    h("h2", { text: "Giao việc cho AI" }),
+    !ready ? h("p", { class: "err", text: !m.enabled ? "Bật MCP trước (thẻ MCP bên dưới)." : !inst ? "Cài trợ lý AI trước." : kind === "hermes" ? "Chọn nơi cung cấp model, model và khoá trước." : "Nhập khoá API trước." }) : null,
+    prompt,
+    h("div", { class: "row", style: "margin-top:8px" }, ...EXAMPLES.map((e, i) => h("button", { class: "btn small ghost", type: "button", title: e, onclick: () => ((prompt.value = e), prompt.focus()) }, ["Yêu thú mới", "Nhân vật từ ảnh", "Boss từ ảnh", "Sự kiện"][i]))),
+    h("div", { class: "row", style: "margin-top:10px" }, h("label", { class: "check" }, code, "Cho sửa tệp (vẽ hiệu ứng, sửa code game)"), h("label", { class: "check" }, restart, "Tự chạy lại game khi xong")),
+    h("p", { class: "hint", text: "AI làm xong sẽ báo lại trong cửa sổ log. Mọi thay đổi được lưu (git) và hoàn tác được ở thẻ \"Thay đổi của AI\". Code game sửa sai thì tự hoàn tác. Mỗi lần chạy tốn phí theo khoá API của bạn." }),
+    h("div", { class: "actions" }, h("button", { class: "btn primary", type: "button", disabled: !ready, onclick: () => {
+      if (prompt.value.trim().length < 5) return toast("Viết việc cần làm.", "bad");
+      runTask("ai", { prompt: prompt.value.trim(), code: code.checked, restart: restart.checked }, () => go("ai"));
+    } }, "Giao việc")),
+  ));
+  // ---- pictures for it
+  const file = h("input", { type: "file", accept: "image/png", style: "max-width:100%" });
+  cards.push(h("div", { class: "card" },
+    h("h2", { text: "Ảnh cho AI" }),
+    h("p", { class: "hint", text: "Tải lên ảnh PNG nền trong suốt (nhân vật đứng cả người, boss, quái). Nhắc tên ảnh khi giao việc, ví dụ \"biến ảnh hoa-yeu.png thành nhân vật…\"." }),
+    h("div", { class: "row", style: "margin:10px 0" }, file, h("button", { class: "btn small", type: "button", onclick: async () => {
+      const f = file.files[0];
+      if (!f) return toast("Chọn một ảnh PNG.", "bad");
+      if (f.size > 15 << 20) return toast("Ảnh tối đa 15 MB.", "bad");
+      const name = f.name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/\.png$/, "").replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "") || "anh";
+      const r = await fetch(`/api/ai/upload?name=${encodeURIComponent(name)}`, { method: "POST", headers: { "x-csrf": csrf, "content-type": "image/png" }, body: f });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) return toast(j.error ?? `Lỗi ${r.status}`, "bad");
+      toast(`Đã tải lên ${j.name}`, "good");
+      go("ai");
+    } }, "Tải lên")),
+    a.uploads.length ? h("div", { class: "grid", style: "grid-template-columns:repeat(auto-fill,minmax(150px,1fr))" }, a.uploads.map((u) => h("div", { class: "card", style: "padding:10px;text-align:center" },
+      h("img", { src: `/api/ai/upload?name=${encodeURIComponent(u.name)}`, alt: u.name, style: "max-width:100%;max-height:120px;image-rendering:pixelated;background:repeating-conic-gradient(#222 0 25%,#333 0 50%) 0 0/16px 16px" }),
+      h("div", { class: "mono small", style: "margin-top:6px;overflow-wrap:anywhere", text: u.name }),
+      h("button", { class: "btn small ghost", type: "button", onclick: async () => (await confirmBox("Xoá ảnh?", u.name)) && (await tryApi(`/api/ai/upload?name=${encodeURIComponent(u.name)}`, undefined, "DELETE")) && go("ai") }, "✕ Xoá"),
+    ))) : h("p", { class: "muted", text: "Chưa có ảnh nào." }),
+  ));
+  // ---- MCP
+  const tokName = h("input", { placeholder: "tên, vd: may-nha", value: "" });
+  const shown = h("div");
+  cards.push(h("div", { class: "card" },
+    h("h2", {}, "MCP: kết nối AI ", m.enabled ? pill("on", "Đang bật") : pill("off", "Đang tắt")),
+    h("p", { class: "hint", text: `MCP (Model Context Protocol, chuẩn chung) cho bất kỳ AI nào hỗ trợ nó (Hermes Agent, Ekko Studio, Claude, Codex, Gemini CLI, Cursor, VS Code, OpenCode, LM Studio…) ${m.tools.length} công cụ làm việc với game: số liệu, yêu thú, đặt quái lên bản đồ, boss, người chơi, thông báo; vẽ bằng pixelfx, biến ảnh thành nhân vật/boss, đưa vào game. Mọi thay đổi số liệu được kiểm tra như trang admin và ghi nhật ký dưới tên ${m.adminUser ?? "ai-mcp"}.` }),
+    h("dl", { class: "kv", style: "margin-top:10px" }, h("dt", { text: "Địa chỉ" }), h("dd", {}, h("code", { text: m.url }))),
+    h("div", { class: "grid2", style: "margin-top:12px" },
+      h("label", { class: "switch" }, h("input", { type: "checkbox", checked: m.enabled, onchange: async (e) => (await tryApi("/api/ai/mcp", { enabled: e.target.checked })) && go("ai") }), h("span", {}, "Bật MCP", h("small", { text: "Tắt: mọi token đều bị từ chối." }))),
+      h("label", { class: "switch" }, h("input", { type: "checkbox", checked: m.allowCode, onchange: async (e) => (await tryApi("/api/ai/mcp", { allowCode: e.target.checked })) && go("ai") }), h("span", {}, "Cho phép viết code pixelfx", h("small", { text: "write_effect, image_to_figure: chạy code do AI viết trên VPS (bằng người dùng game). Chỉ bật với AI bạn tin." }))),
+    ),
+    h("h3", { text: "Token" }),
+    m.tokens.length ? h("table", {}, h("tbody", {}, m.tokens.map((t) => h("tr", {},
+      h("td", {}, h("b", { text: t.name }), h("br"), h("small", { class: "muted", text: `tạo ${fmtDate(t.created)}${t.used ? ` · dùng ${ago(t.used)}` : " · chưa dùng"}` })),
+      h("td", { style: "text-align:right" }, t.name === "agent-vps" ? h("small", { class: "muted", text: "của trợ lý trên VPS" }) : h("button", { class: "btn small danger", type: "button", onclick: async () => (await confirmBox("Thu hồi token?", `AI dùng token "${t.name}" sẽ mất kết nối.`)) && (await tryApi("/api/ai/mcp", { revoke: t.name })) && go("ai") }, "Thu hồi")),
+    )))) : h("p", { class: "muted", text: "Chưa có token." }),
+    h("div", { class: "row", style: "margin-top:10px" }, h("div", { style: "min-width:200px;flex:1" }, tokName), h("button", { class: "btn primary small", type: "button", onclick: async () => {
+      const r = await tryApi("/api/ai/mcp", { newToken: tokName.value.trim() || "token" });
+      if (r?.token) shown.replaceChildren(tokenBox(r.token, m.url));
+    } }, "Tạo token")),
+    shown,
+    h("details", { style: "margin-top:12px" }, h("summary", { style: "cursor:pointer;font-weight:600", text: "Cách kết nối từng ứng dụng AI" }),
+      h("p", { class: "hint", text: "Thay <TOKEN> bằng token vừa tạo (bấm \"Tạo token\" sẽ hiện sẵn các đoạn này với token thật)." }),
+      snippets("<TOKEN>", m.url)),
+  ));
+  // ---- what it changed
+  cards.push(h("div", { class: "card" },
+    h("h2", { text: "Thay đổi của AI" }),
+    a.changes.length ? h("div", { class: "tableWrap" }, h("table", {}, h("tbody", {}, a.changes.map((c) => h("tr", {},
+      h("td", {}, h("b", { text: c.subject }), h("br"), h("small", { class: "muted mono", text: `${c.hash} · ${c.author} · ${fmtDate(c.at)}` })),
+      h("td", { style: "text-align:right" }, c.undone ? pill("none", "Đã hoàn tác") : h("button", { class: "btn small", type: "button", onclick: async () => {
+        if (!(await confirmBox("Hoàn tác thay đổi này?", c.subject, "Tệp trở về như trước thay đổi đó, rồi game chạy lại. Hoàn tác cái mới nhất trước nếu chúng chồng lên nhau. (Số liệu trong database mà AI đã đổi không tự quay lại: xem Nhật ký ở trang admin.)"))) return;
+        const r = await tryApi("/api/ai/undo", { hash: c.hash });
+        if (r) (toast(`Đã hoàn tác. ${r.restart}`, "good"), go("ai"));
+      } }, "↺ Hoàn tác")),
+    ))))) : h("p", { class: "muted", text: "AI chưa thay đổi tệp nào." }),
+  ));
+  return cards;
+}
+function keyForm(ag) {
+  const key = h("input", { type: "password", autocomplete: "off", placeholder: ag.key ? "•••••••• (đã có: nhập để thay)" : "sk-ant-api… hoặc sk-ant-oat…" });
+  const model = h("input", { placeholder: "để trống: mặc định", value: ag.model });
+  return h("form", { style: "margin-top:12px", onsubmit: async (e) => {
+    e.preventDefault();
+    const body = { model: model.value.trim() };
+    if (key.value.trim()) body.key = key.value.trim();
+    else if (!ag.key) return toast("Nhập khoá.", "bad");
+    if (await tryApi("/api/ai/key", body)) (toast("Đã lưu.", "good"), go("ai"));
+  } },
+    h("div", { class: "grid2" },
+      field("Khoá API Anthropic, hoặc token gói Claude", key, "Khoá API: console.anthropic.com. Gói Claude Pro/Max: chạy \"claude setup-token\" trên máy bạn rồi dán token. Lưu ở /etc/dvtt-panel/agent.env (chỉ root đọc)."),
+      field("Model (tuỳ chọn)", model, "Ví dụ: sonnet, opus. Để trống dùng mặc định của Claude Code."),
+    ),
+    h("div", { class: "actions" }, ag.key ? h("button", { class: "btn small danger", type: "button", onclick: async () => (await confirmBox("Xoá khoá?", "Trợ lý trên VPS sẽ không chạy được nữa.")) && (await tryApi("/api/ai/key", { key: "", model: model.value.trim() })) && go("ai") }, "Xoá khoá") : null, h("button", { class: "btn small", type: "submit" }, "Lưu")),
+  );
+}
+function hermesForm(ag) {
+  const prov = h("select", {}, h("option", { value: "", text: "— chọn —" }), ag.providers.map((p) => h("option", { value: p.id, text: p.name })));
+  prov.value = ag.hermesProvider;
+  const model = h("input", { value: ag.hermesModel, autocomplete: "off" });
+  const base = h("input", { value: ag.hermesBase, placeholder: "http://127.0.0.1:11434/v1", autocomplete: "off" });
+  const key = h("input", { type: "password", autocomplete: "off" });
+  const baseRow = field("Địa chỉ máy chủ model", base, "OpenAI-compatible, có /v1. Ollama: http://127.0.0.1:11434/v1 · LM Studio: http://IP:1234/v1 · vLLM: http://IP:8000/v1");
+  const link = h("small");
+  const sync = () => {
+    const p = ag.providers.find((x) => x.id === prov.value);
+    model.placeholder = p ? `vd ${p.model}` : "";
+    baseRow.hidden = !p?.base;
+    const same = prov.value === ag.hermesProvider && ag.hermesKey;
+    key.placeholder = same ? `•••• ${ag.hermesKey} (đã có: nhập để thay)` : p?.base ? "nếu máy chủ cần (để trống nếu không)" : "dán khoá API";
+    link.replaceChildren(...(p?.keyUrl ? ["Lấy khoá ở ", h("a", { href: p.keyUrl, target: "_blank", rel: "noopener", text: p.keyUrl.replace(/^https:\/\//, "") })] : []));
+  };
+  prov.addEventListener("change", sync);
+  sync();
+  return h("form", { style: "margin-top:12px", onsubmit: async (e) => {
+    e.preventDefault();
+    const p = ag.providers.find((x) => x.id === prov.value);
+    if (!p) return toast("Chọn nơi cung cấp model.", "bad");
+    if (!model.value.trim()) return toast("Nhập tên model (vd " + p.model + ").", "bad");
+    const x = { provider: p.id, model: model.value.trim(), base: p.base ? base.value.trim() : "" };
+    if (key.value.trim()) x.key = key.value.trim();
+    else if (!p.base && !(p.id === ag.hermesProvider && ag.hermesKey)) return toast("Nhập khoá API.", "bad");
+    if (await tryApi("/api/ai/key", { agent: "hermes", hermes: x })) (toast("Đã lưu.", "good"), go("ai"));
+  } },
+    h("div", { class: "grid2" },
+      field("Nơi cung cấp model", prov, "OpenRouter: một khoá dùng được gần như mọi model. Model phải biết gọi công cụ (tool calling)."),
+      field("Model", model, "Tên model đúng như nơi cung cấp ghi. Model mạnh (Claude Sonnet/Opus, GPT-5, Gemini 2.5 Pro, Qwen3 Coder, GLM 4.6, Kimi K2…) vẽ đẹp hơn."),
+      baseRow,
+      h("label", {}, "Khoá API", key, link, h("small", { text: "Lưu ở /etc/dvtt-panel/agent.env (chỉ root đọc); trợ lý chỉ nhận nó lúc chạy." })),
+    ),
+    h("div", { class: "actions" }, ag.hermesKey ? h("button", { class: "btn small danger", type: "button", onclick: async () => (await confirmBox("Xoá khoá?", "Hermes trên VPS sẽ không chạy được nữa.")) && (await tryApi("/api/ai/key", { hermes: { key: "" } })) && go("ai") }, "Xoá khoá") : null, h("button", { class: "btn small", type: "submit" }, "Lưu")),
+  );
+}
+// how each AI app connects to the game's MCP (Streamable HTTP + a bearer token; a token-in-path address for the apps that
+// cannot send headers; mcp-remote for the ones that only start local commands)
+function snippets(token, url) {
+  const auth = `Bearer ${token}`, pathUrl = url.replace(/\/mcp$/, `/mcp/${token}`), js = (o) => JSON.stringify(o, null, 2);
+  const list = [
+    ["Hermes Agent", "~/.hermes/config.yaml, rồi gõ /reload-mcp trong Hermes (hoặc mở lại). Hermes trên Telegram/Discord… (gateway) cũng dùng được.",
+      `mcp_servers:\n  dvtt:\n    url: "${url}"\n    headers:\n      Authorization: "${auth}"\n    timeout: 600`],
+    ["Ekko Studio", "MCP → Thêm máy chủ → dán đoạn này (Ekko đưa nó vào Hermes; Claude Code/Codex trong Ekko: dùng đoạn của chúng bên dưới).",
+      js({ mcpServers: { dvtt: { url, headers: { Authorization: auth }, timeout: 600 } } })],
+    ["Claude Code", "Chạy trong terminal máy bạn.", `claude mcp add --transport http dvtt ${url} --header "Authorization: ${auth}"`],
+    ["claude.ai / Claude Desktop", "Settings → Connectors → Add custom connector: dán địa chỉ (có token trong đường dẫn: chỉ dùng qua HTTPS).", pathUrl],
+    ["Codex CLI (OpenAI)", "~/.codex/config.toml", `[mcp_servers.dvtt]\nurl = "${url}"\nhttp_headers = { Authorization = "${auth}" }\ntool_timeout_sec = 600`],
+    ["Gemini CLI", "~/.gemini/settings.json", js({ mcpServers: { dvtt: { httpUrl: url, headers: { Authorization: auth }, timeout: 600000 } } })],
+    ["Cursor · Cline · Roo Code · LM Studio · Cherry Studio…", "mcp.json của ứng dụng (Cursor: ~/.cursor/mcp.json; LM Studio: Program → Install → Edit mcp.json).",
+      js({ mcpServers: { dvtt: { url, headers: { Authorization: auth } } } })],
+    ["Windsurf", "~/.codeium/windsurf/mcp_config.json", js({ mcpServers: { dvtt: { serverUrl: url, headers: { Authorization: auth } } } })],
+    ["VS Code (Copilot)", ".vscode/mcp.json", js({ servers: { dvtt: { type: "http", url, headers: { Authorization: auth } } } })],
+    ["OpenCode", "opencode.json", js({ $schema: "https://opencode.ai/config.json", mcp: { dvtt: { type: "remote", url, headers: { Authorization: auth }, enabled: true } } })],
+    ["Ứng dụng chỉ chạy MCP dạng lệnh (stdio)", "Cần Node trên máy chạy ứng dụng.", js({ mcpServers: { dvtt: { command: "npx", args: ["-y", "mcp-remote", url, "--header", `Authorization: ${auth}`] } } })],
+    ["Ứng dụng khác", "Kiểu: Streamable HTTP (JSON-RPC, POST). Địa chỉ và header như dưới; app không thêm header được thì dùng địa chỉ có token.", `URL:    ${url}\nHeader: Authorization: ${auth}\nhoặc:   ${pathUrl}`],
+  ];
+  return h("div", {}, list.map(([t, where, s]) => h("details", { style: "margin:6px 0" },
+    h("summary", { style: "cursor:pointer" }, h("b", { text: t })),
+    h("p", { class: "hint", style: "margin:6px 0 4px", text: where }),
+    h("div", { style: "position:relative" },
+      h("pre", { class: "console", style: "margin:0;white-space:pre-wrap;overflow-wrap:anywhere", text: s }),
+      h("button", { class: "btn small ghost", type: "button", style: "position:absolute;top:6px;right:6px", onclick: () => navigator.clipboard?.writeText(s).then(() => toast("Đã chép.", "good"), () => toast("Không chép được: chọn và chép tay.", "bad")) }, "Chép")),
+  )));
+}
+function tokenBox(token, url) {
+  return h("div", { class: "banner good", style: "display:block;margin-top:12px" },
+    h("b", { text: "Token mới: chép ngay, sẽ không hiện lại" }),
+    h("pre", { class: "console", style: "margin:8px 0;overflow-wrap:anywhere;white-space:pre-wrap", text: token }),
+    h("p", { style: "margin:10px 0 4px;font-weight:600", text: "Chọn ứng dụng AI của bạn:" }),
+    snippets(token, url),
+  );
+}
 
 async function service(unit, action) {
   const names = { start: "Chạy", stop: "Dừng", restart: "Chạy lại" };

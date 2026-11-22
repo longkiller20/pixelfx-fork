@@ -14,7 +14,11 @@ else ok "đã có"; fi
 
 step "Thư viện npm"
 cd "$GAME_DIR" || die "Không vào được $GAME_DIR."
-chown -R "$GAME_USER:$GAME_USER" "$GAME_DIR"
+# the game's user owns the repository (the game writes in public/hieu-ung, the AI in src/fx and records); git's own
+# folder stays root's (updates and the AI's commits are made by the panel)
+find "$DVTT_DIR" -path "$DVTT_DIR/.git" -prune -o -exec chown "$GAME_USER:$GAME_USER" {} + 2>/dev/null || chown -R "$GAME_USER:$GAME_USER" "$GAME_DIR"
+install -d -o "$GAME_USER" -g "$GAME_USER" "$DVTT_DIR/records"
+install -d -m 0755 /var/lib/dvtt-panel/uploads
 export npm_config_cache="$GAME_DIR/.npm-cache"
 if [ -f package-lock.json ]; then
   runuser -u "$GAME_USER" -- env npm_config_cache="$npm_config_cache" npm ci --omit=dev --no-audit --no-fund --loglevel=error

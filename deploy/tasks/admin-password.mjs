@@ -23,7 +23,7 @@ try {
     console.log(`✔  Đã tạo admin "${user}".`);
   }
   // the first-run account admin / admin123456 is not left behind with its well-known password
-  if (user !== "admin") {
+  if (user !== "admin" && process.env.KEEP_DEFAULT !== "1") {
     const r = await pool.query("DELETE FROM admins WHERE username = 'admin' AND must_change = 1");
     if (r.affectedRows) console.log('    Đã xoá tài khoản mặc định "admin" (mật khẩu admin123456 chưa đổi).');
   }

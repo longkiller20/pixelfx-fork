@@ -5,6 +5,8 @@
 // (the cosmetics table, kind "skin", idx as below). The other thing to buy is the flying sword (public/phi-kiem).
 // Shared by the server (what can be bought and worn), the browser (public/js/avatar.js) and the admin.
 
+import { EXTRA_SKINS } from "./them.js";
+
 /**
  * The characters, by idx (cosmetics.idx, characters.skin). g: who can wear it (m, f, or a: anyone); price: the default
  * in the shop; starter: free, and what a new character of that gender is.
@@ -12,6 +14,8 @@
 export const SKINS = [
   { idx: 1, key: "kiem-khach", fx: "nhanvat/kiem-khach", name: "Bạch Y Kiếm Khách", g: "m", price: 0, starter: true },
   { idx: 2, key: "tien-tu", fx: "nhanvat/tien-tu", name: "Tử Y Tiên Tử", g: "f", price: 0, starter: true },
+  // and the ones added since (shared/them.js, written by tools/them.mjs)
+  ...EXTRA_SKINS.filter((s) => s.idx > 2),
 ];
 export const SKIN = Object.fromEntries(SKINS.map((s) => [s.idx, s]));
 /** What a character of gender g is when nothing else is picked (characters.skin 0). */

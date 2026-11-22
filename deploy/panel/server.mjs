@@ -23,6 +23,7 @@ import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import readline from "node:readline";
+import { createAi } from "./ai.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TASKS = join(HERE, "..", "tasks");
@@ -221,6 +222,8 @@ const TASK_DEFS = {
   "backup-timer": { file: "backup.sh", name: "Sao lưu tự động" },
   update: { file: "update.sh", name: "Cập nhật game" },
   apply: { file: "apply.sh", name: "Áp dụng cấu hình" },
+  agent: { file: "agent.sh", name: "Cài trợ lý AI" },
+  ai: { file: "ai-run.sh", name: "Trợ lý AI làm việc" },
 };
 let task = null;
 const history = [];
@@ -233,7 +236,7 @@ function startTask(key, extra = {}, after) {
   const id = `${new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14)}-${key}`;
   mkdirSync(LOGS, { recursive: true, mode: 0o700 });
   const logFile = join(LOGS, `${id}.log`);
-  const t = { id, key, name: def.name, started: Date.now(), ended: null, code: null, running: true, log: "", logFile };
+  const t = { id, key, name: def.name + (extra.AGENT_KIND ? ` (${extra.AGENT_KIND === "hermes" ? "Hermes Agent" : "Claude Code"})` : ""), started: Date.now(), ended: null, code: null, running: true, log: "", logFile };
   task = t;
   const child = spawn("bash", [join(TASKS, def.file)], { env: taskEnv(s, extra), stdio: ["ignore", "pipe", "pipe"] });
   t.pid = child.pid;
@@ -520,8 +523,11 @@ async function api(req, res, path, url) {
   // the page asks for its session's token after a reload (only a page of this origin can read the answer)
   if (path === "/api/session" && req.method === "GET") return send(res, 200, { user: sess.user, csrf: sess.csrf });
   // every call made by the page carries the session's own token: another site can't make one for it
-  if (req.headers["x-csrf"] !== sess.csrf) return send(res, 403, { error: "Phiên không hợp lệ, hãy tải lại trang." });
+  // (a picture's preview is an <img>, which can't send it: a GET that changes nothing, and the cookie is SameSite=Strict)
+  const preview = req.method === "GET" && path === "/api/ai/upload";
+  if (req.headers["x-csrf"] !== sess.csrf && !preview) return send(res, 403, { error: "Phiên không hợp lệ, hãy tải lại trang." });
   const M = req.method;
+  if (path.startsWith("/api/ai") && (await ai.api(req, res, path, url, M))) return;
   if (path === "/api/logout" && M === "POST") {
     sessions.delete(cookieOf(req).dvttp);
     return send(res, 200, { ok: true }, { "set-cookie": "dvttp=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0" });
@@ -564,6 +570,16 @@ async function api(req, res, path, url) {
     if (key === "backup") extra.ACTION = "create";
     if (key === "backup-timer") extra.ACTION = "timer";
     if (key === "update" && b.force) extra.FORCE = "1";
+    if (key === "ai") {
+      const prompt = String(b.prompt ?? "").trim();
+      if (prompt.length < 5 || prompt.length > 8000) bad("Yêu cầu cho AI: 5-8000 ký tự.");
+      Object.assign(extra, ai.agentTaskEnv(), { PROMPT: prompt, AUTO_RESTART: b.restart === false ? "0" : "1", ALLOW_CODE: b.code === false ? "0" : "1" });
+    }
+    if (key === "agent") {
+      const kind = String(b.agent ?? "claude");
+      if (!["claude", "hermes"].includes(kind)) bad("Trợ lý: claude hoặc hermes.");
+      extra.AGENT_KIND = kind;
+    }
     if (!TASK_DEFS[key]) bad("Không có tác vụ này.");
     const t = startTask(key, extra);
     return send(res, 200, { task: taskView(t) });
@@ -636,6 +652,7 @@ async function api(req, res, path, url) {
 }
 
 const DUMMY = await hashPw(crypto.randomBytes(12).toString("hex"));
+const ai = createAi({ ETC, loadState, loadPanel, sh, send, readBody, bad, clientIp });
 
 function serve() {
   const panel = loadPanel();
@@ -646,6 +663,7 @@ function serve() {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
     try {
+      if (url.pathname === "/mcp" || url.pathname.startsWith("/mcp/")) return await ai.mcp(req, res, url);
       if (url.pathname.startsWith("/api/")) return await api(req, res, url.pathname, url);
       if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "Không được");
       return serveStatic(req, res, url.pathname);

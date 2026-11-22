@@ -75,7 +75,7 @@ ask_secret() {
   printf '\n'
 }
 # the panel's own port (a second run) counts as free: it is the panel that holds it
-CUR_PORT="$(sed -nE 's/.*"port": *([0-9]+).*/\1/p' /etc/dvtt-panel/panel.json 2>/dev/null | head -1)"
+CUR_PORT="$( { sed -nE 's/.*"port": *([0-9]+).*/\1/p' /etc/dvtt-panel/panel.json 2>/dev/null || true; } | head -1)"
 port_free() { [ "$1" = "$CUR_PORT" ] || ! ss -ltnH "sport = :$1" 2>/dev/null | grep -q .; }
 valid_port() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1024 ] && [ "$1" -le 65535 ] && ! [[ " 3306 5885 5886 " == *" $1 "* ]]; }
 random_port() { local p; for _ in $(seq 1 50); do p=$((20000 + RANDOM % 40000)); port_free "$p" && { echo "$p"; return; }; done; echo 28443; }
@@ -154,8 +154,11 @@ else
     rm -rf "$DIR"
     git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$DIR" || die "Không tải được mã nguồn từ $REPO (kho riêng tư? Hãy git clone bằng tay rồi chạy: sudo bash <thư mục>/deploy/install.sh)."
   else
-    git -C "$DIR" sparse-checkout set game deploy
+    # everything but the big pictures of the readme (the game, the panel, and the pixelfx library the AI draws with)
+    git -C "$DIR" sparse-checkout set --no-cone '/*' '!/docs/readme/'
+    # the commit the game came as: what the AI or the owner changed since is kept across updates (tasks/update.sh)
   fi
+  git -C "$DIR" config dvtt.base "$(git -C "$DIR" rev-parse HEAD)"
   ok "đã tải về $DIR ($(git -C "$DIR" log -1 --format=%h))"
 fi
 chmod 755 "$DIR"
