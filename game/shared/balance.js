@@ -113,7 +113,12 @@ export const DEFAULTS = {
     "pvp.repeat_cooldown": [120, "Giây trước khi hạ lại cùng một người mới có thưởng"],
     "pvp.spawn_protect": [2, "Giây miễn sát thương sau khi hồi sinh"],
     "pvp.respawn": [3, "Giây chờ hồi sinh ở đấu trường"],
-    "respawn.world": [4, "Giây chờ hồi sinh ngoài thế giới"],
+    "respawn.world": [4, "Giây chờ trước khi được về Tân Thủ Thôn sau khi tử trận ngoài thế giới"],
+    // tử trận ngoài thế giới: về Tân Thủ Thôn (miễn phí) hoặc hồi sinh tại chỗ (tốn linh thạch)
+    "revive.base": [20, "Hồi sinh tại chỗ: linh thạch cố định"],
+    "revive.per_level": [5, "Hồi sinh tại chỗ: thêm linh thạch cho mỗi cấp của nhân vật"],
+    "revive.hp": [50, "Hồi sinh tại chỗ: % sinh lực khi đứng dậy (1-100)"],
+    "revive.wait": [30, "Giây chờ chọn sau khi tử trận; hết giờ tự về Tân Thủ Thôn (5-600)"],
     "fly.realm": [2, "Cảnh giới mở khoá Ngự Kiếm Phi Hành, đếm từ 1 (1 = Luyện Khí, 2 = Trúc Cơ, 3 = Kim Đan…): tới tầng 1 của cảnh giới này là bay được"],
     "fly.speed": [1.35, "Tốc độ bay = tốc độ đi × hệ số này"],
     "fly.arena": [0, "1: được ngự kiếm trong đấu trường; 0: không"],
@@ -263,6 +268,11 @@ export const satKhiNow = (v, at, now = Date.now()) => Math.max(0, (v | 0) - Math
 // ngự kiếm phi hành: unlocked at level FLY.level (the first stage of realm FLY.realm), flying at FLY.speed × walking
 export const FLY = { realm: 2, level: 6, speed: 1.35, arena: false };
 export let RESPAWN_WORLD = 4, DAILY_STONES = 30, BUY_MAX = 10;
+// fallen in the open world: back to Tân Thủ Thôn for free (after RESPAWN_WORLD), or up where they fell for linh thạch
+// (settings revive.*); nobody chooses in REVIVE.wait seconds: back to town
+export const REVIVE = { base: 20, perLevel: 5, hp: 0.5, wait: 30 };
+/** What getting up where one fell costs at a level. */
+export const reviveCost = (level) => Math.max(0, Math.round(REVIVE.base + REVIVE.perLevel * Math.max(1, level | 0)));
 let SET = {}, TOTAL = [0, 0], LEVELS = [[0, 1]];
 
 const num = (v, what, min = 0, max = 1e9) => {
@@ -297,6 +307,8 @@ export function checkConfig(c) {
   num(S["chinhta.min_stay"], "chinhta.min_stay (%)", 0, 100);
   num(S["chinhta.refill"], "chinhta.refill (%)", 0, 100);
   num(S["chinhta.respawn"], "chinhta.respawn", 1, 120);
+  num(S["revive.hp"], "revive.hp (%)", 1, 100);
+  num(S["revive.wait"], "revive.wait (giây)", 5, 600);
   num(S["chinhta.prep"], "chinhta.prep", 0, 300);
   num(S["fly.realm"], "fly.realm (cảnh giới mở khoá phi hành)", 1, 100);
   num(S["fly.speed"], "fly.speed (hệ số tốc độ bay)", 0.2, 5);
@@ -433,6 +445,7 @@ export function applyConfig(c) {
   });
   Object.assign(START, { stones: S["start.stones"] | 0, hoixuan: S["start.hoixuan"] | 0 });
   RESPAWN_WORLD = S["respawn.world"];
+  Object.assign(REVIVE, { base: S["revive.base"], perLevel: S["revive.per_level"], hp: S["revive.hp"] / 100, wait: S["revive.wait"] });
   {
     // a realm past the last one means flight is locked for everyone for now
     const r = Math.max(1, Math.round(S["fly.realm"] ?? 2));

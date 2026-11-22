@@ -5,7 +5,7 @@ import { spawnRows, placements, loadSpawns } from "./spawns.js";
 import { WebSocket } from "ws";
 import {
   TICK_HZ, PLAYER_R, CLASSES, MONSTERS, ITEMS, PVP, RESPAWN_WORLD, MEDITATE, levelFromExp, worldMult, arenaMult, mitigate, ARTS, ART_SLOTS, DROPS,
-  FLY, canFly, flyRealmName, PK, satKhiNow, realmName,
+  FLY, canFly, flyRealmName, PK, satKhiNow, realmName, REVIVE, reviveCost,
 } from "../shared/balance.js";
 import { mapInfo, START_MAP, MAPS } from "../shared/maps/index.js";
 import { isTele, teleAt, TELE_MAPS } from "../shared/truyen-tong.js";
@@ -264,7 +264,9 @@ export class World {
         p.slowUntil = 0;
         break;
       case "revive":
-        if (p.dead) p.respawnAt = t;
+        // an admin's: up where they fell, full life, nothing paid
+        if (p.dead && p.reviveBy) this.standUp(p, p.fellAt, 1);
+        else if (p.dead) p.respawnAt = t;
         break;
       case "spawn":
         Object.assign(p, this.spawnPoint(p));
@@ -391,7 +393,9 @@ export class World {
       spd: +(st.spd / (p.slowUntil > this.t ? 0.5 : 1) / (p.busyUntil > this.t ? 0.45 : 1)).toFixed(2),
       cd: this.cooldowns(p),
       sect: p.sect ? { id: p.sect.id, name: p.sect.name, rank: p.sect.rank, level: p.sect.level, bonus: this.map.pvp ? 0 : sectBonus(p.sect.level, SECT), array: Math.max(0, Math.round((p.sect.arrayUntil - Date.now()) / 1000)) } : null,
-      respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
+      respawn: p.dead ? Math.max(0, +(p.respawnAt - this.t).toFixed(1)) : 0,
+      // fallen in the open world: what rising here costs, and how long before they are taken to town
+      rv: p.dead && p.reviveBy ? { cost: reviveCost(p.level), left: Math.max(0, Math.round(p.reviveBy - this.t)), town: START_MAP === this.map.id ? "" : MAPS[START_MAP].name } : null, itemCd: Math.max(0, +(p.itemCd - this.t).toFixed(1)),
       // Đồ Sát: on or off, whether it works here, how long before it may be switched off, the sát khí now
       pk: { on: p.pk, here: !(this.map.def.nopk || this.map.def.peaceful || this.map.pvp), offIn: p.pk ? this.pkOffIn(p) : 0, sk: satKhiNow(p.satKhi, p.satKhiAt), level: PK.level,
         offDelay: PK.offDelay, bounty: PK.bounty, decay: PK.decayMinutes },
@@ -438,6 +442,9 @@ export class World {
       }
       case "fly":
         return this.setFlying(p, m.on === true);
+      // fallen in the open world: back to Tân Thủ Thôn ("town"), or up where they fell for linh thạch ("here")
+      case "revive":
+        return this.revive(p, m.how === "here" ? "here" : "town");
       // Truyền Tống Trận: standing by an array, sent to a map it lists
       case "tele":
         return this.teleport(p, String(m.to ?? ""));
@@ -755,6 +762,7 @@ export class World {
     // the open world: a player brought down by a player (Đồ Sát), its own reckoning
     if (!this.war && !this.map.pvp && owner && owner !== e) {
       e.respawnAt = this.t + RESPAWN_WORLD;
+      this.fallen(e);
       e.busyUntil = 0;
       e.rootUntil = 0;
       return this.pkKill(owner, e);
@@ -770,6 +778,7 @@ export class World {
       return;
     }
     e.respawnAt = this.t + (this.map.pvp ? PVP.respawn : RESPAWN_WORLD);
+    this.fallen(e);
     e.busyUntil = 0;
     e.rootUntil = 0;
     if (owner && owner !== e) {
@@ -830,6 +839,67 @@ export class World {
     }
     this.broadcast({ t: "pi", ...info(p) });
     this.sendMe(p);
+  }
+  // ---- fallen in the open world (a map of the road, its Khu, an added map): not the Chính Tà battlefield, a Phó Bản run
+  // or the arena, which keep their own ways back
+  /** Whether those who fall here choose how to get up. */
+  revives() {
+    return !this.war && !this.run && !this.map.pvp && !this.grid && !this.map.def.instanced && !this.map.def.peaceful;
+  }
+  /** Just fell: where (the ground under them; `at` for one thrown off lava) and until when they may choose. */
+  fallen(p, at = null) {
+    if (!this.revives()) return void (p.reviveBy = 0);
+    p.reviveBy = this.t + REVIVE.wait;
+    const here = at ?? (p.ground ? { x: p.x, y: p.y } : p.lastGround ?? null);
+    p.fellAt = here && fits(here.x, here.y, this.map) ? { x: here.x, y: here.y } : null;
+  }
+  /** Up again on this map: at `at` (or where one appears), with hp of their life, a moment untouchable. */
+  standUp(p, at, hp) {
+    Object.assign(p, at && fits(at.x, at.y, this.map) ? { x: at.x, y: at.y, vx: 0, vy: 0, ground: false } : this.spawnPoint(p));
+    p.dead = false;
+    p.reviveBy = 0;
+    p.hpFrac = Math.max(0.01, Math.min(1, hp));
+    p.slowUntil = 0;
+    p.protectUntil = this.t + PVP.spawnProtect;
+    this.ev({ e: "spawn", id: p.id });
+    this.sendMe(p);
+  }
+  /** The choice, from the death box: "town" (free, after RESPAWN_WORLD) or "here" (reviveCost linh thạch). */
+  revive(p, how) {
+    const no = (m) => send(p.ws, { t: "toast", m });
+    if (!p.dead || !p.reviveBy || p.warping) return;
+    if (how === "town") {
+      if (this.t < p.respawnAt) return no(`Chờ ${Math.ceil(p.respawnAt - this.t)} giây nữa mới về được Tân Thủ Thôn.`);
+      return this.reviveTown(p, false);
+    }
+    const cost = reviveCost(p.level), have = Math.max(0, p.base.stones + p.pend.stones);
+    if (have < cost) return no(`Cần ${cost.toLocaleString("vi-VN")} linh thạch để hồi sinh tại chỗ (đạo hữu có ${have.toLocaleString("vi-VN")}).`);
+    // the same purse as everything earned and lost in the world (saved with it; never below nothing)
+    p.pend.stones -= cost;
+    this.standUp(p, p.fellAt, REVIVE.hp);
+    send(p.ws, { t: "toast", m: `Hồi sinh tại chỗ: −${cost.toLocaleString("vi-VN")} linh thạch.` });
+  }
+  /** Back to Tân Thủ Thôn, where newcomers appear, full of life (on the town itself: just up at its spawn). */
+  reviveTown(p, timedOut) {
+    if (timedOut) send(p.ws, { t: "toast", m: "Hết thời gian chọn: đạo hữu được đưa về Tân Thủ Thôn." });
+    if (this.map.id === START_MAP || !this.u) return this.standUp(p, null, 1);
+    p.dead = false;
+    p.reviveBy = 0;
+    p.hpFrac = 1;
+    p.slowUntil = 0;
+    // untouchable while the light takes them (transfer gives the usual moment on arrival)
+    p.protectUntil = this.t + 30;
+    p.warping = true;
+    p.flying = false;
+    p.in = { dx: 0, dy: 0, jump: false, down: false };
+    this.ev({ e: "warp", id: p.id, x: Math.round(p.x), y: Math.round(p.y), out: 1 });
+    send(p.ws, { t: "warp", to: START_MAP });
+    const home = mapInfo(START_MAP).spawn;
+    this.u.transfer(p, START_MAP, this.key, { x: home.x, y: home.y }).finally(() => {
+      p.warping = false;
+      // the town was full (every Khu): up at this map's own spawn instead
+      if (!p.gone && p.world === this) this.standUp(p, null, 1);
+    });
   }
   /** v fell to k in the open world. */
   pkKill(k, v) {
@@ -1133,6 +1203,11 @@ export class World {
     const t = this.t;
     if (p.dead) {
       if (p.fish && p.fish.s !== "landing") this.fishEnd(p, "move");
+      // the open world: they choose (town, or here for linh thạch); nobody chose in time: back to town
+      if (p.reviveBy) {
+        if (t >= p.reviveBy && !p.warping) this.reviveTown(p, true);
+        return;
+      }
       if (t >= p.respawnAt) {
         Object.assign(p, this.spawnPoint(p));
         p.dead = false;
@@ -1153,6 +1228,8 @@ export class World {
     const wasGround = p.ground;
     stepBody(p, { ...inp, jump: inp.jump || (p.jumpUntil > t && !(p.rootUntil > t)) }, st.spd * PHYS.RUN * (p.flying ? FLY.speed : 1), DT, this.map, t);
     if (wasGround && !p.ground) p.jumpUntil = 0;
+    // where they last stood: where they get up if they fall in mid-air and pay to rise where they fell
+    if (p.ground) p.lastGround = { x: p.x, y: p.y };
     if (p.moving && p.busyUntil <= t) p.face = inp.dx > 0 ? 1 : -1;
     // a map's burning ground (the abyss's lava): touching it sears off a share of sinh lực and throws the player back out
     // onto the last solid ground they stood on, as a platformer does; nobody wades about at the bottom of a lava pool
@@ -1167,6 +1244,7 @@ export class World {
         p.dead = true;
         p.hpFrac = 0;
         p.respawnAt = t + (this.run ? PB.respawn : RESPAWN_WORLD);
+        this.fallen(p, p.safe);
         this.ev({ e: "die", id: p.id });
         this.feed(`${p.name} đã bị ${this.run ? "độc chướng" : "nham thạch"} thiêu đốt.`);
         this.run?.onFall(p);

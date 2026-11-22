@@ -975,10 +975,37 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       line.append(s);
     }
     showCooldowns();
-    $("respawn").hidden = !(me.respawn > 0);
+    $("respawn").hidden = !(me.respawn > 0) || !!me.rv;
     $("respawnT").textContent = Math.ceil(me.respawn);
+    showDeath();
     $("medLeft").textContent = me.medLeft;
   }
+  // fallen in the open world: the two ways up (the server says what rising here costs and how long they have)
+  let deathAsked = 0;
+  function showDeath() {
+    const rv = me?.rv, box = $("death");
+    if (!rv) return void (box.hidden = true);
+    box.hidden = false;
+    const wait = Math.ceil(me.respawn ?? 0), poor = (me.stones ?? 0) < rv.cost, busy = performance.now() - deathAsked < 1500;
+    const town = rv.town || "điểm hồi sinh";
+    $("dTownName").textContent = town;
+    $("dAutoName").textContent = town;
+    $("dTownT").textContent = wait > 0 ? `sau ${wait} giây` : "miễn phí";
+    $("dTown").disabled = wait > 0 || busy;
+    $("dCost").textContent = rv.cost.toLocaleString("vi-VN");
+    $("dHere").disabled = poor || busy;
+    $("dPoor").hidden = !poor;
+    $("dPoor").textContent = poor ? `thiếu linh thạch (có ${(me.stones ?? 0).toLocaleString("vi-VN")})` : "";
+    $("dHere").title = poor ? `Cần ${rv.cost.toLocaleString("vi-VN")} linh thạch (đạo hữu có ${(me.stones ?? 0).toLocaleString("vi-VN")})` : "Đứng dậy ngay tại chỗ";
+    $("dLeft").textContent = Math.ceil(rv.left);
+  }
+  for (const [id, how] of [["dTown", "town"], ["dHere", "here"]])
+    $(id).addEventListener("click", () => {
+      if (!me?.rv) return;
+      deathAsked = performance.now();
+      send({ t: "revive", how });
+      showDeath();
+    });
   // the basic attack and the five slots: what's on each, and how long until it's ready
   const slotSkill = (i) => (i === 0 ? CLASSES[CLASS].skills[0] : ARTS[arts.slots[i - 1]]);
   function showCooldowns() {
@@ -1447,7 +1474,9 @@ export function startGame({ token, character, inventory, api, onFatal, touch, re
       // count cooldowns down between server updates
       me.cd = me.cd.map((c) => Math.max(0, c - dt));
       if (me.respawn > 0) me.respawn = Math.max(0, me.respawn - dt);
+      if (me.rv) me.rv.left = Math.max(0, me.rv.left - dt);
       showCooldowns();
+      showDeath();
     }
     requestAnimationFrame(render);
   }

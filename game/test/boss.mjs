@@ -24,7 +24,8 @@ async function person(map, exp = 3_000_000) {
   const i = n++;
   const id = (await q("INSERT INTO users (username, pass_hash) VALUES (?, 'x')", [`bs_${tag}_${i}`])).insertId;
   const name = `Bs${tag.slice(0, 4)}${i}`;
-  await q("INSERT INTO characters (user_id, name, class, gender, exp, stones, map_id, faction) VALUES (?, ?, 'tu', 'm', ?, 0, ?, 'c')", [id, name, exp, map]);
+  // linh thạch enough to get up where they fall (the death box: server/world.js revive) and fight on
+  await q("INSERT INTO characters (user_id, name, class, gender, exp, stones, map_id, faction) VALUES (?, ?, 'tu', 'm', ?, 100000, ?, 'c')", [id, name, exp, map]);
   return { id, name, token: await createSession(id) };
 }
 function connect(P) {
@@ -68,6 +69,8 @@ async function fight(c, ms) {
   while (Date.now() < end) {
     const b = bossOf(c), p = me(c);
     if (!b || b[1].dead) break;
+    // fallen: up again where they fell, as a player in a boss fight would
+    if (c.me?.rv && Date.now() - (c.revived ?? 0) > 1000) (tx(c, { t: "revive", how: "here" }), (c.revived = Date.now()));
     if (p && !p.dead) {
       const dx = b[1].x - p.x;
       if (Math.abs(dx) > 50) tx(c, { t: "in", dx: Math.sign(dx), jump: false, down: false });

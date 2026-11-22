@@ -1241,6 +1241,39 @@ Mọi con số nằm trong database (xem phần "Số liệu game" bên dưới)
 
 Muốn chỉnh cân bằng, sửa `shared/balance.js` rồi khởi động lại máy chủ.
 
+## Tử trận ngoài thế giới: về Tân Thủ Thôn hoặc hồi sinh tại chỗ
+
+Khi tử trận ở một bản đồ săn quái (kể cả các Khu và bản đồ AI thêm vào), dù bị yêu thú hạ, bị người chơi Đồ Sát hạ hay
+rơi vào nham thạch, người chơi thấy một bảng có hai lựa chọn:
+
+| Lựa chọn | Giá | Đứng dậy ở đâu |
+| --- | --- | --- |
+| **Về Tân Thủ Thôn** | miễn phí, bấm được sau `respawn.world` giây (mặc định 4) | điểm xuất hiện của Tân Thủ Thôn, đầy sinh lực |
+| **Hồi sinh tại chỗ** | `revive.base` + `revive.per_level` × cấp linh thạch (mặc định 20 + 5 × cấp) | ngay chỗ vừa ngã, với `revive.hp`% sinh lực (mặc định 50) |
+
+Cách hoạt động:
+
+- **Không chọn gì** trong `revive.wait` giây (mặc định 30) thì được đưa về Tân Thủ Thôn.
+- **Thiếu linh thạch** thì nút hồi sinh tại chỗ bị làm mờ, có dòng "thiếu linh thạch (có N)". Máy chủ cũng từ chối.
+- **Linh thạch trừ** chung một ví với mọi khoản được và mất ngoài thế giới, được lưu như chúng và không bao giờ xuống
+  dưới 0.
+- **Chỗ ngã** là nơi đang đứng lúc ngã. Nếu ngã giữa không trung thì là chỗ đứng gần nhất; ngã vào nham thạch thì là mép
+  đất an toàn cuối cùng.
+- **Sau khi đứng dậy** được miễn sát thương `pvp.spawn_protect` giây.
+- **Tân Thủ Thôn đầy** cả 30 Khu thì hồi sinh ở điểm xuất hiện của bản đồ đang đứng.
+- **Không áp dụng** ở Chính Tà (hồi sinh ở doanh trại), Phó Bản (lượt hồi sinh chung) và đấu trường. Những nơi đó giữ cách
+  hồi sinh riêng.
+- **Admin** có nút "Hồi sinh ngay" ở trang người chơi: đứng dậy tại chỗ, đầy máu, miễn phí.
+- **Các số đều chỉnh được** ở trang admin, tab Cài đặt (`revive.*`, `respawn.world`), và có hiệu lực ngay.
+
+Kiểm tra: `node test/hoi-sinh.mjs`. Test đặt quái ngay chỗ một nhân vật yếu xuất hiện để nó bị hạ thật, rồi thử lần lượt:
+
+- bấm về thành quá sớm thì bị từ chối;
+- thiếu linh thạch thì không hồi sinh tại chỗ được;
+- trả đúng giá, đứng dậy đúng chỗ với 50% sinh lực, và số linh thạch trừ được ghi vào database;
+- về Tân Thủ Thôn;
+- hết giờ chọn thì tự về.
+
 ## Bản đồ
 
 Mỗi bản đồ là một file trong `shared/maps/`. Bản đồ dựng từ lưới ô 32 px; mỗi ô gồm 4 ô 16 px của tileset, vẽ đúng cỡ gốc.
