@@ -75,7 +75,7 @@ ask_secret() {
   printf '\n'
 }
 # the panel's own port (a second run) counts as free: it is the panel that holds it
-CUR_PORT="$(sed -nE 's/.*"port": *([0-9]+).*/\1/p' /etc/dvtt-panel/panel.json 2>/dev/null | head -1)"
+CUR_PORT="$( { sed -nE 's/.*"port": *([0-9]+).*/\1/p' /etc/dvtt-panel/panel.json 2>/dev/null || true; } | head -1)"
 port_free() { [ "$1" = "$CUR_PORT" ] || ! ss -ltnH "sport = :$1" 2>/dev/null | grep -q .; }
 valid_port() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1024 ] && [ "$1" -le 65535 ] && ! [[ " 3306 5885 5886 " == *" $1 "* ]]; }
 random_port() { local p; for _ in $(seq 1 50); do p=$((20000 + RANDOM % 40000)); port_free "$p" && { echo "$p"; return; }; done; echo 28443; }
