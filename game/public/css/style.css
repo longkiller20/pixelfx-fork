@@ -2129,3 +2129,18 @@ body.rotated.touch #hud:has(#partyhud:not([hidden])) .chat { top: 200px; }
 .pbp.short .pbrules summary, .pbp.short .pbhist summary { font-size: 11px; }
 .pbp.short .pbrules ul, .pbp.short .pbhist table { font-size: 10.5px; }
 .pbp.short .pbrw th { white-space: nowrap; }
+/* the Gia Viên before it is unlocked: on a phone on its side, the words left, the house and the button right, all at once */
+.gvlock, .gvlside { display: flex; flex-direction: column; gap: 10px; }
+#panel .pbox:has(.gvp.short) { width: min(860px, 100%); border-width: 12px; border-image-width: 12px; }
+#panel:has(.gvp.short) { padding: 4px; }
+#panel .pbox:has(.gvp.short) header h3 { font-size: 14px; margin: 0; }
+#panel .pbox:has(.gvp.short) header h3::after { display: none; }
+.gvp.short .gvlock { display: grid; grid-template-columns: 1.15fr 1fr; gap: 10px; align-items: center; }
+.gvp.short .gvlside { gap: 5px; }
+.gvp.short .gvhero { padding: 7px 10px; font-size: 11.5px; }
+.gvp.short .gvhero h4 { font-size: 13px; margin: 0 0 2px; }
+.gvp.short .gvhero p { margin: 0 0 3px; }
+.gvp.short .gvhero ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; }
+.gvp.short .gvlside .gvhousepic { width: auto !important; max-width: 100%; max-height: 40vh; height: auto; }
+.gvp.short .gvlside .dim { font-size: 10.5px; text-align: center; }
+.gvp.short .gvlside .primary.big { padding: 5px 10px; font-size: 12.5px; border-width: 6px; border-image-width: 6px; }

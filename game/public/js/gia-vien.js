@@ -415,14 +415,20 @@ export function initHomeUI({ call, uuid, panel, flash, game }) {
     const wrap = h("div.gvp.home");
     const inside = !!layer()?.active;
     if (!view.unlocked) {
-      wrap.append(
+      // a phone on its side: the words on the left, the house and the button on the right, nothing to scroll
+      const rot = document.body.classList.contains("rotated"), H = rot ? innerWidth : innerHeight, W = rot ? innerHeight : innerWidth;
+      if (H < 521 || W < 700) wrap.classList.add("short");
+      const lock = h("div.gvlock"), side = h("div.gvlside");
+      wrap.append(lock);
+      lock.append(
         h("div.gvhero", {}, h("h4", { text: "Gia Viên của riêng đạo hữu" }),
           h("p", { text: "Một mảnh đất riêng, chỉ mình đạo hữu bước vào. Chia ba khu:" }),
           h("ul", {},
             h("li", {}, h("b", { text: "Nhà Ở: " }), `tặng kèm ${houseName(DEFAULT_HOUSE, HOME.houses)}, ngôi nhà gỗ hai tầng mái ngói đỏ: lò luyện đan, bàn trà, kệ sách, phòng ngủ trên lầu. Vào ở được ngay.`),
             h("li", {}, h("b", { text: "Nông Trại: " }), "nuôi gà, vịt, lợn, bò. Cho ăn, đợi một lúc là có trứng, sữa, mỡ."),
             h("li", {}, h("b", { text: "Vườn Dược: " }), "8 luống gieo Linh Thảo, Kim Ngân Hoa, Nhân Sâm, Linh Chi. Chín thì thu hoạch."))),
-        houseCanvas("co_trach", 300),
+        side);
+      side.append(houseCanvas("co_trach", 300),
         h("p.dim", { text: "Sản phẩm thu được cất trong túi đồ, dùng cho luyện đan và chế tác sẽ ra mắt sau." }),
         h("button.primary.big", { type: "button", text: `Mở khoá Gia Viên (${fmt(HOME.unlockCost)} linh thạch)`, onclick: (e) => act("/unlock", {}, "Gia Viên đã mở khoá!", e.target) }));
     } else {
