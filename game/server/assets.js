@@ -80,3 +80,5 @@ export function hasFx(id) {
   }
   return fxList.has(id);
 }
+/** Read public/hieu-ung's list again on the next ask (an effect was just copied in). */
+export const forgetFx = () => void (fxAt = 0);

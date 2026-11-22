@@ -10,7 +10,7 @@ import { execFile } from "node:child_process";
 import express from "express";
 import { q, tx, isDup } from "./db.js";
 import { ROOT, config } from "./config.js";
-import { assetsJson, hasPart, hasFx, PART_DIRS, ART_DIR } from "./assets.js";
+import { assetsJson, hasPart, hasFx, forgetFx, PART_DIRS, ART_DIR } from "./assets.js";
 import { hashPassword, verifyPassword, dummyVerify, rateLimit } from "./auth.js";
 import { readConfig, loadConfig } from "./gameconfig.js";
 import { checkConfig, levelFromExp, realmName, expForLevel, MAX_LEVEL, MEDITATE, BUFF_STATS, NAME_RE, GENDERS, HOME, DAOLU } from "../shared/balance.js";
@@ -148,10 +148,15 @@ const whereOf = (kind, g, idx) => (kind === "skin" ? (SKIN[idx] ? `hiệu ứng 
 
 // the pixelfx library next to the game (../src/fx): every effect's id, name and tags, read from the files (cached a minute),
 // each marked with whether the game already has it (public/hieu-ung)
-let fxLib = null, fxLibAt = 0;
+let fxLib = null, fxLibKey = "";
 function fxLibrary() {
-  if (fxLib && Date.now() - fxLibAt < 60_000) return fxLib.map((f) => ({ ...f, inGame: hasFx(f.id) }));
   const dir = join(ROOT, "..", "src", "fx"), out = [];
+  // kept until a category folder changes (an effect added or removed): one stat per folder
+  let key = "";
+  try {
+    key = readdirSync(dir).map((c) => `${c}:${statSync(join(dir, c)).mtimeMs}`).join("|");
+  } catch {}
+  if (fxLib && key === fxLibKey) return fxLib.map((f) => ({ ...f, inGame: hasFx(f.id) }));
   if (existsSync(dir))
     for (const c of readdirSync(dir)) {
       if (!statSync(join(dir, c)).isDirectory()) continue;
@@ -165,7 +170,7 @@ function fxLibrary() {
       }
     }
   fxLib = out.sort((a, b) => a.id.localeCompare(b.id));
-  fxLibAt = Date.now();
+  fxLibKey = key;
   return fxLib.map((f) => ({ ...f, inGame: hasFx(f.id) }));
 }
 
@@ -370,6 +375,7 @@ export function adminApp(world) {
     const out = await new Promise((resolve) =>
       execFile(process.execPath, [join(ROOT, "tools", "hieu-ung.mjs"), id], { cwd: ROOT, timeout: 120000 }, (e, so, se) => resolve({ ok: !e, text: `${so}${se}`.trim() })),
     );
+    forgetFx();
     if (!out.ok) throw bad(`Không chép được hiệu ứng: ${out.text.slice(-400)}`, 500);
     await log(req.admin, "fx.add", id, null);
     res.json({ ok: true, id });
